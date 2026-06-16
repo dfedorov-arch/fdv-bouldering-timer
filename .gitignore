@@ -1,0 +1,23 @@
+# Local HTTPS certificates and private keys
+timer-key.pem
+timer-cert.pem
+timer-cert.pfx
+*.key
+*.pem
+*.pfx
+*.p12
+
+# Dependencies and generated files
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# macOS and editor files
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Runtime logs
+*.log

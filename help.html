@@ -1,0 +1,1107 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Справка — Таймер болдеринга</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%23111722'/%3E%3Ccircle cx='32' cy='36' r='19' fill='none' stroke='%23f4f7fb' stroke-width='5'/%3E%3Cpath d='M32 36V24M32 36l9-6' stroke='%23ffc857' stroke-width='5' stroke-linecap='round'/%3E%3Cpath d='M25 9h14v8H25z' fill='%23f4f7fb'/%3E%3Ccircle cx='32' cy='36' r='3' fill='%2349c6e5'/%3E%3C/svg%3E">
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #edf1f5;
+      --paper: #ffffff;
+      --ink: #17202b;
+      --muted: #647184;
+      --line: #d9e0e8;
+      --cyan: #1687a8;
+      --green: #16865d;
+      --yellow: #b87900;
+      --red: #b33c47;
+      --blue: #316cc9;
+      --dark: #111720;
+      --soft-cyan: #e8f6fa;
+      --soft-green: #eaf7f1;
+      --soft-yellow: #fff4d9;
+      --soft-red: #fcedef;
+      --shadow: 0 18px 54px rgba(24, 39, 58, .12);
+    }
+
+    * { box-sizing: border-box; }
+
+    html {
+      scroll-behavior: smooth;
+      scroll-padding-top: 20px;
+    }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      font-size: 16px;
+      line-height: 1.62;
+    }
+
+    a {
+      color: var(--blue);
+      text-decoration-thickness: 1px;
+      text-underline-offset: 3px;
+    }
+
+    code, kbd {
+      padding: 2px 6px;
+      border: 1px solid #d7dee7;
+      border-radius: 5px;
+      background: #f1f4f7;
+      color: #162231;
+      font: 600 .92em Consolas, "SFMono-Regular", monospace;
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: 270px minmax(0, 980px);
+      justify-content: center;
+      gap: 24px;
+      padding: 24px;
+    }
+
+    .toc {
+      position: sticky;
+      top: 24px;
+      align-self: start;
+      max-height: calc(100vh - 48px);
+      overflow: auto;
+      padding: 18px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, .96);
+      box-shadow: var(--shadow);
+    }
+
+    .toc-brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 16px;
+      color: var(--ink);
+      font-weight: 850;
+    }
+
+    .toc-brand span:first-child {
+      display: grid;
+      width: 34px;
+      height: 34px;
+      place-items: center;
+      border-radius: 50%;
+      color: #111;
+      background: #ffc857;
+      font-size: 18px;
+    }
+
+    .toc nav {
+      display: grid;
+      gap: 3px;
+    }
+
+    .toc a {
+      padding: 7px 9px;
+      border-radius: 5px;
+      color: #526072;
+      font-size: 13px;
+      font-weight: 650;
+      text-decoration: none;
+    }
+
+    .toc a:hover {
+      color: var(--ink);
+      background: #edf3f8;
+    }
+
+    .toc-files {
+      display: grid;
+      gap: 6px;
+      margin-top: 16px;
+      padding-top: 14px;
+      border-top: 1px solid var(--line);
+      font-size: 12px;
+    }
+
+    .content {
+      min-width: 0;
+    }
+
+    .contents-list {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px 28px;
+      margin: 22px 0 0;
+      padding: 0;
+      list-style: none;
+      counter-reset: contents;
+    }
+
+    .contents-list > li {
+      margin: 0;
+      counter-increment: contents;
+    }
+
+    .contents-list > li > a {
+      display: block;
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--line);
+      color: var(--ink);
+      font-weight: 800;
+      text-decoration: none;
+    }
+
+    .contents-list > li > a::before {
+      content: counter(contents) ". ";
+      color: var(--blue);
+    }
+
+    .contents-list ul {
+      margin: 7px 0 8px;
+      padding-left: 32px;
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .contents-list ul li {
+      margin: 4px 0;
+    }
+
+    .chapter-kicker {
+      display: block;
+      margin-bottom: 7px;
+      color: var(--blue);
+      font-size: 12px;
+      font-weight: 900;
+      text-transform: uppercase;
+    }
+
+    .back-to-toc {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      min-height: 36px;
+      margin-top: 26px;
+      padding: 0 12px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      color: #344257;
+      background: #f7f9fb;
+      font-size: 13px;
+      font-weight: 800;
+      text-decoration: none;
+    }
+
+    .back-to-toc:hover {
+      border-color: #aeb9c6;
+      background: #edf2f6;
+    }
+
+    .comparison td:first-child {
+      min-width: 125px;
+      font-weight: 800;
+    }
+
+    .command-key {
+      white-space: nowrap;
+    }
+
+    .platform {
+      padding: 20px 0;
+      border-top: 1px solid var(--line);
+    }
+
+    .platform:first-of-type {
+      border-top: 0;
+    }
+
+    .platform h3 {
+      margin-top: 0;
+    }
+
+    .file-list {
+      columns: 2;
+      padding-left: 22px;
+    }
+
+    .checklist {
+      padding-left: 0;
+      list-style: none;
+    }
+
+    .checklist li {
+      position: relative;
+      padding-left: 28px;
+    }
+
+    .checklist li::before {
+      content: "✓";
+      position: absolute;
+      left: 0;
+      color: var(--green);
+      font-weight: 900;
+    }
+
+    .hero {
+      min-height: 430px;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-end;
+      padding: 48px;
+      border-radius: 8px;
+      color: #fff;
+      background:
+        linear-gradient(90deg, rgba(12, 17, 24, .96), rgba(12, 17, 24, .64)),
+        url("help-assets/overview.jpg") center / cover;
+      box-shadow: var(--shadow);
+    }
+
+    .eyebrow {
+      margin: 0 0 10px;
+      color: #8fd7e8;
+      font-size: 13px;
+      font-weight: 850;
+      text-transform: uppercase;
+    }
+
+    h1 {
+      max-width: 750px;
+      margin: 0;
+      font-size: clamp(38px, 6vw, 66px);
+      line-height: 1;
+      letter-spacing: 0;
+    }
+
+    .hero p {
+      max-width: 700px;
+      margin: 18px 0 0;
+      color: #d6e0ea;
+      font-size: 19px;
+    }
+
+    .hero-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 24px;
+    }
+
+    .hero-actions a {
+      min-height: 38px;
+      display: inline-flex;
+      align-items: center;
+      padding: 0 14px;
+      border: 1px solid rgba(255, 255, 255, .22);
+      border-radius: 6px;
+      color: #fff;
+      background: rgba(255, 255, 255, .08);
+      font-size: 13px;
+      font-weight: 750;
+      text-decoration: none;
+    }
+
+    .panel {
+      margin-top: 20px;
+      padding: 36px 42px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--paper);
+      box-shadow: var(--shadow);
+    }
+
+    h2 {
+      margin: 0 0 18px;
+      font-size: 30px;
+      line-height: 1.16;
+      letter-spacing: 0;
+    }
+
+    h3 {
+      margin: 28px 0 10px;
+      font-size: 20px;
+      line-height: 1.25;
+      letter-spacing: 0;
+    }
+
+    p { margin: 0 0 14px; }
+
+    ul, ol {
+      margin: 10px 0 0;
+      padding-left: 24px;
+    }
+
+    li { margin: 7px 0; }
+
+    .lead {
+      color: var(--muted);
+      font-size: 18px;
+    }
+
+    .steps {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 12px;
+      margin-top: 22px;
+    }
+
+    .step {
+      padding: 18px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #f9fbfc;
+    }
+
+    .step-number {
+      display: grid;
+      width: 30px;
+      height: 30px;
+      place-items: center;
+      margin-bottom: 12px;
+      border-radius: 50%;
+      color: #07130d;
+      background: #61d18c;
+      font-weight: 900;
+    }
+
+    .step strong {
+      display: block;
+      margin-bottom: 6px;
+    }
+
+    .step p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    figure {
+      margin: 24px 0 0;
+    }
+
+    figure img {
+      display: block;
+      width: 100%;
+      border: 1px solid #2b3442;
+      border-radius: 8px;
+      background: var(--dark);
+    }
+
+    figcaption {
+      margin-top: 9px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .grid-2,
+    .grid-3 {
+      display: grid;
+      gap: 14px;
+      margin-top: 18px;
+    }
+
+    .grid-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .grid-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+
+    .card {
+      padding: 20px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fbfcfd;
+    }
+
+    .card h3 {
+      margin-top: 0;
+    }
+
+    .card p:last-child { margin-bottom: 0; }
+
+    .format-classic { border-top: 5px solid #ffc857; }
+    .format-festival { border-top: 5px solid #49c6e5; }
+    .format-final { border-top: 5px solid #6fd294; }
+
+    .note,
+    .warning,
+    .success {
+      margin: 18px 0 0;
+      padding: 17px 19px;
+      border-radius: 8px;
+    }
+
+    .note {
+      border: 1px solid #bcdde7;
+      background: var(--soft-cyan);
+    }
+
+    .warning {
+      border: 1px solid #edd395;
+      background: var(--soft-yellow);
+    }
+
+    .success {
+      border: 1px solid #b9dfcd;
+      background: var(--soft-green);
+    }
+
+    .warning strong { color: #815400; }
+    .success strong { color: var(--green); }
+
+    table {
+      width: 100%;
+      margin-top: 18px;
+      border-collapse: collapse;
+      font-size: 14px;
+    }
+
+    th, td {
+      padding: 11px 12px;
+      border: 1px solid var(--line);
+      text-align: left;
+      vertical-align: top;
+    }
+
+    th {
+      color: #334154;
+      background: #f1f5f8;
+    }
+
+    .keys {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+      margin-top: 14px;
+    }
+
+    .key-row {
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 11px 12px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: #fafcfd;
+      font-size: 14px;
+    }
+
+    .diag {
+      display: inline-block;
+      min-width: 48px;
+      padding: 3px 7px;
+      border-radius: 999px;
+      color: #07130d;
+      background: #61d18c;
+      font-size: 11px;
+      font-weight: 900;
+      text-align: center;
+    }
+
+    .trouble {
+      display: grid;
+      gap: 10px;
+      margin-top: 18px;
+    }
+
+    details {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fbfcfd;
+    }
+
+    summary {
+      padding: 15px 18px;
+      cursor: pointer;
+      color: #273447;
+      font-weight: 800;
+    }
+
+    details div {
+      padding: 0 18px 17px;
+      color: #526072;
+    }
+
+    .footer {
+      padding: 28px 0 10px;
+      color: var(--muted);
+      font-size: 13px;
+      text-align: center;
+    }
+
+    @media (max-width: 980px) {
+      .layout {
+        grid-template-columns: 1fr;
+        padding: 14px;
+      }
+
+      .toc {
+        position: static;
+        max-height: none;
+      }
+
+      .toc nav {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .steps,
+      .grid-3 {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
+
+    @media (max-width: 620px) {
+      .toc {
+        overflow: hidden;
+        padding: 14px;
+      }
+
+      .toc-brand {
+        margin-bottom: 10px;
+      }
+
+      .toc nav {
+        display: flex;
+        gap: 4px;
+        overflow-x: auto;
+        padding-bottom: 3px;
+        scrollbar-width: thin;
+      }
+
+      .toc nav a {
+        flex: 0 0 auto;
+        white-space: nowrap;
+      }
+
+      .toc-files {
+        display: none;
+      }
+
+      .hero,
+      .panel {
+        padding: 26px 20px;
+      }
+
+      .hero {
+        min-height: 430px;
+      }
+
+      .steps,
+      .grid-2,
+      .grid-3,
+      .keys,
+      .contents-list {
+        grid-template-columns: 1fr;
+      }
+
+      .file-list {
+        columns: 1;
+      }
+
+      h1 { font-size: 42px; }
+      h2 { font-size: 25px; }
+
+      table {
+        display: block;
+        overflow-x: auto;
+      }
+    }
+
+    @media print {
+      body { background: #fff; }
+      .layout { display: block; padding: 0; }
+      .toc { display: none; }
+      .hero, .panel { box-shadow: none; break-inside: avoid; }
+      .panel { margin-top: 12px; }
+      a { color: inherit; }
+    }
+  </style>
+</head>
+<body>
+  <div id="top" class="layout">
+    <aside class="toc">
+      <div class="toc-brand"><span>◷</span><span>Таймер болдеринга</span></div>
+      <nav aria-label="Оглавление">
+        <a href="#contents">Оглавление</a>
+        <a href="#quick-start">1. Быстрый старт</a>
+        <a href="#interface">2. Интерфейс</a>
+        <a href="#formats">3. Форматы</a>
+        <a href="#scheduled-start">4. Запуск по времени</a>
+        <a href="#controls">5. Команды и клавиши</a>
+        <a href="#screens">6. Экраны</a>
+        <a href="#sound">7. Звук и мигание</a>
+        <a href="#transfer">8. Перенос и запуск</a>
+        <a href="#settings">9. Параметры</a>
+        <a href="#troubleshooting">10. Проблемы</a>
+      </nav>
+      <div class="toc-files">
+        <a href="index.html">Открыть таймер</a>
+        <a href="ReadMe.txt">Краткий ReadMe</a>
+        <a href="architecture-notes.html">Техническая архитектура</a>
+      </div>
+    </aside>
+
+    <main class="content">
+      <header class="hero">
+        <p class="eyebrow">Полное руководство пользователя</p>
+        <h1>Таймер болдеринга</h1>
+        <p>Последовательная настройка соревнования, запуск по времени, управление синхронными экранами, диагностика и перенос приложения на другой компьютер.</p>
+        <div class="hero-actions">
+          <a href="#contents">Оглавление</a>
+          <a href="index.html">Открыть таймер</a>
+          <a href="#troubleshooting">Найти проблему</a>
+        </div>
+      </header>
+
+      <section id="contents" class="panel">
+        <span class="chapter-kicker">Навигация</span>
+        <h2>Оглавление</h2>
+        <p class="lead">Руководство построено в порядке обычной работы: от запуска и выбора формата до подключения экранов и переноса на новый компьютер.</p>
+        <ol class="contents-list">
+          <li><a href="#quick-start">Быстрый старт</a></li>
+          <li><a href="#interface">Интерфейс</a></li>
+          <li>
+            <a href="#formats">Форматы соревнований</a>
+            <ul>
+              <li><a href="#format-classic">Классика</a></li>
+              <li><a href="#format-festival">Фестиваль</a></li>
+              <li><a href="#format-final">Финал</a></li>
+            </ul>
+          </li>
+          <li><a href="#scheduled-start">Обратный отсчёт и запуск по времени</a></li>
+          <li><a href="#controls">Кнопки и горячие клавиши</a></li>
+          <li>
+            <a href="#screens">Подключение экранов</a>
+            <ul>
+              <li><a href="#screen-control">Управление экранами</a></li>
+              <li><a href="#diagnostics">Диагностика</a></li>
+              <li><a href="#network">Работа без связи</a></li>
+            </ul>
+          </li>
+          <li><a href="#sound">Звук и мигание</a></li>
+          <li>
+            <a href="#transfer">Перенос и запуск на новом компьютере</a>
+            <ul>
+              <li><a href="#windows">Windows</a></li>
+              <li><a href="#macos">macOS</a></li>
+              <li><a href="#https">HTTPS-сертификат</a></li>
+            </ul>
+          </li>
+          <li><a href="#settings">Файл params.txt</a></li>
+          <li><a href="#troubleshooting">Устранение проблем</a></li>
+        </ol>
+      </section>
+
+      <section id="quick-start" class="panel">
+        <span class="chapter-kicker">Глава 1</span>
+        <h2>Быстрый старт</h2>
+        <p class="lead">Минимальная последовательность для запуска одного управляющего браузера и нескольких экранов.</p>
+        <div class="steps">
+          <article class="step">
+            <span class="step-number">1</span>
+            <strong>Запустите сервер</strong>
+            <p><code>start-timer.bat</code> на Windows или <code>start-timer-mac.command</code> на macOS.</p>
+          </article>
+          <article class="step">
+            <span class="step-number">2</span>
+            <strong>Откройте управление</strong>
+            <p>На серверном компьютере используйте <code>http://127.0.0.1:8008/</code>.</p>
+          </article>
+          <article class="step">
+            <span class="step-number">3</span>
+            <strong>Назначьте основной</strong>
+            <p>Включите «Основной браузер» или нажмите <kbd>Ctrl+M</kbd> / <kbd>Ctrl+Ь</kbd>.</p>
+          </article>
+          <article class="step">
+            <span class="step-number">4</span>
+            <strong>Подключите экраны</strong>
+            <p>Откройте напечатанный сервером сетевой адрес на остальных устройствах.</p>
+          </article>
+        </div>
+        <ol>
+          <li>Выберите формат и задайте длительности.</li>
+          <li>Для немедленного запуска нажмите «Старт» или <kbd>Z</kbd> / <kbd>Я</kbd>.</li>
+          <li>Для старта по часам задайте время и нажмите маленькую кнопку <strong>▶</strong> рядом с заголовком «Время начала старта».</li>
+        </ol>
+        <div class="success"><strong>Готовая ссылка:</strong> IP основного браузера в списке «Браузеры» кликабелен. Нажатие копирует адрес с тем же протоколом HTTP/HTTPS и правильным портом.</div>
+        <a class="back-to-toc" href="#contents">↑ К оглавлению</a>
+      </section>
+
+      <section id="interface" class="panel">
+        <span class="chapter-kicker">Глава 2</span>
+        <h2>Интерфейс</h2>
+        <p>На компьютере панель управления находится слева, поле таймера — справа. Панель прокручивается отдельно, поэтому крупный таймер остаётся на месте даже при длинном списке браузеров.</p>
+        <figure>
+          <img src="help-assets/overview.jpg" alt="Основной интерфейс таймера болдеринга">
+          <figcaption>Основной браузер: формат, параметры, настройки экранов, команды и список подключений.</figcaption>
+        </figure>
+        <h3>Панель управления</h3>
+        <ul>
+          <li><strong>Формат</strong> — готовые режимы «Классика», «Фестиваль» и «Финал».</li>
+          <li><strong>Параметры</strong> — время старта, длительность ротации или раунда и перерыва.</li>
+          <li><strong>Переключатели</strong> — роль браузера, звук, удалённый звук, удалённый полный экран и мигание.</li>
+          <li><strong>Управление</strong> — старт, пауза, сброс и полноэкранный режим.</li>
+          <li><strong>Браузеры</strong> — подключённые устройства и их диагностика.</li>
+        </ul>
+        <h3>Поле таймера</h3>
+        <p>Показывает оставшееся время текущего отрезка, ротацию или перерыв, номер цикла, следующее действие и прогресс.</p>
+        <p class="note">Параметры активного запуска фиксируются на сервере. Изменять формат и длительности лучше до старта либо после «Сброса».</p>
+        <a class="back-to-toc" href="#contents">↑ К оглавлению</a>
+      </section>
+
+      <section id="formats" class="panel">
+        <span class="chapter-kicker">Глава 3</span>
+        <h2>Форматы соревнований</h2>
+        <p class="lead">Формат определяет единицы параметров, цикличность и поведение после окончания времени.</p>
+
+        <div id="format-classic" class="platform">
+          <h3>3.1. Классика</h3>
+          <p>Классический формат по французской системе. Ротация и короткий перерыв повторяются циклически без заранее заданного числа циклов.</p>
+          <ul>
+            <li>Время ротации задаётся в минутах, перерыв — в секундах.</li>
+            <li>После окончания ротации автоматически начинается перерыв, затем следующая ротация.</li>
+            <li>Номер цикла увеличивается после каждой пары «ротация + перерыв».</li>
+            <li>Если перерыв равен нулю, следующая ротация начинается сразу.</li>
+          </ul>
+        </div>
+
+        <div id="format-festival" class="platform">
+          <h3>3.2. Фестиваль</h3>
+          <p>Циклический формат с длинным раундом и длительным перерывом. Он работает по той же схеме повторения, что и «Классика», но обе длительности задаются в минутах.</p>
+          <ul>
+            <li>После раунда начинается перерыв, после перерыва — следующий раунд.</li>
+            <li>При доступном системном голосе звучат объявления за 60, 30, 10 и 5 минут до конца раунда.</li>
+            <li>Если перерыв равен нулю, следующий фестивальный раунд начинается сразу.</li>
+          </ul>
+        </div>
+
+        <div id="format-final" class="platform">
+          <h3>3.3. Финал</h3>
+          <p>Международный одноразовый формат. Он выполняет одну ротацию и, если задан, один перерыв.</p>
+          <ul>
+            <li>Время ротации задаётся в минутах, перерыв — в секундах.</li>
+            <li>Поле перерыва можно оставить пустым или установить ноль.</li>
+            <li>После ротации и необязательного перерыва таймер останавливается на <code>00:00</code>; в обычном основном интерфейсе это состояние дополнительно отмечается как завершённое.</li>
+            <li>Для следующего финального запуска достаточно снова нажать «Старт» или <kbd>Z</kbd> / <kbd>Я</kbd>.</li>
+          </ul>
+        </div>
+
+        <table class="comparison">
+          <thead><tr><th>Свойство</th><th>Классика</th><th>Фестиваль</th><th>Финал</th></tr></thead>
+          <tbody>
+            <tr><td>Ротация / раунд</td><td>Минуты</td><td>Минуты</td><td>Минуты</td></tr>
+            <tr><td>Перерыв</td><td>Секунды</td><td>Минуты</td><td>Секунды или без перерыва</td></tr>
+            <tr><td>Повторение</td><td>Бесконечные циклы</td><td>Бесконечные циклы</td><td>Один запуск</td></tr>
+            <tr><td>После окончания</td><td>Следующий цикл</td><td>Следующий цикл</td><td><code>00:00</code>, затем «Старт» для нового запуска</td></tr>
+          </tbody>
+        </table>
+        <a class="back-to-toc" href="#contents">↑ К оглавлению</a>
+      </section>
+
+      <section id="scheduled-start" class="panel">
+        <span class="chapter-kicker">Глава 4</span>
+        <h2>Обратный отсчёт и запуск по времени</h2>
+        <p>Поля часов и минут не изменяют действие обычной кнопки «Старт». Чтобы использовать указанное время, нажмите отдельную маленькую кнопку <strong>▶</strong> справа от надписи «Время начала старта». Горячей клавиши у неё нет.</p>
+        <h3>Классика и Фестиваль</h3>
+        <ul>
+          <li><strong>Время в будущем:</strong> показывается обратный отсчёт, в назначенный момент первый цикл стартует автоматически.</li>
+          <li><strong>Время сегодня уже прошло:</strong> таймер восстанавливает текущую ротацию или перерыв так, будто соревнование началось в указанное время.</li>
+          <li>При восстановлении учитываются все прошедшие циклы; на экране сразу появляется актуальный номер цикла и остаток текущего отрезка.</li>
+        </ul>
+        <h3>Финал</h3>
+        <ul>
+          <li><strong>Время в будущем:</strong> идёт предварительный обратный отсчёт.</li>
+          <li>На нуле финал не начинается автоматически: таймер ждёт нажатия «Старт» или <kbd>Z</kbd> / <kbd>Я</kbd>.</li>
+          <li><strong>Время сегодня уже прошло:</strong> обратный отсчёт назначается на это время следующего дня; восстановление середины финала не выполняется.</li>
+        </ul>
+        <h3>Отмена назначенного старта</h3>
+        <p>Во время обратного отсчёта нажмите «Пауза» или <kbd>Ctrl+Q</kbd> / <kbd>Ctrl+Й</kbd>, чтобы остановить ожидание. «Сброс» или <kbd>P</kbd> / <kbd>З</kbd> возвращает таймер в исходное состояние. Чтобы снова назначить старт, проверьте время и повторно нажмите <strong>▶</strong>.</p>
+        <div class="warning"><strong>Практический совет:</strong> заполняйте и часы, и минуты. Кнопка <strong>▶</strong> доступна только до начала соревнования, пока таймер не запущен, не поставлен на паузу в середине и не завершён.</div>
+        <a class="back-to-toc" href="#contents">↑ К оглавлению</a>
+      </section>
+
+      <section id="controls" class="panel">
+        <span class="chapter-kicker">Глава 5</span>
+        <h2>Кнопки и горячие клавиши</h2>
+        <table class="comparison">
+          <thead><tr><th>Кнопка</th><th>Действие</th><th>Клавиатура</th></tr></thead>
+          <tbody>
+            <tr>
+              <td>Старт</td>
+              <td>Немедленно запускает выбранный формат или продолжает после паузы. Указанное в полях время игнорируется. В финале также запускает соревнование после предварительного отсчёта или после предыдущего завершения на <code>00:00</code>.</td>
+              <td class="command-key"><kbd>Z</kbd> / <kbd>Я</kbd></td>
+            </tr>
+            <tr>
+              <td>Пауза</td>
+              <td>Останавливает текущую ротацию, перерыв или предварительный обратный отсчёт и сохраняет положение на сервере.</td>
+              <td class="command-key"><kbd>Ctrl+Q</kbd> / <kbd>Ctrl+Й</kbd></td>
+            </tr>
+            <tr>
+              <td>Сброс</td>
+              <td>Отменяет активный запуск, паузу, назначенный старт или завершённое состояние финала и возвращает начало первого отрезка с текущими параметрами.</td>
+              <td class="command-key"><kbd>P</kbd> / <kbd>З</kbd></td>
+            </tr>
+            <tr>
+              <td>Экран</td>
+              <td>Включает или выключает полный экран в текущем основном браузере.</td>
+              <td class="command-key"><kbd>Ctrl+F</kbd> / <kbd>Ctrl+А</kbd></td>
+            </tr>
+            <tr>
+              <td>Основной браузер</td>
+              <td>Назначает текущий браузер управляющим или снимает с него эту роль.</td>
+              <td class="command-key"><kbd>Ctrl+M</kbd> / <kbd>Ctrl+Ь</kbd></td>
+            </tr>
+            <tr>
+              <td>Запуск по времени ▶</td>
+              <td>Использует часы и минуты по правилам главы 4.</td>
+              <td>Нет горячей клавиши</td>
+            </tr>
+          </tbody>
+        </table>
+        <p class="note"><strong>Пробел не является горячей клавишей</strong> и не запускает и не останавливает таймер. Других клавиш, влияющих на старт или паузу, нет.</p>
+        <h3>Полоса прогресса</h3>
+        <p>Когда соревнование поставлено на паузу после начала, основной браузер может переместить положение внутри текущей ротации или перерыва, нажав нужное место на полосе прогресса. Во время работы и в браузерах-экранах перемотка отключена.</p>
+        <a class="back-to-toc" href="#contents">↑ К оглавлению</a>
+      </section>
+
+      <section id="screens" class="panel">
+        <span class="chapter-kicker">Глава 6</span>
+        <h2>Подключение и управление экранами</h2>
+        <h3>6.1. Подключение</h3>
+        <ol>
+          <li>Подключите серверный компьютер и все экраны к одной локальной сети.</li>
+          <li>Запустите таймер. В окне запуска найдите адрес Wi-Fi или Ethernet, например <code>http://192.168.1.68:8008/</code>.</li>
+          <li>Откройте этот адрес на телефоне, планшете, телевизоре или другом компьютере.</li>
+          <li>В управляющем браузере включите «Основной браузер». Все остальные подключения автоматически перейдут в режим экрана.</li>
+          <li>На мобильных устройствах один раз коснитесь страницы, чтобы браузер разрешил звук и попытку перехода в полный экран.</li>
+        </ol>
+        <p class="success"><strong>Основной IP:</strong> даже если управляющий браузер открыт через <code>127.0.0.1</code>, приложение старается показать пригодный для других устройств сетевой IP. Только IP основного браузера кликабелен и копирует готовую ссылку.</p>
+
+        <h3 id="screen-control">6.2. Что можно делать из основного браузера</h3>
+        <ul>
+          <li>Одновременно запускать, ставить на паузу и сбрасывать таймер на всех экранах.</li>
+          <li>Менять формат, параметры и язык интерфейса для подключённых браузеров.</li>
+          <li>Включать «Звук в других браузерах» для всех второстепенных экранов.</li>
+          <li>Включать «Полный экран в других браузерах». Если браузер блокирует удалённый переход, на экране потребуется тап.</li>
+          <li>Просматривать состояние каждого браузера, тестировать его звук и настраивать индивидуальную временную поправку.</li>
+        </ul>
+        <p>Основной браузер расположен первым в списке и отмечен словом «этот». Сочетание <kbd>Ctrl+M</kbd> / <kbd>Ctrl+Ь</kbd> позволяет быстро переназначить роль при аварийной ситуации.</p>
+
+        <h3 id="diagnostics">6.3. Диагностика подключений</h3>
+        <p>Строка браузера содержит название и версию, операционную систему, IP, роль, протокол и цветные индикаторы. Наведение на индикатор показывает подробности.</p>
+        <figure>
+          <img src="help-assets/diagnostics.jpg" alt="Диагностика AUDIO в списке подключённых браузеров">
+          <figcaption>Нажатие AUDIO открывает поправку звука и тестовые сигналы выбранного браузера.</figcaption>
+        </figure>
+        <table>
+          <thead><tr><th>Индикатор</th><th>Назначение</th></tr></thead>
+          <tbody>
+            <tr><td><span class="diag">NET</span></td><td>Состояние связи и задержка запроса. До 100 мс — зелёный, до 200 мс — жёлтый, выше — красный.</td></tr>
+            <tr><td><span class="diag">SYNC</span></td><td>Оценка ошибки синхронизации и разброс последних измерений. До 100 мс — зелёный, до 300 мс — жёлтый.</td></tr>
+            <tr><td><span class="diag">AUDIO</span></td><td>Разрешён ли звук, разблокирован ли он пользовательским касанием и какая задана индивидуальная поправка.</td></tr>
+            <tr><td><span class="diag">WAKE</span></td><td>Поддерживает ли браузер блокировку сна и активна ли она.</td></tr>
+            <tr><td><span class="diag">SSE</span></td><td>Работает ли постоянное соединение для мгновенной доставки команд.</td></tr>
+            <tr><td><span class="diag">TAB</span></td><td>Находится ли вкладка в видимом состоянии.</td></tr>
+          </tbody>
+        </table>
+        <h3>Настройка AUDIO</h3>
+        <ol>
+          <li>Нажмите индикатор AUDIO нужного браузера.</li>
+          <li>Установите поправку от −500 до +500 мс: отрицательная запускает звук раньше, положительная — позже.</li>
+          <li>Проверьте сигналы кнопками «Старт», «1 мин» и «5 сек».</li>
+          <li>Для проверки всех устройств из строки основного браузера включите «Проверить везде, где разрешён звук».</li>
+          <li>Повторно нажмите AUDIO, чтобы сохранить поправку.</li>
+        </ol>
+
+        <h3 id="network">6.4. Работа при временной потере сети</h3>
+        <p>Сервер хранит общую точку старта, но каждый браузер самостоятельно рассчитывает текущее время. Поэтому потеря Wi-Fi сама по себе не должна останавливать цифры.</p>
+        <ul>
+          <li>Команды обычно приходят через SSE; резервная синхронизация выполняется примерно раз в две секунды.</li>
+          <li>Неуспешный сетевой запрос ограничен тайм-аутом и не блокирует локальный ход таймера.</li>
+          <li>После возвращения в локальную сеть экран автоматически получает актуальное состояние сервера.</li>
+        </ul>
+        <div class="warning"><strong>Ограничение:</strong> пока экран находится вне локальной сети, он не узнает о новых командах «Пауза», «Сброс» или изменениях параметров. Он продолжает последнее известное состояние до восстановления связи.</div>
+        <a class="back-to-toc" href="#contents">↑ К оглавлению</a>
+      </section>
+
+      <section id="sound" class="panel">
+        <span class="chapter-kicker">Глава 7</span>
+        <h2>Звук и мигание</h2>
+        <ul>
+          <li><strong>Звук</strong> в основном браузере управляет только звуком этого управляющего браузера.</li>
+          <li><strong>Звук в других браузерах</strong> разрешает сигналы на подключённых экранах.</li>
+          <li>Дополнительный браузер на том же компьютере, что и основной, автоматически не дублирует звук.</li>
+          <li><strong>Мигание</strong> включает визуальную вспышку вместе с предупреждающими сигналами.</li>
+          <li>Выключение звука отменяет уже запланированные аудиосигналы.</li>
+        </ul>
+        <p>Используются сигнал начала ротации или перерыва, минутное предупреждение и последние пять секунд. В «Фестивале» дополнительно работают голосовые объявления за 60, 30, 10 и 5 минут, если операционная система предоставляет подходящий голос.</p>
+        <p>MP3-файлы для трёх пользовательских сигналов задаются в <code>params.txt</code>: <code>phase_signal_mp3</code>, <code>minute_signal_mp3</code> и <code>warning_signal_mp3</code>. Если параметр отсутствует, пустой или файл не загрузился, только этот сигнал воспроизводится синтетически.</p>
+        <p class="note">Мобильные браузеры запрещают автоматический звук до первого пользовательского действия. Коснитесь страницы и убедитесь, что AUDIO стал зелёным.</p>
+        <a class="back-to-toc" href="#contents">↑ К оглавлению</a>
+      </section>
+
+      <section id="transfer" class="panel">
+        <span class="chapter-kicker">Глава 8</span>
+        <h2>Перенос и запуск на новом компьютере</h2>
+        <p class="lead">Приложение переносимое: копируйте папку целиком, затем подготовьте Node.js, сеть и при необходимости новый сертификат.</p>
+
+        <h3>8.1. Что переносить</h3>
+        <p>Перед копированием остановите таймер. В новой папке должны сохраниться как минимум:</p>
+        <ul class="file-list">
+          <li><code>index.html</code></li>
+          <li><code>serve-bouldering-timer.js</code></li>
+          <li><code>params.txt</code></li>
+            <li>MP3-файлы, указанные в <code>params.txt</code></li>
+          <li><code>help.html</code></li>
+          <li><code>help-assets</code></li>
+          <li>скрипты запуска своей ОС</li>
+          <li><code>runtime</code> или <code>node</code>, если используется portable Node.js</li>
+        </ul>
+        <p>Сертификаты можно перенести, но после смены компьютера или сетевого IP надёжнее создать их заново. Текущее состояние и прошедшее время хранятся в памяти сервера и после его остановки не переносятся.</p>
+
+        <h3>8.2. Node.js</h3>
+        <p>Используйте актуальную LTS-версию Node.js. Есть два варианта:</p>
+        <ol>
+          <li><strong>Системная установка:</strong> установите Node.js с <a href="https://nodejs.org/en/download">nodejs.org</a> и проверьте командой <code>node -v</code>.</li>
+          <li><strong>Portable runtime:</strong> перенесите подходящий исполняемый файл внутри папки проекта. Скрипт запуска сначала ищет portable Node.js, затем системный.</li>
+        </ol>
+        <table>
+          <thead><tr><th>ОС</th><th>Поддерживаемые расположения portable Node.js</th></tr></thead>
+          <tbody>
+            <tr><td>Windows</td><td><code>runtime\win\node.exe</code>, <code>runtime\win-x64\node.exe</code>, <code>runtime\node.exe</code>, <code>node\win-x64\node.exe</code>, <code>node\node.exe</code></td></tr>
+            <tr><td>macOS</td><td><code>runtime/mac/bin/node</code>, <code>runtime/mac/node</code>, <code>runtime/mac-arm64/bin/node</code>, <code>runtime/mac-x64/bin/node</code>, <code>runtime/mac-universal/bin/node</code>, <code>runtime/node</code>, <code>node/mac-arm64/bin/node</code>, <code>node/mac-x64/bin/node</code>, <code>node/bin/node</code></td></tr>
+          </tbody>
+        </table>
+
+        <div id="windows" class="platform">
+          <h3>8.3. Первый запуск на Windows</h3>
+          <ol>
+            <li>При необходимости проверьте порты и начальные значения в <code>params.txt</code>.</li>
+            <li>Дважды щёлкните <code>start-timer.bat</code>.</li>
+            <li>Если Windows Firewall запросит доступ для Node.js, разрешите его для частных сетей.</li>
+            <li>Откроется <code>http://127.0.0.1:8008/</code>, а окно запуска покажет адреса Wi-Fi и Ethernet.</li>
+            <li>Не закрывайте минимизированное окно сервера «Bouldering Timer Server» во время соревнования.</li>
+          </ol>
+          <p class="warning"><strong>Порты:</strong> штатный скрипт перед запуском останавливает процессы, слушающие HTTP- и HTTPS-порты из <code>params.txt</code>. Не назначайте эти порты другому важному приложению.</p>
+        </div>
+
+        <div id="macos" class="platform">
+          <h3>8.4. Первый запуск на macOS</h3>
+          <ol>
+            <li>При необходимости проверьте <code>params.txt</code>.</li>
+            <li>Дважды щёлкните <code>start-timer-mac.command</code>.</li>
+            <li>Откроется Terminal, затем локальная страница таймера. В Terminal будут напечатаны сетевые адреса.</li>
+            <li>Оставьте окно Terminal открытым. Для остановки сервера нажмите <kbd>Ctrl+C</kbd>.</li>
+          </ol>
+          <p>Если macOS сообщает, что разработчик не подтверждён, щёлкните файл правой кнопкой и выберите «Открыть». Если появляется «Permission denied», выполните в Terminal из папки проекта:</p>
+          <p><code>chmod +x start-timer-mac.command create-https-certificate-mac.command</code></p>
+          <p>Для portable Node.js выбирайте сборку своей архитектуры: <code>arm64</code> для Apple Silicon или <code>x64</code> для Intel.</p>
+        </div>
+
+        <div id="https" class="platform">
+          <h3>8.5. HTTP и HTTPS</h3>
+          <p>HTTP работает сразу. HTTPS полезен для мобильных браузеров и функций, которым нужен защищённый контекст, но локальный сертификат остаётся самоподписанным.</p>
+          <table>
+            <thead><tr><th>ОС</th><th>Создание сертификата</th><th>Результат</th></tr></thead>
+            <tbody>
+              <tr><td>Windows</td><td><code>create-https-certificate.bat</code></td><td>PEM через OpenSSL либо <code>timer-cert.pfx</code> встроенными средствами Windows</td></tr>
+              <tr><td>macOS</td><td><code>create-https-certificate-mac.command</code></td><td><code>timer-key.pem</code> и <code>timer-cert.pem</code></td></tr>
+            </tbody>
+          </table>
+          <ol>
+            <li>Создавайте сертификат при подключённой рабочей сети: скрипт включает найденные IP-адреса в сертификат.</li>
+            <li>После создания обязательно перезапустите сервер.</li>
+            <li>Первое открытие HTTPS может показать предупреждение. Откройте дополнительные параметры и разрешите переход к локальному сайту.</li>
+            <li>После смены компьютера или локального IP пересоздайте сертификат.</li>
+          </ol>
+          <p class="warning"><strong>Ошибка Unsupported PKCS12 PFX data:</strong> файл <code>timer-cert.pfx</code> повреждён, имеет другой формат или пароль. Удалите только этот PFX, снова запустите штатный скрипт создания сертификата и перезапустите таймер. Не переименовывайте произвольный сертификат в <code>.pfx</code>.</p>
+        </div>
+
+        <h3>8.6. Проверка после переноса</h3>
+        <ul class="checklist">
+          <li>Локальная страница открывается по <code>127.0.0.1</code>.</li>
+          <li>Телефон открывает адрес Wi-Fi или Ethernet с указанным портом.</li>
+          <li>Один браузер назначен основным, остальные видны как экраны.</li>
+          <li>Работают «Старт», «Пауза», «Сброс» и соответствующие горячие клавиши.</li>
+          <li>AUDIO, WAKE, SSE и TAB показывают ожидаемое состояние.</li>
+          <li>Звуковые сигналы слышны только на нужных устройствах.</li>
+        </ul>
+        <a class="back-to-toc" href="#contents">↑ К оглавлению</a>
+      </section>
+
+      <section id="settings" class="panel">
+        <span class="chapter-kicker">Глава 9</span>
+        <h2>Файл params.txt</h2>
+        <p>Файл задаёт начальные значения при старте сервера. После изменения остановите и снова запустите приложение.</p>
+        <table>
+          <thead><tr><th>Параметр</th><th>Назначение</th><th>Пример</th></tr></thead>
+          <tbody>
+            <tr><td><code>http_port</code></td><td>Порт HTTP</td><td>8008</td></tr>
+            <tr><td><code>https_port</code></td><td>Порт HTTPS</td><td>8443</td></tr>
+            <tr><td><code>language</code></td><td>Начальный язык интерфейса</td><td>ru / en</td></tr>
+            <tr><td><code>classic_rotation_minutes</code></td><td>Ротация «Классики», минуты</td><td>5</td></tr>
+            <tr><td><code>classic_break_seconds</code></td><td>Перерыв «Классики», секунды</td><td>15</td></tr>
+            <tr><td><code>festival_round_minutes</code></td><td>Фестивальный раунд, минуты</td><td>120</td></tr>
+            <tr><td><code>festival_break_minutes</code></td><td>Фестивальный перерыв, минуты</td><td>30</td></tr>
+            <tr><td><code>final_rotation_minutes</code></td><td>Ротация финала, минуты</td><td>4</td></tr>
+            <tr><td><code>primary_browser</code></td><td>Автоматически назначить первый браузер основным</td><td>false</td></tr>
+            <tr><td><code>sound</code></td><td>Начальное состояние звука</td><td>true</td></tr>
+            <tr><td><code>sound_in_other_browsers</code></td><td>Начальное состояние звука экранов</td><td>false</td></tr>
+            <tr><td><code>flashing</code></td><td>Начальное состояние мигания</td><td>true</td></tr>
+            <tr><td><code>phase_signal_mp3</code></td><td>MP3 начала ротации, перерыва и перехода фаз. Пустое значение включает синтетический сигнал.</td><td>880_1.mp3</td></tr>
+            <tr><td><code>minute_signal_mp3</code></td><td>MP3 сигнала за одну минуту. Пустое значение включает синтетический сигнал.</td><td>3520_02_1.mp3</td></tr>
+            <tr><td><code>warning_signal_mp3</code></td><td>MP3 для последних пяти секунд. Пустое значение включает синтетический сигнал.</td><td>3520_02_1.mp3</td></tr>
+          </tbody>
+        </table>
+        <p class="note">Значения, изменённые в интерфейсе, действуют в текущем запуске сервера, но не переписывают <code>params.txt</code>.</p>
+        <a class="back-to-toc" href="#contents">↑ К оглавлению</a>
+      </section>
+
+      <section id="troubleshooting" class="panel">
+        <span class="chapter-kicker">Глава 10</span>
+        <h2>Устранение проблем</h2>
+        <div class="trouble">
+          <details open>
+            <summary>127.0.0.1 работает, а сетевой IP — нет</summary>
+            <div>Проверьте, что устройства находятся в одной обычной, не гостевой сети; используется адрес Wi-Fi/Ethernet с портом; Node.js разрешён в Firewall; VPN отключён; роутер не изолирует клиентов.</div>
+          </details>
+          <details>
+            <summary>В списке показывается неправильный сетевой адрес</summary>
+            <div>На компьютере могут быть VPN, Docker, виртуальные адаптеры и несколько сетевых интерфейсов. Используйте адрес, помеченный Wi-Fi или Ethernet в окне запуска. Кликабельный IP основного браузера копирует ссылку с его протоколом и портом.</div>
+          </details>
+          <details>
+            <summary>На телефоне нет звука или полного экрана</summary>
+            <div>Один раз коснитесь страницы, проверьте AUDIO, системную громкость и беззвучный режим. Для полного экрана включите соответствующий переключатель в основном браузере и снова коснитесь экрана.</div>
+          </details>
+          <details>
+            <summary>Экран погас или вкладка уснула</summary>
+            <div>Проверьте WAKE и TAB, отключите энергосбережение и автоблокировку, оставьте вкладку видимой. Некоторые мобильные ОС могут принудительно ограничивать браузер даже при активном Wake Lock.</div>
+          </details>
+          <details>
+            <summary>После переключения телефона на сотовую сеть команды не приходят</summary>
+            <div>Это ожидаемо: сервер доступен только в локальной сети. Локальный отсчёт продолжится, но «Пауза» и «Сброс» будут получены только после возвращения к Wi-Fi.</div>
+          </details>
+          <details>
+            <summary>Изменения интерфейса не появились</summary>
+            <div>Перезагрузите страницу с очисткой кэша: <kbd>Command+Shift+R</kbd> на macOS или <kbd>Ctrl+Shift+R</kbd> на Windows. После изменения <code>serve-bouldering-timer.js</code> перезапустите сервер.</div>
+          </details>
+          <details>
+            <summary>Порт уже занят</summary>
+            <div>Измените <code>http_port</code> и <code>https_port</code> в <code>params.txt</code> либо остановите другое приложение на этих портах. Штатные скрипты пытаются освободить настроенные порты перед запуском.</div>
+          </details>
+          <details>
+            <summary>HTTPS показывает предупреждение</summary>
+            <div>Сертификат самоподписанный. Разрешите открытие локального сайта через дополнительные параметры браузера. Если IP изменился, создайте сертификат заново.</div>
+          </details>
+          <details>
+            <summary>Ошибка Unsupported PKCS12 PFX data</summary>
+            <div>Удалите повреждённый <code>timer-cert.pfx</code>, создайте сертификат штатным Windows-скриптом и перезапустите приложение. Сервер ожидает PFX, созданный этим скриптом, с паролем <code>bouldering-timer</code>.</div>
+          </details>
+        </div>
+        <a class="back-to-toc" href="#contents">↑ К оглавлению</a>
+      </section>
+
+      <p class="footer">2026 Фёдоров Денис + Codex · MIT License · Полное руководство пользователя</p>
+    </main>
+  </div>
+</body>
+</html>

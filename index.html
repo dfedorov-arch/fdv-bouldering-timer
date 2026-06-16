@@ -1,0 +1,3417 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Таймер болдеринга</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23111722'/%3E%3Ccircle cx='32' cy='36' r='20' fill='%23f4f7fb'/%3E%3Ccircle cx='32' cy='36' r='15' fill='%23111722'/%3E%3Cpath d='M32 36V24M32 36l9-6' stroke='%2349c6e5' stroke-width='5' stroke-linecap='round'/%3E%3Cpath d='M25 9h14v8H25z' fill='%23f4f7fb'/%3E%3Cpath d='M43 15l6 6' stroke='%23ffc857' stroke-width='5' stroke-linecap='round'/%3E%3Ccircle cx='32' cy='36' r='3' fill='%23ffc857'/%3E%3C/svg%3E">
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #0e1116;
+      --panel: #171b22;
+      --panel-2: #202631;
+      --line: #303746;
+      --text: #f4f7fb;
+      --muted: #a9b2c1;
+      --green: #26d07c;
+      --red: #f05a59;
+      --yellow: #ffc857;
+      --cyan: #49c6e5;
+      --blue: #6d9cff;
+      --shadow: 0 20px 70px rgba(0, 0, 0, .34);
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body { min-height: 100%; }
+
+    body {
+      margin: 0;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+    }
+
+    button, input, select {
+      font: inherit;
+    }
+
+    button {
+      border: 0;
+      cursor: pointer;
+      color: var(--text);
+      background: var(--panel-2);
+    }
+
+    button:disabled {
+      cursor: not-allowed;
+      opacity: .45;
+    }
+
+    .app {
+      min-height: 100vh;
+      display: grid;
+      grid-template-columns: minmax(280px, 380px) minmax(0, 1fr);
+    }
+
+    .controls {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      padding: 20px;
+      background: rgba(23, 27, 34, .92);
+      border-right: 1px solid var(--line);
+      overflow: auto;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+
+    .brand-copy {
+      min-width: 0;
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
+    .language-toggle {
+      flex: 0 0 auto;
+      min-width: 42px;
+      min-height: 30px;
+      padding: 0 8px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 900;
+    }
+
+    .brand-mark {
+      width: 38px;
+      height: 42px;
+      display: grid;
+      place-items: center;
+      color: var(--text);
+    }
+
+    .brand-mark svg {
+      width: 36px;
+      height: 36px;
+      display: block;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 22px;
+      line-height: 1.1;
+      letter-spacing: 0;
+    }
+
+    .subtitle {
+      margin: 4px 0 0;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .section {
+      padding: 13px 0;
+      border-top: 1px solid var(--line);
+    }
+
+    .section.no-divider {
+      border-top: 0;
+      padding-top: 0;
+    }
+
+    .section-title {
+      margin: 0 0 9px;
+      font-size: 13px;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: .08em;
+    }
+
+    .control-footer {
+      margin-top: auto;
+      padding-top: 12px;
+    }
+
+    .help-link {
+      min-height: 34px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0 12px;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      color: var(--muted);
+      background: rgba(255, 255, 255, .03);
+      font-size: 12px;
+      font-weight: 850;
+      text-decoration: none;
+    }
+
+    .help-link:hover,
+    .help-link:focus-visible {
+      border-color: var(--cyan);
+      color: var(--text);
+      outline: none;
+    }
+
+    .credits {
+      padding-top: 10px;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.35;
+      text-align: center;
+      opacity: .82;
+    }
+
+    .preset-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 7px;
+    }
+
+    .start-time-fields {
+      width: 100%;
+      margin-top: 9px;
+      margin-bottom: 10px;
+    }
+
+    .start-time-fields > div {
+      width: 100%;
+      min-width: 0;
+    }
+
+    .start-time-heading {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      min-height: 28px;
+      margin-bottom: 6px;
+    }
+
+    .start-time-title {
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .start-time-action {
+      width: 28px;
+      height: 28px;
+      flex: 0 0 28px;
+      padding: 0;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      color: var(--green);
+      background: transparent;
+      font-size: 14px;
+      line-height: 1;
+      transition: background .16s ease, border-color .16s ease;
+    }
+
+    .start-time-action:not(:disabled):hover {
+      background: rgba(87, 211, 140, .12);
+      border-color: var(--green);
+    }
+
+    .start-time-inputs {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      align-items: center;
+      gap: 10px;
+    }
+
+    .start-time-unit {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      align-items: center;
+      gap: 6px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .start-time-unit input {
+      width: 100%;
+      min-width: 0;
+      text-align: center;
+    }
+
+    .start-time-unit > span,
+    .parameter-input-row > span {
+      width: 52px;
+    }
+
+    .parameter-field {
+      min-width: 0;
+    }
+
+    .parameter-input-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      align-items: center;
+      gap: 6px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .parameter-input-row input {
+      min-width: 0;
+      text-align: center;
+    }
+
+    .preset {
+      min-height: 38px;
+      border-radius: 8px;
+      border: 1px solid var(--line);
+      color: var(--muted);
+      transition: .16s ease;
+    }
+
+    .preset.active {
+      color: #101318;
+      background: var(--yellow);
+      border-color: var(--yellow);
+    }
+
+    .field-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    label {
+      display: grid;
+      gap: 5px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    input, select {
+      width: 100%;
+      min-height: 38px;
+      border-radius: 8px;
+      border: 1px solid var(--line);
+      background: #10141b;
+      color: var(--text);
+      padding: 0 12px;
+      outline: none;
+    }
+
+    input:focus, select:focus {
+      border-color: var(--cyan);
+      box-shadow: 0 0 0 3px rgba(73, 198, 229, .14);
+    }
+
+    .switch-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      min-height: 36px;
+    }
+
+    .switch-row input {
+      width: 38px;
+      height: 22px;
+      accent-color: var(--cyan);
+    }
+
+    .primary-option {
+      display: none;
+    }
+
+    body.primary-active .primary-option {
+      display: flex;
+    }
+
+    .actions {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+    }
+
+    .action {
+      min-height: 46px;
+      border-radius: 8px;
+      font-weight: 850;
+      border: 1px solid transparent;
+    }
+
+    .start { background: var(--green); color: #07130d; }
+    .pause { background: var(--yellow); color: #1a1402; }
+    .reset { background: transparent; border-color: var(--line); color: var(--muted); }
+    .full { background: var(--blue); color: #071225; }
+
+    .connections {
+      margin-top: 13px;
+      padding-top: 12px;
+      border-top: 1px solid var(--line);
+    }
+
+    .connections-title {
+      margin: 0 0 8px;
+      color: var(--muted);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+    }
+
+    .browser-list {
+      display: grid;
+      gap: 6px;
+    }
+
+    .browser-item {
+      display: grid;
+      gap: 2px;
+      padding: 7px 9px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: rgba(16, 20, 27, .72);
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .browser-item strong {
+      color: var(--text);
+      font-size: 13px;
+    }
+
+    .browser-address-copy {
+      display: inline;
+      padding: 0;
+      border: 0;
+      border-radius: 0;
+      color: var(--cyan);
+      background: transparent;
+      font: inherit;
+      font-weight: inherit;
+      text-decoration: underline;
+      text-decoration-style: dotted;
+      text-underline-offset: 2px;
+    }
+
+    .browser-address-copy:hover,
+    .browser-address-copy:focus-visible {
+      color: var(--green);
+      outline: none;
+    }
+
+    .browser-copy-feedback {
+      margin-left: 5px;
+      color: var(--green);
+      font-size: 10px;
+      font-weight: 750;
+    }
+
+    .browser-item.offline {
+      opacity: .55;
+    }
+
+    .diag-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+      margin-top: 2px;
+    }
+
+    .diag-chip {
+      padding: 2px 6px;
+      border-radius: 999px;
+      font-size: 10px;
+      line-height: 1.35;
+      font-weight: 900;
+      letter-spacing: .02em;
+      color: #07130d;
+      background: var(--green);
+    }
+
+    .diag-chip.bad {
+      color: #fff7f7;
+      background: var(--red);
+    }
+
+    .diag-chip.warn {
+      color: #1a1402;
+      background: var(--yellow);
+    }
+
+    .diag-chip.neutral {
+      color: var(--text);
+      background: #2d3542;
+    }
+
+    .diag-chip.clickable {
+      cursor: pointer;
+    }
+
+    .diag-chip.clickable:hover {
+      outline: 2px solid rgba(255, 255, 255, .35);
+      outline-offset: 1px;
+    }
+
+    .diag-chip.calibrated {
+      box-shadow: 0 0 0 2px #ff9f43;
+    }
+
+    .diag-chip.editing {
+      color: #1a0d00;
+      background: #ff9f43;
+      box-shadow: 0 0 0 2px #ff9f43;
+    }
+
+    .audio-offset-editor {
+      grid-column: 1 / -1;
+      margin-top: 8px;
+      padding-top: 8px;
+      border-top: 1px solid var(--line);
+    }
+
+    .audio-offset-value {
+      margin-bottom: 5px;
+      color: #ffb76b;
+      font-size: 11px;
+      font-weight: 850;
+      text-align: center;
+    }
+
+    .audio-offset-editor input[type="range"] {
+      width: 100%;
+      min-height: 20px;
+      padding: 0;
+      accent-color: #ff9f43;
+      cursor: ew-resize;
+    }
+
+    .audio-offset-scale {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      margin-top: 2px;
+      color: var(--muted);
+      font-size: 9px;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .audio-offset-scale button {
+      min-width: 0;
+      min-height: 20px;
+      padding: 0;
+      border: 0;
+      border-radius: 3px;
+      color: inherit;
+      background: transparent;
+      font: inherit;
+      text-align: center;
+      cursor: pointer;
+    }
+
+    .audio-offset-scale button:hover,
+    .audio-offset-scale button:focus-visible {
+      color: #ffb76b;
+      background: rgba(255, 159, 67, .12);
+      outline: none;
+    }
+
+    .audio-offset-scale button:first-child {
+      text-align: left;
+    }
+
+    .audio-offset-scale button:last-child {
+      text-align: right;
+    }
+
+    .audio-test-controls {
+      display: grid;
+      gap: 7px;
+      margin-top: 7px;
+      padding-top: 7px;
+      border-top: 1px solid var(--line);
+    }
+
+    .audio-test-buttons {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 5px;
+    }
+
+    .audio-test-buttons button {
+      min-width: 0;
+      min-height: 27px;
+      padding: 4px 6px;
+      border: 1px solid var(--line);
+      border-radius: 4px;
+      color: var(--text);
+      background: #17191d;
+      font: inherit;
+      font-size: 10px;
+      font-weight: 800;
+      cursor: pointer;
+    }
+
+    .audio-test-buttons button:hover,
+    .audio-test-buttons button:focus-visible {
+      border-color: #ff9f43;
+      color: #ffb76b;
+      outline: none;
+    }
+
+    .audio-test-everywhere {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      color: var(--muted);
+      font-size: 10px;
+      font-weight: 750;
+      cursor: pointer;
+    }
+
+    .audio-test-everywhere input {
+      width: 13px;
+      height: 13px;
+      margin: 0;
+      accent-color: #ff9f43;
+    }
+
+    .stage {
+      min-width: 0;
+      display: grid;
+      grid-template-rows: 1fr auto;
+      padding: clamp(18px, 3vw, 42px);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .topbar {
+      display: flex;
+      justify-content: space-between;
+      gap: 18px;
+      align-items: center;
+      min-height: 56px;
+    }
+
+    .topbar,
+    .phase,
+    .meta {
+      display: none;
+    }
+
+    .competition {
+      min-width: 0;
+    }
+
+    .competition input {
+      max-width: 520px;
+      height: 52px;
+      font-size: clamp(18px, 2vw, 28px);
+      font-weight: 850;
+      background: transparent;
+      border-color: transparent;
+      padding-left: 0;
+    }
+
+    .competition input:focus {
+      border-color: var(--line);
+      padding-left: 12px;
+    }
+
+    .status-pill {
+      flex: 0 0 auto;
+      min-width: 116px;
+      min-height: 42px;
+      display: grid;
+      place-items: center;
+      padding: 0 16px;
+      border-radius: 999px;
+      background: var(--panel-2);
+      color: var(--muted);
+      font-weight: 850;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      font-size: 12px;
+    }
+
+    .timer-wrap {
+      display: grid;
+      align-content: center;
+      justify-items: center;
+      gap: 0;
+      text-align: center;
+      min-height: 0;
+      height: 100%;
+      pointer-events: none;
+    }
+
+    footer {
+      position: relative;
+      z-index: 2;
+    }
+
+    .phase {
+      display: inline-grid;
+      min-width: min(86vw, 520px);
+      min-height: 78px;
+      place-items: center;
+      border-radius: 8px;
+      font-size: clamp(28px, 5vw, 74px);
+      line-height: 1;
+      font-weight: 950;
+      text-transform: uppercase;
+      letter-spacing: 0;
+      box-shadow: var(--shadow);
+    }
+
+    .phase.rotation { background: #101318; color: var(--text); border: 1px solid var(--line); }
+    .phase.break { background: var(--red); color: #190505; }
+    .phase.climb { background: #101318; color: var(--text); border: 1px solid var(--line); }
+    .phase.rest { background: var(--red); color: #190505; }
+    .phase.ready { background: var(--cyan); color: #041217; }
+    .phase.done { background: var(--yellow); color: #171100; }
+
+    .time {
+      display: inline-flex;
+      align-items: baseline;
+      justify-content: center;
+      max-width: 100%;
+      font-variant-numeric: tabular-nums;
+      font-size: var(--timer-font-size, clamp(120px, min(31vw, 58vh), 900px));
+      line-height: .86;
+      font-weight: 950;
+      letter-spacing: 0;
+      text-shadow: 0 22px 55px rgba(0, 0, 0, .38);
+    }
+
+    .time-part {
+      min-width: 2ch;
+      text-align: right;
+    }
+
+    #timeSeconds {
+      text-align: left;
+    }
+
+    .time-separator {
+      width: .45ch;
+      text-align: center;
+      transform: translateY(-.04em);
+    }
+
+    .meta {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 10px;
+      color: var(--muted);
+    }
+
+    .meta-item {
+      min-width: 132px;
+      min-height: 46px;
+      display: grid;
+      place-items: center;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: rgba(23, 27, 34, .68);
+      font-size: clamp(14px, 1.6vw, 20px);
+      font-weight: 760;
+    }
+
+    .progress {
+      height: 14px;
+      border-radius: 999px;
+      background: #10141b;
+      border: 1px solid var(--line);
+      overflow: hidden;
+      cursor: default;
+      touch-action: none;
+    }
+
+    body.scrub-ready .progress {
+      cursor: ew-resize;
+    }
+
+    .progress span {
+      display: block;
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, var(--cyan), var(--green), var(--yellow));
+      transition: width .18s linear;
+    }
+
+    .schedule {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(88px, 1fr));
+      gap: 8px;
+      margin-top: 18px;
+    }
+
+    .chip {
+      min-height: 42px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      border-radius: 8px;
+      border: 1px solid var(--line);
+      color: var(--muted);
+      background: rgba(23, 27, 34, .5);
+      font-size: 13px;
+      font-weight: 780;
+    }
+
+    .chip-cycle {
+      color: var(--text);
+      padding-left: 8px;
+      border-left: 1px solid rgba(255, 255, 255, .22);
+    }
+
+    .phase,
+    .meta {
+      display: none;
+    }
+
+    .chip.current {
+      color: #07130d;
+      background: var(--green);
+      border-color: var(--green);
+    }
+
+    .chip.resting.current {
+      color: #190505;
+      background: var(--red);
+      border-color: var(--red);
+    }
+
+    body.break-active {
+      background: var(--red);
+    }
+
+    body.break-active .stage {
+      background: var(--red);
+    }
+
+    body.break-active .controls {
+      background: rgba(68, 12, 14, .94);
+      border-right-color: rgba(255, 255, 255, .2);
+    }
+
+    .compact-actions {
+      display: none;
+      gap: 8px;
+      justify-content: center;
+    }
+
+    .compact-actions .action {
+      min-width: 86px;
+      min-height: 46px;
+    }
+
+    body.flash .stage::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: rgba(255, 255, 255, .18);
+      pointer-events: none;
+      animation: flash .6s ease both;
+    }
+
+    @keyframes flash {
+      from { opacity: 1; }
+      to { opacity: 0; }
+    }
+
+    @media (min-width: 901px) {
+      html,
+      body {
+        height: 100%;
+        overflow: hidden;
+      }
+
+      .app {
+        height: 100vh;
+        height: 100dvh;
+        min-height: 0;
+      }
+
+      .controls {
+        height: 100%;
+        min-height: 0;
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        scrollbar-gutter: stable;
+      }
+
+      .stage {
+        height: 100%;
+        min-height: 0;
+      }
+    }
+
+    @media (max-width: 900px) {
+      .app {
+        grid-template-columns: 1fr;
+      }
+
+      .controls {
+        border-right: 0;
+        border-bottom: 1px solid var(--line);
+        padding: 18px;
+      }
+
+      .stage {
+        min-height: 620px;
+        grid-template-rows: minmax(390px, 1fr) auto;
+      }
+    }
+
+    @media (max-width: 560px) {
+      .field-grid,
+      .preset-grid,
+      .actions {
+        grid-template-columns: 1fr;
+      }
+
+      .topbar {
+        align-items: flex-start;
+        flex-direction: column;
+      }
+
+      .status-pill {
+        min-width: 100%;
+      }
+
+      .timer-wrap {
+        min-height: min(390px, calc(100vh - 260px));
+      }
+
+      .compact-actions {
+        display: flex;
+      }
+    }
+
+    body.fullscreen .controls {
+      display: none;
+    }
+
+    body.fullscreen .app {
+      grid-template-columns: 1fr;
+    }
+
+    body.fullscreen .stage {
+      min-height: 100vh;
+      grid-template-rows: 1fr;
+      padding: clamp(8px, 1.4vw, 22px);
+    }
+
+    body.fullscreen footer,
+    body.fullscreen .compact-actions,
+    body.fullscreen .progress,
+    body.fullscreen .schedule {
+      display: none !important;
+    }
+
+    body.fullscreen .timer-wrap {
+      min-height: calc(100vh - clamp(16px, 2.8vw, 44px));
+      align-content: center;
+    }
+
+    body.fullscreen .time {
+      font-size: var(--timer-font-size, clamp(140px, min(30vw, 78vh), 1400px));
+      line-height: .82;
+      width: auto;
+      text-align: center;
+      white-space: nowrap;
+    }
+
+    body.viewer-mode .controls,
+    body.viewer-mode footer,
+    body.viewer-mode .phase,
+    body.viewer-mode .meta,
+    body.viewer-mode .topbar,
+    body.viewer-mode .compact-actions,
+    body.viewer-mode .progress,
+    body.viewer-mode .schedule {
+      display: none !important;
+    }
+
+    body.viewer-mode .app {
+      min-height: 100vh;
+      grid-template-columns: 1fr;
+    }
+
+    body.viewer-mode .stage {
+      min-height: 100vh;
+      grid-template-rows: 1fr;
+      padding: clamp(8px, 1.4vw, 22px);
+    }
+
+    body.viewer-mode .timer-wrap {
+      min-height: calc(100vh - clamp(16px, 2.8vw, 44px));
+      align-content: center;
+    }
+
+    body.viewer-mode .time {
+      font-size: var(--timer-font-size, clamp(140px, min(30vw, 78vh), 1400px));
+      line-height: .82;
+      width: auto;
+      text-align: center;
+      white-space: nowrap;
+    }
+
+    :fullscreen .controls,
+    :fullscreen footer,
+    :fullscreen .phase,
+    :fullscreen .meta,
+    :fullscreen .compact-actions,
+    :fullscreen .progress,
+    :fullscreen .schedule {
+      display: none !important;
+    }
+
+    :fullscreen .app {
+      grid-template-columns: 1fr;
+    }
+
+    :fullscreen .stage {
+      min-height: 100vh;
+      grid-template-rows: 1fr;
+      padding: clamp(8px, 1.4vw, 22px);
+    }
+
+    :fullscreen .timer-wrap {
+      min-height: calc(100vh - clamp(16px, 2.8vw, 44px));
+      align-content: center;
+    }
+
+    :fullscreen .time {
+      font-size: clamp(140px, min(30vw, 78vh), 920px);
+      line-height: .82;
+      width: 100%;
+      text-align: center;
+      white-space: nowrap;
+    }
+
+    @media (display-mode: fullscreen) {
+      .controls { display: none; }
+      .app { grid-template-columns: 1fr; }
+      .stage {
+        min-height: 100vh;
+        grid-template-rows: 1fr;
+        padding: clamp(8px, 1.4vw, 22px);
+      }
+      footer,
+      .compact-actions,
+      .progress,
+      .schedule {
+        display: none;
+      }
+      .timer-wrap {
+        min-height: calc(100vh - clamp(16px, 2.8vw, 44px));
+        align-content: center;
+      }
+      .time {
+        font-size: var(--timer-font-size, clamp(140px, min(30vw, 78vh), 1400px));
+        line-height: .82;
+        width: auto;
+        text-align: center;
+        white-space: nowrap;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="app">
+    <aside class="controls" aria-label="Панель управления">
+      <div class="brand">
+        <div class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 64 64" focusable="false">
+            <circle cx="32" cy="36" r="19" fill="none" stroke="#f4f7fb" stroke-width="5"/>
+            <circle cx="32" cy="36" r="14" fill="none" stroke="#39414d" stroke-width="2"/>
+            <path d="M32 36V24M32 36l9-6" stroke="#ffc857" stroke-width="5" stroke-linecap="round"/>
+            <path d="M25 9h14v8H25z" fill="#f4f7fb"/>
+            <path d="M43 15l6 6" stroke="#f4f7fb" stroke-width="5" stroke-linecap="round"/>
+            <circle cx="32" cy="36" r="3" fill="#ffc857"/>
+          </svg>
+        </div>
+        <div class="brand-copy">
+          <h1><span id="brandTimer">Таймер</span> <span id="brandBouldering" title="Когда слово из языка с дифтонгами мигрирует в язык без дифтонгов - дифтонг сокращается от «сложного» звука до «простого» звука. Дифтонг (əʊ) по-русски должен произноситься и писаться просто как (о).">болдеринга</span></h1>
+          <button id="languageToggle" class="language-toggle" type="button" title="Switch to English">EN</button>
+        </div>
+      </div>
+
+      <section class="section">
+        <h2 id="formatTitle" class="section-title">Формат</h2>
+        <div class="preset-grid" role="group" aria-label="Готовые форматы">
+          <button class="preset active" data-preset="classic" title="Классический формат (французская система)">Классика</button>
+          <button class="preset" data-preset="festival" title="Фестивальный формат">Фестиваль</button>
+          <button class="preset" data-preset="final" title="Международный формат">Финал</button>
+        </div>
+      </section>
+
+      <section class="section">
+        <h2 id="parametersTitle" class="section-title">Параметры</h2>
+        <div id="startTimeFields" class="start-time-fields">
+          <div>
+            <div class="start-time-heading">
+              <div id="startTimeTitle" class="start-time-title">Время начала старта</div>
+              <button id="scheduledStartBtn" class="start-time-action" type="button" title="Запустить по указанному времени" aria-label="Запустить по указанному времени" disabled>
+                <span aria-hidden="true">▶</span>
+              </button>
+            </div>
+            <div class="start-time-inputs">
+              <label class="start-time-unit">
+                <input id="startHours" type="number" inputmode="numeric" min="0" max="23" step="1" placeholder="--" aria-label="Час начала старта">
+                <span id="hoursUnit">часов</span>
+              </label>
+              <label class="start-time-unit">
+                <input id="startMinutes" type="number" inputmode="numeric" min="0" max="59" step="1" placeholder="--" aria-label="Минуты начала старта">
+                <span id="minutesUnit">минут</span>
+              </label>
+            </div>
+          </div>
+        </div>
+        <div class="field-grid">
+          <label class="parameter-field"><span id="rotationInputLabel">Время ротации</span>
+            <span class="parameter-input-row">
+              <input id="climbMinutes" type="number" min="1" max="240" step="1" value="4">
+              <span id="rotationInputUnit">минут</span>
+            </span>
+          </label>
+          <label class="parameter-field"><span id="breakInputLabel">Перерыв</span>
+            <span class="parameter-input-row">
+              <input id="breakSeconds" type="number" min="0" max="3600" step="1" value="15">
+              <span id="breakInputUnit">секунд</span>
+            </span>
+          </label>
+        </div>
+      </section>
+
+      <section class="section no-divider">
+        <label id="primaryRow" class="switch-row" title="Основной браузер: Ctrl+M / Ctrl+Ь">
+          <span id="primaryLabel">Основной браузер</span>
+          <input id="primaryToggle" type="checkbox">
+        </label>
+        <label class="switch-row">
+          <span id="soundLabel">Звук</span>
+          <input id="soundToggle" type="checkbox" checked>
+        </label>
+        <label class="switch-row primary-option">
+          <span id="instancesSoundLabel">Звук в других браузерах</span>
+          <input id="instancesSoundToggle" type="checkbox">
+        </label>
+        <label id="instancesFullscreenRow" class="switch-row primary-option" title="Браузеры могут потребовать тап по экрану для перехода в полный экран">
+          <span id="instancesFullscreenLabel">Полный экран в других браузерах</span>
+          <input id="instancesFullscreenToggle" type="checkbox">
+        </label>
+        <label class="switch-row">
+          <span id="flashLabel">Мигание</span>
+          <input id="flashToggle" type="checkbox" checked>
+        </label>
+      </section>
+
+      <section class="section">
+        <h2 id="controlsTitle" class="section-title">Управление</h2>
+        <div class="actions">
+          <button id="startBtn" class="action start" title="Старт: Z / Я">Старт</button>
+          <button id="pauseBtn" class="action pause" title="Пауза: Ctrl+Q / Ctrl+Й" disabled>Пауза</button>
+          <button id="resetBtn" class="action reset" title="Сброс: P / З">Сброс</button>
+          <button id="fullBtn" class="action full" title="Экран: Ctrl+F / Ctrl+А">Экран</button>
+        </div>
+        <div class="connections">
+          <h2 id="browsersTitle" class="connections-title">Браузеры</h2>
+          <div id="browserList" class="browser-list"></div>
+        </div>
+      </section>
+      <div class="control-footer">
+        <a id="helpLink" class="help-link" href="help.html" target="_blank" rel="noopener">Руководство</a>
+        <div class="credits">2026 <span id="authorName" title="Говорил, что делать">Фёдоров Денис</span> + <span id="codexCredit" title="Делал">Codex</span><span id="buildInfo" hidden></span></div>
+      </div>
+    </aside>
+
+    <section class="stage" aria-label="Экран таймера">
+      <header class="topbar">
+        <div class="competition">
+          <input id="eventName" aria-label="Название соревнований" value="Boulder League">
+        </div>
+        <div id="status" class="status-pill">Готов</div>
+      </header>
+
+      <div class="timer-wrap">
+        <div id="phase" class="phase ready">Готовность</div>
+        <div id="time" class="time" aria-label="04:00">
+          <span id="timeMinutes" class="time-part">04</span>
+          <span class="time-separator">:</span>
+          <span id="timeSeconds" class="time-part">00</span>
+        </div>
+        <div class="meta" aria-live="polite">
+          <div id="cycleMeta" class="meta-item">Цикл 1</div>
+          <div id="rotationMeta" class="meta-item">Ротация 04:00</div>
+          <div id="nextMeta" class="meta-item">Далее: старт</div>
+        </div>
+      </div>
+
+      <footer>
+        <div id="progressTrack" class="progress" aria-label="Прогресс текущего отрезка"><span id="progressBar"></span></div>
+        <div id="schedule" class="schedule"></div>
+        <div class="compact-actions">
+          <button id="compactStart" class="action start" title="Старт: Z / Я">Старт</button>
+          <button id="compactPause" class="action pause" title="Пауза: Ctrl+Q / Ctrl+Й" disabled>Пауза</button>
+          <button id="compactReset" class="action reset" title="Сброс: P / З">Сброс</button>
+        </div>
+      </footer>
+    </section>
+  </main>
+
+  <script>
+    const presets = {
+      classic: { rotationMinutes: 4, breakSeconds: 15, oneShot: false },
+      festival: { rotationMinutes: 120, breakSeconds: 1800, oneShot: false },
+      final: { rotationMinutes: 4, breakSeconds: "", oneShot: true }
+    };
+
+    const state = {
+      running: false,
+      completed: false,
+      startedAt: 0,
+      serverStartedAt: 0,
+      pausedAt: 0,
+      accumulatedPause: 0,
+      elapsedBeforePause: 0,
+      countdownOnly: false,
+      waitingForManualStart: false,
+      activePreset: "classic",
+      activeSettings: null,
+      primaryClientId: null,
+      timeline: []
+    };
+
+    let language = "ru";
+    let buildNumber = "";
+    const translations = {
+      ru: {
+        brandTimer: "Таймер", brandBouldering: "болдеринга", format: "Формат",
+        classic: "Классика", festival: "Фестиваль", final: "Финал",
+        startTime: "Время начала старта", scheduledStart: "Запустить по указанному времени",
+        hours: "часов", minutes: "минут",
+        parameters: "Параметры", rotationMinutes: "Время ротации",
+        roundMinutes: "Время раунда", breakSeconds: "Перерыв",
+        breakMinutes: "Перерыв", minuteUnit: "минут", secondUnit: "секунд",
+        primary: "Основной браузер", sound: "Звук",
+        primarySound: "Звук в основном браузере", otherSound: "Звук в других браузерах",
+        otherFullscreen: "Полный экран в других браузерах", flashing: "Мигание",
+        controls: "Управление", start: "Старт", pause: "Пауза", reset: "Сброс",
+        screen: "Экран", browsers: "Браузеры", ready: "Готов", readiness: "Готовность",
+        waitingStart: "Ожидание старта", untilStart: "До начала старта",
+        waitingManual: "Ожидание ручного старта", readyStart: "Готов к старту",
+        pressStart: "Нажмите Старт", nextManual: "Далее: ручной старт",
+        completed: "Завершено", roundRunning: "Раунд идет", cycle: "Цикл",
+        rotation: "Ротация", break: "Перерыв", nextStart: "Далее: старт",
+        nextRotation: "Далее: ротация", nextBreak: "Далее: перерыв",
+        nextComplete: "Далее: завершение", noData: "Нет данных", thisBrowser: "этот",
+        online: "онлайн", offline: "нет связи", yes: "да", no: "нет",
+        ms: "мс", sec: "с", switchLanguage: "Switch to English",
+        primaryHint: "Основной браузер: Ctrl+M / Ctrl+Ь",
+        fullscreenHint: "Браузеры могут потребовать тап по экрану для перехода в полный экран",
+        author: "Фёдоров Денис", authorHint: "Говорил, что делать", codexHint: "Делал",
+        audioOffsetPrompt: "Поправка звука для этого браузера, мс. Отрицательное значение запускает звук раньше:",
+        audioOffsetUser: "Пользовательская поправка звука",
+        testStartSignal: "Старт",
+        testMinuteSignal: "1 мин",
+        testFiveSignals: "5 сек",
+        testEverywhere: "Проверить везде, где разрешён звук",
+        copyLink: "Копировать ссылку",
+        copied: "Скопировано",
+        copyManually: "Скопируйте ссылку",
+        helpManual: "Руководство",
+        helpManualTitle: "Открыть руководство в новой вкладке",
+        buildLabel: "сборка"
+      },
+      en: {
+        brandTimer: "Bouldering", brandBouldering: "Timer", format: "Format",
+        classic: "Classic", festival: "Festival", final: "Final",
+        startTime: "Start time", scheduledStart: "Start at the specified time",
+        hours: "hours", minutes: "minutes",
+        parameters: "Parameters", rotationMinutes: "Rotation time",
+        roundMinutes: "Round time", breakSeconds: "Break",
+        breakMinutes: "Break", minuteUnit: "minutes", secondUnit: "seconds",
+        primary: "Primary browser", sound: "Sound",
+        primarySound: "Sound in primary browser", otherSound: "Sound in other browsers",
+        otherFullscreen: "Fullscreen in other browsers", flashing: "Flashing",
+        controls: "Controls", start: "Start", pause: "Pause", reset: "Reset",
+        screen: "Screen", browsers: "Browsers", ready: "Ready", readiness: "Ready",
+        waitingStart: "Waiting for start", untilStart: "Until start",
+        waitingManual: "Waiting for manual start", readyStart: "Ready to start",
+        pressStart: "Press Start", nextManual: "Next: manual start",
+        completed: "Completed", roundRunning: "Round running", cycle: "Cycle",
+        rotation: "Rotation", break: "Break", nextStart: "Next: start",
+        nextRotation: "Next: rotation", nextBreak: "Next: break",
+        nextComplete: "Next: finish", noData: "No data", thisBrowser: "this",
+        online: "online", offline: "offline", yes: "yes", no: "no",
+        ms: "ms", sec: "s", switchLanguage: "Переключить на русский",
+        primaryHint: "Primary browser: Ctrl+M", fullscreenHint: "Browsers may require a screen tap to enter fullscreen",
+        author: "Fedorov Denis", authorHint: "Said what to do", codexHint: "Did it",
+        audioOffsetPrompt: "Sound offset for this browser, ms. A negative value plays sounds earlier:",
+        audioOffsetUser: "User-defined sound offset",
+        testStartSignal: "Start",
+        testMinuteSignal: "1 min",
+        testFiveSignals: "5 sec",
+        testEverywhere: "Test everywhere",
+        copyLink: "Copy link",
+        copied: "Copied",
+        copyManually: "Copy the link",
+        helpManual: "Help",
+        helpManualTitle: "Open help in a new tab",
+        buildLabel: "Build"
+      }
+    };
+    const t = (key) => translations[language][key] || key;
+
+    const els = {
+      presets: document.querySelectorAll(".preset"),
+      languageToggle: document.getElementById("languageToggle"),
+      brandTimer: document.getElementById("brandTimer"),
+      brandBouldering: document.getElementById("brandBouldering"),
+      formatTitle: document.getElementById("formatTitle"),
+      startTimeTitle: document.getElementById("startTimeTitle"),
+      hoursUnit: document.getElementById("hoursUnit"),
+      minutesUnit: document.getElementById("minutesUnit"),
+      parametersTitle: document.getElementById("parametersTitle"),
+      primaryLabel: document.getElementById("primaryLabel"),
+      primaryRow: document.getElementById("primaryRow"),
+      instancesSoundLabel: document.getElementById("instancesSoundLabel"),
+      instancesFullscreenLabel: document.getElementById("instancesFullscreenLabel"),
+      instancesFullscreenRow: document.getElementById("instancesFullscreenRow"),
+      flashLabel: document.getElementById("flashLabel"),
+      controlsTitle: document.getElementById("controlsTitle"),
+      browsersTitle: document.getElementById("browsersTitle"),
+      helpLink: document.getElementById("helpLink"),
+      buildInfo: document.getElementById("buildInfo"),
+      authorName: document.getElementById("authorName"),
+      codexCredit: document.getElementById("codexCredit"),
+      startTimeFields: document.getElementById("startTimeFields"),
+      scheduledStartBtn: document.getElementById("scheduledStartBtn"),
+      startHours: document.getElementById("startHours"),
+      startMinutes: document.getElementById("startMinutes"),
+      rotationInputLabel: document.getElementById("rotationInputLabel"),
+      rotationInputUnit: document.getElementById("rotationInputUnit"),
+      breakInputLabel: document.getElementById("breakInputLabel"),
+      breakInputUnit: document.getElementById("breakInputUnit"),
+      climbMinutes: document.getElementById("climbMinutes"),
+      breakSeconds: document.getElementById("breakSeconds"),
+      primaryToggle: document.getElementById("primaryToggle"),
+      instancesSoundToggle: document.getElementById("instancesSoundToggle"),
+      instancesFullscreenToggle: document.getElementById("instancesFullscreenToggle"),
+      soundLabel: document.getElementById("soundLabel"),
+      soundToggle: document.getElementById("soundToggle"),
+      flashToggle: document.getElementById("flashToggle"),
+      startBtn: document.getElementById("startBtn"),
+      pauseBtn: document.getElementById("pauseBtn"),
+      resetBtn: document.getElementById("resetBtn"),
+      fullBtn: document.getElementById("fullBtn"),
+      compactStart: document.getElementById("compactStart"),
+      compactPause: document.getElementById("compactPause"),
+      compactReset: document.getElementById("compactReset"),
+      status: document.getElementById("status"),
+      phase: document.getElementById("phase"),
+      time: document.getElementById("time"),
+      timeMinutes: document.getElementById("timeMinutes"),
+      timeSeconds: document.getElementById("timeSeconds"),
+      cycleMeta: document.getElementById("cycleMeta"),
+      rotationMeta: document.getElementById("rotationMeta"),
+      nextMeta: document.getElementById("nextMeta"),
+      progressTrack: document.getElementById("progressTrack"),
+      progressBar: document.getElementById("progressBar"),
+      schedule: document.getElementById("schedule"),
+      browserList: document.getElementById("browserList")
+    };
+
+    const audioKinds = ["phase", "minute", "warn"];
+    let audioSources = { phase: "", minute: "", warn: "" };
+    let audioBuffers = { phase: null, minute: null, warn: null };
+    let activeHtmlAudio = [];
+    const festivalAnnouncements = [
+      { remaining: 60 * 60, ru: "Остался один час", en: "One hour remaining" },
+      { remaining: 30 * 60, ru: "Осталось 30 минут", en: "30 minutes remaining" },
+      { remaining: 10 * 60, ru: "Осталось 10 минут", en: "10 minutes remaining" },
+      { remaining: 5 * 60, ru: "Осталось 5 минут", en: "5 minutes remaining" }
+    ];
+
+    let audioContext;
+    let buffersLoading = null;
+    let lastSegmentIndex = -1;
+    let signalTimers = [];
+    let transitionSignalTimers = [];
+    let scheduledAudioNodes = [];
+    let scheduledFinalSignalKey = "";
+    let scheduledSignalKeys = new Set();
+    let speechVoice = null;
+    let serverTimeOffset = 0;
+    let serverPerfOffset = Date.now() - performance.now();
+    let lastServerVersion = 0;
+    let syncTimer = null;
+    let isPrimaryClient = false;
+    let isViewerClient = false;
+    let isSameComputerAsPrimary = false;
+    let instancesSoundEnabled = false;
+    let instancesFullscreenEnabled = false;
+    let pendingViewerFullscreen = false;
+    let globalSoundEnabled = true;
+    let primarySoundEnabled = true;
+    let isScrubbing = false;
+    let screenWakeLock = null;
+    let lastRemoteRunning = false;
+    let startupConfigApplied = false;
+    let audioUnlocked = false;
+    let audioUserOffsetMs = 0;
+    let eventSource = null;
+    let eventSourceConnected = false;
+    let eventStreamGeneration = 0;
+    let lastResumeSyncAt = 0;
+    let syncRequestInFlight = false;
+    let syncQuality = { latency: null, offset: null, error: null, jitter: null, samples: 0 };
+    let syncSamples = [];
+    let lastBurstSyncAt = 0;
+    let lastDisplayTimeLabel = "";
+    let lastPhaseSignalKey = "";
+    let scheduledPhaseSignalKeys = new Set();
+    let lastKnownClients = [];
+    let editingAudioClientId = "";
+    let pendingAudioOffset = 0;
+    let testAudioEverywhere = false;
+    let lastAudioTestId = "";
+    let timerFitQueued = false;
+    let serverPorts = { http: 8008, https: 8443 };
+    const syncRequestTimeoutMs = 2000;
+    const serverTimerLookaheadSeconds = 1.25;
+    const audioScheduleAheadSeconds = 2.8;
+    const audioPrewarmSeconds = 2;
+
+    function scheduleFitTimer() {
+      if (timerFitQueued) return;
+      timerFitQueued = true;
+      requestAnimationFrame(fitTimerText);
+    }
+
+    function fitTimerText() {
+      timerFitQueued = false;
+      const wrap = els.time.closest(".timer-wrap");
+      if (!wrap) return;
+
+      const rect = wrap.getBoundingClientRect();
+      if (rect.width < 1 || rect.height < 1) return;
+
+      const isLargeScreenMode = document.fullscreenElement || document.body.classList.contains("viewer-mode");
+      const maxWidth = Math.max(60, rect.width * (isLargeScreenMode ? 0.99 : 0.985));
+      const maxHeight = Math.max(60, rect.height * (isLargeScreenMode ? 0.98 : 0.96));
+      let low = 48;
+      let high = Math.min(1800, Math.max(220, rect.width, rect.height * 1.45));
+
+      for (let i = 0; i < 13; i += 1) {
+        const mid = (low + high) / 2;
+        els.time.style.setProperty("--timer-font-size", `${mid}px`);
+        const timeRect = els.time.getBoundingClientRect();
+        if (timeRect.width <= maxWidth && timeRect.height <= maxHeight) {
+          low = mid;
+        } else {
+          high = mid;
+        }
+      }
+
+      els.time.style.setProperty("--timer-font-size", `${Math.floor(low)}px`);
+    }
+
+    function createClientId() {
+      if (window.crypto?.randomUUID) return window.crypto.randomUUID();
+      return `client-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+    }
+
+    const clientId = sessionStorage.getItem("boulderingTimerClientId") || createClientId();
+    sessionStorage.setItem("boulderingTimerClientId", clientId);
+
+    async function requestScreenWakeLock() {
+      if (screenWakeLock || document.visibilityState !== "visible") return;
+      if (!navigator.wakeLock?.request) return;
+      try {
+        screenWakeLock = await navigator.wakeLock.request("screen");
+        screenWakeLock.addEventListener("release", () => {
+          screenWakeLock = null;
+        });
+      } catch (error) {
+        screenWakeLock = null;
+      }
+    }
+
+    async function unlockAudio() {
+      if (audioUnlocked) return;
+      audioUnlocked = true;
+      try {
+        audioContext ||= new (window.AudioContext || window.webkitAudioContext)();
+        if (audioContext.state === "suspended") await audioContext.resume();
+        const gain = audioContext.createGain();
+        const osc = audioContext.createOscillator();
+        gain.gain.setValueAtTime(0.0001, audioContext.currentTime);
+        osc.connect(gain).connect(audioContext.destination);
+        osc.start();
+        osc.stop(audioContext.currentTime + 0.03);
+        await loadAudioBuffers();
+      } catch (error) {}
+    }
+
+    async function loadAudioBuffers() {
+      if (buffersLoading || !audioContext) return buffersLoading;
+      const decodedBySource = new Map();
+      buffersLoading = Promise.all(audioKinds.map(async (kind) => {
+        const source = audioSources[kind];
+        if (!source) {
+          audioBuffers[kind] = null;
+          return;
+        }
+        try {
+          if (!decodedBySource.has(source)) {
+            decodedBySource.set(source, fetch(source)
+              .then((response) => response.ok ? response.arrayBuffer() : Promise.reject(new Error("Audio file not found")))
+              .then((buffer) => audioContext.decodeAudioData(buffer)));
+          }
+          audioBuffers[kind] = await decodedBySource.get(source);
+        } catch (error) {
+          audioBuffers[kind] = null;
+        }
+      })).catch(() => {});
+      return buffersLoading;
+    }
+
+    function serverNow() {
+      return performance.now() + serverPerfOffset;
+    }
+
+    function updateServerTiming(remote, timing = {}) {
+      const date0 = Number(timing.date0 ?? timing.t0);
+      const date1 = Number(timing.date1 ?? timing.t1);
+      const perf0 = Number(timing.perf0 ?? timing.t0);
+      const perf1 = Number(timing.perf1 ?? timing.t1);
+      const remoteNow = Number(remote.now);
+      if (Number.isFinite(date0) && Number.isFinite(date1)
+        && Number.isFinite(perf0) && Number.isFinite(perf1)
+        && Number.isFinite(remoteNow)) {
+        const latency = Math.max(0, perf1 - perf0);
+        const sample = {
+          at: performance.now(),
+          latency,
+          clockOffset: remoteNow - ((date0 + date1) / 2),
+          perfOffset: remoteNow - ((perf0 + perf1) / 2)
+        };
+        syncSamples.push(sample);
+        syncSamples = syncSamples
+          .filter((item) => sample.at - item.at < 15000)
+          .slice(-16);
+
+        const bestSamples = [...syncSamples]
+          .sort((a, b) => a.latency - b.latency)
+          .slice(0, Math.min(5, syncSamples.length));
+        const clockOffsets = bestSamples.map((item) => item.clockOffset).sort((a, b) => a - b);
+        const perfOffsets = bestSamples.map((item) => item.perfOffset).sort((a, b) => a - b);
+        const latencies = bestSamples.map((item) => item.latency).sort((a, b) => a - b);
+        const jitter = clockOffsets.length > 1
+          ? Math.max(...clockOffsets) - Math.min(...clockOffsets)
+          : 0;
+        const bestLatency = latencies[0] ?? latency;
+
+        serverTimeOffset = median(clockOffsets);
+        serverPerfOffset = median(perfOffsets);
+        syncQuality = {
+          latency,
+          offset: serverTimeOffset,
+          error: (bestLatency / 2) + jitter,
+          jitter,
+          samples: bestSamples.length
+        };
+        return;
+      }
+      if (Number.isFinite(remoteNow) && syncSamples.length === 0) {
+        serverTimeOffset = remoteNow - Date.now();
+        serverPerfOffset = remoteNow - performance.now();
+        syncQuality = {
+          ...syncQuality,
+          offset: serverTimeOffset
+        };
+      }
+    }
+
+    function median(values) {
+      if (!values.length) return 0;
+      const middle = Math.floor(values.length / 2);
+      if (values.length % 2) return values[middle];
+      return (values[middle - 1] + values[middle]) / 2;
+    }
+
+    function clientDiagnostics() {
+      const audioBaseLatency = Number(audioContext?.baseLatency);
+      const audioOutputLatency = Number(audioContext?.outputLatency);
+      return {
+        clientId,
+        latency: syncQuality.latency ?? "",
+        offset: syncQuality.offset ?? "",
+        syncError: syncQuality.error ?? "",
+        syncJitter: syncQuality.jitter ?? "",
+        syncSamples: syncQuality.samples ?? "",
+        visibility: document.visibilityState,
+        viewport: `${window.innerWidth}x${window.innerHeight}`,
+        screen: `${window.screen.width}x${window.screen.height}`,
+        dpr: window.devicePixelRatio || 1,
+        audioUnlocked,
+        soundAllowed: canPlaySound(),
+        audioBaseLatency: Number.isFinite(audioBaseLatency) ? audioBaseLatency * 1000 : "",
+        audioOutputLatency: Number.isFinite(audioOutputLatency) ? audioOutputLatency * 1000 : "",
+        wakeLockSupported: Boolean(navigator.wakeLock?.request),
+        wakeLockActive: Boolean(screenWakeLock),
+        eventSourceSupported: Boolean(window.EventSource),
+        eventSourceConnected,
+        stateVersion: lastServerVersion || "",
+        displayStatus: els.status?.textContent || ""
+      };
+    }
+
+    function clampNumber(value, min, max, fallback) {
+      const number = Number(value);
+      if (!Number.isFinite(number)) return fallback;
+      return Math.min(max, Math.max(min, Math.round(number)));
+    }
+
+    function finiteNumber(value, fallback) {
+      const number = Number(value);
+      return Number.isFinite(number) ? number : fallback;
+    }
+
+    function isFestivalMode() {
+      return state.activePreset === "festival";
+    }
+
+    function isFinalMode() {
+      return state.activePreset === "final";
+    }
+
+    function renderBuildInfo() {
+      if (!els.buildInfo) return;
+      if (!buildNumber) {
+        els.buildInfo.hidden = true;
+        els.buildInfo.textContent = "";
+        return;
+      }
+      els.buildInfo.hidden = false;
+      els.buildInfo.textContent = ` | ${t("buildLabel")} ${buildNumber}`;
+    }
+
+    function applyLanguage(nextLanguage) {
+      language = nextLanguage === "en" ? "en" : "ru";
+      document.documentElement.lang = language;
+      els.brandTimer.textContent = t("brandTimer");
+      els.brandBouldering.textContent = t("brandBouldering");
+      els.brandBouldering.title = language === "ru"
+        ? "Когда слово из языка с дифтонгами мигрирует в язык без дифтонгов - дифтонг сокращается от «сложного» звука до «простого» звука. Дифтонг (əʊ) по-русски должен произноситься и писаться просто как (о)."
+        : "";
+      els.formatTitle.textContent = t("format");
+      els.startTimeTitle.textContent = t("startTime");
+      els.scheduledStartBtn.title = t("scheduledStart");
+      els.scheduledStartBtn.setAttribute("aria-label", t("scheduledStart"));
+      els.hoursUnit.textContent = t("hours");
+      els.minutesUnit.textContent = t("minutes");
+      els.parametersTitle.textContent = t("parameters");
+      els.primaryLabel.textContent = t("primary");
+      els.instancesSoundLabel.textContent = t("otherSound");
+      els.instancesFullscreenLabel.textContent = t("otherFullscreen");
+      els.primaryRow.title = t("primaryHint");
+      els.instancesFullscreenRow.title = t("fullscreenHint");
+      els.flashLabel.textContent = t("flashing");
+      els.controlsTitle.textContent = t("controls");
+      els.browsersTitle.textContent = t("browsers");
+      els.presets.forEach((button) => {
+        button.textContent = t(button.dataset.preset);
+        button.title = language === "ru"
+          ? {
+              classic: "Классический формат (французская система)",
+              festival: "Фестивальный формат",
+              final: "Международный формат"
+            }[button.dataset.preset] || ""
+          : "";
+      });
+      els.startBtn.textContent = t("start");
+      els.compactStart.textContent = t("start");
+      els.pauseBtn.textContent = t("pause");
+      els.compactPause.textContent = t("pause");
+      els.resetBtn.textContent = t("reset");
+      els.compactReset.textContent = t("reset");
+      els.fullBtn.textContent = t("screen");
+      els.languageToggle.textContent = language === "ru" ? "EN" : "RU";
+      els.languageToggle.title = t("switchLanguage");
+      els.startBtn.title = language === "ru" ? `${t("start")}: Z / Я` : `${t("start")}: Z`;
+      els.pauseBtn.title = language === "ru" ? `${t("pause")}: Ctrl+Q / Ctrl+Й` : `${t("pause")}: Ctrl+Q`;
+      els.resetBtn.title = language === "ru" ? `${t("reset")}: P / З` : `${t("reset")}: P`;
+      els.fullBtn.title = language === "ru" ? `${t("screen")}: Ctrl+F / Ctrl+А` : `${t("screen")}: Ctrl+F`;
+      els.compactStart.title = els.startBtn.title;
+      els.compactPause.title = els.pauseBtn.title;
+      els.compactReset.title = els.resetBtn.title;
+      els.helpLink.textContent = t("helpManual");
+      els.helpLink.title = t("helpManualTitle");
+      renderBuildInfo();
+      els.authorName.textContent = t("author");
+      els.authorName.title = t("authorHint");
+      els.codexCredit.title = t("codexHint");
+      pickSpeechVoice();
+      updateParameterLabels();
+      render();
+    }
+
+    function applyStartupConfig(config) {
+      if (!config || typeof config !== "object") return;
+      const nextBuildNumber = Number(config.buildNumber);
+      buildNumber = Number.isFinite(nextBuildNumber) ? String(Math.round(nextBuildNumber)) : "";
+      renderBuildInfo();
+      serverPorts = {
+        http: finiteNumber(config.httpPort, serverPorts.http),
+        https: finiteNumber(config.httpsPort, serverPorts.https)
+      };
+      const nextAudioSources = {
+        phase: String(config.phaseSignalMp3 || ""),
+        minute: String(config.minuteSignalMp3 || ""),
+        warn: String(config.warningSignalMp3 || "")
+      };
+      if (audioKinds.some((kind) => audioSources[kind] !== nextAudioSources[kind])) {
+        audioSources = nextAudioSources;
+        audioBuffers = { phase: null, minute: null, warn: null };
+        buffersLoading = null;
+        if (audioContext) loadAudioBuffers();
+      }
+      presets.classic.rotationMinutes = finiteNumber(config.classicRotationMinutes, presets.classic.rotationMinutes);
+      presets.classic.breakSeconds = finiteNumber(config.classicBreakSeconds, presets.classic.breakSeconds);
+      presets.festival.rotationMinutes = finiteNumber(config.festivalRoundMinutes, presets.festival.rotationMinutes);
+      presets.festival.breakSeconds = finiteNumber(config.festivalBreakMinutes, Math.round(presets.festival.breakSeconds / 60)) * 60;
+      presets.final.rotationMinutes = finiteNumber(config.finalRotationMinutes, presets.final.rotationMinutes);
+      if (startupConfigApplied) return;
+      startupConfigApplied = true;
+      els.flashToggle.checked = config.flashing !== false;
+      primarySoundEnabled = config.sound !== false;
+      globalSoundEnabled = config.sound !== false;
+      if (config.primaryBrowser && !state.running && !state.elapsedBeforePause) {
+        window.setTimeout(() => {
+          if (!isPrimaryClient && !isViewerClient) setPrimaryMode(true);
+        }, 0);
+      }
+    }
+
+    function updateParameterLabels() {
+      const festivalMode = isFestivalMode();
+      els.rotationInputLabel.textContent = festivalMode ? t("roundMinutes") : t("rotationMinutes");
+      els.breakInputLabel.textContent = festivalMode ? t("breakMinutes") : t("breakSeconds");
+      els.rotationInputUnit.textContent = t("minuteUnit");
+      els.breakInputUnit.textContent = festivalMode ? t("minuteUnit") : t("secondUnit");
+      els.breakSeconds.max = festivalMode ? "240" : "3600";
+      els.breakSeconds.step = "1";
+      els.breakSeconds.disabled = false;
+    }
+
+    function setInputsFromDraft(draft) {
+      if (!draft) return;
+      updateParameterLabels();
+      els.climbMinutes.value = draft.rotationMinutes;
+      els.breakSeconds.value = isFestivalMode() ? Math.round(draft.breakSeconds / 60) : draft.breakSeconds;
+      if (draft.startHours !== undefined) {
+        els.startHours.value = draft.startHours === "" ? "" : String(draft.startHours).padStart(2, "0");
+      }
+      if (draft.startMinutes !== undefined) {
+        els.startMinutes.value = draft.startMinutes === "" ? "" : String(draft.startMinutes).padStart(2, "0");
+      }
+    }
+
+    function readSettings() {
+      return activeSettingsFromDraft();
+    }
+
+    function activeSettings() {
+      return state.activeSettings || readSettings();
+    }
+
+    function buildTimeline(settings = readSettings()) {
+      state.activeSettings = { ...settings };
+      const timeline = [
+        { type: "rotation", label: t("rotation"), duration: settings.rotationSeconds },
+        { type: "break", label: t("break"), duration: settings.breakSeconds }
+      ].filter((segment) => segment.duration > 0);
+
+      state.timeline = timeline;
+      return timeline;
+    }
+
+    function formatTime(seconds) {
+      const safeSeconds = Math.max(0, Math.ceil(seconds));
+      const mins = Math.floor(safeSeconds / 60);
+      const secs = safeSeconds % 60;
+      return `${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
+    }
+
+    function timeParts(seconds) {
+      const safeSeconds = Math.max(0, Math.ceil(seconds));
+      const mins = Math.floor(safeSeconds / 60);
+      const secs = safeSeconds % 60;
+      return {
+        minutes: String(mins).padStart(2, "0"),
+        seconds: String(secs).padStart(2, "0")
+      };
+    }
+
+    function setDisplayTime(seconds) {
+      const parts = timeParts(seconds);
+      const label = `${parts.minutes}:${parts.seconds}`;
+      if (label === lastDisplayTimeLabel) return;
+      lastDisplayTimeLabel = label;
+      els.timeMinutes.textContent = parts.minutes;
+      els.timeSeconds.textContent = parts.seconds;
+      els.time.setAttribute("aria-label", label);
+      scheduleFitTimer();
+    }
+
+    function elapsedSeconds() {
+      if (!state.running) return state.elapsedBeforePause;
+      if (state.serverStartedAt) {
+        return Math.max(0, (serverNow() - state.serverStartedAt) / 1000);
+      }
+      return (performance.now() - state.startedAt - state.accumulatedPause) / 1000;
+    }
+
+    function getCurrentSegment(elapsed) {
+      const timeline = state.timeline.length ? state.timeline : buildTimeline();
+      if (!timeline.length) return null;
+      const settings = activeSettings();
+      if (settings.oneShot) {
+        const totalDuration = settings.rotationSeconds + settings.breakSeconds;
+        if (elapsed >= totalDuration) return null;
+        const isBreak = settings.breakSeconds > 0 && elapsed >= settings.rotationSeconds;
+        return {
+          type: isBreak ? "break" : "rotation",
+          label: isBreak ? t("break") : t("rotation"),
+          cycle: 1,
+          start: isBreak ? settings.rotationSeconds : 0,
+          end: isBreak ? totalDuration : settings.rotationSeconds
+        };
+      }
+      const cycleDuration = settings.rotationSeconds + settings.breakSeconds;
+      const safeCycleDuration = Math.max(1, cycleDuration);
+      const cycleIndex = Math.floor(elapsed / safeCycleDuration);
+      const offset = elapsed % safeCycleDuration;
+      const isBreak = settings.breakSeconds > 0 && offset >= settings.rotationSeconds;
+      const start = cycleIndex * safeCycleDuration + (isBreak ? settings.rotationSeconds : 0);
+      const duration = isBreak ? settings.breakSeconds : settings.rotationSeconds;
+
+      return {
+        type: isBreak ? "break" : "rotation",
+        label: isBreak ? t("break") : t("rotation"),
+        cycle: cycleIndex + 1,
+        start,
+        end: start + duration
+      };
+    }
+
+    async function setPreset(name) {
+      state.activePreset = name;
+      els.presets.forEach((button) => button.classList.toggle("active", button.dataset.preset === name));
+      if (presets[name]) {
+        setInputsFromDraft(presets[name]);
+      }
+      sendServerAction("settings", {
+        activePreset: state.activePreset,
+        settings: draftSettings()
+      });
+      if (state.running || state.elapsedBeforePause > 0) {
+        return;
+      }
+      hardReset(false);
+    }
+
+    function setCustomPreset() {
+      state.activePreset = "";
+      els.presets.forEach((button) => button.classList.remove("active"));
+    }
+
+    function draftSettings() {
+      const festivalMode = isFestivalMode();
+      const finalMode = isFinalMode();
+      const fallbackPreset = presets[state.activePreset] || presets.classic;
+      const fallbackBreak = festivalMode ? Math.round(presets.festival.breakSeconds / 60) : fallbackPreset.breakSeconds;
+      const maxBreak = festivalMode ? 240 : 3600;
+      const breakValue = clampNumber(els.breakSeconds.value, 0, maxBreak, fallbackBreak);
+      const breakSeconds = finalMode && els.breakSeconds.value === ""
+        ? ""
+        : festivalMode ? breakValue * 60 : breakValue;
+      return {
+        rotationMinutes: clampNumber(els.climbMinutes.value, 1, 240, fallbackPreset.rotationMinutes),
+        breakSeconds,
+        oneShot: finalMode,
+        startHours: els.startHours.value,
+        startMinutes: els.startMinutes.value
+      };
+    }
+
+    function activeSettingsFromDraft() {
+      const draft = draftSettings();
+      return {
+        rotationSeconds: draft.rotationMinutes * 60,
+        breakSeconds: Number(draft.breakSeconds) || 0,
+        oneShot: draft.oneShot
+      };
+    }
+
+    function applyServerState(remote, options = {}) {
+      if (!remote || typeof remote !== "object") return;
+      applyStartupConfig(remote.config);
+      updateServerTiming(remote, options.timing);
+
+      state.running = Boolean(remote.running);
+      if (remote.language && remote.language !== language) applyLanguage(remote.language);
+      state.completed = Boolean(remote.completed);
+      state.countdownOnly = Boolean(remote.countdownOnly);
+      state.waitingForManualStart = Boolean(remote.waitingForManualStart);
+      state.serverStartedAt = Number(remote.startedAt || 0);
+      state.elapsedBeforePause = Number(remote.elapsedBeforePause || 0);
+      state.activePreset = remote.activePreset || "";
+      state.activeSettings = remote.activeSettings || activeSettingsFromDraft();
+      buildTimeline(state.activeSettings);
+      const ownClient = (remote.clients || []).find((client) => client.id === clientId);
+      const nextAudioOffset = Number(ownClient?.audioUserOffset || 0);
+      const audioOffsetChanged = nextAudioOffset !== audioUserOffsetMs;
+      audioUserOffsetMs = nextAudioOffset;
+
+      if (remote.draftSettings) {
+        setInputsFromDraft(remote.draftSettings);
+      } else {
+        updateParameterLabels();
+      }
+
+      els.presets.forEach((button) => {
+        button.classList.toggle("active", button.dataset.preset === state.activePreset);
+      });
+
+      const primaryClientId = remote.primaryClientId || null;
+      const isPrimary = primaryClientId === clientId;
+      state.primaryClientId = primaryClientId;
+      isPrimaryClient = isPrimary;
+      isViewerClient = Boolean(primaryClientId && !isPrimary);
+      updatePrimaryComputerFlag(remote.clients || [], primaryClientId);
+      instancesSoundEnabled = Boolean(remote.instancesSound);
+      instancesFullscreenEnabled = Boolean(remote.instancesFullscreen);
+      globalSoundEnabled = remote.globalSound !== false;
+      els.primaryToggle.checked = isPrimary;
+      els.instancesSoundToggle.checked = instancesSoundEnabled;
+      els.instancesFullscreenToggle.checked = instancesFullscreenEnabled;
+      els.soundLabel.textContent = isPrimary ? t("primarySound") : t("sound");
+      els.soundToggle.checked = isPrimary ? primarySoundEnabled : globalSoundEnabled;
+      document.body.classList.toggle("primary-active", isPrimary);
+      document.body.classList.toggle("viewer-mode", isViewerClient);
+      applyViewerFullscreenPreference();
+      scheduleFitTimer();
+
+      if (!state.running) {
+        clearSignalTimers();
+        lastSegmentIndex = -1;
+        if (state.elapsedBeforePause === 0) lastPhaseSignalKey = "";
+      } else if (state.countdownOnly) {
+        clearSignalTimers();
+        lastSegmentIndex = -1;
+      } else if (options.rescheduleSignals || audioOffsetChanged) {
+        const elapsed = elapsedSeconds();
+        const segment = getCurrentSegment(elapsed);
+        if (segment) {
+          const remaining = segment.end - elapsed;
+          const duration = segment.end - segment.start;
+          lastSegmentIndex = `${segment.cycle}:${segment.type}`;
+          const waitingForStart = state.serverStartedAt > serverNow() + 80;
+          scheduleSegmentSignals(segment, remaining, duration, waitingForStart ? false : Boolean(options.includePhaseSignal));
+          if (waitingForStart && !state.activeSettings.oneShot) {
+            scheduleBufferedSignalAt(segment, state.serverStartedAt, "phase", true);
+          }
+        }
+      }
+
+      lastServerVersion = Number(remote.version || lastServerVersion);
+      lastRemoteRunning = state.running;
+      syncButtons();
+      renderBrowserList(remote.clients || []);
+      render();
+    }
+
+    async function sendServerAction(type, payload = {}, options = {}) {
+      try {
+        const timing = {
+          date0: Date.now(),
+          perf0: performance.now()
+        };
+        const response = await fetch("/api/action", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            type,
+            ...clientDiagnostics(),
+            ...payload
+          })
+        });
+        timing.date1 = Date.now();
+        timing.perf1 = performance.now();
+        if (!response.ok) throw new Error("Server action failed");
+        const remote = await response.json();
+        applyServerState(remote, { ...options, timing });
+        return true;
+      } catch (error) {
+        return false;
+      }
+    }
+
+    async function syncFromServer(options = {}) {
+      if (syncRequestInFlight) return false;
+      syncRequestInFlight = true;
+      const controller = new AbortController();
+      const timeout = window.setTimeout(() => controller.abort(), syncRequestTimeoutMs);
+      try {
+        const timing = {
+          date0: Date.now(),
+          perf0: performance.now()
+        };
+        const params = new URLSearchParams(clientDiagnostics());
+        const response = await fetch(`/api/state?${params}`, {
+          cache: "no-store",
+          signal: controller.signal
+        });
+        timing.date1 = Date.now();
+        timing.perf1 = performance.now();
+        if (!response.ok) throw new Error("Server state failed");
+        const remote = await response.json();
+        const version = Number(remote.version || 0);
+        if (version !== lastServerVersion) {
+          const isRemoteStart = lastServerVersion !== 0
+            && !lastRemoteRunning
+            && Boolean(remote.running)
+            && Number(remote.elapsedBeforePause || 0) === 0
+            && Number(remote.elapsed || 0) < 2;
+          applyServerState(remote, { rescheduleSignals: true, includePhaseSignal: isRemoteStart, timing });
+        } else if (options.forceApply) {
+          applyServerState(remote, { rescheduleSignals: true, includePhaseSignal: false, timing });
+        } else {
+          updateServerTiming(remote, timing);
+          lastRemoteRunning = Boolean(remote.running);
+          updatePrimaryComputerFlag(remote.clients || [], remote.primaryClientId || null);
+          renderBrowserList(remote.clients || []);
+        }
+        maybeBurstSync(options);
+        return true;
+      } catch (error) {
+        return false;
+      } finally {
+        window.clearTimeout(timeout);
+        syncRequestInFlight = false;
+      }
+    }
+
+    function maybeBurstSync(options = {}) {
+      const error = Number(syncQuality.error);
+      const now = Date.now();
+      if (options.skipBurst || options.burst || !Number.isFinite(error) || error <= 300) return;
+      if (now - lastBurstSyncAt < 5000) return;
+      lastBurstSyncAt = now;
+      burstSync();
+    }
+
+    async function burstSync() {
+      for (let i = 0; i < 5; i += 1) {
+        await new Promise((resolve) => window.setTimeout(resolve, i === 0 ? 0 : 120));
+        await syncFromServer({ skipBurst: true, burst: true });
+      }
+    }
+
+    function startSync() {
+      syncFromServer();
+      startEventStream();
+      syncTimer = window.setInterval(syncFromServer, 2000);
+    }
+
+    function startEventStream() {
+      if (!window.EventSource || eventSource) return;
+      const params = new URLSearchParams({ clientId });
+      const generation = ++eventStreamGeneration;
+      eventSource = new EventSource(`/api/events?${params}`);
+      eventSource.onopen = () => {
+        if (generation !== eventStreamGeneration) return;
+        eventSourceConnected = true;
+      };
+      eventSource.addEventListener("state", (event) => {
+        if (generation !== eventStreamGeneration) return;
+        try {
+          const remote = JSON.parse(event.data);
+          const version = Number(remote.version || 0);
+          const isRemoteStart = version !== lastServerVersion
+            && lastServerVersion !== 0
+            && !lastRemoteRunning
+            && Boolean(remote.running)
+            && Number(remote.elapsedBeforePause || 0) === 0
+            && Number(remote.elapsed || 0) < 2;
+          applyServerState(remote, { rescheduleSignals: version !== lastServerVersion, includePhaseSignal: isRemoteStart });
+        } catch (error) {}
+      });
+      eventSource.addEventListener("audio-test", (event) => {
+        if (generation !== eventStreamGeneration) return;
+        try {
+          handleAudioTest(JSON.parse(event.data));
+        } catch (error) {}
+      });
+      eventSource.onerror = () => {
+        if (generation !== eventStreamGeneration) return;
+        eventSourceConnected = false;
+      };
+    }
+
+    function restartEventStream() {
+      eventStreamGeneration += 1;
+      if (eventSource) {
+        try {
+          eventSource.close();
+        } catch (error) {}
+      }
+      eventSource = null;
+      eventSourceConnected = false;
+      startEventStream();
+    }
+
+    async function resumeClientSync() {
+      const now = Date.now();
+      if (now - lastResumeSyncAt < 1200) return;
+      lastResumeSyncAt = now;
+      requestScreenWakeLock();
+      restartEventStream();
+      await syncFromServer({ forceApply: true });
+      window.setTimeout(() => syncFromServer({ forceApply: true }), 600);
+    }
+
+    function drawSchedule(segment) {
+      const cycleNumber = segment?.cycle || 1;
+      const html = state.timeline.map((item, index) => {
+        const classes = ["chip"];
+        if (segment && item.type === segment.type) classes.push("current");
+        if (item.type === "break") classes.push("resting");
+        const name = item.type === "rotation" ? t("rotation") : t("break");
+        const cycle = item.type === "break" ? `<span class="chip-cycle">${t("cycle")} ${cycleNumber}</span>` : "";
+        return `<div class="${classes.join(" ")}"><span>${name}</span>${cycle}<span>${formatTime(item.duration)}</span></div>`;
+      }).join("");
+      els.schedule.innerHTML = html;
+    }
+
+    function escapeHtml(value) {
+      return String(value ?? "").replace(/[&<>"']/g, (char) => ({
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        "\"": "&quot;",
+        "'": "&#39;"
+      })[char]);
+    }
+
+    function formatMs(value) {
+      if (value === null || value === undefined || value === "") return "n/a";
+      return Number.isFinite(Number(value)) ? `${Math.round(Number(value))} ${t("ms")}` : "n/a";
+    }
+
+    function clientAddress(address = "") {
+      return String(address).replace(/^::ffff:/, "");
+    }
+
+    function operatingSystem(userAgent = "") {
+      if (/Android/i.test(userAgent)) return "Android";
+      if (/iPhone|iPad|iPod/i.test(userAgent)) return "iOS";
+      if (/Mac OS X|Macintosh/i.test(userAgent)) return "macOS";
+      if (/Windows/i.test(userAgent)) return "Windows";
+      if (/Linux/i.test(userAgent)) return "Linux";
+      return "OS";
+    }
+
+    function deviceType(userAgent = "") {
+      if (/iPad|Tablet/i.test(userAgent)) return "tablet";
+      if (/Mobi|Android|iPhone|iPod/i.test(userAgent)) return "mobile";
+      return "desktop";
+    }
+
+    function diagChip(label, status, title, attributes = "") {
+      const className = `diag-chip${status && status !== "good" ? ` ${status}` : ""}`;
+      return `<span class="${className}" title="${escapeHtml(title)}"${attributes}>${escapeHtml(label)}</span>`;
+    }
+
+    function thresholdStatus(value, warnLimit, badLimit, missingIsBad = true) {
+      const number = Number(value);
+      if (!Number.isFinite(number)) return missingIsBad ? "bad" : "warn";
+      if (number > badLimit) return "bad";
+      if (number > warnLimit) return "warn";
+      return "good";
+    }
+
+    function browserLink(displayIp, clients) {
+      const primary = clients.find((client) => client.id === state.primaryClientId);
+      const protocol = primary?.protocol === "HTTPS" ? "https" : "http";
+      const port = protocol === "https" ? serverPorts.https : serverPorts.http;
+      return `${protocol}://${displayIp}:${port}/`;
+    }
+
+    async function copyText(value) {
+      try {
+        await navigator.clipboard.writeText(value);
+        return true;
+      } catch (error) {}
+
+      const input = document.createElement("textarea");
+      input.value = value;
+      input.setAttribute("readonly", "");
+      input.style.position = "fixed";
+      input.style.opacity = "0";
+      document.body.appendChild(input);
+      input.select();
+      let copied = false;
+      try {
+        copied = document.execCommand("copy");
+      } catch (error) {}
+      input.remove();
+      return copied;
+    }
+
+    function renderBrowserList(clients) {
+      if (!els.browserList) return;
+      lastKnownClients = clients;
+      if (!clients.length) {
+        els.browserList.innerHTML = `<div class="browser-item">${t("noData")}</div>`;
+        return;
+      }
+      const visibleClients = [...clients].sort((a, b) => {
+        const primaryA = a.id === (state.primaryClientId || "") ? 0 : 1;
+        const primaryB = b.id === (state.primaryClientId || "") ? 0 : 1;
+        if (primaryA !== primaryB) return primaryA - primaryB;
+        if (!state.primaryClientId) {
+          const selfA = a.id === clientId ? 0 : 1;
+          const selfB = b.id === clientId ? 0 : 1;
+          if (selfA !== selfB) return selfA - selfB;
+        }
+        return 0;
+      });
+      els.browserList.innerHTML = visibleClients.map((client) => {
+        const isPrimary = client.id === state.primaryClientId;
+        const displayIp = clientAddress(client.displayAddress || client.address);
+        const clientPrefix = isPrimary ? `${t("thisBrowser")}, IP: ` : "IP: ";
+        const copyUrl = isPrimary ? browserLink(displayIp, clients) : "";
+        const displayIpHtml = isPrimary
+          ? `<button type="button" class="browser-address-copy" data-copy-browser-url="${escapeHtml(copyUrl)}" title="${escapeHtml(`${t("copyLink")}: ${copyUrl}`)}">${escapeHtml(displayIp)}</button><span class="browser-copy-feedback" aria-live="polite"></span>`
+          : escapeHtml(displayIp);
+        const classes = ["browser-item"];
+        if (!client.connected) classes.push("offline");
+        const latency = Number(client.latency);
+        const offset = Math.abs(Number(client.offset));
+        const syncError = Number(client.syncError);
+        const hasSyncError = Number.isFinite(syncError);
+        const estimatedSyncError = hasSyncError
+          ? syncError
+          : Number.isFinite(latency) ? latency / 2 : NaN;
+        const netStatus = client.connected ? thresholdStatus(latency, 100, 200) : "bad";
+        const syncStatus = client.connected ? thresholdStatus(estimatedSyncError, 100, 300) : "bad";
+        const audioOk = client.soundAllowed !== false && client.audioUnlocked === true;
+        const userAudioOffset = Number(client.audioUserOffset || 0);
+        const audioEditing = editingAudioClientId === client.id;
+        const audioClasses = `${audioOk ? "good" : "bad"} clickable${userAudioOffset !== 0 ? " calibrated" : ""}${audioEditing ? " editing" : ""}`;
+        const wakeOk = client.wakeLockSupported === true && client.wakeLockActive === true;
+        const sseOk = client.eventSourceSupported === true && client.eventSourceConnected === true;
+        const tabOk = client.visibility === "visible";
+        const yesNo = (value) => value ? t("yes") : t("no");
+        const chips = language === "ru" ? [
+          diagChip("NET", netStatus, `Соединение: ${client.connected ? "онлайн" : "нет связи"}; задержка ${formatMs(client.latency)}; зелёный ≤100 мс, жёлтый ≤200 мс, красный >200 мс`),
+          diagChip("SYNC", syncStatus, `${hasSyncError ? "Оценка ошибки синхронизации" : "Приблизительная оценка по задержке сети"}: ${formatMs(estimatedSyncError)}; разброс ${formatMs(client.syncJitter)}; замеров ${client.syncSamples || "n/a"}; зелёный ≤100 мс, жёлтый ≤300 мс, красный >300 мс`),
+          diagChip("AUDIO", audioClasses, `Звук разрешён: ${yesNo(client.soundAllowed !== false)}; разблокирован тапом: ${yesNo(client.audioUnlocked === true)}; ${t("audioOffsetUser")}: ${formatMs(userAudioOffset)}`, ` data-audio-client="${escapeHtml(client.id)}"`),
+          diagChip("WAKE", wakeOk ? "good" : "bad", `Wake Lock поддерживается: ${yesNo(client.wakeLockSupported === true)}; активен: ${yesNo(client.wakeLockActive === true)}`),
+          diagChip("SSE", sseOk ? "good" : "bad", `Мгновенные события сервера: поддержка ${yesNo(client.eventSourceSupported === true)}; подключено ${yesNo(client.eventSourceConnected === true)}`),
+          diagChip("TAB", tabOk ? "good" : "bad", `Видимость вкладки: ${client.visibility || "неизвестно"}`)
+        ].join("") : [
+          diagChip("NET", netStatus, `Connection: ${client.connected ? "online" : "offline"}; latency ${formatMs(client.latency)}; green ≤100 ms, yellow ≤200 ms, red >200 ms`),
+          diagChip("SYNC", syncStatus, `${hasSyncError ? "Estimated synchronization error" : "Approximate estimate from network latency"}: ${formatMs(estimatedSyncError)}; jitter ${formatMs(client.syncJitter)}; samples ${client.syncSamples || "n/a"}; green ≤100 ms, yellow ≤300 ms, red >300 ms`),
+          diagChip("AUDIO", audioClasses, `Sound allowed: ${yesNo(client.soundAllowed !== false)}; unlocked by tap: ${yesNo(client.audioUnlocked === true)}; ${t("audioOffsetUser")}: ${formatMs(userAudioOffset)}`, ` data-audio-client="${escapeHtml(client.id)}"`),
+          diagChip("WAKE", wakeOk ? "good" : "bad", `Wake Lock supported: ${yesNo(client.wakeLockSupported === true)}; active: ${yesNo(client.wakeLockActive === true)}`),
+          diagChip("SSE", sseOk ? "good" : "bad", `Instant server events: supported ${yesNo(client.eventSourceSupported === true)}; connected ${yesNo(client.eventSourceConnected === true)}`),
+          diagChip("TAB", tabOk ? "good" : "bad", `Tab visibility: ${client.visibility || "unknown"}`)
+        ].join("");
+        const title = language === "ru"
+          ? `ОС: ${operatingSystem(client.userAgent)}; устройство: ${deviceType(client.userAgent)}; экран ${client.screen || "n/a"}; окно ${client.viewport || "n/a"}; DPR ${client.dpr ?? "n/a"}`
+          : `OS: ${operatingSystem(client.userAgent)}; device: ${deviceType(client.userAgent)}; screen ${client.screen || "n/a"}; viewport ${client.viewport || "n/a"}; DPR ${client.dpr ?? "n/a"}`;
+        const meta = [
+          client.displayStatus,
+          client.role === "Основной" ? t("primary") : client.role === "Экран" ? t("screen") : client.role,
+          client.protocol,
+          clientAddress(client.address),
+          `${Math.round((client.age || 0) / 1000)}${t("sec")}`
+        ].filter(Boolean).map(escapeHtml).join(" · ");
+        const metaTitle = language === "ru"
+          ? `Поправка системных часов относительно сервера: ${formatMs(client.offset)}. Это информационный параметр, стабильное большое значение не означает рассинхронизацию таймера.`
+          : `System clock offset from the server: ${formatMs(client.offset)}. This is informational; a large stable value does not mean the timer is out of sync.`;
+        const canTestEverywhere = client.id === state.primaryClientId;
+        const testEverywhereControl = canTestEverywhere ? `
+              <label class="audio-test-everywhere">
+                <input type="checkbox" data-audio-test-everywhere${testAudioEverywhere ? " checked" : ""}>
+                <span>${t("testEverywhere")}</span>
+              </label>` : "";
+        const audioEditor = audioEditing ? `
+          <div class="audio-offset-editor">
+            <div class="audio-offset-value">${t("audioOffsetUser")}: <strong data-audio-offset-value>${pendingAudioOffset > 0 ? "+" : ""}${pendingAudioOffset} ${t("ms")}</strong></div>
+            <input type="range" min="-500" max="500" step="1" value="${pendingAudioOffset}" data-audio-offset-slider="${escapeHtml(client.id)}" aria-label="${escapeHtml(t("audioOffsetUser"))}">
+            <div class="audio-offset-scale">
+              <button type="button" data-audio-offset-mark="-500">-500</button>
+              <button type="button" data-audio-offset-mark="-250">-250</button>
+              <button type="button" data-audio-offset-mark="0">0</button>
+              <button type="button" data-audio-offset-mark="250">+250</button>
+              <button type="button" data-audio-offset-mark="500">+500</button>
+            </div>
+            <div class="audio-test-controls">
+              ${testEverywhereControl}
+              <div class="audio-test-buttons">
+                <button type="button" data-audio-test-kind="phase" data-audio-test-client="${escapeHtml(client.id)}">${t("testStartSignal")}</button>
+                <button type="button" data-audio-test-kind="minute" data-audio-test-client="${escapeHtml(client.id)}">${t("testMinuteSignal")}</button>
+                <button type="button" data-audio-test-kind="warn" data-audio-test-client="${escapeHtml(client.id)}">${t("testFiveSignals")}</button>
+              </div>
+            </div>
+          </div>` : "";
+        return `<div class="${classes.join(" ")}">
+          <strong title="${escapeHtml(title)}">${escapeHtml(client.label)} (${escapeHtml(clientPrefix)}${displayIpHtml})</strong>
+          <span title="${escapeHtml(metaTitle)}">${meta}</span>
+          <div class="diag-row">${chips}</div>
+          ${audioEditor}
+        </div>`;
+      }).join("");
+    }
+
+    function canPlaySound() {
+      if (isPrimaryClient) return primarySoundEnabled;
+      if (isSameComputerAsPrimary) return false;
+      if (isViewerClient) return instancesSoundEnabled;
+      return globalSoundEnabled;
+    }
+
+    function updatePrimaryComputerFlag(clients = [], primaryClientId = null) {
+      if (!primaryClientId || primaryClientId === clientId) {
+        isSameComputerAsPrimary = false;
+        return;
+      }
+      const self = clients.find((client) => client.id === clientId);
+      const primary = clients.find((client) => client.id === primaryClientId);
+      isSameComputerAsPrimary = Boolean(self?.computerKey && primary?.computerKey && self.computerKey === primary.computerKey);
+    }
+
+    function pickSpeechVoice() {
+      if (!("speechSynthesis" in window)) return null;
+      const voices = window.speechSynthesis.getVoices();
+      const femaleHints = ["female", "irina", "alena", "alyona", "elena", "milena", "svetlana", "tatyana", "oksana"];
+      const languageVoices = voices.filter((voice) => voice.lang.toLowerCase().startsWith(language));
+      speechVoice = languageVoices.find((voice) => femaleHints.some((hint) => voice.name.toLowerCase().includes(hint)))
+        || languageVoices[0]
+        || null;
+      return speechVoice;
+    }
+
+    if ("speechSynthesis" in window) {
+      window.speechSynthesis.addEventListener("voiceschanged", pickSpeechVoice);
+      pickSpeechVoice();
+    }
+
+    function speak(text) {
+      if (!canPlaySound()) return;
+      if (!("speechSynthesis" in window)) {
+        beep("minute");
+        return;
+      }
+      const voice = pickSpeechVoice();
+      if (!voice) {
+        beep("minute");
+        return;
+      }
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.lang = language === "en" ? "en-US" : "ru-RU";
+      utterance.voice = voice;
+      utterance.rate = 0.94;
+      utterance.pitch = 1.08;
+      utterance.volume = 1;
+      try {
+        window.speechSynthesis.speak(utterance);
+      } catch (error) {
+        beep("minute");
+      }
+    }
+
+    function soundBuffer(kind) {
+      return audioBuffers[kind] || null;
+    }
+
+    function soundSource(kind) {
+      return audioSources[kind] || "";
+    }
+
+    function playHtmlAudio(kind) {
+      const source = soundSource(kind);
+      if (!source || !canPlaySound()) return false;
+      try {
+        const audio = new Audio(source);
+        audio.preload = "auto";
+        if (kind === "warn") audio.volume = 0.82;
+        activeHtmlAudio.push(audio);
+        audio.addEventListener("ended", () => {
+          activeHtmlAudio = activeHtmlAudio.filter((item) => item !== audio);
+        }, { once: true });
+        audio.play().catch(() => {
+          activeHtmlAudio = activeHtmlAudio.filter((item) => item !== audio);
+          beepSynthetic(kind);
+        });
+        return true;
+      } catch (error) {
+        return false;
+      }
+    }
+
+    function playBuffer(kind, delaySeconds = 0, preserveOnTransition = false, signalKey = "") {
+      if (!canPlaySound() || !audioContext) return false;
+      const buffer = soundBuffer(kind);
+      if (!buffer) return false;
+      const source = audioContext.createBufferSource();
+      const gain = audioContext.createGain();
+      source.buffer = buffer;
+      source.connect(gain).connect(audioContext.destination);
+      const start = Math.max(audioContext.currentTime, audioContext.currentTime + Math.max(0, delaySeconds));
+      gain.gain.setValueAtTime(kind === "warn" ? 0.82 : 1, start);
+      source.start(start);
+      source.stop(start + buffer.duration + 0.02);
+      scheduledAudioNodes.push({ node: source, start, preserveOnTransition, signalKey });
+      source.onended = () => {
+        scheduledAudioNodes = scheduledAudioNodes.filter((item) => item.node !== source);
+        if (signalKey) scheduledSignalKeys.delete(signalKey);
+      };
+      return true;
+    }
+
+    function scheduleDiagnosticSound(kind, targetServerTime) {
+      const delaySeconds = Math.max(0, (targetServerTime - serverNow()) / 1000);
+      const buffer = soundBuffer(kind);
+      if (audioContext && buffer) {
+        const source = audioContext.createBufferSource();
+        const gain = audioContext.createGain();
+        source.buffer = buffer;
+        source.connect(gain).connect(audioContext.destination);
+        const start = audioContext.currentTime + delaySeconds;
+        gain.gain.setValueAtTime(kind === "warn" ? 0.82 : 1, start);
+        source.start(start);
+        source.stop(start + buffer.duration + 0.02);
+        return;
+      }
+
+      window.setTimeout(() => beep(kind), delaySeconds * 1000);
+    }
+
+    async function handleAudioTest(command) {
+      const testId = String(command?.id || "");
+      if (!testId || testId === lastAudioTestId) return;
+      const everywhere = Boolean(command.everywhere);
+      const isTarget = everywhere
+        ? canPlaySound()
+        : String(command.targetClientId || "") === clientId;
+      if (!isTarget) return;
+      lastAudioTestId = testId;
+
+      await unlockAudio();
+      try {
+        audioContext ||= new (window.AudioContext || window.webkitAudioContext)();
+        if (audioContext.state === "suspended") await audioContext.resume();
+        await loadAudioBuffers();
+      } catch (error) {}
+
+      const baseServerTime = Number(command.serverTime) + audioUserOffsetMs;
+      if (!Number.isFinite(baseServerTime)) return;
+      const kind = ["phase", "minute", "warn"].includes(command.kind) ? command.kind : "phase";
+      const offsets = kind === "warn" ? [0, 1000, 2000, 3000, 4000] : [0];
+      offsets.forEach((offset) => scheduleDiagnosticSound(kind, baseServerTime + offset));
+    }
+
+    function beep(kind, delaySeconds = 0, scheduled = false, signalKey = "") {
+      if (!canPlaySound()) return;
+      if ((kind === "phase" || kind === "minute" || kind === "warn") && playBuffer(kind, delaySeconds, false, signalKey)) {
+        return;
+      }
+      if (delaySeconds === 0 && (kind === "phase" || kind === "minute" || kind === "warn") && playHtmlAudio(kind)) {
+        return;
+      }
+      beepSynthetic(kind, delaySeconds, scheduled);
+    }
+
+    function beepSynthetic(kind, delaySeconds = 0, scheduled = false) {
+      if (!canPlaySound()) return;
+      audioContext ||= new (window.AudioContext || window.webkitAudioContext)();
+      const plans = {
+        finish: [{ offset: 0, frequency: 220, duration: .36 }],
+        minute: [
+          { offset: 0, frequency: 700, duration: .18 },
+          { offset: .28, frequency: 700, duration: .18 }
+        ],
+        warn: [{ offset: 0, frequency: 880, duration: .22, volume: .22 }],
+        phase: [
+          { offset: 0, frequency: 760, duration: .9, volume: .3, type: "square", attack: .006 },
+          { offset: 0, frequency: 380, duration: .9, volume: .12, type: "sine", attack: .006 }
+        ],
+        warm: [{ offset: 0, frequency: 440, duration: .08, volume: .006 }],
+        prewarm: [{ offset: 0, frequency: 440, duration: .08, volume: .004 }]
+      };
+
+      const now = audioContext.currentTime + Math.max(0, delaySeconds);
+      const plan = plans[kind] || plans.phase;
+      plan.forEach(({ offset, frequency, duration, volume = .22, type = "sine", attack = .02 }) => {
+        const start = now + offset;
+        const osc = audioContext.createOscillator();
+        const gain = audioContext.createGain();
+        osc.type = type;
+        osc.frequency.setValueAtTime(frequency, start);
+        gain.gain.setValueAtTime(0.0001, start);
+        gain.gain.exponentialRampToValueAtTime(volume, start + attack);
+        gain.gain.exponentialRampToValueAtTime(0.0001, start + duration);
+        osc.connect(gain).connect(audioContext.destination);
+        osc.start(start);
+        osc.stop(start + duration + 0.02);
+        if (scheduled) scheduledAudioNodes.push({ node: osc, start });
+      });
+    }
+
+    function flash() {
+      if (!els.flashToggle.checked) return;
+      document.body.classList.remove("flash");
+      void document.body.offsetWidth;
+      document.body.classList.add("flash");
+    }
+
+    function signal(kind) {
+      beep(kind);
+      flash();
+    }
+
+    function wakeAudioOutput(kind = "prewarm") {
+      if (!canPlaySound()) return;
+      try {
+        audioContext ||= new (window.AudioContext || window.webkitAudioContext)();
+        if (audioContext.state === "suspended") {
+          audioContext.resume().then(() => beep(kind)).catch(() => {});
+          return;
+        }
+        beep(kind);
+      } catch (error) {}
+    }
+
+    function immediatePhaseSignal() {
+      if (!canPlaySound()) return;
+      const delay = Math.max(0, audioUserOffsetMs / 1000);
+      if (delay > 0) {
+        transitionSignalTimers.push(window.setTimeout(() => beep("phase"), delay * 1000));
+        flash();
+        return;
+      }
+      beep("phase");
+      flash();
+    }
+
+    function scheduleSignal(segment, delaySeconds, kind, withFlash = true) {
+      const safeDelay = Math.max(0, delaySeconds);
+      if (kind === "warn") {
+        scheduleSegmentTimeout(segment, safeDelay, () => signal("warn"));
+        return;
+      }
+      beep(kind, safeDelay, true);
+      if (!withFlash) return;
+      scheduleSegmentTimeout(segment, safeDelay, () => flash());
+    }
+
+    function serverTimeForElapsed(elapsed) {
+      return state.serverStartedAt ? state.serverStartedAt + elapsed * 1000 : null;
+    }
+
+    function delayUntilServerTime(targetServerTime) {
+      if (!targetServerTime) return 0;
+      return Math.max(0, (targetServerTime - serverNow()) / 1000);
+    }
+
+    function audioServerTime(targetServerTime) {
+      return targetServerTime ? targetServerTime + audioUserOffsetMs : targetServerTime;
+    }
+
+    function scheduleSignalAt(segment, targetServerTime, kind, withFlash = true) {
+      const soundTargetServerTime = audioServerTime(targetServerTime);
+      const delay = delayUntilServerTime(soundTargetServerTime);
+      if (kind === "minute" || kind === "warn") {
+        scheduleBufferedSignalAt(segment, targetServerTime, kind, withFlash);
+        return;
+      }
+      if (kind === "warm" || kind === "prewarm") {
+        scheduleServerTimeoutAt(soundTargetServerTime, () => wakeAudioOutput(kind));
+        return;
+      }
+      beep(kind, delay, true);
+      if (!withFlash) return;
+      scheduleSegmentTimeoutAt(segment, targetServerTime, () => flash());
+    }
+
+    function scheduleBufferedSignalAt(segment, targetServerTime, kind, withFlash = true, scheduleImmediately = false) {
+      const soundTargetServerTime = audioServerTime(targetServerTime);
+      const signalKey = `${segment.cycle}:${segment.type}:${kind}:${Math.round(soundTargetServerTime)}`;
+      if (scheduledSignalKeys.has(signalKey)) return;
+      scheduledSignalKeys.add(signalKey);
+      let scheduledByBuffer = false;
+      const cancelFallback = scheduleServerTimeoutAt(soundTargetServerTime, () => {
+        if (scheduledByBuffer) return;
+        beep(kind);
+      });
+      if (withFlash) scheduleSegmentTimeoutAt(segment, targetServerTime, () => flash());
+
+      const tryScheduleBuffer = () => {
+        if (scheduledByBuffer || !soundBuffer(kind)) return false;
+        const current = getCurrentSegment(elapsedSeconds());
+        if (!state.running || !current) return false;
+        if (current.cycle !== segment.cycle || current.type !== segment.type) return false;
+
+        const nextDelay = delayUntilServerTime(soundTargetServerTime);
+        if (nextDelay <= 0.08) return false;
+        scheduledByBuffer = true;
+        cancelFallback();
+        beep(kind, nextDelay, true, signalKey);
+        return true;
+      };
+
+      if (scheduleImmediately) {
+        if (tryScheduleBuffer()) return;
+        if (audioContext && !soundBuffer(kind)) {
+          loadAudioBuffers()?.then(() => {
+            tryScheduleBuffer();
+          });
+        }
+      }
+
+      scheduleSegmentTimeoutAt(segment, soundTargetServerTime - audioScheduleAheadSeconds * 1000, () => {
+        if (tryScheduleBuffer()) return;
+        if (audioContext && !soundBuffer(kind)) {
+          loadAudioBuffers()?.then(() => {
+            tryScheduleBuffer();
+          });
+        }
+      });
+    }
+
+    function nextPhaseSignalKey(segment) {
+      const settings = activeSettings();
+      if (segment.type === "rotation" && settings.breakSeconds > 0) {
+        return `${segment.cycle}:break`;
+      }
+      return `${segment.cycle + 1}:rotation`;
+    }
+
+    function schedulePhaseTransitionAt(segment, targetServerTime, finalTransition = false) {
+      const phaseKey = finalTransition ? `${segment.cycle}:finish` : nextPhaseSignalKey(segment);
+      if (lastPhaseSignalKey === phaseKey || scheduledPhaseSignalKeys.has(phaseKey)) return;
+      scheduledPhaseSignalKeys.add(phaseKey);
+      const soundTargetServerTime = audioServerTime(targetServerTime);
+      let scheduledByBuffer = false;
+      const playFallback = () => {
+        if (scheduledByBuffer) return;
+        beep("phase");
+      };
+      const cancelFallback = scheduleServerTimeoutAt(soundTargetServerTime, () => {
+        lastPhaseSignalKey = phaseKey;
+        scheduledPhaseSignalKeys.delete(phaseKey);
+        playFallback();
+      }, true);
+      const scheduleFlashAtTarget = finalTransition ? scheduleServerTimeoutAt : (target, callback) => scheduleSegmentTimeoutAt(segment, target, callback);
+      scheduleFlashAtTarget(targetServerTime, () => flash());
+
+      const tryScheduleBuffer = () => {
+        if (scheduledByBuffer || !canPlaySound() || !soundBuffer("phase")) return false;
+        const current = getCurrentSegment(elapsedSeconds());
+        if (!state.running || !current) return false;
+        if (current.cycle !== segment.cycle || current.type !== segment.type) return false;
+
+        const nextDelay = delayUntilServerTime(soundTargetServerTime);
+        if (nextDelay <= 0.08) return false;
+        scheduledByBuffer = true;
+        cancelFallback();
+        lastPhaseSignalKey = phaseKey;
+        scheduledPhaseSignalKeys.delete(phaseKey);
+        playBuffer("phase", nextDelay, true);
+        return true;
+      };
+
+      scheduleSegmentTimeoutAt(segment, soundTargetServerTime - audioScheduleAheadSeconds * 1000, () => {
+        if (tryScheduleBuffer()) return;
+        if (audioContext && !soundBuffer("phase")) {
+          loadAudioBuffers()?.then(() => {
+            tryScheduleBuffer();
+          });
+        }
+      });
+    }
+
+    function clearSignalTimers(preserveTransition = false, forceStopAudio = false) {
+      signalTimers.forEach((timer) => window.clearTimeout(timer));
+      signalTimers = [];
+      if (!preserveTransition) {
+        transitionSignalTimers.forEach((timer) => window.clearTimeout(timer));
+        transitionSignalTimers = [];
+      }
+      if ("speechSynthesis" in window) window.speechSynthesis.cancel();
+      const now = audioContext?.currentTime ?? 0;
+      const retainedSignalKeys = new Set();
+      scheduledAudioNodes = scheduledAudioNodes.filter((item) => {
+        const node = item.node || item;
+        const start = Number(item.start ?? 0);
+        if (!forceStopAudio && preserveTransition && item.preserveOnTransition && start > now - 2) return true;
+        if (!forceStopAudio && start <= now + 0.2) {
+          if (item.signalKey) retainedSignalKeys.add(item.signalKey);
+          return true;
+        }
+        try { node.stop(0); } catch (error) {}
+        return false;
+      });
+      scheduledFinalSignalKey = "";
+      scheduledSignalKeys.clear();
+      retainedSignalKeys.forEach((key) => scheduledSignalKeys.add(key));
+      if (!preserveTransition) scheduledPhaseSignalKeys.clear();
+    }
+
+    function applySoundPreferenceChange() {
+      if (!canPlaySound()) {
+        activeHtmlAudio.forEach((audio) => {
+          try {
+            audio.pause();
+            audio.currentTime = 0;
+          } catch (error) {}
+        });
+        activeHtmlAudio = [];
+      }
+
+      clearSignalTimers(false, !canPlaySound());
+      if (!state.running || state.countdownOnly) return;
+      const elapsed = elapsedSeconds();
+      const segment = getCurrentSegment(elapsed);
+      if (!segment) return;
+      const remaining = segment.end - elapsed;
+      const duration = segment.end - segment.start;
+      lastSegmentIndex = `${segment.cycle}:${segment.type}`;
+      scheduleSegmentSignals(segment, remaining, duration, false);
+    }
+
+    function scheduleSegmentSignals(segment, remaining, duration, includePhase = true) {
+      clearSignalTimers(true);
+      if (!state.running) return;
+
+      const phaseSignalKey = `${segment.cycle}:${segment.type}`;
+      if (includePhase && duration - remaining < 2 && lastPhaseSignalKey !== phaseSignalKey && !scheduledPhaseSignalKeys.has(phaseSignalKey)) {
+        lastPhaseSignalKey = phaseSignalKey;
+        signal("phase");
+      }
+
+      scheduleFestivalAnnouncements(segment, remaining);
+
+      if (remaining > 0.2) {
+        const settings = activeSettings();
+        const totalDuration = settings.rotationSeconds + settings.breakSeconds;
+        const finalTransition = settings.oneShot && segment.end >= totalDuration;
+        schedulePhaseTransitionAt(segment, serverTimeForElapsed(segment.end), finalTransition);
+      }
+
+      if (duration > 60 && remaining > 60) {
+        if (remaining > 60 + audioPrewarmSeconds) {
+          scheduleSignalAt(segment, serverTimeForElapsed(segment.end - 60 - audioPrewarmSeconds), "prewarm", false);
+        }
+        if (remaining > 60.8) {
+          scheduleSignalAt(segment, serverTimeForElapsed(segment.end - 60.8), "warm", false);
+        }
+        scheduleSignalAt(segment, serverTimeForElapsed(segment.end - 60), "minute", true);
+      }
+
+      if (remaining > 6) {
+        if (remaining > 5 + audioPrewarmSeconds) {
+          scheduleSignalAt(segment, serverTimeForElapsed(segment.end - 5 - audioPrewarmSeconds), "prewarm", false);
+        }
+        scheduleSegmentTimeoutAt(segment, serverTimeForElapsed(segment.end - 6), () => {
+          const current = getCurrentSegment(elapsedSeconds());
+          if (!current) return;
+          scheduleFinalWarnings(current);
+        });
+      } else {
+        scheduleFinalWarnings(segment);
+      }
+    }
+
+    function scheduleFestivalAnnouncements(segment, remaining) {
+      if (state.activePreset !== "festival" || segment.type !== "rotation") return;
+      festivalAnnouncements.forEach((announcement) => {
+        if (remaining <= announcement.remaining) return;
+        scheduleServerTimeoutAt(audioServerTime(serverTimeForElapsed(segment.end - announcement.remaining)), () => speak(announcement[language]));
+      });
+    }
+
+    function scheduleSegmentTimeout(segment, delaySeconds, callback) {
+      signalTimers.push(window.setTimeout(() => {
+        const current = getCurrentSegment(elapsedSeconds());
+        if (!state.running || !current) return;
+        if (current.cycle !== segment.cycle || current.type !== segment.type) return;
+        callback();
+      }, Math.max(0, delaySeconds * 1000)));
+    }
+
+    function scheduleSegmentTimeoutAt(segment, targetServerTime, callback) {
+      let cancelled = false;
+      let activeTimer = null;
+      const arm = () => {
+        if (cancelled) return;
+        const delay = delayUntilServerTime(targetServerTime);
+        const wait = Math.max(0, Math.min(delay, serverTimerLookaheadSeconds));
+        activeTimer = window.setTimeout(() => {
+          if (cancelled) return;
+          const current = getCurrentSegment(elapsedSeconds());
+          if (!state.running || !current) return;
+          if (current.cycle !== segment.cycle || current.type !== segment.type) return;
+          if (delayUntilServerTime(targetServerTime) > 0.035) {
+            arm();
+            return;
+          }
+          callback();
+        }, wait * 1000);
+        signalTimers.push(activeTimer);
+      };
+      arm();
+      return () => {
+        cancelled = true;
+        if (activeTimer) window.clearTimeout(activeTimer);
+      };
+    }
+
+    function scheduleServerTimeoutAt(targetServerTime, callback, preserveOnTransition = false) {
+      let cancelled = false;
+      let activeTimer = null;
+      const timerList = preserveOnTransition ? transitionSignalTimers : signalTimers;
+      const forgetTimer = () => {
+        if (!activeTimer) return;
+        const index = timerList.indexOf(activeTimer);
+        if (index >= 0) timerList.splice(index, 1);
+      };
+      const arm = () => {
+        if (cancelled) return;
+        const delay = delayUntilServerTime(targetServerTime);
+        const wait = Math.max(0, Math.min(delay, serverTimerLookaheadSeconds));
+        activeTimer = window.setTimeout(() => {
+          forgetTimer();
+          if (cancelled) return;
+          if (delayUntilServerTime(targetServerTime) > 0.035) {
+            arm();
+            return;
+          }
+          callback();
+        }, wait * 1000);
+        timerList.push(activeTimer);
+      };
+      arm();
+      return () => {
+        cancelled = true;
+        if (activeTimer) {
+          window.clearTimeout(activeTimer);
+          forgetTimer();
+        }
+      };
+    }
+
+    function scheduleFinalWarnings(segment) {
+      const finalSignalKey = `${segment.cycle}:${segment.type}:final`;
+      if (scheduledFinalSignalKey === finalSignalKey) return;
+      scheduledFinalSignalKey = finalSignalKey;
+
+      const remaining = segment.end - elapsedSeconds();
+      if (remaining > 5.8) {
+        scheduleSignalAt(segment, serverTimeForElapsed(segment.end - 5.8), "warm", false);
+      }
+      [5, 4, 3, 2, 1].forEach((second) => {
+        if (remaining <= second) return;
+        scheduleBufferedSignalAt(segment, serverTimeForElapsed(segment.end - second), "warn", true, true);
+      });
+    }
+
+    function render() {
+      const timeline = state.timeline.length ? state.timeline : buildTimeline();
+      const elapsed = elapsedSeconds();
+      const segment = getCurrentSegment(elapsed);
+      const settings = activeSettings();
+      const isReady = !state.running && !state.completed && state.elapsedBeforePause === 0;
+      document.body.classList.toggle("scrub-ready", !state.running && !isViewerClient && !isReady);
+
+      if (state.countdownOnly) {
+        const untilStart = Math.max(0, (state.serverStartedAt - serverNow()) / 1000);
+        document.body.classList.remove("break-active");
+        els.phase.textContent = untilStart > 0 ? t("untilStart") : t("waitingManual");
+        els.phase.className = "phase ready";
+        setDisplayTime(untilStart);
+        els.status.textContent = untilStart > 0 ? t("waitingStart") : t("readyStart");
+        els.cycleMeta.textContent = t("final");
+        els.rotationMeta.textContent = `${t("start")} ${new Date(state.serverStartedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
+        els.nextMeta.textContent = untilStart > 0 ? t("nextManual") : t("pressStart");
+        els.progressBar.style.width = "0%";
+        els.schedule.innerHTML = `<div class="chip current"><span>${untilStart > 0 ? t("untilStart") : t("waitingManual")}</span></div>`;
+        syncButtons();
+        return;
+      }
+
+      if (state.running && state.serverStartedAt > serverNow()) {
+        const untilStart = (state.serverStartedAt - serverNow()) / 1000;
+        document.body.classList.remove("break-active");
+        els.phase.textContent = t("waitingStart");
+        els.phase.className = "phase ready";
+        setDisplayTime(untilStart);
+        els.status.textContent = t("waitingStart");
+        els.cycleMeta.textContent = `${t("cycle")} 1`;
+        els.rotationMeta.textContent = `${t("start")} ${new Date(state.serverStartedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
+        els.nextMeta.textContent = t("nextStart");
+        els.progressBar.style.width = "0%";
+        drawSchedule(null);
+        syncButtons();
+        return;
+      }
+
+      if (state.waitingForManualStart) {
+        document.body.classList.remove("break-active");
+        els.phase.textContent = t("waitingManual");
+        els.phase.className = "phase ready";
+        setDisplayTime(0);
+        els.status.textContent = t("readyStart");
+        els.cycleMeta.textContent = t("final");
+        els.rotationMeta.textContent = `${t("rotation")} ${formatTime(settings.rotationSeconds)}`;
+        els.nextMeta.textContent = t("nextManual");
+        els.progressBar.style.width = "0%";
+        drawSchedule(null);
+        syncButtons();
+        return;
+      }
+
+      const oneShotDuration = settings.rotationSeconds + settings.breakSeconds;
+      if (state.completed || (settings.oneShot && elapsed >= oneShotDuration)) {
+        document.body.classList.remove("break-active");
+        els.phase.textContent = t("completed");
+        els.phase.className = "phase ready";
+        setDisplayTime(0);
+        els.status.textContent = t("completed");
+        els.cycleMeta.textContent = t("final");
+        els.rotationMeta.textContent = `${t("rotation")} ${formatTime(settings.rotationSeconds)}`;
+        els.nextMeta.textContent = "";
+        els.progressBar.style.width = "100%";
+        drawSchedule(null);
+        syncButtons();
+        return;
+      }
+
+      if (isReady || !segment) {
+        document.body.classList.remove("break-active");
+        els.phase.textContent = t("readiness");
+        els.phase.className = "phase ready";
+        setDisplayTime(settings.rotationSeconds);
+        els.status.textContent = t("ready");
+        els.cycleMeta.textContent = `${t("cycle")} 1`;
+        els.rotationMeta.textContent = `${t("rotation")} ${formatTime(settings.rotationSeconds)}`;
+        els.nextMeta.textContent = t("nextStart");
+        els.progressBar.style.width = "0%";
+        drawSchedule(null);
+        syncButtons();
+        return;
+      }
+
+      const remaining = segment.end - elapsed;
+      const duration = segment.end - segment.start;
+      const donePercent = ((duration - remaining) / duration) * 100;
+      const segmentKey = `${segment.cycle}:${segment.type}`;
+
+      document.body.classList.toggle("break-active", segment.type === "break");
+      els.phase.textContent = segment.label;
+      els.phase.className = `phase ${segment.type}`;
+      setDisplayTime(remaining);
+      els.status.textContent = state.running ? t("roundRunning") : t("pause");
+      els.cycleMeta.textContent = `${t("cycle")} ${segment.cycle}`;
+      els.rotationMeta.textContent = segment.type === "break"
+        ? `${t("break")} ${formatTime(settings.breakSeconds)}`
+        : `${t("rotation")} ${formatTime(settings.rotationSeconds)}`;
+      els.nextMeta.textContent = segment.type === "break"
+        ? settings.oneShot ? t("nextComplete") : t("nextRotation")
+        : settings.oneShot ? t("nextComplete") : settings.breakSeconds > 0 ? t("nextBreak") : t("nextRotation");
+      if (settings.oneShot && segment.type === "rotation" && settings.breakSeconds > 0) {
+        els.nextMeta.textContent = t("nextBreak");
+      }
+      els.progressBar.style.width = `${Math.max(0, Math.min(100, donePercent))}%`;
+      drawSchedule(segment);
+
+      if (state.running && segmentKey !== lastSegmentIndex) {
+        lastSegmentIndex = segmentKey;
+        scheduleSegmentSignals(segment, remaining, duration, true);
+      }
+
+      if (state.running && remaining <= 6) {
+        scheduleFinalWarnings(segment);
+      }
+    }
+
+    function tick() {
+      render();
+      requestAnimationFrame(tick);
+    }
+
+    function syncButtons() {
+      const canPause = state.running;
+      const hasScheduledStart = els.startHours.value !== "" || els.startMinutes.value !== "";
+      const canStartByTime = !state.running
+        && !state.completed
+        && state.elapsedBeforePause === 0
+        && !state.waitingForManualStart
+        && hasScheduledStart;
+      els.startBtn.textContent = t("start");
+      els.compactStart.textContent = t("start");
+      els.startBtn.disabled = state.running;
+      els.compactStart.disabled = state.running;
+      els.scheduledStartBtn.disabled = !canStartByTime;
+      els.pauseBtn.disabled = !canPause;
+      els.compactPause.disabled = !canPause;
+    }
+
+    async function startTimer() {
+      if (state.running) return;
+      const isFreshStart = state.elapsedBeforePause === 0 || state.completed;
+      requestScreenWakeLock();
+      if (isFreshStart) {
+        lastPhaseSignalKey = "1:rotation";
+        immediatePhaseSignal();
+      }
+      unlockAudio();
+      if (audioContext?.state === "suspended") audioContext.resume();
+      const sent = await sendServerAction("start", {
+        settings: isFreshStart ? activeSettingsFromDraft() : activeSettings(),
+        startHours: "",
+        startMinutes: "",
+        manualStart: state.waitingForManualStart
+      }, { rescheduleSignals: true, includePhaseSignal: false });
+      if (sent) return;
+
+      if (state.completed) {
+        state.completed = false;
+        state.elapsedBeforePause = 0;
+      }
+      if (isFreshStart) buildTimeline();
+      state.running = true;
+      state.completed = false;
+      state.startedAt = performance.now() - (state.elapsedBeforePause * 1000);
+      state.accumulatedPause = 0;
+      state.pausedAt = 0;
+      if (isFreshStart) {
+        lastSegmentIndex = -1;
+        clearSignalTimers();
+      }
+      syncButtons();
+      render();
+
+      if (!isFreshStart) {
+        const elapsed = elapsedSeconds();
+        const segment = getCurrentSegment(elapsed);
+        if (segment) {
+          const remaining = segment.end - elapsed;
+          const duration = segment.end - segment.start;
+          scheduleSegmentSignals(segment, remaining, duration, false);
+        }
+      }
+    }
+
+    async function startTimerByTime() {
+      if (state.running || state.completed || state.elapsedBeforePause > 0 || state.waitingForManualStart) return;
+      const hasScheduledStart = els.startHours.value !== "" || els.startMinutes.value !== "";
+      if (!hasScheduledStart) return;
+
+      requestScreenWakeLock();
+      unlockAudio();
+      if (audioContext?.state === "suspended") audioContext.resume();
+      await sendServerAction("start", {
+        settings: activeSettingsFromDraft(),
+        startHours: els.startHours.value,
+        startMinutes: els.startMinutes.value,
+        manualStart: false
+      }, { rescheduleSignals: true, includePhaseSignal: false });
+    }
+
+    async function pauseTimer() {
+      if (!state.running) return;
+      const sent = await sendServerAction("pause");
+      if (sent) return;
+
+      state.elapsedBeforePause = elapsedSeconds();
+      state.running = false;
+      state.pausedAt = performance.now();
+      clearSignalTimers();
+      syncButtons();
+      render();
+    }
+
+    async function hardReset(shouldSignal = true) {
+      const sent = await sendServerAction("reset", {
+        settings: activeSettingsFromDraft()
+      });
+      if (sent) {
+        if (shouldSignal) signal("finish");
+        return;
+      }
+
+      state.running = false;
+      state.completed = false;
+      state.startedAt = 0;
+      state.pausedAt = 0;
+      state.accumulatedPause = 0;
+      state.elapsedBeforePause = 0;
+      state.activeSettings = null;
+      lastSegmentIndex = -1;
+      lastPhaseSignalKey = "";
+      clearSignalTimers();
+      document.body.classList.remove("break-active");
+      buildTimeline();
+      if (shouldSignal) signal("finish");
+      syncButtons();
+      render();
+    }
+
+    function setPrimaryMode(enabled) {
+      els.primaryToggle.checked = enabled;
+      sendServerAction("primary", {
+        clientId: enabled ? clientId : null
+      });
+    }
+
+    function togglePrimaryMode() {
+      setPrimaryMode(!isPrimaryClient);
+    }
+
+    function canScrub() {
+      return !state.running && !isViewerClient && state.elapsedBeforePause > 0;
+    }
+
+    async function scrubToPointer(event) {
+      if (!canScrub()) return;
+      const segment = getCurrentSegment(elapsedSeconds());
+      if (!segment) return;
+
+      const rect = els.progressTrack.getBoundingClientRect();
+      const ratio = Math.min(1, Math.max(0, (event.clientX - rect.left) / rect.width));
+      const duration = segment.end - segment.start;
+      const elapsed = segment.start + duration * ratio;
+
+      state.elapsedBeforePause = elapsed;
+      clearSignalTimers();
+      render();
+      sendServerAction("seek", { elapsed });
+    }
+
+    function startScrub(event) {
+      if (!canScrub()) return;
+      event.preventDefault();
+      isScrubbing = true;
+      els.progressTrack.setPointerCapture?.(event.pointerId);
+      scrubToPointer(event);
+    }
+
+    function moveScrub(event) {
+      if (!isScrubbing) return;
+      scrubToPointer(event);
+    }
+
+    function stopScrub(event) {
+      if (!isScrubbing) return;
+      isScrubbing = false;
+      els.progressTrack.releasePointerCapture?.(event.pointerId);
+    }
+
+    async function toggleFullscreen() {
+      requestScreenWakeLock();
+      if (!document.fullscreenElement) {
+        document.body.classList.add("fullscreen");
+        await document.documentElement.requestFullscreen();
+      } else {
+        document.body.classList.remove("fullscreen");
+        await document.exitFullscreen();
+      }
+    }
+
+    async function applyViewerFullscreenPreference(fromUserGesture = false) {
+      if (!isViewerClient) {
+        pendingViewerFullscreen = false;
+        return;
+      }
+
+      if (instancesFullscreenEnabled) {
+        if (document.fullscreenElement) {
+          pendingViewerFullscreen = false;
+          return;
+        }
+        if (pendingViewerFullscreen && !fromUserGesture) return;
+        try {
+          document.body.classList.add("fullscreen");
+          await document.documentElement.requestFullscreen();
+          pendingViewerFullscreen = false;
+        } catch (error) {
+          document.body.classList.remove("fullscreen");
+          pendingViewerFullscreen = true;
+          if (fromUserGesture) scheduleFitTimer();
+        }
+        return;
+      }
+
+      pendingViewerFullscreen = false;
+      document.body.classList.remove("fullscreen");
+      if (document.fullscreenElement) {
+        try {
+          await document.exitFullscreen();
+        } catch (error) {}
+      }
+    }
+
+    els.presets.forEach((button) => button.addEventListener("click", () => setPreset(button.dataset.preset)));
+    els.languageToggle.addEventListener("click", () => {
+      sendServerAction("language", {
+        language: language === "ru" ? "en" : "ru"
+      });
+    });
+    els.browserList.addEventListener("click", async (event) => {
+      const copyButton = event.target.closest("[data-copy-browser-url]");
+      if (copyButton) {
+        const copied = await copyText(copyButton.dataset.copyBrowserUrl);
+        const feedback = copyButton.parentElement?.querySelector(".browser-copy-feedback");
+        if (feedback) {
+          feedback.textContent = copied ? t("copied") : "";
+          window.setTimeout(() => {
+            if (feedback.isConnected) feedback.textContent = "";
+          }, 1400);
+        }
+        if (!copied) window.prompt(t("copyManually"), copyButton.dataset.copyBrowserUrl);
+        return;
+      }
+
+      const testButton = event.target.closest("[data-audio-test-kind]");
+      if (testButton) {
+        const targetClientId = testButton.dataset.audioTestClient;
+        const everywhere = testAudioEverywhere && targetClientId === state.primaryClientId;
+        unlockAudio();
+        sendServerAction("audioTest", {
+          kind: testButton.dataset.audioTestKind,
+          targetClientId,
+          everywhere
+        });
+        return;
+      }
+
+      const mark = event.target.closest("[data-audio-offset-mark]");
+      if (mark) {
+        const editor = mark.closest(".audio-offset-editor");
+        const slider = editor?.querySelector("[data-audio-offset-slider]");
+        const value = editor?.querySelector("[data-audio-offset-value]");
+        pendingAudioOffset = Number(mark.dataset.audioOffsetMark);
+        if (slider) slider.value = String(pendingAudioOffset);
+        if (value) value.textContent = `${pendingAudioOffset > 0 ? "+" : ""}${pendingAudioOffset} ${t("ms")}`;
+        return;
+      }
+
+      const chip = event.target.closest("[data-audio-client]");
+      if (!chip) return;
+      const targetClientId = chip.dataset.audioClient;
+      const client = lastKnownClients.find((item) => item.id === targetClientId);
+      const currentOffset = Number(client?.audioUserOffset || 0);
+      if (editingAudioClientId !== targetClientId) {
+        editingAudioClientId = targetClientId;
+        pendingAudioOffset = Math.max(-500, Math.min(500, Math.round(currentOffset)));
+        testAudioEverywhere = false;
+        renderBrowserList(lastKnownClients);
+        return;
+      }
+
+      const offset = pendingAudioOffset;
+      editingAudioClientId = "";
+      testAudioEverywhere = false;
+      sendServerAction("audioOffset", {
+        targetClientId,
+        offset
+      }, { rescheduleSignals: true });
+    });
+    els.browserList.addEventListener("input", (event) => {
+      const everywhereToggle = event.target.closest("[data-audio-test-everywhere]");
+      if (everywhereToggle) {
+        testAudioEverywhere = everywhereToggle.checked;
+        return;
+      }
+
+      const slider = event.target.closest("[data-audio-offset-slider]");
+      if (!slider) return;
+      pendingAudioOffset = Number(slider.value);
+      const value = slider.closest(".audio-offset-editor")?.querySelector("[data-audio-offset-value]");
+      if (value) {
+        value.textContent = `${pendingAudioOffset > 0 ? "+" : ""}${pendingAudioOffset} ${t("ms")}`;
+      }
+    });
+    els.primaryToggle.addEventListener("change", () => {
+      setPrimaryMode(els.primaryToggle.checked);
+    });
+
+    els.instancesSoundToggle.addEventListener("change", () => {
+      sendServerAction("instancesSound", {
+        enabled: els.instancesSoundToggle.checked
+      });
+    });
+
+    els.instancesFullscreenToggle.addEventListener("change", () => {
+      sendServerAction("instancesFullscreen", {
+        enabled: els.instancesFullscreenToggle.checked
+      });
+    });
+
+    els.soundToggle.addEventListener("change", () => {
+      if (isPrimaryClient) {
+        primarySoundEnabled = els.soundToggle.checked;
+        applySoundPreferenceChange();
+        return;
+      }
+
+      globalSoundEnabled = els.soundToggle.checked;
+      applySoundPreferenceChange();
+      sendServerAction("sound", {
+        enabled: globalSoundEnabled
+      });
+    });
+
+    [els.climbMinutes, els.breakSeconds].forEach((input) => {
+      input.addEventListener("input", () => {
+        sendServerAction("settings", {
+          activePreset: state.activePreset,
+          settings: draftSettings()
+        });
+        if (state.running || state.elapsedBeforePause > 0) {
+          return;
+        }
+        hardReset(false);
+      });
+    });
+
+    function normalizeStartTimeInput(input, max) {
+      const digits = input.value.replace(/\D/g, "").slice(0, 2);
+      if (!digits) {
+        input.value = "";
+        return;
+      }
+      input.value = String(Math.min(max, Number(digits))).padStart(2, "0");
+    }
+
+    [els.startHours, els.startMinutes].forEach((input) => {
+      input.addEventListener("input", () => {
+        input.value = input.value.replace(/\D/g, "").slice(0, 2);
+        syncButtons();
+      });
+      input.addEventListener("blur", () => {
+        normalizeStartTimeInput(input, input === els.startHours ? 23 : 59);
+        sendServerAction("settings", {
+          activePreset: state.activePreset,
+          settings: draftSettings()
+        });
+      });
+    });
+
+    els.scheduledStartBtn.addEventListener("click", startTimerByTime);
+    [els.startBtn, els.compactStart].forEach((button) => button.addEventListener("click", startTimer));
+    [els.pauseBtn, els.compactPause].forEach((button) => button.addEventListener("click", pauseTimer));
+    [els.resetBtn, els.compactReset].forEach((button) => button.addEventListener("click", () => hardReset(false)));
+    els.fullBtn.addEventListener("click", toggleFullscreen);
+    els.progressTrack.addEventListener("pointerdown", startScrub);
+    els.progressTrack.addEventListener("pointermove", moveScrub);
+    els.progressTrack.addEventListener("pointerup", stopScrub);
+    els.progressTrack.addEventListener("pointercancel", stopScrub);
+    ["pointerdown", "touchstart", "click"].forEach((eventName) => {
+      document.addEventListener(eventName, (event) => {
+        if (event.target.closest(".action")) return;
+        unlockAudio();
+        if (pendingViewerFullscreen && isViewerClient && instancesFullscreenEnabled) {
+          applyViewerFullscreenPreference(true);
+        }
+      }, { passive: true });
+    });
+
+    document.addEventListener("keydown", (event) => {
+      unlockAudio();
+      const key = event.key.toLowerCase();
+      const isCtrl = event.ctrlKey || event.metaKey;
+      const isPrimaryShortcut = isCtrl && (event.code === "KeyM" || key === "m" || key === "ь");
+      if (isPrimaryShortcut) {
+        event.preventDefault();
+        togglePrimaryMode();
+        return;
+      }
+      if (isViewerClient) return;
+      const isPauseShortcut = isCtrl && (event.code === "KeyQ" || key === "q" || key === "й");
+      const isFullscreenShortcut = isCtrl && (event.code === "KeyF" || key === "f" || key === "а");
+      if (isPauseShortcut) {
+        event.preventDefault();
+        pauseTimer();
+        return;
+      }
+      if (isFullscreenShortcut) {
+        event.preventDefault();
+        toggleFullscreen();
+        return;
+      }
+      if (key === "z" || key === "я") {
+        event.preventDefault();
+        if (!state.running) startTimer();
+        return;
+      }
+      if (key === "p" || key === "з") {
+        event.preventDefault();
+        hardReset(false);
+        return;
+      }
+    });
+
+    document.addEventListener("fullscreenchange", () => {
+      document.body.classList.toggle("fullscreen", Boolean(document.fullscreenElement));
+      if (isViewerClient && instancesFullscreenEnabled && !document.fullscreenElement) {
+        pendingViewerFullscreen = true;
+      }
+      scheduleFitTimer();
+    });
+
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "visible") resumeClientSync();
+    });
+
+    window.addEventListener("pageshow", resumeClientSync);
+    window.addEventListener("focus", resumeClientSync);
+    window.addEventListener("online", resumeClientSync);
+
+    window.addEventListener("resize", scheduleFitTimer);
+    if ("ResizeObserver" in window) {
+      const timerResizeObserver = new ResizeObserver(scheduleFitTimer);
+      timerResizeObserver.observe(document.querySelector(".stage"));
+      timerResizeObserver.observe(document.querySelector(".timer-wrap"));
+    }
+
+    buildTimeline();
+    render();
+    scheduleFitTimer();
+    tick();
+    startSync();
+    requestScreenWakeLock();
+  </script>
+</body>
+</html>

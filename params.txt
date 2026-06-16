@@ -1,0 +1,24 @@
+# Bouldering timer startup parameters.
+# Change values before starting the timer.
+# Use true/false for checkboxes.
+
+http_port=8008
+https_port=8443
+language=ru
+
+classic_rotation_minutes=5
+classic_break_seconds=15
+
+festival_round_minutes=120
+festival_break_minutes=30
+
+final_rotation_minutes=4
+
+primary_browser=false
+sound=true
+sound_in_other_browsers=false
+flashing=true
+
+phase_signal_mp3=880_1.mp3
+minute_signal_mp3=3520_02_1.mp3
+warning_signal_mp3=3520_02_1.mp3
