@@ -3,8 +3,10 @@ cd "$(dirname "$0")"
 
 HTTP_PORT=$(awk -F= '/^[[:space:]]*http_port[[:space:]]*=/{gsub(/[[:space:]]/, "", $2); print $2}' params.txt 2>/dev/null | tail -n 1)
 HTTPS_PORT=$(awk -F= '/^[[:space:]]*https_port[[:space:]]*=/{gsub(/[[:space:]]/, "", $2); print $2}' params.txt 2>/dev/null | tail -n 1)
+PORTABLE_NODE_MAC=$(sed -n 's/^[[:space:]]*portable_node_mac[[:space:]]*=[[:space:]]*//p' params.txt 2>/dev/null | tail -n 1)
 HTTP_PORT=${HTTP_PORT:-8008}
 HTTPS_PORT=${HTTPS_PORT:-8443}
+PORTABLE_NODE_MAC=${PORTABLE_NODE_MAC:-runtime/mac/bin/node}
 HAS_HTTPS=false
 if [[ -f "timer-key.pem" && -f "timer-cert.pem" ]]; then
   HAS_HTTPS=true
@@ -15,35 +17,23 @@ fi
 echo "Starting bouldering timer..."
 echo
 
-ARCH=$(uname -m)
 NODE_BIN=""
-if [[ -x "./runtime/mac/bin/node" ]]; then
-  NODE_BIN="./runtime/mac/bin/node"
-elif [[ -x "./runtime/mac/node" ]]; then
-  NODE_BIN="./runtime/mac/node"
-elif [[ "$ARCH" == "arm64" && -x "./runtime/mac-arm64/bin/node" ]]; then
-  NODE_BIN="./runtime/mac-arm64/bin/node"
-elif [[ "$ARCH" == "x86_64" && -x "./runtime/mac-x64/bin/node" ]]; then
-  NODE_BIN="./runtime/mac-x64/bin/node"
-elif [[ -x "./runtime/mac-universal/bin/node" ]]; then
-  NODE_BIN="./runtime/mac-universal/bin/node"
-elif [[ -x "./runtime/node" ]]; then
-  NODE_BIN="./runtime/node"
-elif [[ "$ARCH" == "arm64" && -x "./node/mac-arm64/bin/node" ]]; then
-  NODE_BIN="./node/mac-arm64/bin/node"
-elif [[ "$ARCH" == "x86_64" && -x "./node/mac-x64/bin/node" ]]; then
-  NODE_BIN="./node/mac-x64/bin/node"
-elif [[ -x "./node/bin/node" ]]; then
-  NODE_BIN="./node/bin/node"
+if [[ "$PORTABLE_NODE_MAC" == /* ]]; then
+  NODE_CANDIDATE="$PORTABLE_NODE_MAC"
+else
+  NODE_CANDIDATE="./$PORTABLE_NODE_MAC"
+fi
+if [[ -x "$NODE_CANDIDATE" ]]; then
+  NODE_BIN="$NODE_CANDIDATE"
 elif command -v node >/dev/null 2>&1; then
   NODE_BIN="node"
 fi
 
 if [[ -z "$NODE_BIN" ]]; then
   echo "Node.js is not installed."
-  echo "Put portable Node.js into runtime/mac/bin/node,"
-  echo "or use runtime/mac-arm64/bin/node / runtime/mac-x64/bin/node,"
-  echo "or install Node.js LTS from https://nodejs.org/en/download and run this file again."
+  echo "Portable Node.js was not found at: $PORTABLE_NODE_MAC"
+  echo "Change portable_node_mac in params.txt or install Node.js LTS"
+  echo "from https://nodejs.org/en/download and run this file again."
   echo
   read -k 1 "?Press any key to close..."
   exit 1

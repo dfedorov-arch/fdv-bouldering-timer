@@ -2,28 +2,27 @@
 cd /d "%~dp0"
 set "HTTP_PORT=8008"
 set "HTTPS_PORT=8443"
+set "PORTABLE_NODE_WIN=runtime\win\node.exe"
 set "HAS_HTTPS=0"
 if exist "%~dp0params.txt" (
   for /f "usebackq tokens=1,* delims==" %%A in ("%~dp0params.txt") do (
     if /i "%%A"=="http_port" set "HTTP_PORT=%%B"
     if /i "%%A"=="https_port" set "HTTPS_PORT=%%B"
+    if /i "%%A"=="portable_node_win" set "PORTABLE_NODE_WIN=%%B"
   )
 )
 if exist "%~dp0timer-key.pem" if exist "%~dp0timer-cert.pem" set "HAS_HTTPS=1"
 if exist "%~dp0timer-cert.pfx" set "HAS_HTTPS=1"
 set "NODE_EXE="
-if exist "%~dp0runtime\win\node.exe" set "NODE_EXE=%~dp0runtime\win\node.exe"
-if not defined NODE_EXE if exist "%~dp0runtime\win-x64\node.exe" set "NODE_EXE=%~dp0runtime\win-x64\node.exe"
-if not defined NODE_EXE if exist "%~dp0runtime\node.exe" set "NODE_EXE=%~dp0runtime\node.exe"
-if not defined NODE_EXE if exist "%~dp0node\win-x64\node.exe" set "NODE_EXE=%~dp0node\win-x64\node.exe"
-if not defined NODE_EXE if exist "%~dp0node\node.exe" set "NODE_EXE=%~dp0node\node.exe"
+if exist "%PORTABLE_NODE_WIN%" set "NODE_EXE=%PORTABLE_NODE_WIN%"
 if not defined NODE_EXE (
   where node >nul 2>nul
   if not errorlevel 1 set "NODE_EXE=node"
 )
 if not defined NODE_EXE (
   echo Node.js is not found.
-  echo Put portable Node.js into runtime\win\node.exe or install Node.js LTS:
+  echo Portable Node.js was not found at: %PORTABLE_NODE_WIN%
+  echo Change portable_node_win in params.txt or install Node.js LTS:
   echo https://nodejs.org/en/download
   echo.
   pause

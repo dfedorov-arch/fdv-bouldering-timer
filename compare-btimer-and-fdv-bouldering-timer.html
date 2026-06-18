@@ -1,0 +1,565 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Сравнение btimer и fdv-bouldering-timer</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23111722'/%3E%3Ccircle cx='32' cy='36' r='20' fill='%23f4f7fb'/%3E%3Ccircle cx='32' cy='36' r='15' fill='%23111722'/%3E%3Cpath d='M32 36V24M32 36l9-6' stroke='%2349c6e5' stroke-width='5' stroke-linecap='round'/%3E%3Cpath d='M25 9h14v8H25z' fill='%23f4f7fb'/%3E%3Cpath d='M43 15l6 6' stroke='%23ffc857' stroke-width='5' stroke-linecap='round'/%3E%3Ccircle cx='32' cy='36' r='3' fill='%23ffc857'/%3E%3C/svg%3E">
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f4f6f8;
+      --paper: #ffffff;
+      --ink: #101722;
+      --text: #1b2430;
+      --muted: #637083;
+      --line: #d9e0e8;
+      --blue: #1768ac;
+      --green: #16865d;
+      --red: #b43b47;
+      --amber: #a86b00;
+      --soft-blue: #e9f3fb;
+      --soft-green: #e9f7f0;
+      --soft-red: #fbecee;
+      --soft-amber: #fff4dc;
+      --shadow: 0 22px 60px rgba(23, 35, 52, .12);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: "Segoe UI", Arial, sans-serif;
+      font-size: 16px;
+      line-height: 1.62;
+    }
+
+    .page {
+      max-width: 1120px;
+      margin: 0 auto;
+      padding: 42px 22px 64px;
+    }
+
+    .cover {
+      padding: 38px 42px;
+      background: var(--ink);
+      color: #fff;
+      border-radius: 8px;
+      box-shadow: var(--shadow);
+    }
+
+    .eyebrow {
+      margin: 0 0 12px;
+      color: #9cccf0;
+      font-size: 13px;
+      font-weight: 800;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+    }
+
+    h1 {
+      margin: 0;
+      max-width: 840px;
+      font-size: clamp(34px, 5vw, 58px);
+      line-height: 1.04;
+      letter-spacing: 0;
+    }
+
+    .lead {
+      max-width: 820px;
+      margin: 18px 0 0;
+      color: #d5e0ec;
+      font-size: 20px;
+    }
+
+    .meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 28px;
+    }
+
+    .tag {
+      display: inline-flex;
+      align-items: center;
+      min-height: 32px;
+      padding: 0 12px;
+      border: 1px solid rgba(255, 255, 255, .18);
+      border-radius: 999px;
+      color: #e6edf6;
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    main {
+      margin-top: 24px;
+      background: var(--paper);
+      border-radius: 8px;
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    section {
+      padding: 34px 42px;
+      border-top: 1px solid var(--line);
+    }
+
+    section:first-child {
+      border-top: 0;
+    }
+
+    h2 {
+      margin: 0 0 18px;
+      color: var(--ink);
+      font-size: 28px;
+      line-height: 1.18;
+      letter-spacing: 0;
+    }
+
+    h3 {
+      margin: 24px 0 10px;
+      color: var(--ink);
+      font-size: 20px;
+      line-height: 1.25;
+    }
+
+    p {
+      margin: 0 0 14px;
+    }
+
+    ul {
+      margin: 10px 0 0;
+      padding-left: 22px;
+    }
+
+    li {
+      margin: 5px 0;
+    }
+
+    code {
+      padding: 2px 6px;
+      border-radius: 5px;
+      background: #eef2f6;
+      color: #223144;
+      font-family: Consolas, "Courier New", monospace;
+      font-size: .93em;
+    }
+
+    .summary-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 14px;
+      margin-top: 22px;
+    }
+
+    .summary-card {
+      min-height: 130px;
+      padding: 18px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fbfcfe;
+    }
+
+    .summary-card strong {
+      display: block;
+      margin-bottom: 8px;
+      color: var(--ink);
+      font-size: 17px;
+    }
+
+    .note {
+      margin-top: 16px;
+      padding: 16px 18px;
+      border-left: 4px solid var(--blue);
+      border-radius: 6px;
+      background: var(--soft-blue);
+    }
+
+    .compare {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 16px;
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+    }
+
+    .compare th,
+    .compare td {
+      vertical-align: top;
+      padding: 14px 16px;
+      border-top: 1px solid var(--line);
+      text-align: left;
+    }
+
+    .compare tr:first-child th,
+    .compare tr:first-child td {
+      border-top: 0;
+    }
+
+    .compare th {
+      width: 25%;
+      background: #f7f9fb;
+      color: var(--ink);
+      font-weight: 800;
+    }
+
+    .compare td {
+      width: 37.5%;
+    }
+
+    .compare thead th {
+      background: var(--ink);
+      color: #fff;
+      border-top: 0;
+    }
+
+    .pill {
+      display: inline-block;
+      margin: 2px 6px 2px 0;
+      padding: 2px 8px;
+      border-radius: 999px;
+      background: #eef2f6;
+      color: #334155;
+      font-size: 13px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .pill.good {
+      background: var(--soft-green);
+      color: var(--green);
+    }
+
+    .pill.warn {
+      background: var(--soft-amber);
+      color: var(--amber);
+    }
+
+    .pill.stop {
+      background: var(--soft-red);
+      color: var(--red);
+    }
+
+    .flow {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 18px;
+      margin-top: 16px;
+    }
+
+    .panel {
+      padding: 20px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fbfcfe;
+    }
+
+    .panel h3 {
+      margin-top: 0;
+    }
+
+    .step {
+      position: relative;
+      margin: 12px 0 0;
+      padding: 12px 14px;
+      border-radius: 7px;
+      background: #fff;
+      border: 1px solid var(--line);
+    }
+
+    .step strong {
+      display: block;
+      color: var(--ink);
+      margin-bottom: 4px;
+    }
+
+    .footer {
+      margin-top: 24px;
+      color: var(--muted);
+      font-size: 14px;
+      text-align: center;
+    }
+
+    @media (max-width: 820px) {
+      .page {
+        padding: 24px 12px 42px;
+      }
+
+      .cover,
+      section {
+        padding: 26px 22px;
+      }
+
+      .summary-grid,
+      .flow {
+        grid-template-columns: 1fr;
+      }
+
+      .compare,
+      .compare tbody,
+      .compare tr,
+      .compare th,
+      .compare td {
+        display: block;
+        width: 100%;
+      }
+
+      .compare thead {
+        display: none;
+      }
+
+      .compare tr {
+        border-top: 1px solid var(--line);
+      }
+
+      .compare tr:first-child {
+        border-top: 0;
+      }
+
+      .compare th,
+      .compare td {
+        border-top: 0;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <header class="cover">
+      <p class="eyebrow">Сравнение версий</p>
+      <h1>fdv-bouldering-timer и btimer</h1>
+      <p class="lead">Документ сравнивает актуальные версии fdv-bouldering-timer и btimer: сначала по возможностям, затем по архитектуре и способу синхронизации экранов.</p>
+      <div class="meta">
+        <span class="tag">fdv-bouldering-timer: сборка 120</span>
+        <span class="tag">btimer: Express + Socket.IO</span>
+      </div>
+    </header>
+
+    <main>
+      <section>
+        <h2>Краткий вывод</h2>
+        <p>btimer представляет собой простое серверное табло: сервер считает строку времени, рассылает её всем браузерам и отдельно отправляет события звуков. fdv-bouldering-timer стал сетевым приложением для соревнований: сервер хранит единое состояние, браузеры синхронизируют свои часы с сервером, сами рассчитывают отображение и планируют звук по серверному времени.</p>
+
+        <div class="summary-grid">
+          <div class="summary-card">
+            <strong>btimer</strong>
+            Минимальная панель управления, один экран, HTTP на фиксированном порту, Socket.IO, простые MP3-сигналы и старт по времени для квалификации или полуфинала.
+          </div>
+          <div class="summary-card">
+            <strong>fdv-bouldering-timer</strong>
+            Классика, фестиваль и финал, основной браузер и экраны, HTTP/HTTPS, диагностика, язык RU/EN, скрипты запуска, настраиваемые параметры и звук.
+          </div>
+          <div class="summary-card">
+            <strong>Главное отличие</strong>
+            btimer постоянно рассылает готовый результат. fdv-bouldering-timer рассылает состояние и время сервера, чтобы каждый браузер мог поддерживать синхронное табло даже при сетевых задержках.
+          </div>
+        </div>
+
+        <p class="note">В тексте намеренно не используются локальные пути к проектам. Для ориентира упоминаются только имена ключевых файлов: в btimer это <code>appn.js</code> и <code>indexn.html</code>, в fdv-bouldering-timer - <code>serve-bouldering-timer.js</code> и <code>index.html</code>.</p>
+      </section>
+
+      <section>
+        <h2>1. Различия функциональности</h2>
+
+        <table class="compare">
+          <thead>
+            <tr>
+              <th>Область</th>
+              <th>btimer</th>
+              <th>fdv-bouldering-timer</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <th>Форматы</th>
+              <td>
+                Фактически есть два режима: квалификация или полуфинал при заданном времени старта, и финал при пустом времени старта. Отдельных кнопок форматов нет.
+              </td>
+              <td>
+                Есть явные форматы <span class="pill good">Классика</span> <span class="pill good">Фестиваль</span> <span class="pill good">Финал</span>. Для каждого формата свои значения по умолчанию и своя логика завершения.
+              </td>
+            </tr>
+            <tr>
+              <th>Время старта</th>
+              <td>
+                Поля часов и минут используются для старта квалификации или полуфинала. Если указанное время уже прошло сегодня, таймер восстанавливает состояние так, как будто он стартовал в это время.
+              </td>
+              <td>
+                Есть отдельная кнопка запуска по указанному времени. Для классики и фестиваля сохранено восстановление по прошедшему времени старта. В финале обратный отсчёт до старта останавливается на <code>00:00</code> и ждёт ручного запуска.
+              </td>
+            </tr>
+            <tr>
+              <th>Ротация и перерыв</th>
+              <td>
+                Вводятся время лазания в минутах и время ротации в секундах. После ротации включается красный режим ожидания, затем цикл повторяется. В финальном режиме ротация одна.
+              </td>
+              <td>
+                В классике задаются время ротации и перерыв в секундах. В фестивале задаются время раунда и перерыв в минутах. В финале можно задать время ротации и необязательный перерыв; после финального отрезка таймер завершается.
+              </td>
+            </tr>
+            <tr>
+              <th>Управление</th>
+              <td>
+                Кнопки Start и Reset. Клавиши <code>Z</code> и <code>P</code>. Если нажать Start во время работы, btimer сначала останавливает текущий запуск и стартует заново.
+              </td>
+              <td>
+                Кнопки Старт, Пауза, Сброс, Экран, запуск по времени, полоса перемотки в паузе. Клавиши работают также в русской раскладке: <code>Z/Я</code>, <code>P/З</code>, <code>Ctrl+Q/Й</code>, <code>Ctrl+F/А</code>, <code>Ctrl+M/Ь</code>. Во время работы Старт становится неактивным.
+              </td>
+            </tr>
+            <tr>
+              <th>Экранные браузеры</th>
+              <td>
+                Все подключённые браузеры получают один и тот же интерфейс и теоретически могут отправлять команды, если страница открыта.
+              </td>
+              <td>
+                Есть режим основного браузера. Остальные браузеры превращаются в чистые экраны с большим таймером, без панели управления и без горячих клавиш, кроме аварийного выбора основного браузера.
+              </td>
+            </tr>
+            <tr>
+              <th>Синхронизация</th>
+              <td>
+                Сервер рассылает готовую строку времени примерно раз в секунду. Браузер показывает то, что получил от сервера.
+              </td>
+              <td>
+                Сервер хранит точку старта и состояние. Браузеры оценивают смещение своих часов относительно сервера, получают обновления по SSE и локально считают отображаемое время. Диагностика показывает NET, SYNC, AUDIO, WAKE, SSE и TAB.
+              </td>
+            </tr>
+            <tr>
+              <th>Звук</th>
+              <td>
+                Три фиксированных MP3-сигнала: старт, минута, последние 5 секунд. Есть тестовые кнопки для каждого сигнала. События звука рассылаются сервером через Socket.IO.
+              </td>
+              <td>
+                MP3-сигналы можно настраивать через параметры. Звук планируется в браузере по серверному времени, есть прогрев аудио перед длинной паузой, пользовательская поправка звука для каждого браузера и проверка звука локально или во всех разрешённых браузерах.
+              </td>
+            </tr>
+            <tr>
+              <th>Голосовые сигналы</th>
+              <td>
+                Нет голосовых объявлений.
+              </td>
+              <td>
+                В фестивальном формате есть голосовые объявления на русском и английском. Если голосовой движок недоступен или нет подходящего языка, используется MP3-сигнал минуты.
+              </td>
+            </tr>
+            <tr>
+              <th>Звук на одном компьютере</th>
+              <td>
+                Каждый браузер, получивший событие, может проиграть звук. Специальной защиты от нескольких браузеров на одном компьютере нет.
+              </td>
+              <td>
+                Если основной браузер и другой браузер открыты на одном компьютере, звук разрешается только из основного браузера. Это снижает риск двойного сигнала с одного устройства.
+              </td>
+            </tr>
+            <tr>
+              <th>Полный экран</th>
+              <td>
+                Специального управления полноэкранным режимом нет.
+              </td>
+              <td>
+                Есть режим Экран в основном браузере и опция полного экрана в других браузерах. Из-за правил браузеров второстепенному экрану может потребоваться тап.
+              </td>
+            </tr>
+            <tr>
+              <th>Сеть и запуск</th>
+              <td>
+                Запускается через командный файл с локальным <code>node.exe</code>. Порт фиксирован в коде: <code>8008</code>. HTTPS не предусмотрен.
+              </td>
+              <td>
+                Порты HTTP и HTTPS задаются в <code>params.txt</code> или переменных окружения. Есть скрипты запуска для Windows и macOS, поддержка PEM-сертификатов, генерация сертификата, вывод сетевых адресов и отдельные настраиваемые пути к portable Node.js для каждой ОС.
+              </td>
+            </tr>
+            <tr>
+              <th>Настройки</th>
+              <td>
+                Настройки вводятся на странице перед стартом. Конфигурационного файла нет.
+              </td>
+              <td>
+                Начальные значения задаются в <code>params.txt</code>: порты, длительности, язык, чекбоксы, имена MP3-файлов. Изменения параметров во время работы не ломают текущий запуск и применяются после перезапуска таймера.
+              </td>
+            </tr>
+            <tr>
+              <th>Язык и справка</th>
+              <td>
+                Интерфейс старой страницы в основном английский, подробной встроенной справки нет.
+              </td>
+              <td>
+                Интерфейс переключается между русским и английским, есть подробное руководство <code>help.html</code> и краткий <code>ReadMe.txt</code>.
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section>
+        <h2>2. Различия архитектурного подхода</h2>
+
+        <div class="flow">
+          <div class="panel">
+            <h3>btimer</h3>
+            <div class="step">
+              <strong>Сервер считает табло</strong>
+              <code>appn.js</code> запускает Express и Socket.IO, хранит глобальные переменные старта, длительности, режима и каждые 200 мс пересчитывает текущее состояние.
+            </div>
+            <div class="step">
+              <strong>Браузер получает готовую строку</strong>
+              Сервер отправляет событие <code>timer</code> со строкой вроде <code>3:42</code> и режимом отображения. Клиент почти не вычисляет время сам.
+            </div>
+            <div class="step">
+              <strong>Звук как событие</strong>
+              При достижении нужных секунд сервер рассылает <code>playStart</code>, <code>playMin</code> или <code>playGong</code>. Браузер сразу вызывает проигрывание MP3.
+            </div>
+            <div class="step">
+              <strong>Минимальная инфраструктура</strong>
+              Зависимости Express, Socket.IO и jQuery лежат вместе с приложением. Сетевой порт зашит в коде, сертификатов и параметров запуска нет.
+            </div>
+          </div>
+
+          <div class="panel">
+            <h3>fdv-bouldering-timer</h3>
+            <div class="step">
+              <strong>Сервер хранит каноническое состояние</strong>
+              <code>serve-bouldering-timer.js</code> хранит активный формат, настройки, точку старта, паузы, финальное завершение, список браузеров и их диагностику.
+            </div>
+            <div class="step">
+              <strong>Браузер считает время локально</strong>
+              <code>index.html</code> получает состояние и время сервера, оценивает сетевую задержку и смещение часов, затем сам рассчитывает отображаемые секунды.
+            </div>
+            <div class="step">
+              <strong>Обновления идут двумя путями</strong>
+              Быстрые изменения приходят по SSE через <code>/api/events</code>. Параллельно браузер периодически сверяется через <code>/api/state</code>, чтобы восстановиться после сна, потери связи или открытия новой вкладки.
+            </div>
+            <div class="step">
+              <strong>Звук планируется по времени сервера</strong>
+              Браузер заранее знает серверное время будущего сигнала и планирует Web Audio на локальной шкале. Для каждого браузера можно задать пользовательскую поправку звука.
+            </div>
+          </div>
+        </div>
+
+        <h3>Почему новая архитектура сложнее</h3>
+        <p>fdv-bouldering-timer должен одинаково выглядеть в нескольких браузерах, переживать открытие новых экранов, сон телефона, сетевые задержки, разные браузерные ограничения звука и разные сценарии соревнований. Поэтому в нём появились роли браузеров, диагностика, синхронизация часов, SSE, параметры запуска, HTTPS и отдельная логика звукового планирования.</p>
+
+        <h3>Что осталось принципиально похожим</h3>
+        <ul>
+          <li>Обе версии запускают локальный веб-сервер и открываются в браузере.</li>
+          <li>Обе версии используют сервер как источник общего состояния соревнования.</li>
+          <li>Обе версии поддерживают стартовый сигнал, сигнал за минуту и сигналы последних пяти секунд.</li>
+          <li>Обе версии умеют работать с несколькими браузерами, но fdv-bouldering-timer делает это как отдельную управляемую функцию.</li>
+        </ul>
+
+        <h3>Что важно для практического использования</h3>
+        <p>btimer хорош своей прямотой: меньше кода, меньше настроек, быстрее понять внутреннюю механику. fdv-bouldering-timer лучше подходит для реального зала с несколькими экранами: он даёт контроль над тем, кто управляет таймером, кто воспроизводит звук, насколько хорошо синхронизированы браузеры и какие адреса доступны по сети.</p>
+
+        <p class="note">Архитектурно btimer ближе к модели “сервер рисует табло через события”. fdv-bouldering-timer ближе к модели “сервер задаёт точное время и состояние, а браузеры синхронно воспроизводят это состояние локально, постоянно сверяя время с сервером”. Именно это отличие объясняет большую часть новых возможностей и большую сложность кода.</p>
+      </section>
+    </main>
+
+    <p class="footer">2026 Фёдоров Денис + Codex</p>
+  </div>
+</body>
+</html>

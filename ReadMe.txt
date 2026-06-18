@@ -5,9 +5,9 @@
 
   help.html
 
-Техническое описание:
+Сравнение btimer и fdv-bouldering-timer:
 
-  architecture-notes.html
+  compare-btimer-and-fdv-bouldering-timer.html
 
 
 1. Перенос на другой компьютер
@@ -23,8 +23,13 @@
 
   node -v
 
-Если внутри проекта уже есть папка runtime или node с portable Node.js,
-переносите её вместе с остальными файлами.
+Пути к portable Node.js задаются в params.txt:
+
+  portable_node_win=runtime\win\node.exe
+  portable_node_mac=runtime/mac/bin/node
+
+Относительный путь считается от папки таймера. Если portable Node.js
+не найден, скрипт запуска попробует использовать системный Node.js.
 
 
 2. Запуск

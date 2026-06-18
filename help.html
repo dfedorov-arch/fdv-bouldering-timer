@@ -395,6 +395,26 @@
       font-size: 13px;
     }
 
+    .detail-shot {
+      max-width: 420px;
+    }
+
+    .detail-shot img {
+      width: auto;
+      max-width: 100%;
+    }
+
+    .detail-gallery {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 18px;
+      align-items: start;
+    }
+
+    .detail-gallery .detail-shot {
+      margin-top: 18px;
+    }
+
     .grid-2,
     .grid-3 {
       display: grid;
@@ -589,7 +609,8 @@
       .grid-2,
       .grid-3,
       .keys,
-      .contents-list {
+      .contents-list,
+      .detail-gallery {
         grid-template-columns: 1fr;
       }
 
@@ -636,7 +657,7 @@
       <div class="toc-files">
         <a href="index.html">Открыть таймер</a>
         <a href="ReadMe.txt">Краткий ReadMe</a>
-        <a href="architecture-notes.html">Техническая архитектура</a>
+        <a href="compare-btimer-and-fdv-bouldering-timer.html">Сравнение btimer и fdv-bouldering-timer</a>
       </div>
     </aside>
 
@@ -888,9 +909,9 @@
 
         <h3 id="diagnostics">6.3. Диагностика подключений</h3>
         <p>Строка браузера содержит название и версию, операционную систему, IP, роль, протокол и цветные индикаторы. Наведение на индикатор показывает подробности.</p>
-        <figure>
-          <img src="help-assets/diagnostics.jpg" alt="Диагностика AUDIO в списке подключённых браузеров">
-          <figcaption>Нажатие AUDIO открывает поправку звука и тестовые сигналы выбранного браузера.</figcaption>
+        <figure class="detail-shot">
+          <img src="help-assets/browser-diagnostics.png" alt="Строка браузера с диагностическими индикаторами NET, SYNC, AUDIO, WAKE, SSE и TAB">
+          <figcaption>Строка подключённого браузера и шесть диагностических индикаторов.</figcaption>
         </figure>
         <table>
           <thead><tr><th>Индикатор</th><th>Назначение</th></tr></thead>
@@ -904,6 +925,16 @@
           </tbody>
         </table>
         <h3>Настройка AUDIO</h3>
+        <div class="detail-gallery">
+          <figure class="detail-shot">
+            <img src="help-assets/audio-offset.png" alt="Шкала пользовательской поправки звука от минус 500 до плюс 500 миллисекунд">
+            <figcaption>Поправку можно задать ползунком или нажатием на подписанное значение шкалы.</figcaption>
+          </figure>
+          <figure class="detail-shot">
+            <img src="help-assets/audio-test.png" alt="Проверка звука в браузерах и кнопки Старт, 1 мин и 5 сек">
+            <figcaption>Проверка трёх типов сигналов в выбранном браузере или на всех устройствах, где разрешён звук.</figcaption>
+          </figure>
+        </div>
         <ol>
           <li>Нажмите индикатор AUDIO нужного браузера.</li>
           <li>Установите поправку от −500 до +500 мс: отрицательная запускает звук раньше, положительная — позже.</li>
@@ -954,23 +985,17 @@
           <li><code>help.html</code></li>
           <li><code>help-assets</code></li>
           <li>скрипты запуска своей ОС</li>
-          <li><code>runtime</code> или <code>node</code>, если используется portable Node.js</li>
+          <li>portable Node.js, если используется путь из <code>params.txt</code></li>
         </ul>
         <p>Сертификаты можно перенести, но после смены компьютера или сетевого IP надёжнее создать их заново. Текущее состояние и прошедшее время хранятся в памяти сервера и после его остановки не переносятся.</p>
 
         <h3>8.2. Node.js</h3>
-        <p>Используйте актуальную LTS-версию Node.js. Есть два варианта:</p>
+        <p>Используйте актуальную LTS-версию Node.js. Все варианты загрузки доступны на <a href="https://nodejs.org/en/download">официальной странице Node.js</a>. Есть два варианта:</p>
         <ol>
           <li><strong>Системная установка:</strong> установите Node.js с <a href="https://nodejs.org/en/download">nodejs.org</a> и проверьте командой <code>node -v</code>.</li>
-          <li><strong>Portable runtime:</strong> перенесите подходящий исполняемый файл внутри папки проекта. Скрипт запуска сначала ищет portable Node.js, затем системный.</li>
+          <li><strong>Portable runtime:</strong> на <a href="https://nodejs.org/en/download">странице загрузки Node.js</a> portable-версия называется <strong>Standalone Binary</strong>. Скачайте подходящий архив для своей ОС и архитектуры, распакуйте его и укажите путь к исполняемому файлу в <code>params.txt</code>. По умолчанию используются <code>runtime\win\node.exe</code> для Windows и <code>runtime/mac/bin/node</code> для macOS.</li>
         </ol>
-        <table>
-          <thead><tr><th>ОС</th><th>Поддерживаемые расположения portable Node.js</th></tr></thead>
-          <tbody>
-            <tr><td>Windows</td><td><code>runtime\win\node.exe</code>, <code>runtime\win-x64\node.exe</code>, <code>runtime\node.exe</code>, <code>node\win-x64\node.exe</code>, <code>node\node.exe</code></td></tr>
-            <tr><td>macOS</td><td><code>runtime/mac/bin/node</code>, <code>runtime/mac/node</code>, <code>runtime/mac-arm64/bin/node</code>, <code>runtime/mac-x64/bin/node</code>, <code>runtime/mac-universal/bin/node</code>, <code>runtime/node</code>, <code>node/mac-arm64/bin/node</code>, <code>node/mac-x64/bin/node</code>, <code>node/bin/node</code></td></tr>
-          </tbody>
-        </table>
+        <p>Параметры <code>portable_node_win</code> и <code>portable_node_mac</code> могут содержать относительный путь от папки таймера или абсолютный путь. Скрипт запуска сначала проверяет настроенный portable Node.js, а если файл не найден, пробует системную команду <code>node</code>.</p>
 
         <div id="windows" class="platform">
           <h3>8.3. Первый запуск на Windows</h3>
@@ -1037,6 +1062,8 @@
           <tbody>
             <tr><td><code>http_port</code></td><td>Порт HTTP</td><td>8008</td></tr>
             <tr><td><code>https_port</code></td><td>Порт HTTPS</td><td>8443</td></tr>
+            <tr><td><code>portable_node_win</code></td><td>Путь к portable Node.js для Windows</td><td>runtime\win\node.exe</td></tr>
+            <tr><td><code>portable_node_mac</code></td><td>Путь к portable Node.js для macOS</td><td>runtime/mac/bin/node</td></tr>
             <tr><td><code>language</code></td><td>Начальный язык интерфейса</td><td>ru / en</td></tr>
             <tr><td><code>classic_rotation_minutes</code></td><td>Ротация «Классики», минуты</td><td>5</td></tr>
             <tr><td><code>classic_break_seconds</code></td><td>Перерыв «Классики», секунды</td><td>15</td></tr>
