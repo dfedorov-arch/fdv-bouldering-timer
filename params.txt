@@ -27,3 +27,12 @@ flashing=true
 
 # Name of a subfolder inside beeps.
 sound_profile=FSR_2026
+
+# Timer appearance. Font size is always calculated automatically.
+timer_font=Inter, Arial, sans-serif
+rotation_text_color=#f4f7fb
+rotation_last_five_text_color=#f4f7fb
+break_text_color=#f4f7fb
+rotation_background_color=#0e1116
+rotation_last_five_background_color=#0e1116
+break_background_color=#f05a59

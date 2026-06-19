@@ -7,7 +7,7 @@ const path = require("path");
 const root = __dirname;
 const paramsPath = path.join(root, "params.txt");
 const beepsPath = path.join(root, "beeps");
-const BUILD_NUMBER = 129;
+const BUILD_NUMBER = 130;
 const defaultConfig = {
   httpPort: 8008,
   httpsPort: 8443,
@@ -22,7 +22,14 @@ const defaultConfig = {
   soundInOtherBrowsers: false,
   festivalAnnouncements: true,
   flashing: true,
-  soundProfile: "FSR_2026"
+  soundProfile: "FSR_2026",
+  timerFont: "Inter, Arial, sans-serif",
+  rotationTextColor: "#f4f7fb",
+  rotationLastFiveTextColor: "#f4f7fb",
+  breakTextColor: "#f4f7fb",
+  rotationBackgroundColor: "#0e1116",
+  rotationLastFiveBackgroundColor: "#0e1116",
+  breakBackgroundColor: "#f05a59"
 };
 
 function readParams() {
@@ -30,8 +37,8 @@ function readParams() {
   const raw = fs.readFileSync(paramsPath, "utf8");
   return Object.fromEntries(raw
     .split(/\r?\n/)
-    .map((line) => line.replace(/#.*/, "").trim())
-    .filter(Boolean)
+    .map((line) => line.trim())
+    .filter((line) => line && !line.startsWith("#"))
     .map((line) => {
       const index = line.indexOf("=");
       if (index === -1) return [line, ""];
@@ -52,6 +59,12 @@ function boolParam(params, key, fallback) {
 
 function languageParam(params, key, fallback) {
   return String(params[key] || fallback).toLowerCase() === "en" ? "en" : "ru";
+}
+
+function textParam(params, key, fallback, maxLength = 160) {
+  if (!(key in params)) return fallback;
+  const value = String(params[key] || "").replace(/[\r\n\0]/g, " ").trim();
+  return value ? value.slice(0, maxLength) : fallback;
 }
 
 function profileFileUrl(profileName, fileName) {
@@ -140,6 +153,13 @@ const config = {
   soundInOtherBrowsers: boolParam(params, "sound_in_other_browsers", defaultConfig.soundInOtherBrowsers),
   festivalAnnouncements: boolParam(params, "festival_announcements", defaultConfig.festivalAnnouncements),
   flashing: boolParam(params, "flashing", defaultConfig.flashing),
+  timerFont: textParam(params, "timer_font", defaultConfig.timerFont),
+  rotationTextColor: textParam(params, "rotation_text_color", defaultConfig.rotationTextColor),
+  rotationLastFiveTextColor: textParam(params, "rotation_last_five_text_color", defaultConfig.rotationLastFiveTextColor),
+  breakTextColor: textParam(params, "break_text_color", defaultConfig.breakTextColor),
+  rotationBackgroundColor: textParam(params, "rotation_background_color", defaultConfig.rotationBackgroundColor),
+  rotationLastFiveBackgroundColor: textParam(params, "rotation_last_five_background_color", defaultConfig.rotationLastFiveBackgroundColor),
+  breakBackgroundColor: textParam(params, "break_background_color", defaultConfig.breakBackgroundColor),
   soundProfile: initialSoundProfile,
   soundProfiles
 };

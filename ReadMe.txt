@@ -90,11 +90,24 @@ macOS:
 
   sound_profile=FSR_2026
 
+  timer_font=Inter, Arial, sans-serif
+  rotation_text_color=#f4f7fb
+  rotation_last_five_text_color=#f4f7fb
+  break_text_color=#f4f7fb
+  rotation_background_color=#0e1116
+  rotation_last_five_background_color=#0e1116
+  break_background_color=#f05a59
+
 Каждый подкаталог в папке beeps является звуковым профилем. Внутри используются
 файлы START, END, MINUTE и WARNING с расширением .wav или .mp3. Для фестивальных
 объявлений можно добавить FESTIVAL_60, FESTIVAL_30, FESTIVAL_10 и FESTIVAL_5.
 END можно не добавлять: вместо него будет использоваться START. Подробности
 находятся в help.html и beeps\README.txt.
+
+Параметры timer_font и цветов изменяют только оформление цифр и фона. Размер
+таймера по-прежнему рассчитывается автоматически как максимально возможный.
+Шрифт должен быть установлен в операционной системе; можно указать список
+запасных шрифтов через запятую.
 
 
 5. Основные действия

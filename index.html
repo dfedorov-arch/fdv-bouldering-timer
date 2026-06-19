@@ -20,6 +20,13 @@
       --cyan: #49c6e5;
       --blue: #6d9cff;
       --shadow: 0 20px 70px rgba(0, 0, 0, .34);
+      --timer-font-family: Inter, Arial, sans-serif;
+      --timer-rotation-text: #f4f7fb;
+      --timer-warning-text: #f4f7fb;
+      --timer-break-text: #f4f7fb;
+      --timer-rotation-bg: #0e1116;
+      --timer-warning-bg: #0e1116;
+      --timer-break-bg: #f05a59;
     }
 
     * { box-sizing: border-box; }
@@ -29,7 +36,7 @@
     body {
       margin: 0;
       font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      background: var(--bg);
+      background: var(--timer-rotation-bg);
       color: var(--text);
     }
 
@@ -615,6 +622,7 @@
       padding: clamp(18px, 3vw, 42px);
       position: relative;
       overflow: hidden;
+      background: var(--timer-rotation-bg);
     }
 
     .topbar {
@@ -713,6 +721,8 @@
       line-height: .86;
       font-weight: 950;
       letter-spacing: 0;
+      font-family: var(--timer-font-family);
+      color: var(--timer-rotation-text);
       text-shadow: 0 22px 55px rgba(0, 0, 0, .38);
     }
 
@@ -817,16 +827,30 @@
       border-color: var(--red);
     }
 
+    body.warning-active,
+    body.warning-active .stage {
+      background: var(--timer-warning-bg);
+    }
+
+    body.warning-active .time {
+      color: var(--timer-warning-text);
+    }
+
     body.break-active {
-      background: var(--red);
+      background: var(--timer-break-bg);
     }
 
     body.break-active .stage {
-      background: var(--red);
+      background: var(--timer-break-bg);
+    }
+
+    body.break-active .time {
+      color: var(--timer-break-text);
     }
 
     body.break-active .controls {
       background: rgba(68, 12, 14, .94);
+      background: color-mix(in srgb, var(--timer-break-bg) 35%, #10141b);
       border-right-color: rgba(255, 255, 255, .2);
     }
 
@@ -1724,8 +1748,26 @@
       render();
     }
 
+    function applyTimerAppearance(config) {
+      const rootStyle = document.documentElement.style;
+      const setSupported = (variable, property, value) => {
+        const candidate = String(value || "").trim();
+        if (candidate && CSS.supports(property, candidate)) {
+          rootStyle.setProperty(variable, candidate);
+        }
+      };
+      setSupported("--timer-font-family", "font-family", config.timerFont);
+      setSupported("--timer-rotation-text", "color", config.rotationTextColor);
+      setSupported("--timer-warning-text", "color", config.rotationLastFiveTextColor);
+      setSupported("--timer-break-text", "color", config.breakTextColor);
+      setSupported("--timer-rotation-bg", "background-color", config.rotationBackgroundColor);
+      setSupported("--timer-warning-bg", "background-color", config.rotationLastFiveBackgroundColor);
+      setSupported("--timer-break-bg", "background-color", config.breakBackgroundColor);
+    }
+
     function applyStartupConfig(config) {
       if (!config || typeof config !== "object") return;
+      applyTimerAppearance(config);
       const nextBuildNumber = Number(config.buildNumber);
       buildNumber = Number.isFinite(nextBuildNumber) ? String(Math.round(nextBuildNumber)) : "";
       renderBuildInfo();
@@ -2958,6 +3000,7 @@
       const segment = getCurrentSegment(elapsed);
       const settings = activeSettings();
       const isReady = !state.running && !state.completed && state.elapsedBeforePause === 0;
+      document.body.classList.remove("warning-active");
       document.body.classList.toggle("scrub-ready", !state.running && !isViewerClient && !isReady);
 
       if (state.countdownOnly) {
@@ -3044,6 +3087,7 @@
       const segmentKey = `${segment.cycle}:${segment.type}`;
 
       document.body.classList.toggle("break-active", segment.type === "break");
+      document.body.classList.toggle("warning-active", segment.type === "rotation" && remaining > 0 && remaining <= 5);
       els.phase.textContent = segment.label;
       els.phase.className = `phase ${segment.type}`;
       setDisplayTime(remaining);

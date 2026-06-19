@@ -1098,8 +1098,16 @@
             <tr><td><code>festival_announcements</code></td><td>Начальное состояние фестивальных объявлений времени</td><td>true</td></tr>
             <tr><td><code>flashing</code></td><td>Начальное состояние мигания</td><td>true</td></tr>
             <tr><td><code>sound_profile</code></td><td>Название подкаталога звукового профиля внутри <code>beeps</code></td><td>FSR_2026</td></tr>
+            <tr><td><code>timer_font</code></td><td>Системный шрифт цифр; размер рассчитывается автоматически</td><td>Inter, Arial, sans-serif</td></tr>
+            <tr><td><code>rotation_text_color</code></td><td>Цвет цифр во время ротации</td><td>#f4f7fb</td></tr>
+            <tr><td><code>rotation_last_five_text_color</code></td><td>Цвет цифр в последние 5 секунд ротации</td><td>#f4f7fb</td></tr>
+            <tr><td><code>break_text_color</code></td><td>Цвет цифр во время перерыва</td><td>#f4f7fb</td></tr>
+            <tr><td><code>rotation_background_color</code></td><td>Цвет фона во время ротации</td><td>#0e1116</td></tr>
+            <tr><td><code>rotation_last_five_background_color</code></td><td>Цвет фона в последние 5 секунд ротации</td><td>#0e1116</td></tr>
+            <tr><td><code>break_background_color</code></td><td>Цвет фона во время перерыва</td><td>#f05a59</td></tr>
           </tbody>
         </table>
+        <p class="note">Для цветов можно использовать HEX, например <code>#ffffff</code>, стандартные имена или функции CSS <code>rgb(...)</code>. Шрифт должен быть установлен на каждом компьютере; перечислите запасные варианты через запятую. Размер цифр не настраивается и всегда автоматически занимает максимально доступное пространство.</p>
         <p class="note">Значения, изменённые в интерфейсе, действуют в текущем запуске сервера, но не переписывают <code>params.txt</code>.</p>
         <a class="back-to-toc" href="#contents">↑ К оглавлению</a>
       </section>
