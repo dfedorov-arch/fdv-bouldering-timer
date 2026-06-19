@@ -635,9 +635,44 @@
       .panel { margin-top: 12px; }
       a { color: inherit; }
     }
+
+    .lang-view[hidden] {
+      display: none;
+    }
+
+    .help-language-toggle {
+      position: fixed;
+      z-index: 20;
+      top: 16px;
+      right: 16px;
+      min-width: 46px;
+      min-height: 36px;
+      padding: 0 12px;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      color: var(--text);
+      background: rgba(23, 27, 34, .94);
+      font: inherit;
+      font-size: 12px;
+      font-weight: 850;
+      cursor: pointer;
+      box-shadow: var(--shadow);
+    }
+
+    .help-language-toggle:hover,
+    .help-language-toggle:focus-visible {
+      border-color: var(--cyan);
+      outline: none;
+    }
+
+    @media print {
+      .help-language-toggle { display: none; }
+    }
   </style>
 </head>
 <body>
+  <button id="helpLanguageToggle" class="help-language-toggle" type="button" aria-label="Switch to English">EN</button>
+  <div id="helpRu" class="lang-view" lang="ru">
   <div id="top" class="layout">
     <aside class="toc">
       <div class="toc-brand"><span>◷</span><span>Таймер болдеринга</span></div>
@@ -1086,7 +1121,7 @@
             <tr><td><code>https_port</code></td><td>Порт HTTPS</td><td>8443</td></tr>
             <tr><td><code>portable_node_win</code></td><td>Путь к portable Node.js для Windows</td><td>runtime\win\node.exe</td></tr>
             <tr><td><code>portable_node_mac</code></td><td>Путь к portable Node.js для macOS</td><td>runtime/mac/bin/node</td></tr>
-            <tr><td><code>language</code></td><td>Начальный язык интерфейса</td><td>ru / en</td></tr>
+            <tr><td><code>language</code></td><td>Начальный язык интерфейса и отдельно открытого руководства</td><td>ru / en</td></tr>
             <tr><td><code>classic_rotation_minutes</code></td><td>Ротация «Классики», минуты</td><td>5</td></tr>
             <tr><td><code>classic_break_seconds</code></td><td>Перерыв «Классики», секунды</td><td>15</td></tr>
             <tr><td><code>festival_round_minutes</code></td><td>Фестивальный раунд, минуты</td><td>120</td></tr>
@@ -1159,5 +1194,354 @@
       <p class="footer">2026 Фёдоров Денис + Codex · MIT License · Полное руководство пользователя</p>
     </main>
   </div>
+  </div>
+
+  <div id="helpEn" class="lang-view" lang="en" hidden>
+  <div id="en-top" class="layout">
+    <aside class="toc">
+      <div class="toc-brand"><span>◷</span><span>Bouldering Timer</span></div>
+      <nav aria-label="Contents">
+        <a href="#en-contents">Contents</a>
+        <a href="#en-quick-start">1. Quick start</a>
+        <a href="#en-interface">2. Interface</a>
+        <a href="#en-formats">3. Formats</a>
+        <a href="#en-scheduled-start">4. Scheduled start</a>
+        <a href="#en-controls">5. Controls and keys</a>
+        <a href="#en-screens">6. Displays</a>
+        <a href="#en-sound">7. Sound and flashing</a>
+        <a href="#en-transfer">8. Moving and starting</a>
+        <a href="#en-settings">9. Settings</a>
+        <a href="#en-troubleshooting">10. Troubleshooting</a>
+      </nav>
+      <div class="toc-files">
+        <a href="index.html?lang=en">Open timer</a>
+        <a href="ReadMe.txt">Quick ReadMe</a>
+        <a href="compare-btimer-and-fdv-bouldering-timer.html">Architecture comparison</a>
+      </div>
+    </aside>
+
+    <main class="content">
+      <header class="hero">
+        <p class="eyebrow">Complete user guide</p>
+        <h1>Bouldering Timer</h1>
+        <p>Competition setup, scheduled starts, synchronized displays, diagnostics, sound profiles, and moving the application to another computer.</p>
+        <div class="hero-actions">
+          <a href="#en-contents">Contents</a>
+          <a href="index.html?lang=en">Open timer</a>
+          <a href="#en-troubleshooting">Find a problem</a>
+        </div>
+      </header>
+
+      <section id="en-contents" class="panel">
+        <span class="chapter-kicker">Navigation</span>
+        <h2>Contents</h2>
+        <p class="lead">The guide follows the normal workflow from starting the server to connecting displays and moving the application.</p>
+        <ol class="contents-list">
+          <li><a href="#en-quick-start">Quick start</a></li>
+          <li><a href="#en-interface">Interface</a></li>
+          <li><a href="#en-formats">Competition formats</a></li>
+          <li><a href="#en-scheduled-start">Countdown and scheduled start</a></li>
+          <li><a href="#en-controls">Buttons and keyboard shortcuts</a></li>
+          <li><a href="#en-screens">Connecting and controlling displays</a></li>
+          <li><a href="#en-sound">Sound and flashing</a></li>
+          <li><a href="#en-transfer">Moving and starting on another computer</a></li>
+          <li><a href="#en-settings">The params.txt file</a></li>
+          <li><a href="#en-troubleshooting">Troubleshooting</a></li>
+        </ol>
+      </section>
+
+      <section id="en-quick-start" class="panel">
+        <span class="chapter-kicker">Chapter 1</span>
+        <h2>Quick start</h2>
+        <p class="lead">The shortest path to one controlling browser and several synchronized displays.</p>
+        <div class="steps">
+          <article class="step"><span class="step-number">1</span><strong>Start the server</strong><p>Run <code>start-timer.bat</code> on Windows or <code>start-timer-mac.command</code> on macOS.</p></article>
+          <article class="step"><span class="step-number">2</span><strong>Open the controls</strong><p>On the server computer open <code>http://127.0.0.1:8008/</code>.</p></article>
+          <article class="step"><span class="step-number">3</span><strong>Set the primary</strong><p>Enable Primary browser or press <kbd>Ctrl+M</kbd>.</p></article>
+          <article class="step"><span class="step-number">4</span><strong>Connect displays</strong><p>Open a network address printed by the server on every other device.</p></article>
+        </div>
+        <ol>
+          <li>Select a format and enter the durations.</li>
+          <li>Press Start or <kbd>Z</kbd> for an immediate start.</li>
+          <li>For a scheduled start, enter hours and minutes and press the small <strong>▶</strong> button.</li>
+        </ol>
+        <div class="success"><strong>Ready-to-use link:</strong> the primary browser IP in the Browsers list is clickable and copies the correct HTTP/HTTPS address and port.</div>
+        <a class="back-to-toc" href="#en-contents">↑ Back to contents</a>
+      </section>
+
+      <section id="en-interface" class="panel">
+        <span class="chapter-kicker">Chapter 2</span>
+        <h2>Interface</h2>
+        <p>On a desktop the control panel is on the left and the timer is on the right. The panel scrolls independently, so the large timer remains fixed.</p>
+        <figure><img src="help-assets/overview.jpg" alt="Main bouldering timer interface"><figcaption>Format, parameters, display settings, controls, and connected browser diagnostics.</figcaption></figure>
+        <h3>Control panel</h3>
+        <ul>
+          <li><strong>Format</strong>: Classic, Festival, and Final.</li>
+          <li><strong>Parameters</strong>: scheduled start, rotation or round duration, and break.</li>
+          <li><strong>Switches</strong>: browser role, local and remote sound, remote fullscreen, flashing, and Festival announcements.</li>
+          <li><strong>Sound profile</strong>: selects a set of WAV or MP3 signals.</li>
+          <li><strong>Browsers</strong>: connected devices and connection diagnostics.</li>
+        </ul>
+        <h3>Timer area</h3>
+        <p>The digits always use the largest size that fits the available area. Font, digit colors, and background colors can be configured in <code>params.txt</code>.</p>
+        <p class="note">The active run settings are fixed on the server. Change formats and durations before starting or after Reset.</p>
+        <a class="back-to-toc" href="#en-contents">↑ Back to contents</a>
+      </section>
+
+      <section id="en-formats" class="panel">
+        <span class="chapter-kicker">Chapter 3</span>
+        <h2>Competition formats</h2>
+        <div class="platform">
+          <h3>3.1. Classic</h3>
+          <p>A repeating rotation and short break. Rotation is entered in minutes and break in seconds. With a zero break, the next rotation starts immediately and uses the START signal.</p>
+        </div>
+        <div class="platform">
+          <h3>3.2. Festival</h3>
+          <p>A repeating long round and break, both entered in minutes. Time announcements at 60, 30, 10, and 5 minutes can be enabled or disabled. Profile files are preferred, followed by system speech and the MINUTE signal.</p>
+        </div>
+        <div class="platform">
+          <h3>3.3. Final</h3>
+          <p>A one-shot international format with one rotation and an optional break. When complete, it stops at <code>00:00</code>. Press Start again for another run.</p>
+        </div>
+        <table class="comparison">
+          <thead><tr><th>Property</th><th>Classic</th><th>Festival</th><th>Final</th></tr></thead>
+          <tbody>
+            <tr><td>Rotation / round</td><td>Minutes</td><td>Minutes</td><td>Minutes</td></tr>
+            <tr><td>Break</td><td>Seconds</td><td>Minutes</td><td>Seconds or none</td></tr>
+            <tr><td>Repeating</td><td>Unlimited</td><td>Unlimited</td><td>One run</td></tr>
+            <tr><td>After completion</td><td>Next cycle</td><td>Next cycle</td><td><code>00:00</code></td></tr>
+          </tbody>
+        </table>
+        <a class="back-to-toc" href="#en-contents">↑ Back to contents</a>
+      </section>
+
+      <section id="en-scheduled-start" class="panel">
+        <span class="chapter-kicker">Chapter 4</span>
+        <h2>Countdown and scheduled start</h2>
+        <p>The hours and minutes fields do not change the normal Start button. Press the separate small <strong>▶</strong> button next to Start time. It has no keyboard shortcut.</p>
+        <h3>Classic and Festival</h3>
+        <ul>
+          <li>A future time starts a countdown and the first cycle starts automatically.</li>
+          <li>If today's time has passed, the timer restores the current cycle as if the competition started at that time.</li>
+        </ul>
+        <h3>Final</h3>
+        <ul>
+          <li>A future time starts a preliminary countdown.</li>
+          <li>At zero the Final waits for a manual Start or <kbd>Z</kbd>.</li>
+          <li>A past time is scheduled for the next day; a Final is not restored in the middle.</li>
+        </ul>
+        <h3>Canceling a scheduled start</h3>
+        <p>During the countdown <strong>▶</strong> becomes <strong>■</strong>. Press it to stop waiting while preserving parameters and the entered time. Reset fully clears the scheduled state.</p>
+        <a class="back-to-toc" href="#en-contents">↑ Back to contents</a>
+      </section>
+
+      <section id="en-controls" class="panel">
+        <span class="chapter-kicker">Chapter 5</span>
+        <h2>Buttons and keyboard shortcuts</h2>
+        <table class="comparison">
+          <thead><tr><th>Control</th><th>Action</th><th>Keyboard</th></tr></thead>
+          <tbody>
+            <tr><td>Start</td><td>Starts immediately or resumes after a pause.</td><td><kbd>Z</kbd></td></tr>
+            <tr><td>Pause</td><td>Pauses a rotation or break. Disabled during the preliminary countdown.</td><td><kbd>Ctrl+Q</kbd></td></tr>
+            <tr><td>Reset</td><td>Cancels running, paused, scheduled, or completed state.</td><td><kbd>P</kbd></td></tr>
+            <tr><td>Screen</td><td>Toggles fullscreen in the primary browser.</td><td><kbd>Ctrl+F</kbd></td></tr>
+            <tr><td>Primary browser</td><td>Assigns or removes the controlling browser role.</td><td><kbd>Ctrl+M</kbd></td></tr>
+            <tr><td>Scheduled start ▶</td><td>Uses the entered hours and minutes.</td><td>No shortcut</td></tr>
+          </tbody>
+        </table>
+        <p class="note">Space is not a shortcut. Service shortcuts still work while an input is focused. Viewer browsers only accept the emergency Primary browser shortcut.</p>
+        <h3>Progress bar</h3>
+        <p>While paused in the primary browser, drag or click the progress bar to move within the current rotation or break. Seeking does not play a start signal.</p>
+        <a class="back-to-toc" href="#en-contents">↑ Back to contents</a>
+      </section>
+
+      <section id="en-screens" class="panel">
+        <span class="chapter-kicker">Chapter 6</span>
+        <h2>Connecting and controlling displays</h2>
+        <h3>6.1. Connecting</h3>
+        <ol>
+          <li>Connect every device to the same local non-guest network.</li>
+          <li>Open a Wi-Fi or Ethernet address printed by the launcher.</li>
+          <li>Enable Primary browser on one controlling device.</li>
+        </ol>
+        <p>Other browsers become clean timer-only displays. They receive the same server state and continually correct their local time against the server.</p>
+        <h3>6.2. Primary browser controls</h3>
+        <ul>
+          <li><strong>Sound in primary browser</strong> controls only that browser.</li>
+          <li><strong>Sound in other browsers</strong> enables sound on remote displays.</li>
+          <li><strong>Fullscreen in other browsers</strong> requests fullscreen; a tap may still be required.</li>
+          <li>Browsers on the same computer as the primary do not duplicate its sound.</li>
+        </ul>
+        <h3>6.3. Diagnostics</h3>
+        <figure class="wide-shot"><img src="help-assets/browser-diagnostics.png" alt="Browser diagnostics"><figcaption>NET, SYNC, AUDIO, WAKE, SSE, and TAB summarize each connection.</figcaption></figure>
+        <table>
+          <thead><tr><th>Badge</th><th>Meaning</th></tr></thead>
+          <tbody>
+            <tr><td>NET</td><td>Connection latency: green ≤100 ms, yellow ≤200 ms.</td></tr>
+            <tr><td>SYNC</td><td>Estimated timer synchronization error: green ≤100 ms, yellow ≤300 ms.</td></tr>
+            <tr><td>AUDIO</td><td>Sound permission, unlock status, and user sound offset.</td></tr>
+            <tr><td>WAKE</td><td>Wake Lock support and current state.</td></tr>
+            <tr><td>SSE</td><td>Instant server event connection.</td></tr>
+            <tr><td>TAB</td><td>Whether the tab is visible or backgrounded.</td></tr>
+          </tbody>
+        </table>
+        <h3>AUDIO adjustment</h3>
+        <div class="detail-grid">
+          <figure class="detail-shot"><img src="help-assets/audio-offset.png" alt="Sound offset scale"><figcaption>Set an offset from -500 to +500 ms.</figcaption></figure>
+          <figure class="detail-shot"><img src="help-assets/audio-test.png" alt="Sound test buttons"><figcaption>Test Start, End, one-minute, and five-second signals.</figcaption></figure>
+        </div>
+        <p>Click AUDIO, adjust the scale, test signals, then click AUDIO again to save. From the primary browser you can test everywhere sound is allowed.</p>
+        <h3>6.4. Temporary network loss</h3>
+        <p>A display continues from the last known server timeline. After reconnection it requests current state and corrects itself. Commands issued while offline arrive only after the connection returns.</p>
+        <a class="back-to-toc" href="#en-contents">↑ Back to contents</a>
+      </section>
+
+      <section id="en-sound" class="panel">
+        <span class="chapter-kicker">Chapter 7</span>
+        <h2>Sound and flashing</h2>
+        <ul>
+          <li>Sound in primary browser controls only the controlling browser.</li>
+          <li>Sound in other browsers enables signals on connected displays.</li>
+          <li>Flashing enables visual feedback with warning signals.</li>
+          <li>Disabling sound cancels already scheduled audio.</li>
+        </ul>
+        <h3>Sound profiles</h3>
+        <p>Choose a profile in the panel or with <code>sound_profile</code> in <code>params.txt</code>. Every subfolder in <code>beeps</code> is a profile.</p>
+        <table>
+          <thead><tr><th>File</th><th>Purpose</th></tr></thead>
+          <tbody>
+            <tr><td><code>START.wav/mp3</code></td><td>First rotation and break-to-rotation transition.</td></tr>
+            <tr><td><code>END.wav/mp3</code></td><td>Rotation end and break start; START is used when missing.</td></tr>
+            <tr><td><code>MINUTE.wav/mp3</code></td><td>One-minute warning.</td></tr>
+            <tr><td><code>WARNING.wav/mp3</code></td><td>Each of the last five seconds.</td></tr>
+            <tr><td><code>FESTIVAL_60/30/10/5.wav/mp3</code></td><td>Festival time announcements.</td></tr>
+          </tbody>
+        </table>
+        <p>Names are case-insensitive and WAV takes priority over MP3. Missing Festival files fall back to system speech and then MINUTE. A zero break in Classic or Festival goes directly to START instead of END.</p>
+        <p class="note">Mobile browsers require one user interaction before automatic sound. Tap the page and confirm that AUDIO is green.</p>
+        <a class="back-to-toc" href="#en-contents">↑ Back to contents</a>
+      </section>
+
+      <section id="en-transfer" class="panel">
+        <span class="chapter-kicker">Chapter 8</span>
+        <h2>Moving and starting on another computer</h2>
+        <p class="lead">Copy the entire project folder, prepare Node.js, connect the network, and recreate the certificate if required.</p>
+        <h3>8.1. Files to copy</h3>
+        <p>Keep <code>index.html</code>, <code>serve-bouldering-timer.js</code>, <code>params.txt</code>, <code>beeps</code>, <code>help.html</code>, <code>help-assets</code>, OS launcher scripts, and portable Node.js if used.</p>
+        <h3>8.2. Node.js</h3>
+        <p>Use a current Node.js LTS from <a href="https://nodejs.org/en/download">nodejs.org</a>. Install it system-wide or download a Standalone Binary. Default portable paths are <code>runtime\win\node.exe</code> and <code>runtime/mac/bin/node</code>; change them in <code>params.txt</code> when needed.</p>
+        <div class="platform"><h3>8.3. Windows</h3><ol><li>Check <code>params.txt</code>.</li><li>Run <code>start-timer.bat</code>.</li><li>Allow Node.js on private networks in Windows Firewall.</li><li>Keep the minimized Bouldering Timer Server window open.</li></ol></div>
+        <div class="platform"><h3>8.4. macOS</h3><ol><li>Check <code>params.txt</code>.</li><li>Run <code>start-timer-mac.command</code>.</li><li>Keep Terminal open; stop with <kbd>Ctrl+C</kbd>.</li></ol><p>If blocked, right-click and choose Open. For Permission denied run <code>chmod +x start-timer-mac.command create-https-certificate-mac.command</code>.</p></div>
+        <div class="platform"><h3>8.5. HTTP and HTTPS</h3><p>HTTP works immediately. For HTTPS run <code>create-https-certificate.bat</code> on Windows or <code>create-https-certificate-mac.command</code> on macOS, then restart the server. Recreate the certificate after changing computer or local IP.</p><p class="warning">The certificate is self-signed, so browsers may show a warning on first use.</p></div>
+        <h3>8.6. Verification</h3>
+        <ul class="checklist"><li>The local page opens through 127.0.0.1.</li><li>A phone opens the Wi-Fi or Ethernet address.</li><li>One browser is primary and other displays are listed.</li><li>Controls and shortcuts work.</li><li>NET, SYNC, AUDIO, WAKE, SSE, and TAB show expected states.</li><li>Only intended devices play sound.</li></ul>
+        <a class="back-to-toc" href="#en-contents">↑ Back to contents</a>
+      </section>
+
+      <section id="en-settings" class="panel">
+        <span class="chapter-kicker">Chapter 9</span>
+        <h2>The params.txt file</h2>
+        <p>These values are read when the server starts. Restart after editing the file.</p>
+        <table>
+          <thead><tr><th>Parameter</th><th>Purpose</th><th>Example</th></tr></thead>
+          <tbody>
+            <tr><td><code>http_port</code></td><td>HTTP port</td><td>8008</td></tr>
+            <tr><td><code>https_port</code></td><td>HTTPS port</td><td>8443</td></tr>
+            <tr><td><code>portable_node_win</code></td><td>Portable Node.js path on Windows</td><td>runtime\win\node.exe</td></tr>
+            <tr><td><code>portable_node_mac</code></td><td>Portable Node.js path on macOS</td><td>runtime/mac/bin/node</td></tr>
+            <tr><td><code>language</code></td><td>Initial interface and standalone help language</td><td>ru / en</td></tr>
+            <tr><td><code>classic_rotation_minutes</code></td><td>Classic rotation, minutes</td><td>5</td></tr>
+            <tr><td><code>classic_break_seconds</code></td><td>Classic break, seconds</td><td>15</td></tr>
+            <tr><td><code>festival_round_minutes</code></td><td>Festival round, minutes</td><td>120</td></tr>
+            <tr><td><code>festival_break_minutes</code></td><td>Festival break, minutes</td><td>30</td></tr>
+            <tr><td><code>festival_announcements</code></td><td>Festival announcements enabled by default</td><td>true</td></tr>
+            <tr><td><code>final_rotation_minutes</code></td><td>Final rotation, minutes</td><td>4</td></tr>
+            <tr><td><code>primary_browser</code></td><td>Make the first browser primary</td><td>false</td></tr>
+            <tr><td><code>sound</code></td><td>Initial sound state</td><td>true</td></tr>
+            <tr><td><code>sound_in_other_browsers</code></td><td>Initial remote display sound</td><td>false</td></tr>
+            <tr><td><code>flashing</code></td><td>Initial flashing state</td><td>true</td></tr>
+            <tr><td><code>sound_profile</code></td><td>Profile subfolder in beeps</td><td>FSR_2026</td></tr>
+            <tr><td><code>timer_font</code></td><td>System font list; size remains automatic</td><td>Inter, Arial, sans-serif</td></tr>
+            <tr><td><code>rotation_text_color</code></td><td>Rotation digit color</td><td>#f4f7fb</td></tr>
+            <tr><td><code>rotation_last_five_text_color</code></td><td>Last-five rotation digit color</td><td>#f4f7fb</td></tr>
+            <tr><td><code>break_text_color</code></td><td>Break digit color</td><td>#f4f7fb</td></tr>
+            <tr><td><code>rotation_background_color</code></td><td>Rotation background</td><td>#0e1116</td></tr>
+            <tr><td><code>rotation_last_five_background_color</code></td><td>Last-five rotation background</td><td>#0e1116</td></tr>
+            <tr><td><code>break_background_color</code></td><td>Break background</td><td>#f05a59</td></tr>
+          </tbody>
+        </table>
+        <p class="note">Colors accept HEX, named CSS colors, or <code>rgb(...)</code>. Every display must have the selected font installed; list fallback fonts separated by commas. Digit size always fills the available space automatically.</p>
+        <a class="back-to-toc" href="#en-contents">↑ Back to contents</a>
+      </section>
+
+      <section id="en-troubleshooting" class="panel">
+        <span class="chapter-kicker">Chapter 10</span>
+        <h2>Troubleshooting</h2>
+        <div class="trouble">
+          <details open><summary>127.0.0.1 works but the network IP does not</summary><div>Use the same non-guest network, include the port, use a Wi-Fi or Ethernet address, allow Node.js through the firewall, disable VPN, and check router client isolation.</div></details>
+          <details><summary>The wrong network address is shown</summary><div>VPN, Docker, and virtual adapters add addresses. Use one marked Wi-Fi or Ethernet by the launcher.</div></details>
+          <details><summary>No sound or fullscreen on a phone</summary><div>Tap the page once, inspect AUDIO, check volume and silent mode. Fullscreen may require another tap.</div></details>
+          <details><summary>The screen turned off or the tab slept</summary><div>Inspect WAKE and TAB, disable power saving and auto-lock, and keep the tab visible.</div></details>
+          <details><summary>Commands stop after switching to mobile data</summary><div>The server is local-network only. The display continues locally and receives commands after returning to Wi-Fi.</div></details>
+          <details><summary>Interface changes are missing</summary><div>Hard-refresh with <kbd>Command+Shift+R</kbd> on macOS or <kbd>Ctrl+Shift+R</kbd> on Windows. Restart the server after changing server code or params.</div></details>
+          <details><summary>A port is already in use</summary><div>Change <code>http_port</code> and <code>https_port</code>, or stop the other application using those ports.</div></details>
+          <details><summary>HTTPS shows a warning</summary><div>The certificate is self-signed. Allow the local site through advanced options and recreate the certificate when the IP changes.</div></details>
+          <details><summary>Unsupported PKCS12 PFX data</summary><div>Delete only the damaged <code>timer-cert.pfx</code>, recreate it with the supplied Windows script, and restart the timer.</div></details>
+        </div>
+        <a class="back-to-toc" href="#en-contents">↑ Back to contents</a>
+      </section>
+
+      <p class="footer">2026 Fedorov Denis + Codex · MIT License · Complete user guide</p>
+    </main>
+  </div>
+  </div>
+
+  <script>
+    (() => {
+      const toggle = document.getElementById("helpLanguageToggle");
+      const ru = document.getElementById("helpRu");
+      const en = document.getElementById("helpEn");
+      let currentLanguage = "ru";
+
+      function normalizeLanguage(value) {
+        return String(value || "").toLowerCase() === "en" ? "en" : "ru";
+      }
+
+      function applyHelpLanguage(value, updateUrl = true) {
+        currentLanguage = normalizeLanguage(value);
+        ru.hidden = currentLanguage !== "ru";
+        en.hidden = currentLanguage !== "en";
+        document.documentElement.lang = currentLanguage;
+        document.title = currentLanguage === "en" ? "Bouldering Timer - User Guide" : "Таймер болдеринга - Руководство";
+        toggle.textContent = currentLanguage === "en" ? "RU" : "EN";
+        toggle.title = currentLanguage === "en" ? "Переключить на русский" : "Switch to English";
+        toggle.setAttribute("aria-label", toggle.title);
+        if (updateUrl) {
+          const url = new URL(window.location.href);
+          url.searchParams.set("lang", currentLanguage);
+          window.history.replaceState(null, "", url);
+        }
+      }
+
+      async function detectInitialLanguage() {
+        const queryLanguage = new URLSearchParams(window.location.search).get("lang");
+        if (queryLanguage === "ru" || queryLanguage === "en") {
+          applyHelpLanguage(queryLanguage, false);
+          return;
+        }
+        try {
+          const response = await fetch("api/state", { cache: "no-store" });
+          if (!response.ok) throw new Error("State unavailable");
+          const state = await response.json();
+          applyHelpLanguage(state.config?.language || state.language || "ru");
+        } catch (error) {
+          applyHelpLanguage("ru", false);
+        }
+      }
+
+      toggle.addEventListener("click", () => applyHelpLanguage(currentLanguage === "ru" ? "en" : "ru"));
+      detectInitialLanguage();
+    })();
+  </script>
 </body>
 </html>

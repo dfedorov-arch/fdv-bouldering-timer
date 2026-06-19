@@ -7,7 +7,7 @@ const path = require("path");
 const root = __dirname;
 const paramsPath = path.join(root, "params.txt");
 const beepsPath = path.join(root, "beeps");
-const BUILD_NUMBER = 130;
+const BUILD_NUMBER = 131;
 const defaultConfig = {
   httpPort: 8008,
   httpsPort: 8443,

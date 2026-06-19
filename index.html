@@ -1190,7 +1190,7 @@
         </div>
       </section>
       <div class="control-footer">
-        <a id="helpLink" class="help-link" href="help.html" target="_blank" rel="noopener">Руководство</a>
+        <a id="helpLink" class="help-link" href="help.html?lang=ru" target="_blank" rel="noopener">Руководство</a>
         <div class="credits">2026 <span id="authorName" title="Говорил, что делать">Фёдоров Денис</span> + <span id="codexCredit" title="Делал">Codex</span><span id="buildInfo" hidden></span></div>
       </div>
     </aside>
@@ -1739,6 +1739,7 @@
       els.compactReset.title = els.resetBtn.title;
       els.helpLink.textContent = t("helpManual");
       els.helpLink.title = t("helpManualTitle");
+      els.helpLink.href = `help.html?lang=${language}`;
       renderBuildInfo();
       els.authorName.textContent = t("author");
       els.authorName.title = t("authorHint");
