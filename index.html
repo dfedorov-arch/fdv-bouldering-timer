@@ -299,11 +299,11 @@
     }
 
     .sound-profile-field {
-      margin-top: 10px;
+      margin-top: 9px;
     }
 
     .festival-announcements-row {
-      margin-top: 9px;
+      margin-top: 0;
     }
 
     .festival-announcements-row[hidden] {
@@ -337,13 +337,17 @@
       display: flex;
       align-items: center;
       justify-content: space-between;
-      gap: 12px;
-      min-height: 36px;
+      gap: 9px;
+      min-height: 28px;
+      font-size: 12px;
     }
 
     .switch-row input {
-      width: 38px;
-      height: 22px;
+      width: 32px;
+      height: 18px;
+      min-height: 18px;
+      padding: 0;
+      margin: 0;
       accent-color: var(--cyan);
     }
 
@@ -1115,14 +1119,6 @@
             </span>
           </label>
         </div>
-        <label class="sound-profile-field">
-          <span id="soundProfileLabel">Комплект звуков</span>
-          <select id="soundProfileSelect" aria-label="Комплект звуков"></select>
-        </label>
-        <label id="festivalAnnouncementsRow" class="switch-row festival-announcements-row" title="Объявления за 60, 30, 10 и 5 минут" hidden>
-          <span id="festivalAnnouncementsLabel">Объявления времени</span>
-          <input id="festivalAnnouncementsToggle" type="checkbox" checked>
-        </label>
       </section>
 
       <section class="section no-divider">
@@ -1145,6 +1141,14 @@
         <label class="switch-row">
           <span id="flashLabel">Мигание</span>
           <input id="flashToggle" type="checkbox" checked>
+        </label>
+        <label id="festivalAnnouncementsRow" class="switch-row festival-announcements-row" title="Объявления за 60, 30, 10 и 5 минут" hidden>
+          <span id="festivalAnnouncementsLabel">Объявления времени</span>
+          <input id="festivalAnnouncementsToggle" type="checkbox" checked>
+        </label>
+        <label class="sound-profile-field">
+          <span id="soundProfileLabel">Комплект звуков</span>
+          <select id="soundProfileSelect" aria-label="Комплект звуков"></select>
         </label>
       </section>
 
@@ -1300,7 +1304,7 @@
         testEndSignal: "End",
         testMinuteSignal: "1 min",
         testFiveSignals: "5 sec",
-        testEverywhere: "Test everywhere",
+        testEverywhere: "Test everywhere sound is allowed",
         copyLink: "Copy link",
         copied: "Copied",
         copyManually: "Copy the link",
