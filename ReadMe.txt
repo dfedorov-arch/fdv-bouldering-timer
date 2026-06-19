@@ -85,14 +85,16 @@ macOS:
   classic_break_seconds=15
   festival_round_minutes=120
   festival_break_minutes=30
+  festival_announcements=true
   final_rotation_minutes=4
 
   sound_profile=FSR_2026
 
 Каждый подкаталог в папке beeps является звуковым профилем. Внутри используются
-файлы START, END, MINUTE и WARNING с расширением .wav или .mp3. END можно не
-добавлять: вместо него будет использоваться START. Подробности находятся в
-help.html и beeps\README.txt.
+файлы START, END, MINUTE и WARNING с расширением .wav или .mp3. Для фестивальных
+объявлений можно добавить FESTIVAL_60, FESTIVAL_30, FESTIVAL_10 и FESTIVAL_5.
+END можно не добавлять: вместо него будет использоваться START. Подробности
+находятся в help.html и beeps\README.txt.
 
 
 5. Основные действия

@@ -7,7 +7,7 @@ const path = require("path");
 const root = __dirname;
 const paramsPath = path.join(root, "params.txt");
 const beepsPath = path.join(root, "beeps");
-const BUILD_NUMBER = 126;
+const BUILD_NUMBER = 127;
 const defaultConfig = {
   httpPort: 8008,
   httpsPort: 8443,
@@ -20,6 +20,7 @@ const defaultConfig = {
   primaryBrowser: false,
   sound: true,
   soundInOtherBrowsers: false,
+  festivalAnnouncements: true,
   flashing: true,
   soundProfile: "FSR_2026"
 };
@@ -79,6 +80,10 @@ function loadSoundProfiles() {
       const end = findProfileFile(files, "END") || start;
       const minute = findProfileFile(files, "MINUTE");
       const warning = findProfileFile(files, "WARNING");
+      const festival60 = findProfileFile(files, "FESTIVAL_60");
+      const festival30 = findProfileFile(files, "FESTIVAL_30");
+      const festival10 = findProfileFile(files, "FESTIVAL_10");
+      const festival5 = findProfileFile(files, "FESTIVAL_5");
       if (!start && !minute && !warning) return null;
       return {
         id: entry.name,
@@ -86,7 +91,11 @@ function loadSoundProfiles() {
           start: start ? profileFileUrl(entry.name, start) : "",
           end: end ? profileFileUrl(entry.name, end) : "",
           minute: minute ? profileFileUrl(entry.name, minute) : "",
-          warn: warning ? profileFileUrl(entry.name, warning) : ""
+          warn: warning ? profileFileUrl(entry.name, warning) : "",
+          festival60: festival60 ? profileFileUrl(entry.name, festival60) : "",
+          festival30: festival30 ? profileFileUrl(entry.name, festival30) : "",
+          festival10: festival10 ? profileFileUrl(entry.name, festival10) : "",
+          festival5: festival5 ? profileFileUrl(entry.name, festival5) : ""
         }
       };
     })
@@ -129,6 +138,7 @@ const config = {
   primaryBrowser: boolParam(params, "primary_browser", defaultConfig.primaryBrowser),
   sound: boolParam(params, "sound", defaultConfig.sound),
   soundInOtherBrowsers: boolParam(params, "sound_in_other_browsers", defaultConfig.soundInOtherBrowsers),
+  festivalAnnouncements: boolParam(params, "festival_announcements", defaultConfig.festivalAnnouncements),
   flashing: boolParam(params, "flashing", defaultConfig.flashing),
   soundProfile: initialSoundProfile,
   soundProfiles
@@ -174,6 +184,7 @@ const timerState = {
   instancesSound: config.soundInOtherBrowsers,
   instancesFullscreen: false,
   globalSound: config.sound,
+  festivalAnnouncements: config.festivalAnnouncements,
   soundProfile: config.soundProfile,
   language: config.language,
   version: 1
@@ -642,6 +653,11 @@ function handleRequest(req, res) {
 
       if (type === "sound") {
         timerState.globalSound = Boolean(body.enabled);
+        timerState.version += 1;
+      }
+
+      if (type === "festivalAnnouncements") {
+        timerState.festivalAnnouncements = Boolean(body.enabled);
         timerState.version += 1;
       }
 

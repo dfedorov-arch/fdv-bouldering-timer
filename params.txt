@@ -22,6 +22,7 @@ final_rotation_minutes=4
 primary_browser=false
 sound=true
 sound_in_other_browsers=false
+festival_announcements=true
 flashing=true
 
 # Name of a subfolder inside beeps.

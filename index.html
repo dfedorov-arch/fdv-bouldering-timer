@@ -302,6 +302,14 @@
       margin-top: 10px;
     }
 
+    .festival-announcements-row {
+      margin-top: 9px;
+    }
+
+    .festival-announcements-row[hidden] {
+      display: none;
+    }
+
     label {
       display: grid;
       gap: 5px;
@@ -1111,6 +1119,10 @@
           <span id="soundProfileLabel">Комплект звуков</span>
           <select id="soundProfileSelect" aria-label="Комплект звуков"></select>
         </label>
+        <label id="festivalAnnouncementsRow" class="switch-row festival-announcements-row" title="Объявления за 60, 30, 10 и 5 минут" hidden>
+          <span id="festivalAnnouncementsLabel">Объявления времени</span>
+          <input id="festivalAnnouncementsToggle" type="checkbox" checked>
+        </label>
       </section>
 
       <section class="section no-divider">
@@ -1209,6 +1221,7 @@
       activePreset: "classic",
       activeSettings: null,
       soundProfile: "",
+      festivalAnnouncements: true,
       primaryClientId: null,
       timeline: []
     };
@@ -1224,7 +1237,8 @@
         parameters: "Параметры", rotationMinutes: "Время ротации",
         roundMinutes: "Время раунда", breakSeconds: "Перерыв",
         breakMinutes: "Перерыв", minuteUnit: "минут", secondUnit: "секунд",
-        primary: "Основной браузер", sound: "Звук", soundProfile: "Комплект звуков",
+        primary: "Основной браузер", sound: "Звук", soundProfile: "Комплект звуков", festivalAnnouncements: "Объявления времени",
+        festivalAnnouncementsHint: "Объявления за 60, 30, 10 и 5 минут",
         primarySound: "Звук в основном браузере", otherSound: "Звук в других браузерах",
         otherFullscreen: "Полный экран в других браузерах", flashing: "Мигание",
         controls: "Управление", start: "Старт", pause: "Пауза", reset: "Сброс",
@@ -1263,7 +1277,8 @@
         parameters: "Parameters", rotationMinutes: "Rotation time",
         roundMinutes: "Round time", breakSeconds: "Break",
         breakMinutes: "Break", minuteUnit: "minutes", secondUnit: "seconds",
-        primary: "Primary browser", sound: "Sound", soundProfile: "Sound profile",
+        primary: "Primary browser", sound: "Sound", soundProfile: "Sound profile", festivalAnnouncements: "Time announcements",
+        festivalAnnouncementsHint: "Announcements at 60, 30, 10 and 5 minutes remaining",
         primarySound: "Sound in primary browser", otherSound: "Sound in other browsers",
         otherFullscreen: "Fullscreen in other browsers", flashing: "Flashing",
         controls: "Controls", start: "Start", pause: "Pause", reset: "Reset",
@@ -1329,6 +1344,9 @@
       breakInputUnit: document.getElementById("breakInputUnit"),
       soundProfileLabel: document.getElementById("soundProfileLabel"),
       soundProfileSelect: document.getElementById("soundProfileSelect"),
+      festivalAnnouncementsRow: document.getElementById("festivalAnnouncementsRow"),
+      festivalAnnouncementsLabel: document.getElementById("festivalAnnouncementsLabel"),
+      festivalAnnouncementsToggle: document.getElementById("festivalAnnouncementsToggle"),
       climbMinutes: document.getElementById("climbMinutes"),
       breakSeconds: document.getElementById("breakSeconds"),
       primaryToggle: document.getElementById("primaryToggle"),
@@ -1358,16 +1376,16 @@
       browserList: document.getElementById("browserList")
     };
 
-    const audioKinds = ["start", "end", "minute", "warn"];
-    let audioSources = { start: "", end: "", minute: "", warn: "" };
-    let audioBuffers = { start: null, end: null, minute: null, warn: null };
+    const audioKinds = ["start", "end", "minute", "warn", "festival60", "festival30", "festival10", "festival5"];
+    let audioSources = { start: "", end: "", minute: "", warn: "", festival60: "", festival30: "", festival10: "", festival5: "" };
+    let audioBuffers = { start: null, end: null, minute: null, warn: null, festival60: null, festival30: null, festival10: null, festival5: null };
     let soundProfiles = [];
     let activeHtmlAudio = [];
     const festivalAnnouncements = [
-      { remaining: 60 * 60, ru: "Остался один час", en: "One hour remaining" },
-      { remaining: 30 * 60, ru: "Осталось 30 минут", en: "30 minutes remaining" },
-      { remaining: 10 * 60, ru: "Осталось 10 минут", en: "10 minutes remaining" },
-      { remaining: 5 * 60, ru: "Осталось 5 минут", en: "5 minutes remaining" }
+      { remaining: 60 * 60, kind: "festival60", ru: "Остался один час", en: "One hour remaining" },
+      { remaining: 30 * 60, kind: "festival30", ru: "Осталось 30 минут", en: "30 minutes remaining" },
+      { remaining: 10 * 60, kind: "festival10", ru: "Осталось 10 минут", en: "10 minutes remaining" },
+      { remaining: 5 * 60, kind: "festival5", ru: "Осталось 5 минут", en: "5 minutes remaining" }
     ];
 
     let audioContext;
@@ -1655,6 +1673,8 @@
       els.parametersTitle.textContent = t("parameters");
       els.soundProfileLabel.textContent = t("soundProfile");
       els.soundProfileSelect.setAttribute("aria-label", t("soundProfile"));
+      els.festivalAnnouncementsLabel.textContent = t("festivalAnnouncements");
+      els.festivalAnnouncementsRow.title = t("festivalAnnouncementsHint");
       els.primaryLabel.textContent = t("primary");
       els.instancesSoundLabel.textContent = t("otherSound");
       els.instancesFullscreenLabel.textContent = t("otherFullscreen");
@@ -1750,11 +1770,15 @@
         start: String(profile?.sources?.start || ""),
         end: String(profile?.sources?.end || profile?.sources?.start || ""),
         minute: String(profile?.sources?.minute || ""),
-        warn: String(profile?.sources?.warn || "")
+        warn: String(profile?.sources?.warn || ""),
+        festival60: String(profile?.sources?.festival60 || ""),
+        festival30: String(profile?.sources?.festival30 || ""),
+        festival10: String(profile?.sources?.festival10 || ""),
+        festival5: String(profile?.sources?.festival5 || "")
       };
       if (!audioKinds.some((kind) => audioSources[kind] !== nextAudioSources[kind])) return;
       audioSources = nextAudioSources;
-      audioBuffers = { start: null, end: null, minute: null, warn: null };
+      audioBuffers = { start: null, end: null, minute: null, warn: null, festival60: null, festival30: null, festival10: null, festival5: null };
       audioLoadGeneration += 1;
       buffersLoading = null;
       if (audioContext) loadAudioBuffers();
@@ -1769,6 +1793,7 @@
       els.breakSeconds.max = festivalMode ? "240" : "3600";
       els.breakSeconds.step = "1";
       els.breakSeconds.disabled = false;
+      els.festivalAnnouncementsRow.hidden = !festivalMode;
     }
 
     function setInputsFromDraft(draft) {
@@ -1935,6 +1960,8 @@
       state.elapsedBeforePause = Number(remote.elapsedBeforePause || 0);
       state.activePreset = remote.activePreset || "";
       state.activeSettings = remote.activeSettings || activeSettingsFromDraft();
+      const festivalAnnouncementsChanged = (remote.festivalAnnouncements !== false) !== state.festivalAnnouncements;
+      state.festivalAnnouncements = remote.festivalAnnouncements !== false;
       applySoundProfile(String(remote.soundProfile || ""));
       buildTimeline(state.activeSettings);
       const ownClient = (remote.clients || []).find((client) => client.id === clientId);
@@ -1964,6 +1991,7 @@
       els.primaryToggle.checked = isPrimary;
       els.instancesSoundToggle.checked = instancesSoundEnabled;
       els.instancesFullscreenToggle.checked = instancesFullscreenEnabled;
+      els.festivalAnnouncementsToggle.checked = state.festivalAnnouncements;
       els.soundLabel.textContent = isPrimary ? t("primarySound") : t("sound");
       els.soundToggle.checked = isPrimary ? primarySoundEnabled : globalSoundEnabled;
       document.body.classList.toggle("primary-active", isPrimary);
@@ -1978,7 +2006,7 @@
       } else if (state.countdownOnly) {
         clearSignalTimers();
         lastSegmentIndex = -1;
-      } else if (options.rescheduleSignals || audioOffsetChanged) {
+      } else if (options.rescheduleSignals || audioOffsetChanged || festivalAnnouncementsChanged) {
         const elapsed = elapsedSeconds();
         const segment = getCurrentSegment(elapsed);
         if (segment) {
@@ -2622,7 +2650,7 @@
       scheduleSegmentTimeoutAt(segment, targetServerTime, () => flash());
     }
 
-    function scheduleBufferedSignalAt(segment, targetServerTime, kind, withFlash = true, scheduleImmediately = false) {
+    function scheduleBufferedSignalAt(segment, targetServerTime, kind, withFlash = true, scheduleImmediately = false, fallback = null) {
       const soundTargetServerTime = audioServerTime(targetServerTime);
       const signalKey = `${segment.cycle}:${segment.type}:${kind}:${Math.round(soundTargetServerTime)}`;
       if (scheduledSignalKeys.has(signalKey)) return;
@@ -2630,7 +2658,8 @@
       let scheduledByBuffer = false;
       const cancelFallback = scheduleServerTimeoutAt(soundTargetServerTime, () => {
         if (scheduledByBuffer) return;
-        beep(kind);
+        if (fallback) fallback();
+        else beep(kind);
       });
       if (withFlash) scheduleSegmentTimeoutAt(segment, targetServerTime, () => flash());
 
@@ -2820,10 +2849,17 @@
     }
 
     function scheduleFestivalAnnouncements(segment, remaining) {
-      if (state.activePreset !== "festival" || segment.type !== "rotation") return;
+      if (!state.festivalAnnouncements || state.activePreset !== "festival" || segment.type !== "rotation") return;
       festivalAnnouncements.forEach((announcement) => {
         if (remaining <= announcement.remaining) return;
-        scheduleServerTimeoutAt(audioServerTime(serverTimeForElapsed(segment.end - announcement.remaining)), () => speak(announcement[language]));
+        const targetServerTime = serverTimeForElapsed(segment.end - announcement.remaining);
+        if (soundSource(announcement.kind)) {
+          scheduleBufferedSignalAt(segment, targetServerTime, announcement.kind, false, false, () => {
+            if (!playHtmlAudio(announcement.kind)) speak(announcement[language]);
+          });
+          return;
+        }
+        scheduleServerTimeoutAt(audioServerTime(targetServerTime), () => speak(announcement[language]));
       });
     }
 
@@ -3376,6 +3412,12 @@
       sendServerAction("instancesFullscreen", {
         enabled: els.instancesFullscreenToggle.checked
       });
+    });
+
+    els.festivalAnnouncementsToggle.addEventListener("change", () => {
+      sendServerAction("festivalAnnouncements", {
+        enabled: els.festivalAnnouncementsToggle.checked
+      }, { rescheduleSignals: true });
     });
 
     els.soundProfileSelect.addEventListener("change", async () => {
