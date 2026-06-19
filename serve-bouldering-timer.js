@@ -6,7 +6,8 @@ const path = require("path");
 
 const root = __dirname;
 const paramsPath = path.join(root, "params.txt");
-const BUILD_NUMBER = 120;
+const beepsPath = path.join(root, "beeps");
+const BUILD_NUMBER = 126;
 const defaultConfig = {
   httpPort: 8008,
   httpsPort: 8443,
@@ -20,9 +21,7 @@ const defaultConfig = {
   sound: true,
   soundInOtherBrowsers: false,
   flashing: true,
-  phaseSignalMp3: "",
-  minuteSignalMp3: "",
-  warningSignalMp3: ""
+  soundProfile: "FSR_2026"
 };
 
 function readParams() {
@@ -54,11 +53,55 @@ function languageParam(params, key, fallback) {
   return String(params[key] || fallback).toLowerCase() === "en" ? "en" : "ru";
 }
 
-function mp3FileParam(params, key, fallback = "") {
-  if (!(key in params)) return fallback;
-  const value = String(params[key] || "").trim().replace(/\\/g, "/");
-  if (!value || value.startsWith("/") || value.includes("..") || !/\.mp3$/i.test(value)) return "";
-  return value;
+function profileFileUrl(profileName, fileName) {
+  return `beeps/${encodeURIComponent(profileName)}/${encodeURIComponent(fileName)}`;
+}
+
+function findProfileFile(entries, role) {
+  const roleName = role.toLowerCase();
+  for (const extension of [".wav", ".mp3"]) {
+    const match = entries.find((entry) => entry.isFile()
+      && path.extname(entry.name).toLowerCase() === extension
+      && path.basename(entry.name, extension).toLowerCase() === roleName);
+    if (match) return match.name;
+  }
+  return "";
+}
+
+function loadSoundProfiles() {
+  if (!fs.existsSync(beepsPath)) return [];
+  return fs.readdirSync(beepsPath, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => {
+      const profilePath = path.join(beepsPath, entry.name);
+      const files = fs.readdirSync(profilePath, { withFileTypes: true });
+      const start = findProfileFile(files, "START");
+      const end = findProfileFile(files, "END") || start;
+      const minute = findProfileFile(files, "MINUTE");
+      const warning = findProfileFile(files, "WARNING");
+      if (!start && !minute && !warning) return null;
+      return {
+        id: entry.name,
+        sources: {
+          start: start ? profileFileUrl(entry.name, start) : "",
+          end: end ? profileFileUrl(entry.name, end) : "",
+          minute: minute ? profileFileUrl(entry.name, minute) : "",
+          warn: warning ? profileFileUrl(entry.name, warning) : ""
+        }
+      };
+    })
+    .filter(Boolean)
+    .sort((a, b) => a.id.localeCompare(b.id, "en"));
+}
+
+function selectedSoundProfile(params, profiles) {
+  const requested = String(params.sound_profile || defaultConfig.soundProfile).trim();
+  const exact = profiles.find((profile) => profile.id === requested);
+  if (exact) return exact.id;
+  const caseInsensitive = profiles.find((profile) => profile.id.toLowerCase() === requested.toLowerCase());
+  if (caseInsensitive) return caseInsensitive.id;
+  if (profiles.some((profile) => profile.id === defaultConfig.soundProfile)) return defaultConfig.soundProfile;
+  return profiles[0]?.id || "";
 }
 
 function numberOrDefault(value, fallback) {
@@ -67,6 +110,13 @@ function numberOrDefault(value, fallback) {
 }
 
 const params = readParams();
+const soundProfiles = loadSoundProfiles();
+const initialSoundProfile = selectedSoundProfile(params, soundProfiles);
+soundProfiles.sort((a, b) => {
+  if (a.id === initialSoundProfile) return -1;
+  if (b.id === initialSoundProfile) return 1;
+  return a.id.localeCompare(b.id, "en");
+});
 const config = {
   httpPort: intParam(params, "http_port", defaultConfig.httpPort, 1, 65535),
   httpsPort: intParam(params, "https_port", defaultConfig.httpsPort, 1, 65535),
@@ -80,9 +130,8 @@ const config = {
   sound: boolParam(params, "sound", defaultConfig.sound),
   soundInOtherBrowsers: boolParam(params, "sound_in_other_browsers", defaultConfig.soundInOtherBrowsers),
   flashing: boolParam(params, "flashing", defaultConfig.flashing),
-  phaseSignalMp3: mp3FileParam(params, "phase_signal_mp3", defaultConfig.phaseSignalMp3),
-  minuteSignalMp3: mp3FileParam(params, "minute_signal_mp3", defaultConfig.minuteSignalMp3),
-  warningSignalMp3: mp3FileParam(params, "warning_signal_mp3", defaultConfig.warningSignalMp3)
+  soundProfile: initialSoundProfile,
+  soundProfiles
 };
 
 const port = Number(process.env.PORT) || config.httpPort;
@@ -97,7 +146,8 @@ const types = {
   ".html": "text/html; charset=utf-8",
   ".css": "text/css; charset=utf-8",
   ".js": "text/javascript; charset=utf-8",
-  ".mp3": "audio/mpeg"
+  ".mp3": "audio/mpeg",
+  ".wav": "audio/wav"
 };
 
 const timerState = {
@@ -124,6 +174,7 @@ const timerState = {
   instancesSound: config.soundInOtherBrowsers,
   instancesFullscreen: false,
   globalSound: config.sound,
+  soundProfile: config.soundProfile,
   language: config.language,
   version: 1
 };
@@ -507,10 +558,20 @@ function handleRequest(req, res) {
         timerState.version += 1;
       }
 
-      if (type === "pause") {
+      if (type === "pause" && timerState.running && timerState.startedAt <= now) {
         timerState.elapsedBeforePause = elapsedSeconds(now);
         timerState.running = false;
         timerState.countdownOnly = false;
+        timerState.startedAt = 0;
+        armStateTransition(0);
+        timerState.version += 1;
+      }
+
+      if (type === "stopCountdown" && timerState.running && timerState.startedAt > now) {
+        timerState.running = false;
+        timerState.countdownOnly = false;
+        timerState.waitingForManualStart = false;
+        timerState.elapsedBeforePause = 0;
         timerState.startedAt = 0;
         armStateTransition(0);
         timerState.version += 1;
@@ -584,6 +645,16 @@ function handleRequest(req, res) {
         timerState.version += 1;
       }
 
+      const soundProfileCanChange = timerState.elapsedBeforePause === 0
+        && (!timerState.running || timerState.startedAt > now);
+      if (type === "soundProfile" && soundProfileCanChange) {
+        const requestedProfile = String(body.soundProfile || "");
+        if (soundProfiles.some((profile) => profile.id === requestedProfile)) {
+          timerState.soundProfile = requestedProfile;
+          timerState.version += 1;
+        }
+      }
+
       if (type === "language") {
         timerState.language = body.language === "en" ? "en" : "ru";
         timerState.version += 1;
@@ -602,7 +673,7 @@ function handleRequest(req, res) {
       }
 
       if (type === "audioTest") {
-        const kind = ["phase", "minute", "warn"].includes(body.kind) ? body.kind : "phase";
+        const kind = ["start", "end", "minute", "warn"].includes(body.kind) ? body.kind : "start";
         const targetClientId = String(body.targetClientId || "");
         const everywhere = Boolean(body.everywhere && timerState.primaryClientId);
         if (everywhere || targetClientId) {

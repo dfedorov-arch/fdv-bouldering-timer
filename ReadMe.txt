@@ -30,6 +30,8 @@
 
 Относительный путь считается от папки таймера. Если portable Node.js
 не найден, скрипт запуска попробует использовать системный Node.js.
+Краткие инструкции по распаковке находятся в runtime\win\README.txt и
+runtime\mac\README.txt.
 
 
 2. Запуск
@@ -85,12 +87,12 @@ macOS:
   festival_break_minutes=30
   final_rotation_minutes=4
 
-  phase_signal_mp3=880_1.mp3
-  minute_signal_mp3=3520_02_1.mp3
-  warning_signal_mp3=3520_02_1.mp3
+  sound_profile=FSR_2026
 
-Если строка MP3-сигнала отсутствует или оставлена пустой, для этого сигнала
-используется синтетический звук.
+Каждый подкаталог в папке beeps является звуковым профилем. Внутри используются
+файлы START, END, MINUTE и WARNING с расширением .wav или .mp3. END можно не
+добавлять: вместо него будет использоваться START. Подробности находятся в
+help.html и beeps\README.txt.
 
 
 5. Основные действия

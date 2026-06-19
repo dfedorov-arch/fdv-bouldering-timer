@@ -224,6 +224,15 @@
       border-color: var(--green);
     }
 
+    .start-time-action.stop-mode {
+      color: var(--red);
+    }
+
+    .start-time-action.stop-mode:not(:disabled):hover {
+      background: rgba(240, 90, 89, .12);
+      border-color: var(--red);
+    }
+
     .start-time-inputs {
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -287,6 +296,10 @@
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
       gap: 10px;
+    }
+
+    .sound-profile-field {
+      margin-top: 10px;
     }
 
     label {
@@ -540,7 +553,7 @@
 
     .audio-test-buttons {
       display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
+      grid-template-columns: repeat(4, minmax(0, 1fr));
       gap: 5px;
     }
 
@@ -1065,7 +1078,7 @@
             <div class="start-time-heading">
               <div id="startTimeTitle" class="start-time-title">Время начала старта</div>
               <button id="scheduledStartBtn" class="start-time-action" type="button" title="Запустить по указанному времени" aria-label="Запустить по указанному времени" disabled>
-                <span aria-hidden="true">▶</span>
+                <span id="scheduledStartIcon" aria-hidden="true">▶</span>
               </button>
             </div>
             <div class="start-time-inputs">
@@ -1094,6 +1107,10 @@
             </span>
           </label>
         </div>
+        <label class="sound-profile-field">
+          <span id="soundProfileLabel">Комплект звуков</span>
+          <select id="soundProfileSelect" aria-label="Комплект звуков"></select>
+        </label>
       </section>
 
       <section class="section no-divider">
@@ -1191,6 +1208,7 @@
       waitingForManualStart: false,
       activePreset: "classic",
       activeSettings: null,
+      soundProfile: "",
       primaryClientId: null,
       timeline: []
     };
@@ -1201,12 +1219,12 @@
       ru: {
         brandTimer: "Таймер", brandBouldering: "болдеринга", format: "Формат",
         classic: "Классика", festival: "Фестиваль", final: "Финал",
-        startTime: "Время начала старта", scheduledStart: "Запустить по указанному времени",
+        startTime: "Время начала старта", scheduledStart: "Запустить по указанному времени", stopCountdown: "Остановить обратный отсчёт",
         hours: "часов", minutes: "минут",
         parameters: "Параметры", rotationMinutes: "Время ротации",
         roundMinutes: "Время раунда", breakSeconds: "Перерыв",
         breakMinutes: "Перерыв", minuteUnit: "минут", secondUnit: "секунд",
-        primary: "Основной браузер", sound: "Звук",
+        primary: "Основной браузер", sound: "Звук", soundProfile: "Комплект звуков",
         primarySound: "Звук в основном браузере", otherSound: "Звук в других браузерах",
         otherFullscreen: "Полный экран в других браузерах", flashing: "Мигание",
         controls: "Управление", start: "Старт", pause: "Пауза", reset: "Сброс",
@@ -1226,6 +1244,7 @@
         audioOffsetPrompt: "Поправка звука для этого браузера, мс. Отрицательное значение запускает звук раньше:",
         audioOffsetUser: "Пользовательская поправка звука",
         testStartSignal: "Старт",
+        testEndSignal: "Финиш",
         testMinuteSignal: "1 мин",
         testFiveSignals: "5 сек",
         testEverywhere: "Проверить везде, где разрешён звук",
@@ -1239,12 +1258,12 @@
       en: {
         brandTimer: "Bouldering", brandBouldering: "Timer", format: "Format",
         classic: "Classic", festival: "Festival", final: "Final",
-        startTime: "Start time", scheduledStart: "Start at the specified time",
+        startTime: "Start time", scheduledStart: "Start at the specified time", stopCountdown: "Stop countdown",
         hours: "hours", minutes: "minutes",
         parameters: "Parameters", rotationMinutes: "Rotation time",
         roundMinutes: "Round time", breakSeconds: "Break",
         breakMinutes: "Break", minuteUnit: "minutes", secondUnit: "seconds",
-        primary: "Primary browser", sound: "Sound",
+        primary: "Primary browser", sound: "Sound", soundProfile: "Sound profile",
         primarySound: "Sound in primary browser", otherSound: "Sound in other browsers",
         otherFullscreen: "Fullscreen in other browsers", flashing: "Flashing",
         controls: "Controls", start: "Start", pause: "Pause", reset: "Reset",
@@ -1263,6 +1282,7 @@
         audioOffsetPrompt: "Sound offset for this browser, ms. A negative value plays sounds earlier:",
         audioOffsetUser: "User-defined sound offset",
         testStartSignal: "Start",
+        testEndSignal: "End",
         testMinuteSignal: "1 min",
         testFiveSignals: "5 sec",
         testEverywhere: "Test everywhere",
@@ -1300,12 +1320,15 @@
       codexCredit: document.getElementById("codexCredit"),
       startTimeFields: document.getElementById("startTimeFields"),
       scheduledStartBtn: document.getElementById("scheduledStartBtn"),
+      scheduledStartIcon: document.getElementById("scheduledStartIcon"),
       startHours: document.getElementById("startHours"),
       startMinutes: document.getElementById("startMinutes"),
       rotationInputLabel: document.getElementById("rotationInputLabel"),
       rotationInputUnit: document.getElementById("rotationInputUnit"),
       breakInputLabel: document.getElementById("breakInputLabel"),
       breakInputUnit: document.getElementById("breakInputUnit"),
+      soundProfileLabel: document.getElementById("soundProfileLabel"),
+      soundProfileSelect: document.getElementById("soundProfileSelect"),
       climbMinutes: document.getElementById("climbMinutes"),
       breakSeconds: document.getElementById("breakSeconds"),
       primaryToggle: document.getElementById("primaryToggle"),
@@ -1335,9 +1358,10 @@
       browserList: document.getElementById("browserList")
     };
 
-    const audioKinds = ["phase", "minute", "warn"];
-    let audioSources = { phase: "", minute: "", warn: "" };
-    let audioBuffers = { phase: null, minute: null, warn: null };
+    const audioKinds = ["start", "end", "minute", "warn"];
+    let audioSources = { start: "", end: "", minute: "", warn: "" };
+    let audioBuffers = { start: null, end: null, minute: null, warn: null };
+    let soundProfiles = [];
     let activeHtmlAudio = [];
     const festivalAnnouncements = [
       { remaining: 60 * 60, ru: "Остался один час", en: "One hour remaining" },
@@ -1348,6 +1372,7 @@
 
     let audioContext;
     let buffersLoading = null;
+    let audioLoadGeneration = 0;
     let lastSegmentIndex = -1;
     let signalTimers = [];
     let transitionSignalTimers = [];
@@ -1469,11 +1494,12 @@
 
     async function loadAudioBuffers() {
       if (buffersLoading || !audioContext) return buffersLoading;
+      const generation = audioLoadGeneration;
       const decodedBySource = new Map();
       buffersLoading = Promise.all(audioKinds.map(async (kind) => {
         const source = audioSources[kind];
         if (!source) {
-          audioBuffers[kind] = null;
+          if (generation === audioLoadGeneration) audioBuffers[kind] = null;
           return;
         }
         try {
@@ -1482,9 +1508,10 @@
               .then((response) => response.ok ? response.arrayBuffer() : Promise.reject(new Error("Audio file not found")))
               .then((buffer) => audioContext.decodeAudioData(buffer)));
           }
-          audioBuffers[kind] = await decodedBySource.get(source);
+          const decoded = await decodedBySource.get(source);
+          if (generation === audioLoadGeneration) audioBuffers[kind] = decoded;
         } catch (error) {
-          audioBuffers[kind] = null;
+          if (generation === audioLoadGeneration) audioBuffers[kind] = null;
         }
       })).catch(() => {});
       return buffersLoading;
@@ -1626,6 +1653,8 @@
       els.hoursUnit.textContent = t("hours");
       els.minutesUnit.textContent = t("minutes");
       els.parametersTitle.textContent = t("parameters");
+      els.soundProfileLabel.textContent = t("soundProfile");
+      els.soundProfileSelect.setAttribute("aria-label", t("soundProfile"));
       els.primaryLabel.textContent = t("primary");
       els.instancesSoundLabel.textContent = t("otherSound");
       els.instancesFullscreenLabel.textContent = t("otherFullscreen");
@@ -1680,17 +1709,8 @@
         http: finiteNumber(config.httpPort, serverPorts.http),
         https: finiteNumber(config.httpsPort, serverPorts.https)
       };
-      const nextAudioSources = {
-        phase: String(config.phaseSignalMp3 || ""),
-        minute: String(config.minuteSignalMp3 || ""),
-        warn: String(config.warningSignalMp3 || "")
-      };
-      if (audioKinds.some((kind) => audioSources[kind] !== nextAudioSources[kind])) {
-        audioSources = nextAudioSources;
-        audioBuffers = { phase: null, minute: null, warn: null };
-        buffersLoading = null;
-        if (audioContext) loadAudioBuffers();
-      }
+      soundProfiles = Array.isArray(config.soundProfiles) ? config.soundProfiles : [];
+      renderSoundProfileOptions();
       presets.classic.rotationMinutes = finiteNumber(config.classicRotationMinutes, presets.classic.rotationMinutes);
       presets.classic.breakSeconds = finiteNumber(config.classicBreakSeconds, presets.classic.breakSeconds);
       presets.festival.rotationMinutes = finiteNumber(config.festivalRoundMinutes, presets.festival.rotationMinutes);
@@ -1706,6 +1726,38 @@
           if (!isPrimaryClient && !isViewerClient) setPrimaryMode(true);
         }, 0);
       }
+    }
+
+    function renderSoundProfileOptions() {
+      const selected = state.soundProfile || els.soundProfileSelect.value;
+      els.soundProfileSelect.replaceChildren();
+      soundProfiles.forEach((profile) => {
+        const option = document.createElement("option");
+        option.value = String(profile.id || "");
+        option.textContent = String(profile.id || "");
+        els.soundProfileSelect.append(option);
+      });
+      if (soundProfiles.some((profile) => profile.id === selected)) {
+        els.soundProfileSelect.value = selected;
+      }
+    }
+
+    function applySoundProfile(profileId) {
+      const profile = soundProfiles.find((item) => item.id === profileId) || null;
+      state.soundProfile = profile?.id || "";
+      if (profile) els.soundProfileSelect.value = profile.id;
+      const nextAudioSources = {
+        start: String(profile?.sources?.start || ""),
+        end: String(profile?.sources?.end || profile?.sources?.start || ""),
+        minute: String(profile?.sources?.minute || ""),
+        warn: String(profile?.sources?.warn || "")
+      };
+      if (!audioKinds.some((kind) => audioSources[kind] !== nextAudioSources[kind])) return;
+      audioSources = nextAudioSources;
+      audioBuffers = { start: null, end: null, minute: null, warn: null };
+      audioLoadGeneration += 1;
+      buffersLoading = null;
+      if (audioContext) loadAudioBuffers();
     }
 
     function updateParameterLabels() {
@@ -1883,6 +1935,7 @@
       state.elapsedBeforePause = Number(remote.elapsedBeforePause || 0);
       state.activePreset = remote.activePreset || "";
       state.activeSettings = remote.activeSettings || activeSettingsFromDraft();
+      applySoundProfile(String(remote.soundProfile || ""));
       buildTimeline(state.activeSettings);
       const ownClient = (remote.clients || []).find((client) => client.id === clientId);
       const nextAudioOffset = Number(ownClient?.audioUserOffset || 0);
@@ -1935,7 +1988,7 @@
           const waitingForStart = state.serverStartedAt > serverNow() + 80;
           scheduleSegmentSignals(segment, remaining, duration, waitingForStart ? false : Boolean(options.includePhaseSignal));
           if (waitingForStart && !state.activeSettings.oneShot) {
-            scheduleBufferedSignalAt(segment, state.serverStartedAt, "phase", true);
+            scheduleBufferedSignalAt(segment, state.serverStartedAt, "start", true);
           }
         }
       }
@@ -2278,7 +2331,8 @@
             <div class="audio-test-controls">
               ${testEverywhereControl}
               <div class="audio-test-buttons">
-                <button type="button" data-audio-test-kind="phase" data-audio-test-client="${escapeHtml(client.id)}">${t("testStartSignal")}</button>
+                <button type="button" data-audio-test-kind="start" data-audio-test-client="${escapeHtml(client.id)}">${t("testStartSignal")}</button>
+                <button type="button" data-audio-test-kind="end" data-audio-test-client="${escapeHtml(client.id)}">${t("testEndSignal")}</button>
                 <button type="button" data-audio-test-kind="minute" data-audio-test-client="${escapeHtml(client.id)}">${t("testMinuteSignal")}</button>
                 <button type="button" data-audio-test-kind="warn" data-audio-test-client="${escapeHtml(client.id)}">${t("testFiveSignals")}</button>
               </div>
@@ -2436,17 +2490,17 @@
 
       const baseServerTime = Number(command.serverTime) + audioUserOffsetMs;
       if (!Number.isFinite(baseServerTime)) return;
-      const kind = ["phase", "minute", "warn"].includes(command.kind) ? command.kind : "phase";
+      const kind = ["start", "end", "minute", "warn"].includes(command.kind) ? command.kind : "start";
       const offsets = kind === "warn" ? [0, 1000, 2000, 3000, 4000] : [0];
       offsets.forEach((offset) => scheduleDiagnosticSound(kind, baseServerTime + offset));
     }
 
     function beep(kind, delaySeconds = 0, scheduled = false, signalKey = "") {
       if (!canPlaySound()) return;
-      if ((kind === "phase" || kind === "minute" || kind === "warn") && playBuffer(kind, delaySeconds, false, signalKey)) {
+      if (audioKinds.includes(kind) && playBuffer(kind, delaySeconds, false, signalKey)) {
         return;
       }
-      if (delaySeconds === 0 && (kind === "phase" || kind === "minute" || kind === "warn") && playHtmlAudio(kind)) {
+      if (delaySeconds === 0 && audioKinds.includes(kind) && playHtmlAudio(kind)) {
         return;
       }
       beepSynthetic(kind, delaySeconds, scheduled);
@@ -2462,7 +2516,11 @@
           { offset: .28, frequency: 700, duration: .18 }
         ],
         warn: [{ offset: 0, frequency: 880, duration: .22, volume: .22 }],
-        phase: [
+        start: [
+          { offset: 0, frequency: 760, duration: .9, volume: .3, type: "square", attack: .006 },
+          { offset: 0, frequency: 380, duration: .9, volume: .12, type: "sine", attack: .006 }
+        ],
+        end: [
           { offset: 0, frequency: 760, duration: .9, volume: .3, type: "square", attack: .006 },
           { offset: 0, frequency: 380, duration: .9, volume: .12, type: "sine", attack: .006 }
         ],
@@ -2471,7 +2529,7 @@
       };
 
       const now = audioContext.currentTime + Math.max(0, delaySeconds);
-      const plan = plans[kind] || plans.phase;
+      const plan = plans[kind] || plans.start;
       plan.forEach(({ offset, frequency, duration, volume = .22, type = "sine", attack = .02 }) => {
         const start = now + offset;
         const osc = audioContext.createOscillator();
@@ -2512,15 +2570,15 @@
       } catch (error) {}
     }
 
-    function immediatePhaseSignal() {
+    function immediateStartSignal() {
       if (!canPlaySound()) return;
       const delay = Math.max(0, audioUserOffsetMs / 1000);
       if (delay > 0) {
-        transitionSignalTimers.push(window.setTimeout(() => beep("phase"), delay * 1000));
+        transitionSignalTimers.push(window.setTimeout(() => beep("start"), delay * 1000));
         flash();
         return;
       }
-      beep("phase");
+      beep("start");
       flash();
     }
 
@@ -2617,15 +2675,23 @@
       return `${segment.cycle + 1}:rotation`;
     }
 
+    function transitionSoundKind(segment, finalTransition = false) {
+      if (finalTransition) return "end";
+      const settings = activeSettings();
+      if (segment.type === "rotation" && settings.breakSeconds > 0) return "end";
+      return "start";
+    }
+
     function schedulePhaseTransitionAt(segment, targetServerTime, finalTransition = false) {
       const phaseKey = finalTransition ? `${segment.cycle}:finish` : nextPhaseSignalKey(segment);
+      const soundKind = transitionSoundKind(segment, finalTransition);
       if (lastPhaseSignalKey === phaseKey || scheduledPhaseSignalKeys.has(phaseKey)) return;
       scheduledPhaseSignalKeys.add(phaseKey);
       const soundTargetServerTime = audioServerTime(targetServerTime);
       let scheduledByBuffer = false;
       const playFallback = () => {
         if (scheduledByBuffer) return;
-        beep("phase");
+        beep(soundKind);
       };
       const cancelFallback = scheduleServerTimeoutAt(soundTargetServerTime, () => {
         lastPhaseSignalKey = phaseKey;
@@ -2636,7 +2702,7 @@
       scheduleFlashAtTarget(targetServerTime, () => flash());
 
       const tryScheduleBuffer = () => {
-        if (scheduledByBuffer || !canPlaySound() || !soundBuffer("phase")) return false;
+        if (scheduledByBuffer || !canPlaySound() || !soundBuffer(soundKind)) return false;
         const current = getCurrentSegment(elapsedSeconds());
         if (!state.running || !current) return false;
         if (current.cycle !== segment.cycle || current.type !== segment.type) return false;
@@ -2647,13 +2713,13 @@
         cancelFallback();
         lastPhaseSignalKey = phaseKey;
         scheduledPhaseSignalKeys.delete(phaseKey);
-        playBuffer("phase", nextDelay, true);
+        playBuffer(soundKind, nextDelay, true);
         return true;
       };
 
       scheduleSegmentTimeoutAt(segment, soundTargetServerTime - audioScheduleAheadSeconds * 1000, () => {
         if (tryScheduleBuffer()) return;
-        if (audioContext && !soundBuffer("phase")) {
+        if (audioContext && !soundBuffer(soundKind)) {
           loadAudioBuffers()?.then(() => {
             tryScheduleBuffer();
           });
@@ -2717,7 +2783,7 @@
       const phaseSignalKey = `${segment.cycle}:${segment.type}`;
       if (includePhase && duration - remaining < 2 && lastPhaseSignalKey !== phaseSignalKey && !scheduledPhaseSignalKeys.has(phaseSignalKey)) {
         lastPhaseSignalKey = phaseSignalKey;
-        signal("phase");
+        signal(segment.type === "break" ? "end" : "start");
       }
 
       scheduleFestivalAnnouncements(segment, remaining);
@@ -2970,8 +3036,15 @@
       requestAnimationFrame(tick);
     }
 
+    function isBeforeScheduledStart() {
+      return state.running
+        && state.elapsedBeforePause === 0
+        && state.serverStartedAt > serverNow();
+    }
+
     function syncButtons() {
-      const canPause = state.running;
+      const beforeScheduledStart = isBeforeScheduledStart();
+      const canPause = state.running && !beforeScheduledStart;
       const hasScheduledStart = els.startHours.value !== "" || els.startMinutes.value !== "";
       const canStartByTime = !state.running
         && !state.completed
@@ -2982,9 +3055,17 @@
       els.compactStart.textContent = t("start");
       els.startBtn.disabled = state.running;
       els.compactStart.disabled = state.running;
-      els.scheduledStartBtn.disabled = !canStartByTime;
+      els.scheduledStartBtn.disabled = beforeScheduledStart ? false : !canStartByTime;
+      els.scheduledStartBtn.classList.toggle("stop-mode", beforeScheduledStart);
+      els.scheduledStartIcon.textContent = beforeScheduledStart ? "■" : "▶";
+      const scheduledActionLabel = t(beforeScheduledStart ? "stopCountdown" : "scheduledStart");
+      els.scheduledStartBtn.title = scheduledActionLabel;
+      els.scheduledStartBtn.setAttribute("aria-label", scheduledActionLabel);
       els.pauseBtn.disabled = !canPause;
       els.compactPause.disabled = !canPause;
+      els.soundProfileSelect.disabled = (state.running && !beforeScheduledStart)
+        || state.elapsedBeforePause > 0
+        || state.completed;
     }
 
     async function startTimer() {
@@ -2993,7 +3074,7 @@
       requestScreenWakeLock();
       if (isFreshStart) {
         lastPhaseSignalKey = "1:rotation";
-        immediatePhaseSignal();
+        immediateStartSignal();
       }
       unlockAudio();
       if (audioContext?.state === "suspended") audioContext.resume();
@@ -3049,8 +3130,26 @@
       }, { rescheduleSignals: true, includePhaseSignal: false });
     }
 
+    async function toggleScheduledCountdown() {
+      if (!isBeforeScheduledStart()) {
+        await startTimerByTime();
+        return;
+      }
+      const stopped = await sendServerAction("stopCountdown");
+      if (stopped) return;
+
+      state.running = false;
+      state.countdownOnly = false;
+      state.waitingForManualStart = false;
+      state.serverStartedAt = 0;
+      state.elapsedBeforePause = 0;
+      clearSignalTimers();
+      syncButtons();
+      render();
+    }
+
     async function pauseTimer() {
-      if (!state.running) return;
+      if (!state.running || isBeforeScheduledStart()) return;
       const sent = await sendServerAction("pause");
       if (sent) return;
 
@@ -3279,6 +3378,15 @@
       });
     });
 
+    els.soundProfileSelect.addEventListener("change", async () => {
+      const previousProfile = state.soundProfile;
+      unlockAudio();
+      const changed = await sendServerAction("soundProfile", {
+        soundProfile: els.soundProfileSelect.value
+      });
+      if (!changed) els.soundProfileSelect.value = previousProfile;
+    });
+
     els.soundToggle.addEventListener("change", () => {
       if (isPrimaryClient) {
         primarySoundEnabled = els.soundToggle.checked;
@@ -3329,7 +3437,7 @@
       });
     });
 
-    els.scheduledStartBtn.addEventListener("click", startTimerByTime);
+    els.scheduledStartBtn.addEventListener("click", toggleScheduledCountdown);
     [els.startBtn, els.compactStart].forEach((button) => button.addEventListener("click", startTimer));
     [els.pauseBtn, els.compactPause].forEach((button) => button.addEventListener("click", pauseTimer));
     [els.resetBtn, els.compactReset].forEach((button) => button.addEventListener("click", () => hardReset(false)));

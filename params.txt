@@ -24,6 +24,5 @@ sound=true
 sound_in_other_browsers=false
 flashing=true
 
-phase_signal_mp3=880_1.mp3
-minute_signal_mp3=3520_02_1.mp3
-warning_signal_mp3=3520_02_1.mp3
+# Name of a subfolder inside beeps.
+sound_profile=FSR_2026
