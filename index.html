@@ -20,7 +20,7 @@
       --cyan: #49c6e5;
       --blue: #6d9cff;
       --shadow: 0 20px 70px rgba(0, 0, 0, .34);
-      --timer-font-family: Inter, Arial, sans-serif;
+      --timer-font-family: Arial, sans-serif;
       --timer-rotation-text: #f4f7fb;
       --timer-warning-text: #f4f7fb;
       --timer-break-text: #f4f7fb;
@@ -1758,7 +1758,26 @@
           rootStyle.setProperty(variable, candidate);
         }
       };
-      setSupported("--timer-font-family", "font-family", config.timerFont);
+      const fallbackFont = String(config.timerFont || "Arial, sans-serif").trim();
+      const fontUrl = String(config.timerFontUrl || "").trim();
+      let fontFaceStyle = document.getElementById("timerFontFace");
+      if (fontUrl) {
+        if (!fontFaceStyle) {
+          fontFaceStyle = document.createElement("style");
+          fontFaceStyle.id = "timerFontFace";
+          document.head.appendChild(fontFaceStyle);
+        }
+        if (fontFaceStyle.dataset.fontUrl !== fontUrl) {
+          const extension = fontUrl.split(".").pop().toLowerCase();
+          const format = { woff2: "woff2", woff: "woff", ttf: "truetype", otf: "opentype" }[extension] || "truetype";
+          fontFaceStyle.textContent = `@font-face { font-family: "Bouldering Timer Font"; src: url(${JSON.stringify(fontUrl)}) format("${format}"); font-style: normal; font-weight: 100 1000; font-display: swap; }`;
+          fontFaceStyle.dataset.fontUrl = fontUrl;
+        }
+        setSupported("--timer-font-family", "font-family", `"Bouldering Timer Font", ${fallbackFont}`);
+      } else {
+        fontFaceStyle?.remove();
+        setSupported("--timer-font-family", "font-family", fallbackFont);
+      }
       setSupported("--timer-rotation-text", "color", config.rotationTextColor);
       setSupported("--timer-warning-text", "color", config.rotationLastFiveTextColor);
       setSupported("--timer-break-text", "color", config.breakTextColor);

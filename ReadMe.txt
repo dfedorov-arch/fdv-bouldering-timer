@@ -80,7 +80,8 @@ macOS:
   final_rotation_minutes=4
   sound_profile=FSR_2026
 
-  timer_font=Inter, Arial, sans-serif
+  timer_font_file=Roboto-Variable.ttf
+  timer_font=Arial, sans-serif
   rotation_text_color=#f4f7fb
   rotation_last_five_text_color=#f4f7fb
   break_text_color=#f4f7fb
@@ -93,8 +94,12 @@ END, MINUTE и WARNING в WAV или MP3. Для фестивальных объ
 FESTIVAL_60, FESTIVAL_30, FESTIVAL_10 и FESTIVAL_5. Если END отсутствует,
 используется START. Подробности находятся в help.html и beeps\README.txt.
 
-Параметры оформления изменяют только шрифт и цвета. Размер цифр всегда
+Файл шрифта берётся из каталога fonts и загружается всеми экранами с локального
+сервера. timer_font задаёт резервные системные шрифты. Поддерживаются WOFF2,
+WOFF, TTF и OTF; указывайте только имя файла без пути. Размер цифр всегда
 рассчитывается автоматически как максимально возможный.
+Готовые варианты перечислены в fonts\README.txt. Все включённые шрифты имеют
+обычный пустой ноль; у Roboto, Open Sans и Barlow Condensed круглое двоеточие.
 
 
 5. Основные действия
@@ -225,7 +230,8 @@ Edit params.txt if required, then restart the server. Main parameters:
   final_rotation_minutes=4
   sound_profile=FSR_2026
 
-  timer_font=Inter, Arial, sans-serif
+  timer_font_file=Roboto-Variable.ttf
+  timer_font=Arial, sans-serif
   rotation_text_color=#f4f7fb
   rotation_last_five_text_color=#f4f7fb
   break_text_color=#f4f7fb
@@ -238,8 +244,12 @@ WARNING files in WAV or MP3 format. Festival announcements may use FESTIVAL_60,
 FESTIVAL_30, FESTIVAL_10 and FESTIVAL_5. START is used when END is missing. See
 help.html and beeps\README.txt for details.
 
-Appearance parameters change only the timer font and colors. Digit size is
-always calculated automatically to fill the available space.
+The font file is loaded from the fonts folder by every display through the
+local server. timer_font defines system fallbacks. WOFF2, WOFF, TTF and OTF are
+supported; specify a file name without a path. Digit size is always calculated
+automatically to fill the available space.
+Bundled choices are listed in fonts\README.txt. Every included font has a plain,
+empty zero; Roboto, Open Sans and Barlow Condensed have round colon dots.
 
 
 5. Main controls

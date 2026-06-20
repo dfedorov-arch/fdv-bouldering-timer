@@ -7,7 +7,8 @@ const path = require("path");
 const root = __dirname;
 const paramsPath = path.join(root, "params.txt");
 const beepsPath = path.join(root, "beeps");
-const BUILD_NUMBER = 135;
+const fontsPath = path.join(root, "fonts");
+const BUILD_NUMBER = 138;
 const defaultConfig = {
   httpPort: 8008,
   httpsPort: 8443,
@@ -23,7 +24,8 @@ const defaultConfig = {
   festivalAnnouncements: true,
   flashing: true,
   soundProfile: "FSR_2026",
-  timerFont: "Inter, Arial, sans-serif",
+  timerFontFile: "Roboto-Variable.ttf",
+  timerFont: "Arial, sans-serif",
   rotationTextColor: "#f4f7fb",
   rotationLastFiveTextColor: "#f4f7fb",
   breakTextColor: "#f4f7fb",
@@ -65,6 +67,21 @@ function textParam(params, key, fallback, maxLength = 160) {
   if (!(key in params)) return fallback;
   const value = String(params[key] || "").replace(/[\r\n\0]/g, " ").trim();
   return value ? value.slice(0, maxLength) : fallback;
+}
+
+function fontFileParam(params, key, fallback) {
+  const requested = String(key in params ? params[key] : fallback).trim();
+  if (!requested || requested.length > 120 || /[\\/\0]/.test(requested)) return "";
+  if (![".woff2", ".woff", ".ttf", ".otf"].includes(path.extname(requested).toLowerCase())) return "";
+  try {
+    return fs.statSync(path.join(fontsPath, requested)).isFile() ? requested : "";
+  } catch (error) {
+    return "";
+  }
+}
+
+function fontFileUrl(fileName) {
+  return fileName ? `fonts/${encodeURIComponent(fileName)}` : "";
 }
 
 function profileFileUrl(profileName, fileName) {
@@ -134,6 +151,7 @@ function numberOrDefault(value, fallback) {
 const params = readParams();
 const soundProfiles = loadSoundProfiles();
 const initialSoundProfile = selectedSoundProfile(params, soundProfiles);
+const initialTimerFontFile = fontFileParam(params, "timer_font_file", defaultConfig.timerFontFile);
 soundProfiles.sort((a, b) => {
   if (a.id === initialSoundProfile) return -1;
   if (b.id === initialSoundProfile) return 1;
@@ -153,6 +171,8 @@ const config = {
   soundInOtherBrowsers: boolParam(params, "sound_in_other_browsers", defaultConfig.soundInOtherBrowsers),
   festivalAnnouncements: boolParam(params, "festival_announcements", defaultConfig.festivalAnnouncements),
   flashing: boolParam(params, "flashing", defaultConfig.flashing),
+  timerFontFile: initialTimerFontFile,
+  timerFontUrl: fontFileUrl(initialTimerFontFile),
   timerFont: textParam(params, "timer_font", defaultConfig.timerFont),
   rotationTextColor: textParam(params, "rotation_text_color", defaultConfig.rotationTextColor),
   rotationLastFiveTextColor: textParam(params, "rotation_last_five_text_color", defaultConfig.rotationLastFiveTextColor),
@@ -177,7 +197,11 @@ const types = {
   ".css": "text/css; charset=utf-8",
   ".js": "text/javascript; charset=utf-8",
   ".mp3": "audio/mpeg",
-  ".wav": "audio/wav"
+  ".wav": "audio/wav",
+  ".woff2": "font/woff2",
+  ".woff": "font/woff",
+  ".ttf": "font/ttf",
+  ".otf": "font/otf"
 };
 
 const timerState = {
@@ -755,7 +779,7 @@ function handleRequest(req, res) {
     }
 
     res.writeHead(200, {
-      "content-type": types[path.extname(filePath)] || "application/octet-stream",
+      "content-type": types[path.extname(filePath).toLowerCase()] || "application/octet-stream",
       "cache-control": "no-store"
     });
     res.end(body);

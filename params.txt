@@ -28,8 +28,11 @@ flashing=true
 # Name of a subfolder inside beeps.
 sound_profile=FSR_2026
 
-# Timer appearance. Font size is always calculated automatically.
-timer_font=Inter, Arial, sans-serif
+# Timer appearance. The font file must be inside fonts. Font size is automatic.
+# Included: Roboto-Variable.ttf, OpenSans-Variable.ttf,
+# BarlowCondensed-Bold.ttf, CourierPrime-Bold.ttf, SyneMono-Regular.ttf.
+timer_font_file=Roboto-Variable.ttf
+timer_font=Arial, sans-serif
 rotation_text_color=#f4f7fb
 rotation_last_five_text_color=#f4f7fb
 break_text_color=#f4f7fb
