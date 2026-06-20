@@ -87,7 +87,7 @@ build_windows() {
   local node_root="$extracted/node-v${NODE_VERSION}-win-x64"
 
   copy_common_files "$package"
-  cp "$ROOT_DIR/start-timer.bat" "$ROOT_DIR/create-https-certificate.bat" "$package/"
+  cp "$ROOT_DIR/start-timer-win.bat" "$ROOT_DIR/create-https-certificate.bat" "$package/"
   mkdir -p "$package/runtime/win"
   cp "$node_root/node.exe" "$package/runtime/win/node.exe"
   cp "$node_root/LICENSE" "$package/runtime/win/LICENSE-Node.txt"

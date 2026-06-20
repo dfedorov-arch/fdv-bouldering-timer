@@ -765,7 +765,7 @@
           <article class="step">
             <span class="step-number">1</span>
             <strong>Запустите сервер</strong>
-            <p><code>start-timer.bat</code> на Windows, <code>start-timer-mac.command</code> на macOS или <code>start-timer-linux.sh</code> на Linux.</p>
+            <p><code>start-timer-win.bat</code> на Windows, <code>start-timer-mac.command</code> на macOS или <code>start-timer-linux.sh</code> на Linux.</p>
           </article>
           <article class="step">
             <span class="step-number">2</span>
@@ -1069,7 +1069,7 @@
           <h3>8.3. Первый запуск на Windows</h3>
           <ol>
             <li>При необходимости проверьте порты и начальные значения в <code>params.txt</code>.</li>
-            <li>Дважды щёлкните <code>start-timer.bat</code>.</li>
+            <li>Дважды щёлкните <code>start-timer-win.bat</code>.</li>
             <li>Если Windows Firewall запросит доступ для Node.js, разрешите его для частных сетей.</li>
             <li>Откроется <code>http://127.0.0.1:8008/</code>, а окно запуска покажет адреса Wi-Fi и Ethernet.</li>
             <li>Не закрывайте минимизированное окно сервера «Bouldering Timer Server» во время соревнования.</li>
@@ -1279,7 +1279,7 @@
         <h2>Quick start</h2>
         <p class="lead">The shortest path to one controlling browser and several synchronized displays.</p>
         <div class="steps">
-          <article class="step"><span class="step-number">1</span><strong>Start the server</strong><p>Run <code>start-timer.bat</code> on Windows, <code>start-timer-mac.command</code> on macOS, or <code>start-timer-linux.sh</code> on Linux.</p></article>
+          <article class="step"><span class="step-number">1</span><strong>Start the server</strong><p>Run <code>start-timer-win.bat</code> on Windows, <code>start-timer-mac.command</code> on macOS, or <code>start-timer-linux.sh</code> on Linux.</p></article>
           <article class="step"><span class="step-number">2</span><strong>Open the controls</strong><p>On the server computer open <code>http://127.0.0.1:8008/</code>.</p></article>
           <article class="step"><span class="step-number">3</span><strong>Set the primary</strong><p>Enable Primary browser or press <kbd>Ctrl+M</kbd>.</p></article>
           <article class="step"><span class="step-number">4</span><strong>Connect displays</strong><p>Open a network address printed by the server on every other device.</p></article>
@@ -1455,7 +1455,7 @@
         <p>Keep <code>index.html</code>, <code>serve-bouldering-timer.js</code>, <code>params.txt</code>, <code>beeps</code>, <code>help.html</code>, <code>help-assets</code>, OS launcher scripts, and portable Node.js if used.</p>
         <h3>8.2. Node.js</h3>
         <p>Use a current Node.js LTS from <a href="https://nodejs.org/en/download">nodejs.org</a>. Install it system-wide or download a Standalone Binary. Default portable paths are <code>runtime\win\node.exe</code>, <code>runtime/mac/bin/node</code>, and <code>runtime/linux/bin/node</code>; change them in <code>params.txt</code> when needed.</p>
-        <div class="platform"><h3>8.3. Windows</h3><ol><li>Check <code>params.txt</code>.</li><li>Run <code>start-timer.bat</code>.</li><li>Allow Node.js on private networks in Windows Firewall.</li><li>Keep the minimized Bouldering Timer Server window open.</li></ol></div>
+        <div class="platform"><h3>8.3. Windows</h3><ol><li>Check <code>params.txt</code>.</li><li>Run <code>start-timer-win.bat</code>.</li><li>Allow Node.js on private networks in Windows Firewall.</li><li>Keep the minimized Bouldering Timer Server window open.</li></ol></div>
         <div class="platform"><h3>8.4. macOS</h3><ol><li>Check <code>params.txt</code>.</li><li>Run <code>start-timer-mac.command</code>.</li><li>Keep Terminal open; stop with <kbd>Ctrl+C</kbd>.</li></ol><p>If blocked, right-click and choose Open. For Permission denied run <code>chmod +x start-timer-mac.command create-https-certificate-mac.command</code>.</p></div>
         <div class="platform"><h3>8.5. Linux</h3><ol><li>Open a terminal in the timer folder.</li><li>Run <code>chmod +x start-timer-linux.sh create-https-certificate-linux.sh</code> when required.</li><li>Run <code>./start-timer-linux.sh</code>.</li><li>Keep Terminal open; stop with <kbd>Ctrl+C</kbd>.</li></ol><p>Linux portable releases are provided for x64 and arm64 glibc distributions. Alpine Linux/musl requires a compatible Node.js build.</p></div>
         <div class="platform"><h3>8.6. HTTP and HTTPS</h3><p>HTTP works immediately. For HTTPS run <code>create-https-certificate.bat</code> on Windows, <code>create-https-certificate-mac.command</code> on macOS, or <code>create-https-certificate-linux.sh</code> on Linux, then restart the server. Recreate the certificate after changing computer or local IP.</p><p class="warning">The certificate is self-signed, so browsers may show a warning on first use.</p></div>

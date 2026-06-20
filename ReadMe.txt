@@ -42,7 +42,7 @@ runtime/linux/README.txt.
 
 Windows:
 
-  start-timer.bat
+  start-timer-win.bat
 
 Разрешите Node.js доступ к частной сети в Windows Firewall.
 
@@ -208,7 +208,7 @@ runtime/linux/README.txt.
 
 Windows:
 
-  start-timer.bat
+  start-timer-win.bat
 
 Allow Node.js access to private networks in Windows Firewall.
 

@@ -38,7 +38,7 @@ if not "%OPENSSL_EXIT%"=="0" (
 
 echo.
 echo Created timer-key.pem and timer-cert.pem
-echo Done. Restart start-timer.bat after this.
+echo Done. Restart start-timer-win.bat after this.
 pause
 exit /b 0
 
@@ -53,5 +53,5 @@ if errorlevel 1 (
 
 echo.
 echo Created timer-cert.pfx using native Windows tools.
-echo Done. Restart start-timer.bat after this.
+echo Done. Restart start-timer-win.bat after this.
 pause
