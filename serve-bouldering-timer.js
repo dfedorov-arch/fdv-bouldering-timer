@@ -8,7 +8,7 @@ const root = __dirname;
 const paramsPath = path.join(root, "params.txt");
 const beepsPath = path.join(root, "beeps");
 const fontsPath = path.join(root, "fonts");
-const BUILD_NUMBER = 138;
+const BUILD_NUMBER = 139;
 const defaultConfig = {
   httpPort: 8008,
   httpsPort: 8443,

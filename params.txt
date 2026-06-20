@@ -8,6 +8,7 @@ https_port=8443
 # Portable Node.js path may be relative to this folder or absolute.
 portable_node_win=runtime\win\node.exe
 portable_node_mac=runtime/mac/bin/node
+portable_node_linux=runtime/linux/bin/node
 
 language=ru
 

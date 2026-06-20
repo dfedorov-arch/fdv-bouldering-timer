@@ -1,0 +1,39 @@
+name: Portable release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    env:
+      NODE_VERSION: "24.17.0"
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Build portable packages
+        run: |
+          chmod +x scripts/build-portable-releases.sh
+          scripts/build-portable-releases.sh "$GITHUB_REF_NAME"
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          printf '%s\n' \
+            "Portable packages include Node.js $NODE_VERSION LTS and do not require a system Node.js installation." \
+            "" \
+            "Choose the archive matching your operating system and CPU architecture." \
+            "Linux packages target glibc distributions and do not support Alpine Linux/musl." \
+            "SHA256SUMS.txt contains checksums for every package." \
+            > release-notes.txt
+          gh release create "$GITHUB_REF_NAME" dist/* \
+            --verify-tag \
+            --title "FDV Bouldering Timer $GITHUB_REF_NAME" \
+            --notes-file release-notes.txt

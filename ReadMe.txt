@@ -7,6 +7,10 @@
 
   help.html
 
+Готовые portable-архивы для Windows, macOS и Linux:
+
+  https://github.com/dfedorov-arch/fdv-bouldering-timer/releases
+
 
 1. Перенос на другой компьютер
 ------------------------------
@@ -25,10 +29,12 @@
 
   portable_node_win=runtime\win\node.exe
   portable_node_mac=runtime/mac/bin/node
+  portable_node_linux=runtime/linux/bin/node
 
 Относительный путь считается от папки таймера. Если portable Node.js не найден,
 скрипт запуска попробует использовать системный Node.js. Краткие инструкции по
-распаковке находятся в runtime\win\README.txt и runtime\mac\README.txt.
+распаковке находятся в runtime\win\README.txt, runtime\mac\README.txt и
+runtime/linux/README.txt.
 
 
 2. Запуск
@@ -48,6 +54,14 @@ macOS:
 При ошибке Permission denied выполните:
 
   chmod +x start-timer-mac.command create-https-certificate-mac.command
+
+Linux:
+
+  ./start-timer-linux.sh
+
+При ошибке Permission denied выполните:
+
+  chmod +x start-timer-linux.sh create-https-certificate-linux.sh
 
 Не закрывайте окно сервера или Terminal во время работы таймера.
 
@@ -128,6 +142,7 @@ HTTP работает без сертификата. Для HTTPS запусти
 
   Windows: create-https-certificate.bat
   macOS:   create-https-certificate-mac.command
+  Linux:   create-https-certificate-linux.sh
 
 Затем перезапустите таймер. После переноса на другой компьютер или изменения
 локального IP сертификат рекомендуется создать заново.
@@ -158,6 +173,10 @@ Full user guide:
 
   help.html
 
+Ready-to-use portable packages for Windows, macOS, and Linux:
+
+  https://github.com/dfedorov-arch/fdv-bouldering-timer/releases
+
 
 1. Moving to another computer
 -----------------------------
@@ -176,10 +195,12 @@ Portable Node.js paths are configured in params.txt:
 
   portable_node_win=runtime\win\node.exe
   portable_node_mac=runtime/mac/bin/node
+  portable_node_linux=runtime/linux/bin/node
 
 Relative paths are resolved from the timer folder. If portable Node.js is not
 found, the launcher tries the system Node.js installation. Short extraction
-instructions are in runtime\win\README.txt and runtime\mac\README.txt.
+instructions are in runtime\win\README.txt, runtime\mac\README.txt, and
+runtime/linux/README.txt.
 
 
 2. Starting the timer
@@ -199,6 +220,17 @@ If macOS blocks the file, right-click it and select Open. For a Permission
 denied error, run:
 
   chmod +x start-timer-mac.command create-https-certificate-mac.command
+
+Linux:
+
+  ./start-timer-linux.sh
+
+For a Permission denied error, run:
+
+  chmod +x start-timer-linux.sh create-https-certificate-linux.sh
+
+Official portable Node.js Linux builds target glibc distributions. Alpine Linux
+and other musl systems require a compatible Node.js build.
 
 Keep the server or Terminal window open while the timer is in use.
 
@@ -278,6 +310,7 @@ HTTP works without a certificate. For HTTPS run:
 
   Windows: create-https-certificate.bat
   macOS:   create-https-certificate-mac.command
+  Linux:   create-https-certificate-linux.sh
 
 Restart the timer afterwards. Recreate the certificate after moving to another
 computer or changing the local IP address.
