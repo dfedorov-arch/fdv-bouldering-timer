@@ -895,7 +895,7 @@
       .controls {
         height: 100%;
         min-height: 0;
-        padding-right: 4px;
+        padding-right: var(--controls-padding-right, 20px);
         overflow-y: auto;
         overscroll-behavior: contain;
         scrollbar-gutter: stable;
@@ -1341,6 +1341,7 @@
     const t = (key) => translations[language][key] || key;
 
     const els = {
+      controls: document.querySelector(".controls"),
       presets: document.querySelectorAll(".preset"),
       languageToggle: document.getElementById("languageToggle"),
       brandTimer: document.getElementById("brandTimer"),
@@ -1473,6 +1474,17 @@
       if (timerFitQueued) return;
       timerFitQueued = true;
       requestAnimationFrame(fitTimerText);
+    }
+
+    function syncControlsScrollbarPadding() {
+      if (!els.controls || window.innerWidth <= 900) return;
+      const styles = window.getComputedStyle(els.controls);
+      const borders = (parseFloat(styles.borderLeftWidth) || 0)
+        + (parseFloat(styles.borderRightWidth) || 0);
+      const scrollbarWidth = Math.max(0,
+        els.controls.offsetWidth - els.controls.clientWidth - borders);
+      const rightPadding = Math.max(4, 20 - scrollbarWidth);
+      els.controls.style.setProperty("--controls-padding-right", `${rightPadding}px`);
     }
 
     function fitTimerText() {
@@ -3635,7 +3647,10 @@
     window.addEventListener("focus", resumeClientSync);
     window.addEventListener("online", resumeClientSync);
 
-    window.addEventListener("resize", scheduleFitTimer);
+    window.addEventListener("resize", () => {
+      syncControlsScrollbarPadding();
+      scheduleFitTimer();
+    });
     if ("ResizeObserver" in window) {
       const timerResizeObserver = new ResizeObserver(scheduleFitTimer);
       timerResizeObserver.observe(document.querySelector(".stage"));
@@ -3643,6 +3658,7 @@
     }
 
     buildTimeline();
+    syncControlsScrollbarPadding();
     render();
     scheduleFitTimer();
     tick();
