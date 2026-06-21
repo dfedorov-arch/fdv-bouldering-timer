@@ -1461,6 +1461,7 @@
     let pendingAudioOffset = 0;
     let testAudioEverywhere = false;
     let lastAudioTestId = "";
+    let audioTestButtonsDisabled = null;
     let timerFitQueued = false;
     let serverPorts = { http: 8008, https: 8443 };
     const syncRequestTimeoutMs = 2000;
@@ -2351,6 +2352,7 @@
         }
         return 0;
       });
+      const audioTestDisabled = shouldDisableAudioTestButtons();
       els.browserList.innerHTML = visibleClients.map((client) => {
         const isPrimary = client.id === state.primaryClientId;
         const displayIp = clientAddress(client.displayAddress || client.address);
@@ -2426,10 +2428,10 @@
             <div class="audio-test-controls">
               ${testEverywhereControl}
               <div class="audio-test-buttons">
-                <button type="button" data-audio-test-kind="start" data-audio-test-client="${escapeHtml(client.id)}">${t("testStartSignal")}</button>
-                <button type="button" data-audio-test-kind="end" data-audio-test-client="${escapeHtml(client.id)}">${t("testEndSignal")}</button>
-                <button type="button" data-audio-test-kind="minute" data-audio-test-client="${escapeHtml(client.id)}">${t("testMinuteSignal")}</button>
-                <button type="button" data-audio-test-kind="warn" data-audio-test-client="${escapeHtml(client.id)}">${t("testFiveSignals")}</button>
+                <button type="button" data-audio-test-kind="start" data-audio-test-client="${escapeHtml(client.id)}"${audioTestDisabled ? " disabled" : ""}>${t("testStartSignal")}</button>
+                <button type="button" data-audio-test-kind="end" data-audio-test-client="${escapeHtml(client.id)}"${audioTestDisabled ? " disabled" : ""}>${t("testEndSignal")}</button>
+                <button type="button" data-audio-test-kind="minute" data-audio-test-client="${escapeHtml(client.id)}"${audioTestDisabled ? " disabled" : ""}>${t("testMinuteSignal")}</button>
+                <button type="button" data-audio-test-kind="warn" data-audio-test-client="${escapeHtml(client.id)}"${audioTestDisabled ? " disabled" : ""}>${t("testFiveSignals")}</button>
               </div>
             </div>
           </div>` : "";
@@ -3021,6 +3023,7 @@
       const segment = getCurrentSegment(elapsed);
       const settings = activeSettings();
       const isReady = !state.running && !state.completed && state.elapsedBeforePause === 0;
+      syncAudioTestButtons();
       document.body.classList.remove("warning-active");
       document.body.classList.toggle("scrub-ready", !state.running && !isViewerClient && !isReady);
 
@@ -3145,6 +3148,19 @@
       return state.running
         && state.elapsedBeforePause === 0
         && state.serverStartedAt > serverNow();
+    }
+
+    function shouldDisableAudioTestButtons() {
+      return state.running && !isBeforeScheduledStart();
+    }
+
+    function syncAudioTestButtons() {
+      const disabled = shouldDisableAudioTestButtons();
+      if (disabled === audioTestButtonsDisabled) return;
+      audioTestButtonsDisabled = disabled;
+      els.browserList?.querySelectorAll("[data-audio-test-kind]").forEach((button) => {
+        button.disabled = disabled;
+      });
     }
 
     function syncButtons() {
@@ -3409,6 +3425,7 @@
 
       const testButton = event.target.closest("[data-audio-test-kind]");
       if (testButton) {
+        if (testButton.disabled || shouldDisableAudioTestButtons()) return;
         const targetClientId = testButton.dataset.audioTestClient;
         const everywhere = testAudioEverywhere && targetClientId === state.primaryClientId;
         unlockAudio();

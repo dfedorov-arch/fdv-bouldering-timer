@@ -8,7 +8,7 @@ const root = __dirname;
 const paramsPath = path.join(root, "params.txt");
 const beepsPath = path.join(root, "beeps");
 const fontsPath = path.join(root, "fonts");
-const BUILD_NUMBER = 139;
+const BUILD_NUMBER = 140;
 const defaultConfig = {
   httpPort: 8008,
   httpsPort: 8443,
@@ -736,7 +736,8 @@ function handleRequest(req, res) {
         const kind = ["start", "end", "minute", "warn"].includes(body.kind) ? body.kind : "start";
         const targetClientId = String(body.targetClientId || "");
         const everywhere = Boolean(body.everywhere && timerState.primaryClientId);
-        if (everywhere || targetClientId) {
+        const timerActivelyRunning = timerState.running && timerState.startedAt <= now;
+        if (!timerActivelyRunning && (everywhere || targetClientId)) {
           audioTestCommand = {
             id: `${now}-${nextAudioTestId++}`,
             kind,
