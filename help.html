@@ -765,7 +765,7 @@
           <article class="step">
             <span class="step-number">1</span>
             <strong>Запустите сервер</strong>
-            <p><code>start-timer-win.bat</code> на Windows, <code>start-timer-mac.command</code> на macOS или <code>start-timer-linux.sh</code> на Linux.</p>
+            <p><code>fdv-bouldering-timer.exe</code> на Windows, <code>start-timer-mac.command</code> на macOS или <code>start-timer-linux.sh</code> на Linux. Windows BAT-файл остаётся резервным вариантом.</p>
           </article>
           <article class="step">
             <span class="step-number">2</span>
@@ -995,9 +995,13 @@
         <ul>
           <li>Команды обычно приходят через SSE; резервная синхронизация выполняется примерно раз в две секунды.</li>
           <li>Неуспешный сетевой запрос ограничен тайм-аутом и не блокирует локальный ход таймера.</li>
-          <li>После возвращения в локальную сеть экран автоматически получает актуальное состояние сервера.</li>
+          <li>Если сервер недоступен около 4,5 секунды, панель показывает предупреждение, а NET, SYNC и SSE становятся красными.</li>
+          <li>Можно выбрать <strong>Автономный режим</strong> и продолжить управлять таймером только в этом браузере. Другие браузеры при этом не синхронизируются.</li>
+          <li>В списке браузеров автономный режим показывает только текущий браузер. Нажмите AUDIO, чтобы настроить поправку от −500 до +500 мс и проверить сигналы START, END, MINUTE и WARNING.</li>
+          <li>Прошедшее время старта в «Классике» и «Фестивале» восстанавливает таймер так, как если бы он был запущен сегодня в указанное время. В «Финале» прошедшее время означает обратный отсчёт до завтра.</li>
+          <li>После восстановления связи автономный режим продолжает работать отдельно. Возврат к актуальному состоянию сервера выполняется только по кнопке, чтобы время не изменилось неожиданно.</li>
         </ul>
-        <div class="warning"><strong>Ограничение:</strong> пока экран находится вне локальной сети, он не узнает о новых командах «Пауза», «Сброс» или изменениях параметров. Он продолжает последнее известное состояние до восстановления связи.</div>
+        <div class="warning"><strong>Ограничение:</strong> автономные команды и изменения параметров не передаются на сервер. При возврате к серверу автономное состояние отбрасывается и браузер принимает серверное время.</div>
         <a class="back-to-toc" href="#contents">↑ К оглавлению</a>
       </section>
 
@@ -1032,6 +1036,7 @@
           </tbody>
         </table>
         <p>Регистр букв не важен. Если в профиле есть одноимённые WAV и MP3, используется WAV. При отсутствии START, MINUTE или WARNING для соответствующего события включается синтетический сигнал.</p>
+        <p><code>offline-audio.js</code> содержит автономную копию всех звуковых профилей и основных параметров. Файл автоматически пересоздаётся при каждом запуске сервера. Поэтому после замены файлов в <code>beeps</code> достаточно один раз запустить таймер, а затем <code>index.html</code> можно открывать напрямую без сервера с полноценными звуками.</p>
         <p>Фестивальные файлы необязательны. При включённых объявлениях используется файл профиля; если его нет — системный голос; если подходящий голос недоступен — сигнал MINUTE. Выключение чекбокса отменяет все четыре объявления независимо от содержимого профиля.</p>
         <p class="note"><strong>Нулевой перерыв:</strong> в «Классике» и «Фестивале» END не звучит, потому что сразу начинается следующая ротация и используется START. В «Финале» при завершении всегда звучит END или заменяющий его START.</p>
         <p class="note">Мобильные браузеры запрещают автоматический звук до первого пользовательского действия. Коснитесь страницы и убедитесь, что AUDIO стал зелёным.</p>
@@ -1048,6 +1053,7 @@
         <p>Перед копированием остановите таймер. В новой папке должны сохраниться как минимум:</p>
         <ul class="file-list">
           <li><code>index.html</code></li>
+          <li><code>offline-audio.js</code> для звуков при прямом автономном открытии</li>
           <li><code>serve-bouldering-timer.js</code></li>
           <li><code>params.txt</code></li>
           <li>папка <code>beeps</code> со звуковыми профилями</li>
@@ -1070,7 +1076,9 @@
           <h3>8.3. Первый запуск на Windows</h3>
           <ol>
             <li>При необходимости проверьте порты и начальные значения в <code>params.txt</code>.</li>
-            <li>Дважды щёлкните <code>start-timer-win.bat</code>.</li>
+            <li>Дважды щёлкните <code>fdv-bouldering-timer.exe</code>. В portable-релизе он находится рядом с файлами таймера.</li>
+            <li>EXE покажет локальные и сетевые адреса, запустит сервер и откроет браузер. Закрытие окна сворачивает запускатель в область уведомлений; команда <strong>Stop and exit</strong> останавливает сервер.</li>
+            <li>Если EXE отсутствует или не запускается, используйте резервный <code>start-timer-win.bat</code>.</li>
             <li>Если Windows Firewall запросит доступ для Node.js, разрешите его для частных сетей.</li>
             <li>Откроется <code>http://127.0.0.1:8008/</code>, а окно запуска покажет адреса Wi-Fi и Ethernet.</li>
             <li>Не закрывайте минимизированное окно сервера «Bouldering Timer Server» во время соревнования.</li>
@@ -1280,7 +1288,7 @@
         <h2>Quick start</h2>
         <p class="lead">The shortest path to one controlling browser and several synchronized displays.</p>
         <div class="steps">
-          <article class="step"><span class="step-number">1</span><strong>Start the server</strong><p>Run <code>start-timer-win.bat</code> on Windows, <code>start-timer-mac.command</code> on macOS, or <code>start-timer-linux.sh</code> on Linux.</p></article>
+          <article class="step"><span class="step-number">1</span><strong>Start the server</strong><p>Run <code>fdv-bouldering-timer.exe</code> on Windows, <code>start-timer-mac.command</code> on macOS, or <code>start-timer-linux.sh</code> on Linux. The Windows BAT file remains available as a fallback.</p></article>
           <article class="step"><span class="step-number">2</span><strong>Open the controls</strong><p>On the server computer open <code>http://127.0.0.1:8008/</code>.</p></article>
           <article class="step"><span class="step-number">3</span><strong>Set the primary</strong><p>Enable Primary browser or press <kbd>Ctrl+M</kbd>.</p></article>
           <article class="step"><span class="step-number">4</span><strong>Connect displays</strong><p>Open a network address printed by the server on every other device.</p></article>
@@ -1417,7 +1425,7 @@
         </div>
         <p>Click AUDIO, adjust the scale, test signals, then click AUDIO again to save. From the primary browser you can test everywhere sound is allowed. Sound test buttons are disabled while the timer is actively running, but remain available during the scheduled-start countdown and while paused.</p>
         <h3>6.4. Temporary network loss</h3>
-        <p>A display continues from the last known server timeline. After reconnection it requests current state and corrects itself. Commands issued while offline arrive only after the connection returns.</p>
+        <p>A display continues from the last known server timeline. After about 4.5 seconds without the server, the control panel shows a warning and NET, SYNC, and SSE turn red. Choose <strong>Standalone mode</strong> to control the timer in this browser only; other browsers will not be synchronized. Its browser list contains the current browser only: click AUDIO to adjust the −500 to +500 ms offset and test START, END, MINUTE, and WARNING. A past scheduled start restores Classic and Festival as if they started today at that time; in Final it schedules tomorrow. When the server returns, the standalone timer stays independent until you explicitly return to the server state. Standalone changes are discarded when returning.</p>
         <a class="back-to-toc" href="#en-contents">↑ Back to contents</a>
       </section>
 
@@ -1443,6 +1451,7 @@
           </tbody>
         </table>
         <p>Names are case-insensitive and WAV takes priority over MP3. Missing Festival files fall back to system speech and then MINUTE. A zero break in Classic or Festival goes directly to START instead of END.</p>
+        <p><code>offline-audio.js</code> contains a standalone copy of every sound profile and the main startup settings. It is regenerated automatically whenever the server starts. After replacing files in <code>beeps</code>, start the timer once; <code>index.html</code> can then be opened directly without the server and retain full sound support.</p>
         <p class="note">Mobile browsers require one user interaction before automatic sound. Tap the page and confirm that AUDIO is green.</p>
         <a class="back-to-toc" href="#en-contents">↑ Back to contents</a>
       </section>
@@ -1453,10 +1462,10 @@
         <p class="lead">Copy the entire project folder, prepare Node.js, connect the network, and recreate the certificate if required.</p>
         <p class="success">Ready-to-use packages with portable Node.js for Windows, macOS, and Linux are published in <a href="https://github.com/dfedorov-arch/fdv-bouldering-timer/releases">GitHub Releases</a>. Choose the asset matching your operating system and CPU architecture.</p>
         <h3>8.1. Files to copy</h3>
-        <p>Keep <code>index.html</code>, <code>serve-bouldering-timer.js</code>, <code>params.txt</code>, <code>beeps</code>, <code>help.html</code>, <code>help-assets</code>, OS launcher scripts, and portable Node.js if used.</p>
+        <p>Keep <code>index.html</code>, <code>offline-audio.js</code>, <code>serve-bouldering-timer.js</code>, <code>params.txt</code>, <code>beeps</code>, <code>help.html</code>, <code>help-assets</code>, OS launcher scripts, and portable Node.js if used.</p>
         <h3>8.2. Node.js</h3>
         <p>Use a current Node.js LTS from <a href="https://nodejs.org/en/download">nodejs.org</a>. Install it system-wide or download a Standalone Binary. Default portable paths are <code>runtime\win\node.exe</code>, <code>runtime/mac/bin/node</code>, and <code>runtime/linux/bin/node</code>; change them in <code>params.txt</code> when needed.</p>
-        <div class="platform"><h3>8.3. Windows</h3><ol><li>Check <code>params.txt</code>.</li><li>Run <code>start-timer-win.bat</code>.</li><li>Allow Node.js on private networks in Windows Firewall.</li><li>Keep the minimized Bouldering Timer Server window open.</li></ol></div>
+        <div class="platform"><h3>8.3. Windows</h3><ol><li>Check <code>params.txt</code>.</li><li>Run <code>fdv-bouldering-timer.exe</code>. It displays local and network addresses, starts the server, and opens the browser.</li><li>Closing the window keeps the launcher in the notification area. Use <strong>Stop and exit</strong> to stop the server.</li><li>Use <code>start-timer-win.bat</code> as a fallback when the EXE is unavailable.</li><li>Allow Node.js on private networks in Windows Firewall.</li></ol></div>
         <div class="platform"><h3>8.4. macOS</h3><ol><li>Check <code>params.txt</code>.</li><li>Run <code>start-timer-mac.command</code>.</li><li>Keep Terminal open; stop with <kbd>Ctrl+C</kbd>.</li></ol><p>If blocked, right-click and choose Open. For Permission denied run <code>chmod +x start-timer-mac.command create-https-certificate-mac.command</code>.</p></div>
         <div class="platform"><h3>8.5. Linux</h3><ol><li>Open a terminal in the timer folder.</li><li>Run <code>chmod +x start-timer-linux.sh create-https-certificate-linux.sh</code> when required.</li><li>Run <code>./start-timer-linux.sh</code>.</li><li>Keep Terminal open; stop with <kbd>Ctrl+C</kbd>.</li></ol><p>Linux portable releases are provided for x64 and arm64 glibc distributions. Alpine Linux/musl requires a compatible Node.js build.</p></div>
         <div class="platform"><h3>8.6. HTTP and HTTPS</h3><p>HTTP works immediately. For HTTPS run <code>create-https-certificate.bat</code> on Windows, <code>create-https-certificate-mac.command</code> on macOS, or <code>create-https-certificate-linux.sh</code> on Linux, then restart the server. Recreate the certificate after changing computer or local IP.</p><p class="warning">The certificate is self-signed, so browsers may show a warning on first use.</p></div>

@@ -42,6 +42,12 @@ runtime/linux/README.txt.
 
 Windows:
 
+  fdv-bouldering-timer.exe
+
+EXE показывает адреса, открывает браузер и позволяет перезапустить или остановить
+сервер. При закрытии окна он продолжает работать в области уведомлений Windows.
+Резервный способ запуска:
+
   start-timer-win.bat
 
 Разрешите Node.js доступ к частной сети в Windows Firewall.
@@ -107,6 +113,12 @@ Linux:
 END, MINUTE и WARNING в WAV или MP3. Для фестивальных объявлений поддерживаются
 FESTIVAL_60, FESTIVAL_30, FESTIVAL_10 и FESTIVAL_5. Если END отсутствует,
 используется START. Подробности находятся в help.html и beeps\README.txt.
+
+При каждом запуске сервера автоматически обновляется offline-audio.js. Он содержит
+автономную копию профилей и позволяет открыть index.html напрямую без сервера со
+звуком. После замены файлов в beeps один раз запустите таймер для обновления копии.
+В автономном режиме плитка текущего браузера позволяет открыть AUDIO, настроить
+поправку звука и проверить четыре типа сигналов.
 
 Файл шрифта берётся из каталога fonts и загружается всеми экранами с локального
 сервера. timer_font задаёт резервные системные шрифты. Поддерживаются WOFF2,
@@ -208,6 +220,12 @@ runtime/linux/README.txt.
 
 Windows:
 
+  fdv-bouldering-timer.exe
+
+The EXE displays addresses, opens the browser, and can restart or stop the
+server. Closing its window keeps it running in the Windows notification area.
+Fallback launcher:
+
   start-timer-win.bat
 
 Allow Node.js access to private networks in Windows Firewall.
@@ -275,6 +293,12 @@ Each subfolder in beeps is a sound profile. Profiles use START, END, MINUTE and
 WARNING files in WAV or MP3 format. Festival announcements may use FESTIVAL_60,
 FESTIVAL_30, FESTIVAL_10 and FESTIVAL_5. START is used when END is missing. See
 help.html and beeps\README.txt for details.
+
+Every server start automatically refreshes offline-audio.js. It contains a standalone
+copy of the profiles, allowing index.html to be opened directly without the server
+and retain sound. After replacing files in beeps, start the timer once to refresh it.
+In standalone mode, the current-browser card provides AUDIO offset adjustment and
+local tests for all four signal types.
 
 The font file is loaded from the fonts folder by every display through the
 local server. timer_font defines system fallbacks. WOFF2, WOFF, TTF and OTF are

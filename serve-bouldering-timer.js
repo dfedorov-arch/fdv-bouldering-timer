@@ -8,7 +8,8 @@ const root = __dirname;
 const paramsPath = path.join(root, "params.txt");
 const beepsPath = path.join(root, "beeps");
 const fontsPath = path.join(root, "fonts");
-const BUILD_NUMBER = 141;
+const offlineAudioPath = path.join(root, "offline-audio.js");
+const BUILD_NUMBER = 149;
 const defaultConfig = {
   httpPort: 8008,
   httpsPort: 8443,
@@ -143,6 +144,38 @@ function selectedSoundProfile(params, profiles) {
   return profiles[0]?.id || "";
 }
 
+function embeddedAudioSource(source) {
+  if (!source) return "";
+  const parts = String(source).split("/").map((part) => decodeURIComponent(part));
+  const filePath = path.resolve(root, ...parts);
+  const rootPrefix = `${path.resolve(root)}${path.sep}`;
+  if (!filePath.startsWith(rootPrefix) || !fs.statSync(filePath).isFile()) return "";
+  const extension = path.extname(filePath).toLowerCase();
+  const mimeType = extension === ".wav" ? "audio/wav" : extension === ".mp3" ? "audio/mpeg" : "";
+  if (!mimeType) return "";
+  return `data:${mimeType};base64,${fs.readFileSync(filePath).toString("base64")}`;
+}
+
+function generateOfflineAudioBundle(config) {
+  const embeddedProfiles = config.soundProfiles.map((profile) => ({
+    id: profile.id,
+    sources: Object.fromEntries(Object.entries(profile.sources)
+      .map(([kind, source]) => [kind, embeddedAudioSource(source)]))
+  }));
+  const offlineConfig = {
+    ...config,
+    primaryBrowser: false,
+    soundInOtherBrowsers: false,
+    soundProfiles: embeddedProfiles
+  };
+  const json = JSON.stringify({ config: offlineConfig })
+    .replace(/\u2028/g, "\\u2028")
+    .replace(/\u2029/g, "\\u2029");
+  const contents = `/* Generated automatically from params.txt and beeps. */\nwindow.FDV_OFFLINE_BUNDLE = ${json};\n`;
+  const current = fs.existsSync(offlineAudioPath) ? fs.readFileSync(offlineAudioPath, "utf8") : "";
+  if (current !== contents) fs.writeFileSync(offlineAudioPath, contents, "utf8");
+}
+
 function numberOrDefault(value, fallback) {
   const number = Number(value);
   return Number.isFinite(number) ? number : fallback;
@@ -183,6 +216,17 @@ const config = {
   soundProfile: initialSoundProfile,
   soundProfiles
 };
+
+try {
+  generateOfflineAudioBundle({ ...config, buildNumber: BUILD_NUMBER });
+} catch (error) {
+  console.warn(`Offline audio bundle was not updated: ${error.message}`);
+}
+
+if (process.argv.includes("--generate-offline-audio")) {
+  console.log(`Offline audio bundle: ${offlineAudioPath}`);
+  process.exit(0);
+}
 
 const port = Number(process.env.PORT) || config.httpPort;
 const httpsPort = Number(process.env.HTTPS_PORT) || config.httpsPort;

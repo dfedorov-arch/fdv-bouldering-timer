@@ -24,7 +24,7 @@
 
 1. Откройте раздел [Releases](https://github.com/dfedorov-arch/fdv-bouldering-timer/releases/latest) и скачайте архив для своей системы и архитектуры.
 2. Распакуйте архив целиком.
-3. Запустите `start-timer-win.bat` в Windows, `start-timer-mac.command` в macOS или `start-timer-linux.sh` в Linux.
+3. В Windows запустите `fdv-bouldering-timer.exe` (`start-timer-win.bat` остаётся резервным способом). В macOS запустите `start-timer-mac.command`, в Linux — `start-timer-linux.sh`.
 4. На компьютере сервера откройте `http://127.0.0.1:8008/`.
 5. На остальных экранах откройте сетевой адрес, показанный при запуске, например `http://192.168.1.68:8008/`.
 
@@ -84,7 +84,7 @@ FDV Bouldering Timer is a networked competition timer. One computer controls the
 
 1. Open [Releases](https://github.com/dfedorov-arch/fdv-bouldering-timer/releases/latest) and download the archive for your operating system and architecture.
 2. Extract the complete archive.
-3. Run `start-timer-win.bat` on Windows, `start-timer-mac.command` on macOS, or `start-timer-linux.sh` on Linux.
+3. On Windows run `fdv-bouldering-timer.exe` (`start-timer-win.bat` remains available as a fallback). On macOS run `start-timer-mac.command`; on Linux run `start-timer-linux.sh`.
 4. Open `http://127.0.0.1:8008/` on the server computer.
 5. Open the network address printed by the launcher on other displays, for example `http://192.168.1.68:8008/`.
 

@@ -88,6 +88,75 @@
       gap: 8px;
     }
 
+    .brand-copy h1 {
+      min-width: 0;
+      white-space: nowrap;
+      font-size: 20px;
+    }
+
+    .server-connection-warning {
+      display: grid;
+      gap: 3px;
+      margin: -6px 0 12px;
+      padding: 9px 10px;
+      border: 1px solid rgba(240, 90, 89, .7);
+      border-radius: 7px;
+      color: #fff7f7;
+      background: rgba(240, 90, 89, .14);
+      font-size: 12px;
+      line-height: 1.35;
+    }
+
+    .server-connection-warning[hidden] {
+      display: none;
+    }
+
+    .server-connection-warning strong {
+      color: var(--red);
+      font-size: 13px;
+    }
+
+    .server-connection-warning[data-state="standalone"] {
+      border-color: rgba(255, 200, 87, .72);
+      background: rgba(255, 200, 87, .12);
+    }
+
+    .server-connection-warning[data-state="standalone"] strong {
+      color: var(--yellow);
+    }
+
+    .server-connection-warning[data-state="recovered"] {
+      border-color: rgba(79, 209, 139, .7);
+      background: rgba(79, 209, 139, .12);
+    }
+
+    .server-connection-warning[data-state="recovered"] strong {
+      color: var(--green);
+    }
+
+    .server-connection-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 4px;
+    }
+
+    .server-connection-action {
+      min-height: 28px;
+      padding: 4px 9px;
+      border: 1px solid rgba(255, 255, 255, .28);
+      border-radius: 5px;
+      color: #f7f9fc;
+      background: rgba(255, 255, 255, .08);
+      font: inherit;
+      cursor: pointer;
+    }
+
+    .server-connection-action:hover {
+      border-color: rgba(255, 255, 255, .52);
+      background: rgba(255, 255, 255, .14);
+    }
+
     .language-toggle {
       flex: 0 0 auto;
       min-width: 42px;
@@ -1094,8 +1163,17 @@
           </svg>
         </div>
         <div class="brand-copy">
-          <h1><span id="brandTimer">Таймер</span> <span id="brandBouldering" title="Когда слово из языка с дифтонгами мигрирует в язык без дифтонгов - дифтонг сокращается от «сложного» звука до «простого» звука. Дифтонг (əʊ) по-русски должен произноситься и писаться просто как (о).">болдеринга</span></h1>
+          <h1><span id="brandTimer">Таймер</span> <span id="brandBouldering" title="И. Антышев: Когда слово из языка с дифтонгами мигрирует в язык без дифтонгов - дифтонг сокращается от «сложного» звука до «простого» звука. Дифтонг (əʊ) по-русски должен произноситься и писаться просто как (о).">болдеринга</span></h1>
           <button id="languageToggle" class="language-toggle" type="button" title="Switch to English">EN</button>
+        </div>
+      </div>
+
+      <div id="serverConnectionWarning" class="server-connection-warning" role="alert" hidden>
+        <strong id="serverConnectionWarningTitle">Нет связи с сервером</strong>
+        <span id="serverConnectionWarningText">Табло продолжает последний полученный отсчёт. Управление временно отключено.</span>
+        <div class="server-connection-actions">
+          <button id="enterStandaloneBtn" class="server-connection-action" type="button">Автономный режим</button>
+          <button id="returnToServerBtn" class="server-connection-action" type="button" hidden>Вернуться к серверу</button>
         </div>
       </div>
 
@@ -1231,6 +1309,11 @@
   </main>
 
   <script>
+    if (window.location.protocol === "file:") {
+      document.write('<script src="offline-audio.js"><\/script>');
+    }
+  </script>
+  <script>
     const presets = {
       classic: { rotationMinutes: 4, breakSeconds: 15, oneShot: false },
       festival: { rotationMinutes: 120, breakSeconds: 1800, oneShot: false },
@@ -1296,6 +1379,14 @@
         copyManually: "Скопируйте ссылку",
         helpManual: "Руководство",
         helpManualTitle: "Открыть руководство в новой вкладке",
+        serverOfflineTitle: "Нет связи с сервером",
+        serverOfflineText: "Табло продолжает последний полученный отсчёт. Продолжить автономно в этом браузере? Другие браузеры синхронизироваться не будут.",
+        enterStandalone: "Автономный режим",
+        standaloneTitle: "Автономный режим",
+        standaloneText: "Управление работает только в этом браузере. Другие браузеры не синхронизируются.",
+        serverRecoveredTitle: "Связь с сервером восстановлена",
+        serverRecoveredText: "Автономный таймер продолжает работать отдельно. Вернуться к состоянию сервера?",
+        returnToServer: "Вернуться к серверу",
         buildLabel: "сборка"
       },
       en: {
@@ -1335,6 +1426,14 @@
         copyManually: "Copy the link",
         helpManual: "Help",
         helpManualTitle: "Open help in a new tab",
+        serverOfflineTitle: "Server connection lost",
+        serverOfflineText: "The display continues the last received countdown. Continue independently in this browser? Other browsers will not be synchronized.",
+        enterStandalone: "Standalone mode",
+        standaloneTitle: "Standalone mode",
+        standaloneText: "Controls work only in this browser. Other browsers are not synchronized.",
+        serverRecoveredTitle: "Server connection restored",
+        serverRecoveredText: "The standalone timer is still running separately. Return to the server state?",
+        returnToServer: "Return to server",
         buildLabel: "Build"
       }
     };
@@ -1346,6 +1445,11 @@
       languageToggle: document.getElementById("languageToggle"),
       brandTimer: document.getElementById("brandTimer"),
       brandBouldering: document.getElementById("brandBouldering"),
+      serverConnectionWarning: document.getElementById("serverConnectionWarning"),
+      serverConnectionWarningTitle: document.getElementById("serverConnectionWarningTitle"),
+      serverConnectionWarningText: document.getElementById("serverConnectionWarningText"),
+      enterStandaloneBtn: document.getElementById("enterStandaloneBtn"),
+      returnToServerBtn: document.getElementById("returnToServerBtn"),
       formatTitle: document.getElementById("formatTitle"),
       startTimeTitle: document.getElementById("startTimeTitle"),
       hoursUnit: document.getElementById("hoursUnit"),
@@ -1458,14 +1562,21 @@
     let lastPhaseSignalKey = "";
     let scheduledPhaseSignalKeys = new Set();
     let lastKnownClients = [];
+    const standaloneClientFirstSeen = Date.now();
     let editingAudioClientId = "";
     let pendingAudioOffset = 0;
     let testAudioEverywhere = false;
     let lastAudioTestId = "";
     let audioTestButtonsDisabled = null;
     let timerFitQueued = false;
+    let serverAvailable = true;
+    let standaloneMode = false;
+    let pendingServerState = null;
+    let lastServerContactAt = performance.now();
+    let consecutiveServerFailures = 0;
     let serverPorts = { http: 8008, https: 8443 };
     const syncRequestTimeoutMs = 2000;
+    const serverOfflineAfterMs = 4500;
     const serverTimerLookaheadSeconds = 1.25;
     const audioScheduleAheadSeconds = 2.8;
     const audioPrewarmSeconds = 2;
@@ -1485,6 +1596,138 @@
         els.controls.offsetWidth - els.controls.clientWidth - borders);
       const rightPadding = Math.max(4, 20 - scrollbarWidth);
       els.controls.style.setProperty("--controls-padding-right", `${rightPadding}px`);
+    }
+
+    function controlsAvailable() {
+      return serverAvailable || standaloneMode;
+    }
+
+    function updateConnectionWarning() {
+      if (!standaloneMode && serverAvailable) {
+        els.serverConnectionWarning.hidden = true;
+        return;
+      }
+
+      els.serverConnectionWarning.hidden = false;
+      if (!standaloneMode) {
+        els.serverConnectionWarning.dataset.state = "offline";
+        els.serverConnectionWarningTitle.textContent = t("serverOfflineTitle");
+        els.serverConnectionWarningText.textContent = t("serverOfflineText");
+        els.enterStandaloneBtn.hidden = false;
+        els.returnToServerBtn.hidden = true;
+        return;
+      }
+
+      const recovered = serverAvailable;
+      els.serverConnectionWarning.dataset.state = recovered ? "recovered" : "standalone";
+      els.serverConnectionWarningTitle.textContent = t(recovered ? "serverRecoveredTitle" : "standaloneTitle");
+      els.serverConnectionWarningText.textContent = t(recovered ? "serverRecoveredText" : "standaloneText");
+      els.enterStandaloneBtn.hidden = true;
+      els.returnToServerBtn.hidden = !recovered;
+    }
+
+    function setServerAvailable(available) {
+      const nextAvailable = Boolean(available);
+      if (serverAvailable === nextAvailable) {
+        updateConnectionWarning();
+        return;
+      }
+      serverAvailable = nextAvailable;
+      document.body.classList.toggle("server-offline", !serverAvailable);
+      updateConnectionWarning();
+      syncButtons();
+      renderBrowserList(lastKnownClients);
+    }
+
+    function markServerContact() {
+      lastServerContactAt = performance.now();
+      consecutiveServerFailures = 0;
+      setServerAvailable(true);
+    }
+
+    function markServerFailure(immediate = false) {
+      consecutiveServerFailures += 1;
+      if (immediate || (consecutiveServerFailures >= 2
+        && performance.now() - lastServerContactAt >= serverOfflineAfterMs)) {
+        setServerAvailable(false);
+      }
+    }
+
+    function refreshServerAvailability() {
+      if (performance.now() - lastServerContactAt >= serverOfflineAfterMs) {
+        setServerAvailable(false);
+      }
+    }
+
+    function rescheduleStandaloneSignals() {
+      clearSignalTimers();
+      lastSegmentIndex = -1;
+      if (!state.running || state.countdownOnly) return;
+      const elapsed = elapsedSeconds();
+      const segment = getCurrentSegment(elapsed);
+      if (!segment) return;
+      const remaining = segment.end - elapsed;
+      const duration = segment.end - segment.start;
+      lastSegmentIndex = `${segment.cycle}:${segment.type}`;
+      scheduleSegmentSignals(segment, remaining, duration, false);
+      if (isBeforeScheduledStart() && !state.activeSettings.oneShot) {
+        scheduleBufferedSignalAt(segment, state.serverStartedAt, "start", true);
+      }
+    }
+
+    function enterStandaloneMode() {
+      if (serverAvailable || standaloneMode) return;
+      standaloneMode = true;
+      pendingServerState = null;
+      state.activeSettings ||= activeSettingsFromDraft();
+      rescheduleStandaloneSignals();
+      updateConnectionWarning();
+      syncButtons();
+      refreshStandaloneBrowserList();
+      render();
+    }
+
+    function initializeFileMode() {
+      const config = window.FDV_OFFLINE_BUNDLE?.config;
+      standaloneMode = true;
+      pendingServerState = null;
+      document.body.classList.add("file-mode");
+      if (config && typeof config === "object") {
+        applyStartupConfig(config);
+        state.activePreset = "classic";
+        state.festivalAnnouncements = config.festivalAnnouncements !== false;
+        els.festivalAnnouncementsToggle.checked = state.festivalAnnouncements;
+        globalSoundEnabled = config.sound !== false;
+        primarySoundEnabled = globalSoundEnabled;
+        els.soundToggle.checked = globalSoundEnabled;
+        setInputsFromDraft(presets.classic);
+        applySoundProfile(String(config.soundProfile || ""));
+        applyLanguage(config.language);
+      }
+      state.activeSettings = activeSettingsFromDraft();
+      buildTimeline(state.activeSettings);
+      setServerAvailable(false);
+      refreshStandaloneBrowserList();
+    }
+
+    async function returnToServerMode() {
+      if (!standaloneMode || !serverAvailable) return;
+      clearSignalTimers();
+      standaloneMode = false;
+      const recoveredState = pendingServerState;
+      pendingServerState = null;
+      if (recoveredState) {
+        applyServerState(recoveredState, { rescheduleSignals: true, includePhaseSignal: false });
+        return;
+      }
+
+      const synced = await syncFromServer({ forceApply: true });
+      if (synced) return;
+      standaloneMode = true;
+      rescheduleStandaloneSignals();
+      updateConnectionWarning();
+      syncButtons();
+      refreshStandaloneBrowserList();
     }
 
     function fitTimerText() {
@@ -1530,7 +1773,9 @@
         screenWakeLock = await navigator.wakeLock.request("screen");
         screenWakeLock.addEventListener("release", () => {
           screenWakeLock = null;
+          refreshStandaloneBrowserList();
         });
+        refreshStandaloneBrowserList();
       } catch (error) {
         screenWakeLock = null;
       }
@@ -1550,6 +1795,7 @@
         osc.stop(audioContext.currentTime + 0.03);
         await loadAudioBuffers();
       } catch (error) {}
+      refreshStandaloneBrowserList();
     }
 
     async function loadAudioBuffers() {
@@ -1703,8 +1949,11 @@
       document.documentElement.lang = language;
       els.brandTimer.textContent = t("brandTimer");
       els.brandBouldering.textContent = t("brandBouldering");
+      els.enterStandaloneBtn.textContent = t("enterStandalone");
+      els.returnToServerBtn.textContent = t("returnToServer");
+      updateConnectionWarning();
       els.brandBouldering.title = language === "ru"
-        ? "Когда слово из языка с дифтонгами мигрирует в язык без дифтонгов - дифтонг сокращается от «сложного» звука до «простого» звука. Дифтонг (əʊ) по-русски должен произноситься и писаться просто как (о)."
+        ? "И. Антышев: Когда слово из языка с дифтонгами мигрирует в язык без дифтонгов - дифтонг сокращается от «сложного» звука до «простого» звука. Дифтонг (əʊ) по-русски должен произноситься и писаться просто как (о)."
         : "";
       els.formatTitle.textContent = t("format");
       els.startTimeTitle.textContent = t("startTime");
@@ -1761,6 +2010,7 @@
       pickSpeechVoice();
       updateParameterLabels();
       render();
+      refreshStandaloneBrowserList();
     }
 
     function applyTimerAppearance(config) {
@@ -1978,15 +2228,18 @@
     }
 
     async function setPreset(name) {
+      if (!controlsAvailable()) return;
       state.activePreset = name;
       els.presets.forEach((button) => button.classList.toggle("active", button.dataset.preset === name));
       if (presets[name]) {
         setInputsFromDraft(presets[name]);
       }
-      sendServerAction("settings", {
-        activePreset: state.activePreset,
-        settings: draftSettings()
-      });
+      if (!standaloneMode) {
+        sendServerAction("settings", {
+          activePreset: state.activePreset,
+          settings: draftSettings()
+        });
+      }
       if (state.running || state.elapsedBeforePause > 0) {
         return;
       }
@@ -2028,6 +2281,11 @@
 
     function applyServerState(remote, options = {}) {
       if (!remote || typeof remote !== "object") return;
+      markServerContact();
+      if (standaloneMode) {
+        pendingServerState = remote;
+        return;
+      }
       applyStartupConfig(remote.config);
       updateServerTiming(remote, options.timing);
 
@@ -2109,6 +2367,9 @@
     }
 
     async function sendServerAction(type, payload = {}, options = {}) {
+      if (!serverAvailable || standaloneMode) return false;
+      const controller = new AbortController();
+      const timeout = window.setTimeout(() => controller.abort(), syncRequestTimeoutMs);
       try {
         const timing = {
           date0: Date.now(),
@@ -2117,6 +2378,7 @@
         const response = await fetch("/api/action", {
           method: "POST",
           headers: { "content-type": "application/json" },
+          signal: controller.signal,
           body: JSON.stringify({
             type,
             ...clientDiagnostics(),
@@ -2130,7 +2392,10 @@
         applyServerState(remote, { ...options, timing });
         return true;
       } catch (error) {
+        markServerFailure(true);
         return false;
+      } finally {
+        window.clearTimeout(timeout);
       }
     }
 
@@ -2153,6 +2418,11 @@
         timing.perf1 = performance.now();
         if (!response.ok) throw new Error("Server state failed");
         const remote = await response.json();
+        markServerContact();
+        if (standaloneMode) {
+          pendingServerState = remote;
+          return true;
+        }
         const version = Number(remote.version || 0);
         if (version !== lastServerVersion) {
           const isRemoteStart = lastServerVersion !== 0
@@ -2172,6 +2442,7 @@
         maybeBurstSync(options);
         return true;
       } catch (error) {
+        markServerFailure();
         return false;
       } finally {
         window.clearTimeout(timeout);
@@ -2209,11 +2480,17 @@
       eventSource.onopen = () => {
         if (generation !== eventStreamGeneration) return;
         eventSourceConnected = true;
+        markServerContact();
       };
       eventSource.addEventListener("state", (event) => {
         if (generation !== eventStreamGeneration) return;
         try {
           const remote = JSON.parse(event.data);
+          markServerContact();
+          if (standaloneMode) {
+            pendingServerState = remote;
+            return;
+          }
           const version = Number(remote.version || 0);
           const isRemoteStart = version !== lastServerVersion
             && lastServerVersion !== 0
@@ -2233,6 +2510,7 @@
       eventSource.onerror = () => {
         if (generation !== eventStreamGeneration) return;
         eventSourceConnected = false;
+        markServerFailure();
       };
     }
 
@@ -2297,6 +2575,43 @@
       if (/Windows/i.test(userAgent)) return "Windows";
       if (/Linux/i.test(userAgent)) return "Linux";
       return "OS";
+    }
+
+    function compactUserAgent(userAgent = "") {
+      const rules = [
+        ["Yandex", /YaBrowser\/(\d+)/], ["Edge", /EdgA?\/(\d+)/],
+        ["Edge iOS", /EdgiOS\/(\d+)/], ["Opera", /OPR\/(\d+)/],
+        ["Samsung", /SamsungBrowser\/(\d+)/], ["Chrome iOS", /CriOS\/(\d+)/],
+        ["Firefox iOS", /FxiOS\/(\d+)/], ["Firefox", /Firefox\/(\d+)/],
+        ["Safari", /Version\/(\d+).*Safari\//], ["Chrome", /Chrome\/(\d+)/],
+        ["Chrome", /Chromium\/(\d+)/]
+      ];
+      const match = rules.map(([name, pattern]) => {
+        const result = userAgent.match(pattern);
+        return result ? { name, version: result[1] || "" } : null;
+      }).find(Boolean) || { name: "Browser", version: "" };
+      return `${match.name}${match.version ? ` ${match.version}` : ""} ${operatingSystem(userAgent)}`;
+    }
+
+    function refreshStandaloneBrowserList() {
+      if (!standaloneMode || !els.browserList) return;
+      const diagnostics = clientDiagnostics();
+      renderBrowserList([{
+        ...diagnostics,
+        id: clientId,
+        firstSeen: standaloneClientFirstSeen,
+        order: 0,
+        label: compactUserAgent(navigator.userAgent),
+        browser: compactUserAgent(navigator.userAgent).split(" ")[0],
+        userAgent: navigator.userAgent,
+        address: "",
+        displayAddress: "",
+        protocol: window.location.protocol === "file:" ? "FILE" : "LOCAL",
+        connected: true,
+        role: t("standaloneTitle"),
+        age: Date.now() - standaloneClientFirstSeen,
+        audioUserOffset: audioUserOffsetMs
+      }]);
     }
 
     function deviceType(userAgent = "") {
@@ -2367,6 +2682,7 @@
       const audioTestDisabled = shouldDisableAudioTestButtons();
       els.browserList.innerHTML = visibleClients.map((client) => {
         const isPrimary = client.id === state.primaryClientId;
+        const standaloneSelf = standaloneMode && client.id === clientId;
         const displayIp = clientAddress(client.displayAddress || client.address);
         const clientPrefix = isPrimary ? `${t("thisBrowser")}, IP: ` : "IP: ";
         const copyUrl = isPrimary ? browserLink(displayIp, clients) : "";
@@ -2374,7 +2690,8 @@
           ? `<button type="button" class="browser-address-copy" data-copy-browser-url="${escapeHtml(copyUrl)}" title="${escapeHtml(`${t("copyLink")}: ${copyUrl}`)}">${escapeHtml(displayIp)}</button><span class="browser-copy-feedback" aria-live="polite"></span>`
           : escapeHtml(displayIp);
         const classes = ["browser-item"];
-        if (!client.connected) classes.push("offline");
+        const clientConnected = standaloneSelf || (serverAvailable && client.connected);
+        if (!clientConnected) classes.push("offline");
         const latency = Number(client.latency);
         const offset = Math.abs(Number(client.offset));
         const syncError = Number(client.syncError);
@@ -2382,31 +2699,42 @@
         const estimatedSyncError = hasSyncError
           ? syncError
           : Number.isFinite(latency) ? latency / 2 : NaN;
-        const netStatus = client.connected ? thresholdStatus(latency, 100, 200) : "bad";
-        const syncStatus = client.connected ? thresholdStatus(estimatedSyncError, 100, 300) : "bad";
+        const netStatus = clientConnected ? thresholdStatus(latency, 100, 200) : "bad";
+        const syncStatus = clientConnected ? thresholdStatus(estimatedSyncError, 100, 300) : "bad";
         const audioOk = client.soundAllowed !== false && client.audioUnlocked === true;
         const userAudioOffset = Number(client.audioUserOffset || 0);
         const audioEditing = editingAudioClientId === client.id;
         const audioClasses = `${audioOk ? "good" : "bad"} clickable${userAudioOffset !== 0 ? " calibrated" : ""}${audioEditing ? " editing" : ""}`;
         const wakeOk = client.wakeLockSupported === true && client.wakeLockActive === true;
-        const sseOk = client.eventSourceSupported === true && client.eventSourceConnected === true;
+        const sseOk = serverAvailable && client.eventSourceSupported === true && client.eventSourceConnected === true;
         const tabOk = client.visibility === "visible";
         const yesNo = (value) => value ? t("yes") : t("no");
-        const chips = language === "ru" ? [
-          diagChip("NET", netStatus, `Соединение: ${client.connected ? "онлайн" : "нет связи"}; задержка ${formatMs(client.latency)}; зелёный ≤100 мс, жёлтый ≤200 мс, красный >200 мс`),
+        const ruLocalChips = [
+          diagChip("AUDIO", audioClasses, `Звук разрешён: ${yesNo(client.soundAllowed !== false)}; разблокирован тапом: ${yesNo(client.audioUnlocked === true)}; ${t("audioOffsetUser")}: ${formatMs(userAudioOffset)}`, ` data-audio-client="${escapeHtml(client.id)}"`),
+          diagChip("WAKE", wakeOk ? "good" : "bad", `Wake Lock поддерживается: ${yesNo(client.wakeLockSupported === true)}; активен: ${yesNo(client.wakeLockActive === true)}`),
+          diagChip("TAB", tabOk ? "good" : "bad", `Видимость вкладки: ${client.visibility || "неизвестно"}`)
+        ];
+        const enLocalChips = [
+          diagChip("AUDIO", audioClasses, `Sound allowed: ${yesNo(client.soundAllowed !== false)}; unlocked by tap: ${yesNo(client.audioUnlocked === true)}; ${t("audioOffsetUser")}: ${formatMs(userAudioOffset)}`, ` data-audio-client="${escapeHtml(client.id)}"`),
+          diagChip("WAKE", wakeOk ? "good" : "bad", `Wake Lock supported: ${yesNo(client.wakeLockSupported === true)}; active: ${yesNo(client.wakeLockActive === true)}`),
+          diagChip("TAB", tabOk ? "good" : "bad", `Tab visibility: ${client.visibility || "unknown"}`)
+        ];
+        const chips = language === "ru" ? (standaloneSelf ? ruLocalChips : [
+          diagChip("NET", netStatus, `Соединение: ${clientConnected ? "онлайн" : "нет связи"}; задержка ${formatMs(client.latency)}; зелёный ≤100 мс, жёлтый ≤200 мс, красный >200 мс`),
           diagChip("SYNC", syncStatus, `${hasSyncError ? "Оценка ошибки синхронизации" : "Приблизительная оценка по задержке сети"}: ${formatMs(estimatedSyncError)}; разброс ${formatMs(client.syncJitter)}; замеров ${client.syncSamples || "n/a"}; зелёный ≤100 мс, жёлтый ≤300 мс, красный >300 мс`),
           diagChip("AUDIO", audioClasses, `Звук разрешён: ${yesNo(client.soundAllowed !== false)}; разблокирован тапом: ${yesNo(client.audioUnlocked === true)}; ${t("audioOffsetUser")}: ${formatMs(userAudioOffset)}`, ` data-audio-client="${escapeHtml(client.id)}"`),
           diagChip("WAKE", wakeOk ? "good" : "bad", `Wake Lock поддерживается: ${yesNo(client.wakeLockSupported === true)}; активен: ${yesNo(client.wakeLockActive === true)}`),
-          diagChip("SSE", sseOk ? "good" : "bad", `Мгновенные события сервера: поддержка ${yesNo(client.eventSourceSupported === true)}; подключено ${yesNo(client.eventSourceConnected === true)}`),
+          diagChip("SSE", sseOk ? "good" : "bad", `Мгновенные события сервера: поддержка ${yesNo(client.eventSourceSupported === true)}; подключено ${yesNo(sseOk)}`),
           diagChip("TAB", tabOk ? "good" : "bad", `Видимость вкладки: ${client.visibility || "неизвестно"}`)
-        ].join("") : [
-          diagChip("NET", netStatus, `Connection: ${client.connected ? "online" : "offline"}; latency ${formatMs(client.latency)}; green ≤100 ms, yellow ≤200 ms, red >200 ms`),
+        ]) : (standaloneSelf ? enLocalChips : [
+          diagChip("NET", netStatus, `Connection: ${clientConnected ? "online" : "offline"}; latency ${formatMs(client.latency)}; green ≤100 ms, yellow ≤200 ms, red >200 ms`),
           diagChip("SYNC", syncStatus, `${hasSyncError ? "Estimated synchronization error" : "Approximate estimate from network latency"}: ${formatMs(estimatedSyncError)}; jitter ${formatMs(client.syncJitter)}; samples ${client.syncSamples || "n/a"}; green ≤100 ms, yellow ≤300 ms, red >300 ms`),
           diagChip("AUDIO", audioClasses, `Sound allowed: ${yesNo(client.soundAllowed !== false)}; unlocked by tap: ${yesNo(client.audioUnlocked === true)}; ${t("audioOffsetUser")}: ${formatMs(userAudioOffset)}`, ` data-audio-client="${escapeHtml(client.id)}"`),
           diagChip("WAKE", wakeOk ? "good" : "bad", `Wake Lock supported: ${yesNo(client.wakeLockSupported === true)}; active: ${yesNo(client.wakeLockActive === true)}`),
-          diagChip("SSE", sseOk ? "good" : "bad", `Instant server events: supported ${yesNo(client.eventSourceSupported === true)}; connected ${yesNo(client.eventSourceConnected === true)}`),
+          diagChip("SSE", sseOk ? "good" : "bad", `Instant server events: supported ${yesNo(client.eventSourceSupported === true)}; connected ${yesNo(sseOk)}`),
           diagChip("TAB", tabOk ? "good" : "bad", `Tab visibility: ${client.visibility || "unknown"}`)
-        ].join("");
+        ]);
+        const chipHtml = chips.join("");
         const title = language === "ru"
           ? `ОС: ${operatingSystem(client.userAgent)}; устройство: ${deviceType(client.userAgent)}; экран ${client.screen || "n/a"}; окно ${client.viewport || "n/a"}; DPR ${client.dpr ?? "n/a"}`
           : `OS: ${operatingSystem(client.userAgent)}; device: ${deviceType(client.userAgent)}; screen ${client.screen || "n/a"}; viewport ${client.viewport || "n/a"}; DPR ${client.dpr ?? "n/a"}`;
@@ -2417,10 +2745,10 @@
           clientAddress(client.address),
           `${Math.round((client.age || 0) / 1000)}${t("sec")}`
         ].filter(Boolean).map(escapeHtml).join(" · ");
-        const metaTitle = language === "ru"
+        const metaTitle = standaloneSelf ? title : language === "ru"
           ? `Поправка системных часов относительно сервера: ${formatMs(client.offset)}. Это информационный параметр, стабильное большое значение не означает рассинхронизацию таймера.`
           : `System clock offset from the server: ${formatMs(client.offset)}. This is informational; a large stable value does not mean the timer is out of sync.`;
-        const canTestEverywhere = client.id === state.primaryClientId;
+        const canTestEverywhere = !standaloneMode && client.id === state.primaryClientId;
         const testEverywhereControl = canTestEverywhere ? `
               <label class="audio-test-everywhere">
                 <input type="checkbox" data-audio-test-everywhere${testAudioEverywhere ? " checked" : ""}>
@@ -2447,16 +2775,20 @@
               </div>
             </div>
           </div>` : "";
+        const heading = standaloneSelf
+          ? `${escapeHtml(client.label)} (${escapeHtml(t("thisBrowser"))})`
+          : `${escapeHtml(client.label)} (${escapeHtml(clientPrefix)}${displayIpHtml})`;
         return `<div class="${classes.join(" ")}">
-          <strong title="${escapeHtml(title)}">${escapeHtml(client.label)} (${escapeHtml(clientPrefix)}${displayIpHtml})</strong>
+          <strong title="${escapeHtml(title)}">${heading}</strong>
           <span title="${escapeHtml(metaTitle)}">${meta}</span>
-          <div class="diag-row">${chips}</div>
+          <div class="diag-row">${chipHtml}</div>
           ${audioEditor}
         </div>`;
       }).join("");
     }
 
     function canPlaySound() {
+      if (standaloneMode) return els.soundToggle.checked;
       if (isPrimaryClient) return primarySoundEnabled;
       if (isSameComputerAsPrimary) return false;
       if (isViewerClient) return instancesSoundEnabled;
@@ -2876,14 +3208,21 @@
       }
 
       clearSignalTimers(false, !canPlaySound());
-      if (!state.running || state.countdownOnly) return;
+      if (!state.running || state.countdownOnly) {
+        refreshStandaloneBrowserList();
+        return;
+      }
       const elapsed = elapsedSeconds();
       const segment = getCurrentSegment(elapsed);
-      if (!segment) return;
+      if (!segment) {
+        refreshStandaloneBrowserList();
+        return;
+      }
       const remaining = segment.end - elapsed;
       const duration = segment.end - segment.start;
       lastSegmentIndex = `${segment.cycle}:${segment.type}`;
       scheduleSegmentSignals(segment, remaining, duration, false);
+      refreshStandaloneBrowserList();
     }
 
     function scheduleSegmentSignals(segment, remaining, duration, includePhase = true) {
@@ -3030,6 +3369,7 @@
     }
 
     function render() {
+      finalizeStandaloneState();
       const timeline = state.timeline.length ? state.timeline : buildTimeline();
       const elapsed = elapsedSeconds();
       const segment = getCurrentSegment(elapsed);
@@ -3163,7 +3503,7 @@
     }
 
     function shouldDisableAudioTestButtons() {
-      return state.running && !isBeforeScheduledStart();
+      return !controlsAvailable() || (state.running && !isBeforeScheduledStart());
     }
 
     function syncAudioTestButtons() {
@@ -3176,8 +3516,10 @@
     }
 
     function syncButtons() {
+      const available = controlsAvailable();
+      const serverControls = serverAvailable && !standaloneMode;
       const beforeScheduledStart = isBeforeScheduledStart();
-      const canPause = state.running && !beforeScheduledStart;
+      const canPause = available && state.running && !beforeScheduledStart;
       const hasScheduledStart = els.startHours.value !== "" || els.startMinutes.value !== "";
       const canStartByTime = !state.running
         && !state.completed
@@ -3186,9 +3528,9 @@
         && hasScheduledStart;
       els.startBtn.textContent = t("start");
       els.compactStart.textContent = t("start");
-      els.startBtn.disabled = state.running;
-      els.compactStart.disabled = state.running;
-      els.scheduledStartBtn.disabled = beforeScheduledStart ? false : !canStartByTime;
+      els.startBtn.disabled = !available || state.running;
+      els.compactStart.disabled = !available || state.running;
+      els.scheduledStartBtn.disabled = !available || (beforeScheduledStart ? false : !canStartByTime);
       els.scheduledStartBtn.classList.toggle("stop-mode", beforeScheduledStart);
       els.scheduledStartIcon.textContent = beforeScheduledStart ? "■" : "▶";
       const scheduledActionLabel = t(beforeScheduledStart ? "stopCountdown" : "scheduledStart");
@@ -3196,21 +3538,113 @@
       els.scheduledStartBtn.setAttribute("aria-label", scheduledActionLabel);
       els.pauseBtn.disabled = !canPause;
       els.compactPause.disabled = !canPause;
-      els.soundProfileSelect.disabled = (state.running && !beforeScheduledStart)
+      els.resetBtn.disabled = !available;
+      els.compactReset.disabled = !available;
+      els.languageToggle.disabled = !available;
+      els.primaryToggle.disabled = !serverControls;
+      els.instancesSoundToggle.disabled = !serverControls;
+      els.instancesFullscreenToggle.disabled = !serverControls;
+      els.festivalAnnouncementsToggle.disabled = !available;
+      els.presets.forEach((button) => { button.disabled = !available; });
+      [els.climbMinutes, els.breakSeconds, els.startHours, els.startMinutes]
+        .forEach((input) => { input.disabled = !available; });
+      els.soundProfileSelect.disabled = !available || (state.running && !beforeScheduledStart)
         || state.elapsedBeforePause > 0
         || state.completed;
     }
 
+    function finalizeStandaloneState() {
+      if (!standaloneMode || !state.running) return;
+      if (state.countdownOnly && state.serverStartedAt <= serverNow()) {
+        state.running = false;
+        state.countdownOnly = false;
+        state.waitingForManualStart = true;
+        state.serverStartedAt = 0;
+        state.elapsedBeforePause = 0;
+        els.startHours.value = "";
+        els.startMinutes.value = "";
+        clearSignalTimers();
+        syncButtons();
+        return;
+      }
+
+      const settings = activeSettings();
+      const duration = settings.rotationSeconds + settings.breakSeconds;
+      if (!state.countdownOnly && settings.oneShot && elapsedSeconds() >= duration) {
+        state.running = false;
+        state.completed = true;
+        state.elapsedBeforePause = duration;
+        state.serverStartedAt = 0;
+        syncButtons();
+      }
+    }
+
+    function startStandaloneTimer() {
+      const isFreshStart = state.elapsedBeforePause === 0 || state.completed || state.waitingForManualStart;
+      const elapsed = isFreshStart ? 0 : state.elapsedBeforePause;
+      clearSignalTimers();
+      if (isFreshStart) {
+        state.activeSettings = activeSettingsFromDraft();
+        state.completed = false;
+        lastPhaseSignalKey = "1:rotation";
+        immediateStartSignal();
+      }
+      buildTimeline(state.activeSettings || activeSettingsFromDraft());
+      state.running = true;
+      state.countdownOnly = false;
+      state.waitingForManualStart = false;
+      state.elapsedBeforePause = 0;
+      state.serverStartedAt = serverNow() - elapsed * 1000;
+      state.startedAt = performance.now() - elapsed * 1000;
+      lastSegmentIndex = -1;
+      syncButtons();
+      render();
+    }
+
+    function pauseStandaloneTimer() {
+      state.elapsedBeforePause = elapsedSeconds();
+      state.running = false;
+      state.serverStartedAt = 0;
+      state.pausedAt = performance.now();
+      clearSignalTimers();
+      syncButtons();
+      render();
+    }
+
+    function resetStandaloneTimer(shouldSignal = false) {
+      state.running = false;
+      state.completed = false;
+      state.countdownOnly = false;
+      state.waitingForManualStart = false;
+      state.serverStartedAt = 0;
+      state.startedAt = 0;
+      state.pausedAt = 0;
+      state.accumulatedPause = 0;
+      state.elapsedBeforePause = 0;
+      state.activeSettings = activeSettingsFromDraft();
+      lastSegmentIndex = -1;
+      lastPhaseSignalKey = "";
+      clearSignalTimers();
+      buildTimeline(state.activeSettings);
+      if (shouldSignal) signal("finish");
+      syncButtons();
+      render();
+    }
+
     async function startTimer() {
-      if (state.running) return;
-      const isFreshStart = state.elapsedBeforePause === 0 || state.completed;
+      if (!controlsAvailable() || state.running) return;
       requestScreenWakeLock();
+      unlockAudio();
+      if (audioContext?.state === "suspended") audioContext.resume();
+      if (standaloneMode) {
+        startStandaloneTimer();
+        return;
+      }
+      const isFreshStart = state.elapsedBeforePause === 0 || state.completed;
       if (isFreshStart) {
         lastPhaseSignalKey = "1:rotation";
         immediateStartSignal();
       }
-      unlockAudio();
-      if (audioContext?.state === "suspended") audioContext.resume();
       const sent = await sendServerAction("start", {
         settings: isFreshStart ? activeSettingsFromDraft() : activeSettings(),
         startHours: "",
@@ -3218,6 +3652,7 @@
         manualStart: state.waitingForManualStart
       }, { rescheduleSignals: true, includePhaseSignal: false });
       if (sent) return;
+      if (!serverAvailable) return;
 
       if (state.completed) {
         state.completed = false;
@@ -3248,13 +3683,33 @@
     }
 
     async function startTimerByTime() {
-      if (state.running || state.completed || state.elapsedBeforePause > 0 || state.waitingForManualStart) return;
+      if (!controlsAvailable() || state.running || state.completed || state.elapsedBeforePause > 0 || state.waitingForManualStart) return;
       const hasScheduledStart = els.startHours.value !== "" || els.startMinutes.value !== "";
       if (!hasScheduledStart) return;
 
       requestScreenWakeLock();
       unlockAudio();
       if (audioContext?.state === "suspended") audioContext.resume();
+      if (standaloneMode) {
+        const now = Date.now();
+        const target = new Date(now);
+        target.setHours(Number(els.startHours.value || 0), Number(els.startMinutes.value || 0), 0, 0);
+        state.activeSettings = activeSettingsFromDraft();
+        if (target.getTime() <= now && state.activeSettings.oneShot) {
+          target.setDate(target.getDate() + 1);
+        }
+        state.running = true;
+        state.completed = false;
+        state.countdownOnly = Boolean(state.activeSettings.oneShot);
+        state.waitingForManualStart = false;
+        state.elapsedBeforePause = 0;
+        state.serverStartedAt = serverNow() + target.getTime() - now;
+        buildTimeline(state.activeSettings);
+        rescheduleStandaloneSignals();
+        syncButtons();
+        render();
+        return;
+      }
       await sendServerAction("start", {
         settings: activeSettingsFromDraft(),
         startHours: els.startHours.value,
@@ -3264,12 +3719,18 @@
     }
 
     async function toggleScheduledCountdown() {
+      if (!controlsAvailable()) return;
       if (!isBeforeScheduledStart()) {
         await startTimerByTime();
         return;
       }
+      if (standaloneMode) {
+        resetStandaloneTimer(false);
+        return;
+      }
       const stopped = await sendServerAction("stopCountdown");
       if (stopped) return;
+      if (!serverAvailable) return;
 
       state.running = false;
       state.countdownOnly = false;
@@ -3282,9 +3743,14 @@
     }
 
     async function pauseTimer() {
-      if (!state.running || isBeforeScheduledStart()) return;
+      if (!controlsAvailable() || !state.running || isBeforeScheduledStart()) return;
+      if (standaloneMode) {
+        pauseStandaloneTimer();
+        return;
+      }
       const sent = await sendServerAction("pause");
       if (sent) return;
+      if (!serverAvailable) return;
 
       state.elapsedBeforePause = elapsedSeconds();
       state.running = false;
@@ -3295,6 +3761,11 @@
     }
 
     async function hardReset(shouldSignal = true) {
+      if (!controlsAvailable()) return;
+      if (standaloneMode) {
+        resetStandaloneTimer(shouldSignal);
+        return;
+      }
       const sent = await sendServerAction("reset", {
         settings: activeSettingsFromDraft()
       });
@@ -3302,6 +3773,7 @@
         if (shouldSignal) signal("finish");
         return;
       }
+      if (!serverAvailable) return;
 
       state.running = false;
       state.completed = false;
@@ -3321,6 +3793,7 @@
     }
 
     function setPrimaryMode(enabled) {
+      if (!serverAvailable || standaloneMode) return;
       els.primaryToggle.checked = enabled;
       sendServerAction("primary", {
         clientId: enabled ? clientId : null
@@ -3332,7 +3805,7 @@
     }
 
     function canScrub() {
-      return !state.running && !isViewerClient && state.elapsedBeforePause > 0;
+      return controlsAvailable() && !state.running && !isViewerClient && state.elapsedBeforePause > 0;
     }
 
     async function scrubToPointer(event) {
@@ -3348,7 +3821,7 @@
       state.elapsedBeforePause = elapsed;
       clearSignalTimers();
       render();
-      sendServerAction("seek", { elapsed });
+      if (!standaloneMode) sendServerAction("seek", { elapsed });
     }
 
     function startScrub(event) {
@@ -3416,10 +3889,16 @@
 
     els.presets.forEach((button) => button.addEventListener("click", () => setPreset(button.dataset.preset)));
     els.languageToggle.addEventListener("click", () => {
+      if (standaloneMode) {
+        applyLanguage(language === "ru" ? "en" : "ru");
+        return;
+      }
       sendServerAction("language", {
         language: language === "ru" ? "en" : "ru"
       });
     });
+    els.enterStandaloneBtn.addEventListener("click", enterStandaloneMode);
+    els.returnToServerBtn.addEventListener("click", returnToServerMode);
     els.browserList.addEventListener("click", async (event) => {
       const copyButton = event.target.closest("[data-copy-browser-url]");
       if (copyButton) {
@@ -3435,12 +3914,22 @@
         return;
       }
 
+      if (!controlsAvailable()) return;
+
       const testButton = event.target.closest("[data-audio-test-kind]");
       if (testButton) {
         if (testButton.disabled || shouldDisableAudioTestButtons()) return;
         const targetClientId = testButton.dataset.audioTestClient;
         const everywhere = testAudioEverywhere && targetClientId === state.primaryClientId;
         unlockAudio();
+        if (standaloneMode) {
+          if (targetClientId !== clientId) return;
+          const kind = testButton.dataset.audioTestKind;
+          const baseTime = serverNow() + 1800 + audioUserOffsetMs;
+          const offsets = kind === "warn" ? [0, 1000, 2000, 3000, 4000] : [0];
+          offsets.forEach((offset) => scheduleDiagnosticSound(kind, baseTime + offset));
+          return;
+        }
         sendServerAction("audioTest", {
           kind: testButton.dataset.audioTestKind,
           targetClientId,
@@ -3476,6 +3965,14 @@
       const offset = pendingAudioOffset;
       editingAudioClientId = "";
       testAudioEverywhere = false;
+      if (standaloneMode) {
+        audioUserOffsetMs = offset;
+        const ownClient = lastKnownClients.find((item) => item.id === targetClientId);
+        if (ownClient) ownClient.audioUserOffset = offset;
+        rescheduleStandaloneSignals();
+        renderBrowserList(lastKnownClients);
+        return;
+      }
       sendServerAction("audioOffset", {
         targetClientId,
         offset
@@ -3513,6 +4010,11 @@
     });
 
     els.festivalAnnouncementsToggle.addEventListener("change", () => {
+      if (standaloneMode) {
+        state.festivalAnnouncements = els.festivalAnnouncementsToggle.checked;
+        rescheduleStandaloneSignals();
+        return;
+      }
       sendServerAction("festivalAnnouncements", {
         enabled: els.festivalAnnouncementsToggle.checked
       }, { rescheduleSignals: true });
@@ -3521,6 +4023,12 @@
     els.soundProfileSelect.addEventListener("change", async () => {
       const previousProfile = state.soundProfile;
       unlockAudio();
+      if (standaloneMode) {
+        applySoundProfile(els.soundProfileSelect.value);
+        await loadAudioBuffers();
+        rescheduleStandaloneSignals();
+        return;
+      }
       const changed = await sendServerAction("soundProfile", {
         soundProfile: els.soundProfileSelect.value
       });
@@ -3543,10 +4051,12 @@
 
     [els.climbMinutes, els.breakSeconds].forEach((input) => {
       input.addEventListener("input", () => {
-        sendServerAction("settings", {
-          activePreset: state.activePreset,
-          settings: draftSettings()
-        });
+        if (!standaloneMode) {
+          sendServerAction("settings", {
+            activePreset: state.activePreset,
+            settings: draftSettings()
+          });
+        }
         if (state.running || state.elapsedBeforePause > 0) {
           return;
         }
@@ -3570,10 +4080,12 @@
       });
       input.addEventListener("blur", () => {
         normalizeStartTimeInput(input, input === els.startHours ? 23 : 59);
-        sendServerAction("settings", {
-          activePreset: state.activePreset,
-          settings: draftSettings()
-        });
+        if (!standaloneMode) {
+          sendServerAction("settings", {
+            activePreset: state.activePreset,
+            settings: draftSettings()
+          });
+        }
       });
     });
 
@@ -3640,12 +4152,27 @@
     });
 
     document.addEventListener("visibilitychange", () => {
-      if (document.visibilityState === "visible") resumeClientSync();
+      if (document.visibilityState !== "visible") {
+        refreshStandaloneBrowserList();
+        return;
+      }
+      if (window.location.protocol === "file:") {
+        requestScreenWakeLock();
+        refreshStandaloneBrowserList();
+        return;
+      }
+      resumeClientSync();
     });
 
-    window.addEventListener("pageshow", resumeClientSync);
-    window.addEventListener("focus", resumeClientSync);
-    window.addEventListener("online", resumeClientSync);
+    ["pageshow", "focus", "online"].forEach((eventName) => {
+      window.addEventListener(eventName, () => {
+        if (window.location.protocol === "file:") {
+          refreshStandaloneBrowserList();
+          return;
+        }
+        resumeClientSync();
+      });
+    });
 
     window.addEventListener("resize", () => {
       syncControlsScrollbarPadding();
@@ -3657,12 +4184,15 @@
       timerResizeObserver.observe(document.querySelector(".timer-wrap"));
     }
 
-    buildTimeline();
+    const fileMode = window.location.protocol === "file:";
+    if (fileMode) initializeFileMode();
+    else buildTimeline();
     syncControlsScrollbarPadding();
     render();
     scheduleFitTimer();
     tick();
-    startSync();
+    if (!fileMode) startSync();
+    window.setInterval(refreshServerAvailability, 500);
     requestScreenWakeLock();
   </script>
 </body>

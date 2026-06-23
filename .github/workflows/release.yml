@@ -9,7 +9,25 @@ permissions:
   contents: write
 
 jobs:
+  windows-launcher:
+    runs-on: windows-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+
+      - name: Build Windows launcher
+        shell: powershell
+        run: launcher/windows/build-launcher.ps1 -OutputDirectory "$env:RUNNER_TEMP\windows-launcher"
+
+      - name: Upload Windows launcher
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-launcher
+          path: ${{ runner.temp }}\windows-launcher\fdv-bouldering-timer.exe
+          if-no-files-found: error
+
   release:
+    needs: windows-launcher
     runs-on: ubuntu-latest
     env:
       NODE_VERSION: "24.17.0"
@@ -17,7 +35,15 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v5
 
+      - name: Download Windows launcher
+        uses: actions/download-artifact@v4
+        with:
+          name: windows-launcher
+          path: build-artifacts/windows-launcher
+
       - name: Build portable packages
+        env:
+          WINDOWS_LAUNCHER_EXE: ${{ github.workspace }}/build-artifacts/windows-launcher/fdv-bouldering-timer.exe
         run: |
           chmod +x scripts/build-portable-releases.sh
           scripts/build-portable-releases.sh "$GITHUB_REF_NAME"
@@ -28,6 +54,7 @@ jobs:
         run: |
           printf '%s\n' \
             "Portable packages include Node.js $NODE_VERSION LTS and do not require a system Node.js installation." \
+            "The Windows package includes fdv-bouldering-timer.exe and keeps start-timer-win.bat as a fallback launcher." \
             "" \
             "Choose the archive matching your operating system and CPU architecture." \
             "Linux packages target glibc distributions and do not support Alpine Linux/musl." \

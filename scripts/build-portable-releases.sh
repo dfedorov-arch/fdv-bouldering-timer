@@ -8,6 +8,8 @@ DIST_DIR=${DIST_DIR:-"$ROOT_DIR/dist"}
 WORK_DIR=$(mktemp -d)
 NODE_BASE_URL="https://nodejs.org/dist/v${NODE_VERSION}"
 
+node "$ROOT_DIR/serve-bouldering-timer.js" --generate-offline-audio
+
 cleanup() {
   rm -rf "$WORK_DIR"
 }
@@ -59,7 +61,7 @@ copy_common_files() {
   local target="$1"
   mkdir -p "$target"
   cp "$ROOT_DIR/LICENSE" "$ROOT_DIR/ReadMe.txt" "$ROOT_DIR/help.html" \
-    "$ROOT_DIR/index.html" "$ROOT_DIR/params.txt" \
+    "$ROOT_DIR/index.html" "$ROOT_DIR/offline-audio.js" "$ROOT_DIR/params.txt" \
     "$ROOT_DIR/serve-bouldering-timer.js" "$target/"
   cp -R "$ROOT_DIR/beeps" "$ROOT_DIR/fonts" "$ROOT_DIR/help-assets" "$target/"
   if [[ -f "$ROOT_DIR/compare-btimer-and-fdv-bouldering-timer.html" ]]; then
@@ -88,6 +90,13 @@ build_windows() {
 
   copy_common_files "$package"
   cp "$ROOT_DIR/start-timer-win.bat" "$ROOT_DIR/create-https-certificate.bat" "$package/"
+  if [[ -n "${WINDOWS_LAUNCHER_EXE:-}" ]]; then
+    if [[ ! -f "$WINDOWS_LAUNCHER_EXE" ]]; then
+      echo "Windows launcher was not found: $WINDOWS_LAUNCHER_EXE" >&2
+      exit 1
+    fi
+    cp "$WINDOWS_LAUNCHER_EXE" "$package/fdv-bouldering-timer.exe"
+  fi
   mkdir -p "$package/runtime/win"
   cp "$node_root/node.exe" "$package/runtime/win/node.exe"
   cp "$node_root/LICENSE" "$package/runtime/win/LICENSE-Node.txt"
