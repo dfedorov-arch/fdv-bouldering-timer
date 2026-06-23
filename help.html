@@ -58,6 +58,7 @@
     }
 
     .layout {
+      position: relative;
       display: grid;
       grid-template-columns: 270px minmax(0, 980px);
       justify-content: center;
@@ -127,6 +128,7 @@
     }
 
     .content {
+      position: relative;
       min-width: 0;
     }
 
@@ -643,8 +645,8 @@
     .help-language-toggle {
       position: fixed;
       z-index: 20;
-      top: 16px;
-      right: 16px;
+      top: 24px;
+      left: calc(50% + 661px);
       min-width: 46px;
       min-height: 36px;
       padding: 0 12px;
@@ -660,6 +662,13 @@
       line-height: 1;
       cursor: pointer;
       box-shadow: var(--shadow);
+    }
+
+    @media (max-width: 1500px) {
+      .help-language-toggle {
+        left: auto;
+        right: 24px;
+      }
     }
 
     #helpEn .hero {
