@@ -118,6 +118,7 @@ build_unix() {
   local package_name="fdv-bouldering-timer-${APP_VERSION}-${os}-${arch}"
   local package="$WORK_DIR/$package_name"
   local node_root
+  local gui_launcher=""
 
   archive=$(download_node "$archive_name")
   extract_tar_node "$archive" "$extracted"
@@ -125,6 +126,27 @@ build_unix() {
 
   copy_common_files "$package"
   cp "$ROOT_DIR/$launcher" "$ROOT_DIR/$certificate_script" "$package/"
+  case "${os}-${arch}" in
+    macos-arm64) gui_launcher="${MACOS_LAUNCHER_ARM64:-}" ;;
+    macos-x64) gui_launcher="${MACOS_LAUNCHER_X64:-}" ;;
+    linux-arm64) gui_launcher="${LINUX_LAUNCHER_ARM64:-}" ;;
+    linux-x64) gui_launcher="${LINUX_LAUNCHER_X64:-}" ;;
+  esac
+  if [[ -n "$gui_launcher" ]]; then
+    if [[ ! -e "$gui_launcher" ]]; then
+      echo "GUI launcher was not found: $gui_launcher" >&2
+      exit 1
+    fi
+    if [[ "$os" == "macos" && -d "$gui_launcher" ]]; then
+      cp -R "$gui_launcher" "$package/FDV Bouldering Timer.app"
+      chmod +x "$package/FDV Bouldering Timer.app/Contents/MacOS/fdv-bouldering-timer"
+      cp "$package/FDV Bouldering Timer.app/Contents/MacOS/fdv-bouldering-timer" "$package/fdv-bouldering-timer"
+      chmod +x "$package/fdv-bouldering-timer"
+    else
+      cp "$gui_launcher" "$package/fdv-bouldering-timer"
+      chmod +x "$package/fdv-bouldering-timer"
+    fi
+  fi
   mkdir -p "$package/runtime/$runtime_name/bin"
   cp "$node_root/bin/node" "$package/runtime/$runtime_name/bin/node"
   cp "$node_root/LICENSE" "$package/runtime/$runtime_name/LICENSE-Node.txt"

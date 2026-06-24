@@ -26,8 +26,55 @@ jobs:
           path: ${{ runner.temp }}\windows-launcher\fdv-bouldering-timer.exe
           if-no-files-found: error
 
+  unix-launchers:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-latest
+            rid: linux-x64
+            artifact: linux-launcher-x64
+            path: fdv-bouldering-timer
+          - runner: ubuntu-latest
+            rid: linux-arm64
+            artifact: linux-launcher-arm64
+            path: fdv-bouldering-timer
+          - runner: macos-13
+            rid: osx-x64
+            artifact: macos-launcher-x64
+            path: FDV Bouldering Timer.app
+          - runner: macos-latest
+            rid: osx-arm64
+            artifact: macos-launcher-arm64
+            path: FDV Bouldering Timer.app
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Build launcher
+        run: |
+          chmod +x launcher/unix/build-launcher.sh
+          launcher/unix/build-launcher.sh "${{ matrix.rid }}" "${{ runner.temp }}/unix-launcher"
+          mkdir -p "${{ runner.temp }}/launcher-artifact"
+          cp -R "${{ runner.temp }}/unix-launcher/${{ matrix.path }}" "${{ runner.temp }}/launcher-artifact/"
+
+      - name: Upload launcher
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: ${{ runner.temp }}/launcher-artifact
+          if-no-files-found: error
+
   release:
-    needs: windows-launcher
+    needs:
+      - windows-launcher
+      - unix-launchers
     runs-on: ubuntu-latest
     env:
       NODE_VERSION: "24.17.0"
@@ -41,9 +88,37 @@ jobs:
           name: windows-launcher
           path: build-artifacts/windows-launcher
 
+      - name: Download Linux x64 launcher
+        uses: actions/download-artifact@v4
+        with:
+          name: linux-launcher-x64
+          path: build-artifacts/linux-launcher-x64
+
+      - name: Download Linux arm64 launcher
+        uses: actions/download-artifact@v4
+        with:
+          name: linux-launcher-arm64
+          path: build-artifacts/linux-launcher-arm64
+
+      - name: Download macOS x64 launcher
+        uses: actions/download-artifact@v4
+        with:
+          name: macos-launcher-x64
+          path: build-artifacts/macos-launcher-x64
+
+      - name: Download macOS arm64 launcher
+        uses: actions/download-artifact@v4
+        with:
+          name: macos-launcher-arm64
+          path: build-artifacts/macos-launcher-arm64
+
       - name: Build portable packages
         env:
           WINDOWS_LAUNCHER_EXE: ${{ github.workspace }}/build-artifacts/windows-launcher/fdv-bouldering-timer.exe
+          LINUX_LAUNCHER_X64: ${{ github.workspace }}/build-artifacts/linux-launcher-x64/fdv-bouldering-timer
+          LINUX_LAUNCHER_ARM64: ${{ github.workspace }}/build-artifacts/linux-launcher-arm64/fdv-bouldering-timer
+          MACOS_LAUNCHER_X64: ${{ github.workspace }}/build-artifacts/macos-launcher-x64/FDV Bouldering Timer.app
+          MACOS_LAUNCHER_ARM64: ${{ github.workspace }}/build-artifacts/macos-launcher-arm64/FDV Bouldering Timer.app
         run: |
           chmod +x scripts/build-portable-releases.sh
           scripts/build-portable-releases.sh "$GITHUB_REF_NAME"
@@ -55,6 +130,8 @@ jobs:
           printf '%s\n' \
             "Portable packages include Node.js $NODE_VERSION LTS and do not require a system Node.js installation." \
             "The Windows package includes fdv-bouldering-timer.exe and keeps start-timer-win.bat as a fallback launcher." \
+            "The macOS packages include FDV Bouldering Timer.app, fdv-bouldering-timer, and keep start-timer-mac.command as a fallback launcher." \
+            "The Linux packages include fdv-bouldering-timer and keep start-timer-linux.sh as a fallback launcher." \
             "" \
             "Choose the archive matching your operating system and CPU architecture." \
             "Linux packages target glibc distributions and do not support Alpine Linux/musl." \
