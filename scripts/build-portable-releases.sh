@@ -144,6 +144,7 @@ build_unix() {
 #!/usr/bin/env bash
 set -euo pipefail
 cd "$(dirname "$0")"
+export FDV_TIMER_BASE_DIR="$PWD"
 exec "./FDV Bouldering Timer.app/Contents/MacOS/fdv-bouldering-timer" "$@"
 SH
       chmod +x "$package/fdv-bouldering-timer"

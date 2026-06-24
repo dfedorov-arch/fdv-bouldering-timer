@@ -152,6 +152,14 @@ internal sealed class LauncherWindow : Window
 
     private static string DetectBaseDirectory()
     {
+        var configuredBaseDirectory = Environment.GetEnvironmentVariable("FDV_TIMER_BASE_DIR");
+        if (!string.IsNullOrWhiteSpace(configuredBaseDirectory) &&
+            Directory.Exists(configuredBaseDirectory) &&
+            File.Exists(Path.Combine(configuredBaseDirectory, "serve-bouldering-timer.js")))
+        {
+            return Path.GetFullPath(configuredBaseDirectory);
+        }
+
         var directory = new DirectoryInfo(AppContext.BaseDirectory);
         var contentsDirectory = directory.Parent;
         var appDirectory = contentsDirectory?.Parent;
@@ -307,14 +315,14 @@ internal sealed class LauncherWindow : Window
         var nodePath = FindNodeExecutable();
         if (nodePath == null)
         {
-            SetError("Node.js was not found. Check portable_node_mac/portable_node_linux in params.txt or install Node.js LTS.");
+            SetError(NodeNotFoundMessage());
             return;
         }
 
         var serverScript = Path.Combine(_baseDirectory, "serve-bouldering-timer.js");
         if (!File.Exists(serverScript))
         {
-            SetError("serve-bouldering-timer.js was not found next to the launcher.");
+            SetError(ServerScriptNotFoundMessage());
             return;
         }
 
@@ -347,6 +355,30 @@ internal sealed class LauncherWindow : Window
         {
             SetError("Unable to start server: " + error.Message);
         }
+    }
+
+    private string NodeNotFoundMessage()
+    {
+        if (IsProbablyTranslocatedMacApp())
+        {
+            return "Node.js was not found because macOS started the app from a temporary translocated folder. Start fdv-bouldering-timer from the archive folder instead, or remove quarantine from the extracted folder.";
+        }
+        return "Node.js was not found. Check portable_node_mac/portable_node_linux in params.txt or install Node.js LTS.";
+    }
+
+    private string ServerScriptNotFoundMessage()
+    {
+        if (IsProbablyTranslocatedMacApp())
+        {
+            return "serve-bouldering-timer.js was not found because macOS started the app from a temporary translocated folder. Start fdv-bouldering-timer from the archive folder instead, or remove quarantine from the extracted folder.";
+        }
+        return "serve-bouldering-timer.js was not found next to the launcher.";
+    }
+
+    private static bool IsProbablyTranslocatedMacApp()
+    {
+        return RuntimeInformation.IsOSPlatform(OSPlatform.OSX) &&
+            AppContext.BaseDirectory.Contains("/AppTranslocation/", StringComparison.OrdinalIgnoreCase);
     }
 
     private async void CheckServerReady(object? sender, EventArgs args)
