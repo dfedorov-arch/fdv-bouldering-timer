@@ -13,6 +13,7 @@ using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
+using Avalonia.Controls.Primitives;
 using Avalonia.Input.Platform;
 using Avalonia.Layout;
 using Avalonia.Logging;
@@ -152,13 +153,15 @@ internal sealed class LauncherWindow : Window
     private static string DetectBaseDirectory()
     {
         var directory = new DirectoryInfo(AppContext.BaseDirectory);
+        var contentsDirectory = directory.Parent;
+        var appDirectory = contentsDirectory?.Parent;
         if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX) &&
             string.Equals(directory.Name, "MacOS", StringComparison.Ordinal) &&
-            string.Equals(directory.Parent?.Name, "Contents", StringComparison.Ordinal) &&
-            string.Equals(directory.Parent.Parent?.Extension, ".app", StringComparison.OrdinalIgnoreCase) &&
-            directory.Parent.Parent.Parent != null)
+            string.Equals(contentsDirectory?.Name, "Contents", StringComparison.Ordinal) &&
+            string.Equals(appDirectory?.Extension, ".app", StringComparison.OrdinalIgnoreCase) &&
+            appDirectory.Parent != null)
         {
-            return directory.Parent.Parent.Parent.FullName;
+            return appDirectory.Parent.FullName;
         }
         return directory.FullName;
     }
@@ -223,7 +226,7 @@ internal sealed class LauncherWindow : Window
         _log.Foreground = Brush(190, 200, 214);
         _log.FontFamily = new FontFamily("Consolas, monospace");
         _log.FontSize = 12;
-        _log.VerticalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Auto;
+        _log.SetValue(ScrollViewer.VerticalScrollBarVisibilityProperty, ScrollBarVisibility.Auto);
         Grid.SetRow(_log, 1);
         logPanel.Children.Add(_log);
         Grid.SetRow(logPanel, 4);
