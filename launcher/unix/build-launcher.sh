@@ -33,6 +33,8 @@ dotnet publish "$SCRIPT_DIR/FdvBoulderingTimer.Launcher.csproj" \
   /p:PublishTrimmed=false
 
 chmod +x "$PUBLISH_DIR/fdv-bouldering-timer"
+cp "$PUBLISH_DIR/fdv-bouldering-timer" "$OUTPUT_DIR/fdv-bouldering-timer"
+chmod +x "$OUTPUT_DIR/fdv-bouldering-timer"
 
 if [[ "$RID" == osx-* ]]; then
   APP_DIR="$OUTPUT_DIR/FDV Bouldering Timer.app"

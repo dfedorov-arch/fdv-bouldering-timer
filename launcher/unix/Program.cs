@@ -159,9 +159,9 @@ internal sealed class LauncherWindow : Window
             string.Equals(directory.Name, "MacOS", StringComparison.Ordinal) &&
             string.Equals(contentsDirectory?.Name, "Contents", StringComparison.Ordinal) &&
             string.Equals(appDirectory?.Extension, ".app", StringComparison.OrdinalIgnoreCase) &&
-            appDirectory.Parent != null)
+            appDirectory is { Parent: not null } detectedAppDirectory)
         {
-            return appDirectory.Parent.FullName;
+            return detectedAppDirectory.Parent.FullName;
         }
         return directory.FullName;
     }
