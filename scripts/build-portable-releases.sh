@@ -140,10 +140,18 @@ build_unix() {
     if [[ "$os" == "macos" && -d "$gui_launcher" ]]; then
       cp -R "$gui_launcher" "$package/FDV Bouldering Timer.app"
       chmod +x "$package/FDV Bouldering Timer.app/Contents/MacOS/fdv-bouldering-timer"
-      cp "$package/FDV Bouldering Timer.app/Contents/MacOS/fdv-bouldering-timer" "$package/fdv-bouldering-timer"
+      cat > "$package/fdv-bouldering-timer" <<'SH'
+#!/usr/bin/env bash
+set -euo pipefail
+cd "$(dirname "$0")"
+exec "./FDV Bouldering Timer.app/Contents/MacOS/fdv-bouldering-timer" "$@"
+SH
       chmod +x "$package/fdv-bouldering-timer"
     else
       cp "$gui_launcher" "$package/fdv-bouldering-timer"
+      local gui_launcher_dir
+      gui_launcher_dir=$(dirname "$gui_launcher")
+      find "$gui_launcher_dir" -maxdepth 1 -type f \( -name '*.so' -o -name '*.dylib' -o -name '*.json' \) -exec cp {} "$package/" \;
       chmod +x "$package/fdv-bouldering-timer"
     fi
   fi

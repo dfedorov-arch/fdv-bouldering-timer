@@ -62,7 +62,7 @@ jobs:
           chmod +x launcher/unix/build-launcher.sh
           launcher/unix/build-launcher.sh "${{ matrix.rid }}" "${{ runner.temp }}/unix-launcher"
           mkdir -p "${{ runner.temp }}/launcher-artifact"
-          cp -R "${{ runner.temp }}/unix-launcher/${{ matrix.path }}" "${{ runner.temp }}/launcher-artifact/"
+          cp -R "${{ runner.temp }}/unix-launcher"/. "${{ runner.temp }}/launcher-artifact/"
 
       - name: Upload launcher
         uses: actions/upload-artifact@v4
