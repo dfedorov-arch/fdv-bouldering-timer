@@ -39,7 +39,7 @@ jobs:
             rid: linux-arm64
             artifact: linux-launcher-arm64
             path: fdv-bouldering-timer
-          - runner: macos-13
+          - runner: macos-latest
             rid: osx-x64
             artifact: macos-launcher-x64
             path: FDV Bouldering Timer.app
