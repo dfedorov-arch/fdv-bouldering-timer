@@ -1560,6 +1560,7 @@
     let lastBurstSyncAt = 0;
     let lastDisplayTimeLabel = "";
     let lastPhaseSignalKey = "";
+    let lastBeforeScheduledStart = null;
     let scheduledPhaseSignalKeys = new Set();
     let lastKnownClients = [];
     const standaloneClientFirstSeen = Date.now();
@@ -3376,6 +3377,7 @@
       const settings = activeSettings();
       const isReady = !state.running && !state.completed && state.elapsedBeforePause === 0;
       syncAudioTestButtons();
+      syncButtonsWhenScheduledStartStateChanges();
       document.body.classList.remove("warning-active");
       document.body.classList.toggle("scrub-ready", !state.running && !isViewerClient && !isReady);
 
@@ -3504,6 +3506,13 @@
 
     function shouldDisableAudioTestButtons() {
       return !controlsAvailable() || (state.running && !isBeforeScheduledStart());
+    }
+
+    function syncButtonsWhenScheduledStartStateChanges() {
+      const beforeScheduledStart = isBeforeScheduledStart();
+      if (beforeScheduledStart === lastBeforeScheduledStart) return;
+      lastBeforeScheduledStart = beforeScheduledStart;
+      syncButtons();
     }
 
     function syncAudioTestButtons() {
