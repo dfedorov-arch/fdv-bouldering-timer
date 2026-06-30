@@ -389,6 +389,15 @@ function displayAddressForClient(address = "") {
     : clean;
 }
 
+function hostAddressFromHeader(hostHeader = "") {
+  const host = String(hostHeader).trim();
+  if (!host) return "";
+  if (host.startsWith("[")) {
+    const bracketIndex = host.indexOf("]");
+    return cleanAddress(bracketIndex >= 0 ? host.slice(0, bracketIndex + 1) : host);
+  }
+  return cleanAddress(host.replace(/:\d+$/, ""));
+}
 function registerClient(req, source = {}) {
   const id = sourceValue(source, "clientId") || req.headers["x-client-id"];
   if (!id) return null;
@@ -398,6 +407,7 @@ function registerClient(req, source = {}) {
   const latency = optionalNumber(sourceValue(source, "latency"), existing.latency ?? null);
   const syncError = optionalNumber(sourceValue(source, "syncError"), existing.syncError ?? null);
   const usesFallbackSync = syncError === null && Number.isFinite(latency);
+  const connectionAddress = hostAddressFromHeader(req.headers.host || "");
   clients.set(id, {
     id,
     firstSeen: existing.firstSeen || now,
@@ -407,6 +417,7 @@ function registerClient(req, source = {}) {
     userAgent,
     address: req.socket.remoteAddress || "",
     displayAddress: displayAddressForClient(req.socket.remoteAddress || ""),
+    connectionAddress: connectionAddress || existing.connectionAddress || "",
     computerKey: computerKeyForAddress(req.socket.remoteAddress || ""),
     protocol: req.socket.encrypted ? "HTTPS" : "HTTP",
     lastSeen: now,

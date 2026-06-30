@@ -1569,6 +1569,7 @@
     let pageHiddenAt = 0;
     let suppressPhaseSignalsUntil = 0;
     let syncRequestInFlight = false;
+    let syncRequestGeneration = 0;
     let syncQuality = { latency: null, offset: null, error: null, jitter: null, samples: 0 };
     let syncSamples = [];
     let lastBurstSyncAt = 0;
@@ -1862,6 +1863,17 @@
       serverPerfAnchor = localNow;
       serverTimeAnchor = adjustedServerNow;
       serverPerfOffset = adjustedServerNow - localNow;
+    }
+
+    function resetServerClockModel() {
+      const localNow = performance.now();
+      const dateNow = Date.now();
+      syncSamples = [];
+      serverClockRate = 1;
+      serverPerfAnchor = localNow;
+      serverTimeAnchor = dateNow;
+      serverPerfOffset = dateNow - localNow;
+      syncQuality = { latency: null, offset: null, error: null, jitter: null, samples: 0, rate: 1 };
     }
 
     function updateServerTiming(remote, timing = {}) {
@@ -2508,6 +2520,7 @@
     async function syncFromServer(options = {}) {
       if (syncRequestInFlight) return false;
       syncRequestInFlight = true;
+      const requestGeneration = syncRequestGeneration;
       const controller = new AbortController();
       const timeout = window.setTimeout(() => controller.abort(), syncRequestTimeoutMs);
       try {
@@ -2524,6 +2537,7 @@
         timing.perf1 = performance.now();
         if (!response.ok) throw new Error("Server state failed");
         const remote = await response.json();
+        if (requestGeneration !== syncRequestGeneration) return false;
         markServerContact();
         if (standaloneMode) {
           pendingServerState = remote;
@@ -2553,7 +2567,7 @@
         return false;
       } finally {
         window.clearTimeout(timeout);
-        syncRequestInFlight = false;
+        if (requestGeneration === syncRequestGeneration) syncRequestInFlight = false;
       }
     }
 
@@ -2645,6 +2659,9 @@
       const resetStaleSignals = Boolean(options.resetStaleSignals);
       if (resetStaleSignals) {
         clearSignalTimers(false, true);
+        resetServerClockModel();
+        syncRequestGeneration += 1;
+        syncRequestInFlight = false;
         lastSegmentIndex = -1;
         suppressPhaseSignalsUntil = now + 2500;
       }
@@ -2806,12 +2823,17 @@
         const isPrimary = client.id === state.primaryClientId;
         const standaloneSelf = standaloneMode && client.id === clientId;
         const clientIp = clientAddress(client.address);
-        const linkIp = clientAddress(client.displayAddress || client.address);
+        const serverIp = clientAddress(client.displayAddress || client.address);
+        const connectionIp = clientAddress(client.connectionAddress || "");
+        const displayIp = isPrimary ? serverIp : clientIp;
+        const detailIp = isPrimary
+          ? (clientIp && clientIp !== displayIp ? clientIp : "")
+          : (connectionIp && connectionIp !== displayIp ? connectionIp : "");
         const clientPrefix = isPrimary ? `${t("thisBrowser")}, IP: ` : "IP: ";
-        const copyUrl = isPrimary ? browserLink(linkIp, clients) : "";
+        const copyUrl = isPrimary ? browserLink(serverIp, clients) : "";
         const displayIpHtml = isPrimary
-          ? `<button type="button" class="browser-address-copy" data-copy-browser-url="${escapeHtml(copyUrl)}" title="${escapeHtml(`${t("copyLink")}: ${copyUrl}`)}">${escapeHtml(clientIp)}</button><span class="browser-copy-feedback" aria-live="polite"></span>`
-          : escapeHtml(clientIp);
+          ? `<button type="button" class="browser-address-copy" data-copy-browser-url="${escapeHtml(copyUrl)}" title="${escapeHtml(`${t("copyLink")}: ${copyUrl}`)}">${escapeHtml(displayIp)}</button><span class="browser-copy-feedback" aria-live="polite"></span>`
+          : escapeHtml(displayIp);
         const classes = ["browser-item"];
         const clientConnected = standaloneSelf || (serverAvailable && client.connected);
         if (!clientConnected) classes.push("offline");
@@ -2873,7 +2895,7 @@
           client.displayStatus,
           client.role === "Основной" ? t("primary") : client.role === "Экран" ? t("screen") : client.role,
           client.protocol,
-          clientAddress(client.address),
+          detailIp,
           `${Math.round((client.age || 0) / 1000)}${t("sec")}`
         ].filter(Boolean).map(escapeHtml).join(" · ");
         const metaTitle = standaloneSelf ? title : language === "ru"
