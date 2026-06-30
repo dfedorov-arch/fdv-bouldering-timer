@@ -24,11 +24,11 @@
 
 1. Откройте раздел [Releases](https://github.com/dfedorov-arch/fdv-bouldering-timer/releases/latest) и скачайте архив для своей системы и архитектуры.
 2. Распакуйте архив целиком.
-3. В Windows запустите `fdv-bouldering-timer.exe` (`start-timer-win.bat` остаётся резервным способом). В macOS запустите `start-timer-mac.command`, в Linux — `start-timer-linux.sh`.
+3. Запустите приложение сервера: в Windows `fdv-bouldering-timer.exe`, в macOS `FDV Bouldering Timer.app` или `fdv-bouldering-timer`, в Linux `fdv-bouldering-timer`. Скрипты `start-timer-*` остаются резервным способом.
 4. На компьютере сервера откройте `http://127.0.0.1:8008/`.
 5. На остальных экранах откройте сетевой адрес, показанный при запуске, например `http://192.168.1.68:8008/`.
 
-Все устройства должны находиться в одной локальной сети. В Windows разрешите Node.js доступ к частной сети. В macOS при первом запуске может потребоваться открыть файл через контекстное меню **Открыть**.
+Все устройства должны находиться в одной локальной сети. В Windows разрешите Node.js доступ к частной сети. В macOS при первом запуске может потребоваться открыть приложение через контекстное меню **Открыть**. В Linux для иконки в меню приложений выполните `./install-linux-launcher.sh` один раз.
 
 Подробная первоначальная настройка, перенос на другой компьютер, HTTPS и диагностика описаны в [краткой инструкции](ReadMe.txt) и [полном руководстве](help.html).
 
@@ -84,10 +84,10 @@ FDV Bouldering Timer is a networked competition timer. One computer controls the
 
 1. Open [Releases](https://github.com/dfedorov-arch/fdv-bouldering-timer/releases/latest) and download the archive for your operating system and architecture.
 2. Extract the complete archive.
-3. On Windows run `fdv-bouldering-timer.exe` (`start-timer-win.bat` remains available as a fallback). On macOS run `start-timer-mac.command`; on Linux run `start-timer-linux.sh`.
+3. Run the server app: `fdv-bouldering-timer.exe` on Windows, `FDV Bouldering Timer.app` or `fdv-bouldering-timer` on macOS, and `fdv-bouldering-timer` on Linux. The `start-timer-*` scripts remain available as fallbacks.
 4. Open `http://127.0.0.1:8008/` on the server computer.
 5. Open the network address printed by the launcher on other displays, for example `http://192.168.1.68:8008/`.
 
-All devices must be connected to the same local network. See the [quick-start guide](ReadMe.txt) and the [full user guide](help.html?lang=en) for setup, migration, HTTPS, and troubleshooting.
+All devices must be connected to the same local network. On Linux, run `./install-linux-launcher.sh` once to add the app-menu icon. See the [quick-start guide](ReadMe.txt) and the [full user guide](help.html?lang=en) for setup, migration, HTTPS, and troubleshooting.
 
 The project is available under the [MIT License](LICENSE).

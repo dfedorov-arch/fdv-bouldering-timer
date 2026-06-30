@@ -18,6 +18,7 @@ using Avalonia.Input.Platform;
 using Avalonia.Layout;
 using Avalonia.Logging;
 using Avalonia.Media;
+using Avalonia.Styling;
 using Avalonia.Threading;
 using Avalonia.Themes.Fluent;
 
@@ -43,6 +44,7 @@ internal sealed class LauncherApp : Application
 {
     public override void Initialize()
     {
+        RequestedThemeVariant = ThemeVariant.Dark;
         Styles.Add(new FluentTheme());
     }
 
@@ -134,6 +136,7 @@ internal sealed class LauncherWindow : Window
         _hasHttps = HasHttpsCertificate();
 
         Title = "FDV Bouldering Timer";
+        SetLauncherIcon();
         Width = 660;
         Height = 540;
         MinWidth = 560;
@@ -174,6 +177,28 @@ internal sealed class LauncherWindow : Window
         return directory.FullName;
     }
 
+    private void SetLauncherIcon()
+    {
+        foreach (var iconPath in new[]
+        {
+            Path.Combine(AppContext.BaseDirectory, "timer-launcher.png"),
+            Path.Combine(_baseDirectory, "timer-launcher.png")
+        })
+        {
+            try
+            {
+                if (File.Exists(iconPath))
+                {
+                    Icon = new WindowIcon(iconPath);
+                    return;
+                }
+            }
+            catch
+            {
+            }
+        }
+    }
+
     private Control BuildLayout()
     {
         var root = new Grid
@@ -211,6 +236,10 @@ internal sealed class LauncherWindow : Window
             Orientation = Orientation.Horizontal,
             Spacing = 8
         };
+        ConfigureButton(_openButton, 96);
+        ConfigureButton(_copyButton, 88);
+        ConfigureButton(_restartButton, 120);
+        ConfigureButton(_stopButton, 112);
         _openButton.Click += (_, _) => OpenSelectedAddress();
         _copyButton.Click += async (_, _) => await CopySelectedAddress();
         _restartButton.Click += (_, _) => StartServer(false);
@@ -250,6 +279,19 @@ internal sealed class LauncherWindow : Window
         root.Children.Add(hint);
 
         return root;
+    }
+
+    private static void ConfigureButton(Button button, double minWidth)
+    {
+        button.MinWidth = minWidth;
+        button.MinHeight = 32;
+        button.Padding = new Thickness(12, 6);
+        button.Background = Brush(31, 42, 58);
+        button.Foreground = Brush(244, 247, 251);
+        button.BorderBrush = Brush(70, 85, 108);
+        button.BorderThickness = new Thickness(1);
+        button.HorizontalContentAlignment = HorizontalAlignment.Center;
+        button.VerticalContentAlignment = VerticalAlignment.Center;
     }
 
     private bool HasHttpsCertificate()

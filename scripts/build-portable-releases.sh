@@ -60,7 +60,7 @@ download_node() {
 copy_common_files() {
   local target="$1"
   mkdir -p "$target"
-  cp "$ROOT_DIR/LICENSE" "$ROOT_DIR/ReadMe.txt" "$ROOT_DIR/help.html" \
+  cp "$ROOT_DIR/LICENSE" "$ROOT_DIR/help.html" \
     "$ROOT_DIR/index.html" "$ROOT_DIR/offline-audio.js" "$ROOT_DIR/params.txt" \
     "$ROOT_DIR/serve-bouldering-timer.js" "$target/"
   cp -R "$ROOT_DIR/beeps" "$ROOT_DIR/fonts" "$ROOT_DIR/help-assets" "$target/"
@@ -89,6 +89,7 @@ build_windows() {
   local node_root="$extracted/node-v${NODE_VERSION}-win-x64"
 
   copy_common_files "$package"
+  cp "$ROOT_DIR/ReadMe-windows.txt" "$package/ReadMe.txt"
   cp "$ROOT_DIR/start-timer-win.bat" "$ROOT_DIR/create-https-certificate.bat" "$package/"
   if [[ -n "${WINDOWS_LAUNCHER_EXE:-}" ]]; then
     if [[ ! -f "$WINDOWS_LAUNCHER_EXE" ]]; then
@@ -125,6 +126,10 @@ build_unix() {
   node_root="$extracted/node-v${NODE_VERSION}-${node_platform}-${arch}"
 
   copy_common_files "$package"
+  case "$os" in
+    macos) cp "$ROOT_DIR/ReadMe-macos.txt" "$package/ReadMe.txt" ;;
+    linux) cp "$ROOT_DIR/ReadMe-linux.txt" "$package/ReadMe.txt" ;;
+  esac
   cp "$ROOT_DIR/$launcher" "$ROOT_DIR/$certificate_script" "$package/"
   case "${os}-${arch}" in
     macos-arm64) gui_launcher="${MACOS_LAUNCHER_ARM64:-}" ;;
@@ -152,7 +157,7 @@ SH
       cp "$gui_launcher" "$package/fdv-bouldering-timer"
       local gui_launcher_dir
       gui_launcher_dir=$(dirname "$gui_launcher")
-      find "$gui_launcher_dir" -maxdepth 1 -type f \( -name '*.so' -o -name '*.dylib' -o -name '*.json' \) -exec cp {} "$package/" \;
+      find "$gui_launcher_dir" -maxdepth 1 -type f \( -name '*.so' -o -name '*.dylib' -o -name '*.json' -o -name '*.png' -o -name '*.desktop' -o -name '*.sh' \) -exec cp {} "$package/" \;
       chmod +x "$package/fdv-bouldering-timer"
     fi
   fi

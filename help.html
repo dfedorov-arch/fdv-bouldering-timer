@@ -383,6 +383,19 @@
       margin: 24px 0 0;
     }
 
+    .inline-app-name {
+      display: inline-flex;
+      align-items: center;
+      white-space: nowrap;
+    }
+
+    .inline-app-icon {
+      width: 1.2em;
+      height: 1.2em;
+      margin-right: .35em;
+      vertical-align: -.22em;
+      border-radius: 4px;
+    }
     figure img {
       display: block;
       width: 100%;
@@ -774,7 +787,7 @@
           <article class="step">
             <span class="step-number">1</span>
             <strong>Запустите сервер</strong>
-            <p><code>fdv-bouldering-timer.exe</code> на Windows, <code>start-timer-mac.command</code> на macOS или <code>start-timer-linux.sh</code> на Linux. Windows BAT-файл остаётся резервным вариантом.</p>
+            <p>В portable-релизе запустите приложение сервера из распакованной папки. Для Windows: <span class="inline-app-name"><img class="inline-app-icon" src="help-assets/timer-launcher.png" alt=""><code>fdv-bouldering-timer.exe</code></span></p>
           </article>
           <article class="step">
             <span class="step-number">2</span>
@@ -797,6 +810,10 @@
           <li>Для немедленного запуска нажмите «Старт» или <kbd>Z</kbd> / <kbd>Я</kbd>.</li>
           <li>Для старта по часам задайте время и нажмите маленькую кнопку <strong>▶</strong> рядом с заголовком «Время начала старта».</li>
         </ol>
+        <figure>
+          <img src="help-assets/server-launcher-linux.png" alt="Окно приложения сервера FDV Bouldering Timer">
+          <figcaption>Приложение сервера показывает локальный и сетевые адреса, запускает Node.js-сервер и даёт быстрые команды открытия, копирования ссылки, перезапуска и остановки.</figcaption>
+        </figure>
         <div class="success"><strong>Готовая ссылка:</strong> IP основного браузера в списке «Браузеры» кликабелен. Нажатие копирует адрес с тем же протоколом HTTP/HTTPS и правильным портом.</div>
         <a class="back-to-toc" href="#contents">↑ К оглавлению</a>
       </section>
@@ -1081,30 +1098,34 @@
         </ol>
         <p>Параметры <code>portable_node_win</code>, <code>portable_node_mac</code> и <code>portable_node_linux</code> могут содержать относительный путь от папки таймера или абсолютный путь. Скрипт запуска сначала проверяет настроенный portable Node.js, а если файл не найден, пробует системную команду <code>node</code>. Краткие инструкции также находятся в каталогах <code>runtime/win</code>, <code>runtime/mac</code> и <code>runtime/linux</code>.</p>
 
+        <figure>
+          <img src="help-assets/server-launcher-linux.png" alt="Окно приложения сервера FDV Bouldering Timer в Linux">
+          <figcaption>Окно приложения сервера одинаково по смыслу на Windows, macOS и Linux: адреса таймера, состояние сервера, открытие, копирование, перезапуск и остановка.</figcaption>
+        </figure>
+
         <div id="windows" class="platform">
           <h3>8.3. Первый запуск на Windows</h3>
           <ol>
             <li>При необходимости проверьте порты и начальные значения в <code>params.txt</code>.</li>
-            <li>Дважды щёлкните <code>fdv-bouldering-timer.exe</code>. В portable-релизе он находится рядом с файлами таймера.</li>
-            <li>EXE покажет локальные и сетевые адреса, запустит сервер и откроет браузер. Закрытие окна сворачивает запускатель в область уведомлений; команда <strong>Stop and exit</strong> останавливает сервер.</li>
-            <li>Если EXE отсутствует или не запускается, используйте резервный <code>start-timer-win.bat</code>.</li>
+            <li>Дважды щёлкните <span class="inline-app-name"><img class="inline-app-icon" src="help-assets/timer-launcher.png" alt=""><code>fdv-bouldering-timer.exe</code>. В portable-релизе он находится рядом с файлами таймера.</li>
+            <li>Приложение сервера покажет локальные и сетевые адреса, запустит сервер и откроет браузер. Закрытие окна сворачивает приложение в область уведомлений; команда <strong>Stop and exit</strong> останавливает сервер.</li>
+            <li>Если <code>fdv-bouldering-timer.exe</code> отсутствует или не запускается, используйте резервный <code>start-timer-win.bat</code>.</li>
             <li>Если Windows Firewall запросит доступ для Node.js, разрешите его для частных сетей.</li>
-            <li>Откроется <code>http://127.0.0.1:8008/</code>, а окно запуска покажет адреса Wi-Fi и Ethernet.</li>
-            <li>Не закрывайте минимизированное окно сервера «Bouldering Timer Server» во время соревнования.</li>
           </ol>
-          <p class="warning"><strong>Порты:</strong> штатный скрипт перед запуском останавливает процессы, слушающие HTTP- и HTTPS-порты из <code>params.txt</code>. Не назначайте эти порты другому важному приложению.</p>
+          <p class="warning"><strong>Порты:</strong> штатный запуск перед стартом останавливает процессы, слушающие HTTP- и HTTPS-порты из <code>params.txt</code>. Не назначайте эти порты другому важному приложению.</p>
         </div>
 
         <div id="macos" class="platform">
           <h3>8.4. Первый запуск на macOS</h3>
           <ol>
             <li>При необходимости проверьте <code>params.txt</code>.</li>
-            <li>Дважды щёлкните <code>start-timer-mac.command</code>.</li>
-            <li>Откроется Terminal, затем локальная страница таймера. В Terminal будут напечатаны сетевые адреса.</li>
-            <li>Оставьте окно Terminal открытым. Для остановки сервера нажмите <kbd>Ctrl+C</kbd>.</li>
+            <li>В portable-релизе запустите <code>FDV Bouldering Timer.app</code> или файл <code>fdv-bouldering-timer</code> рядом с ним. Откроется окно приложения сервера.</li>
+            <li>Приложение покажет локальный и сетевые адреса, запустит сервер и откроет браузер.</li>
+            <li>Закрытие окна останавливает сервер. Используйте <strong>Restart server</strong> после изменения портов или настроек Node.js.</li>
+            <li>Если приложение недоступно, используйте резервный <code>start-timer-mac.command</code>; Terminal нужно держать открытым, остановка — <kbd>Ctrl+C</kbd>.</li>
           </ol>
-          <p>Если macOS сообщает, что разработчик не подтверждён, щёлкните файл правой кнопкой и выберите «Открыть». Если появляется «Permission denied», выполните в Terminal из папки проекта:</p>
-          <p><code>chmod +x start-timer-mac.command create-https-certificate-mac.command</code></p>
+          <p>Если macOS сообщает, что разработчик не подтверждён, щёлкните приложение или скрипт правой кнопкой и выберите «Открыть». Если появляется «Permission denied», выполните в Terminal из папки проекта:</p>
+          <p><code>chmod +x fdv-bouldering-timer start-timer-mac.command create-https-certificate-mac.command</code></p>
           <p>Для portable Node.js выбирайте сборку своей архитектуры: <code>arm64</code> для Apple Silicon или <code>x64</code> для Intel.</p>
         </div>
 
@@ -1112,10 +1133,12 @@
           <h3>8.5. Первый запуск на Linux</h3>
           <ol>
             <li>Распакуйте архив и откройте Terminal в папке таймера.</li>
-            <li>При необходимости выполните <code>chmod +x start-timer-linux.sh create-https-certificate-linux.sh</code>.</li>
-            <li>Запустите <code>./start-timer-linux.sh</code>.</li>
-            <li>Оставьте Terminal открытым. Для остановки сервера нажмите <kbd>Ctrl+C</kbd>.</li>
+            <li>При необходимости выполните <code>chmod +x fdv-bouldering-timer install-linux-launcher.sh start-timer-linux.sh create-https-certificate-linux.sh</code>.</li>
+            <li>Запустите <code>./fdv-bouldering-timer</code>. Откроется окно приложения сервера с адресами и журналом.</li>
+            <li>Чтобы приложение появилось в меню Ubuntu/GNOME с иконкой, один раз выполните <code>./install-linux-launcher.sh</code>, затем запускайте <strong>FDV Bouldering Timer</strong> из меню приложений и при необходимости закрепите его в Dock.</li>
+            <li>Закрытие окна приложения останавливает сервер. Если GUI-запуск недоступен, используйте резервный <code>./start-timer-linux.sh</code> и держите Terminal открытым; остановка — <kbd>Ctrl+C</kbd>.</li>
           </ol>
+          <p>В Linux обычный исполняемый файл в файловом менеджере может отображаться стандартной шестерёнкой. Иконку для меню приложений и Dock задаёт установленный <code>.desktop</code>-ярлык, который создаёт <code>install-linux-launcher.sh</code>.</p>
           <p>Portable-релизы Linux выпускаются отдельно для <code>x64</code> и <code>arm64</code>. Официальные сборки Node.js рассчитаны на glibc-дистрибутивы, включая Ubuntu, Debian и Fedora. Для Alpine Linux/musl требуется совместимая сборка Node.js.</p>
         </div>
 
@@ -1215,8 +1238,8 @@
             <div>Это ожидаемо: сервер доступен только в локальной сети. Локальный отсчёт продолжится, но «Пауза» и «Сброс» будут получены только после возвращения к Wi-Fi.</div>
           </details>
           <details>
-            <summary>Изменения интерфейса не появились</summary>
-            <div>Перезагрузите страницу с очисткой кэша: <kbd>Command+Shift+R</kbd> на macOS или <kbd>Ctrl+Shift+R</kbd> на Windows. После изменения <code>serve-bouldering-timer.js</code> перезапустите сервер.</div>
+            <summary>Вы случайно закрыли вкладку с основным браузером</summary>
+            <div>Откройте таймер в новой вкладке. Сначала она будет показывать только таймер, но сочетание <kbd>Ctrl+M</kbd> сделает её основной и вернёт элементы управления. На ход таймера, звук и остальные открытые экраны это не повлияет.</div>
           </details>
           <details>
             <summary>Порт уже занят</summary>
@@ -1297,7 +1320,7 @@
         <h2>Quick start</h2>
         <p class="lead">The shortest path to one controlling browser and several synchronized displays.</p>
         <div class="steps">
-          <article class="step"><span class="step-number">1</span><strong>Start the server</strong><p>Run <code>fdv-bouldering-timer.exe</code> on Windows, <code>start-timer-mac.command</code> on macOS, or <code>start-timer-linux.sh</code> on Linux. The Windows BAT file remains available as a fallback.</p></article>
+          <article class="step"><span class="step-number">1</span><strong>Start the server</strong><p>In the portable package, run the server app from the extracted folder. For Windows: <span class="inline-app-name"><img class="inline-app-icon" src="help-assets/timer-launcher.png" alt=""><code>fdv-bouldering-timer.exe</code></span></p></article>
           <article class="step"><span class="step-number">2</span><strong>Open the controls</strong><p>On the server computer open <code>http://127.0.0.1:8008/</code>.</p></article>
           <article class="step"><span class="step-number">3</span><strong>Set the primary</strong><p>Enable Primary browser or press <kbd>Ctrl+M</kbd>.</p></article>
           <article class="step"><span class="step-number">4</span><strong>Connect displays</strong><p>Open a network address printed by the server on every other device.</p></article>
@@ -1307,6 +1330,7 @@
           <li>Press Start or <kbd>Z</kbd> for an immediate start.</li>
           <li>For a scheduled start, enter hours and minutes and press the small <strong>▶</strong> button.</li>
         </ol>
+        <figure><img src="help-assets/server-launcher-linux.png" alt="FDV Bouldering Timer server launcher window"><figcaption>The server app starts the Node.js server, lists local and network timer addresses, and provides quick commands to open, copy, restart, and stop.</figcaption></figure>
         <div class="success"><strong>Ready-to-use link:</strong> the primary browser IP in the Browsers list is clickable and copies the correct HTTP/HTTPS address and port.</div>
         <a class="back-to-toc" href="#en-contents">↑ Back to contents</a>
       </section>
@@ -1474,9 +1498,11 @@
         <p>Keep <code>index.html</code>, <code>offline-audio.js</code>, <code>serve-bouldering-timer.js</code>, <code>params.txt</code>, <code>beeps</code>, <code>help.html</code>, <code>help-assets</code>, OS launcher scripts, and portable Node.js if used.</p>
         <h3>8.2. Node.js</h3>
         <p>Use a current Node.js LTS from <a href="https://nodejs.org/en/download">nodejs.org</a>. Install it system-wide or download a Standalone Binary. Default portable paths are <code>runtime\win\node.exe</code>, <code>runtime/mac/bin/node</code>, and <code>runtime/linux/bin/node</code>; change them in <code>params.txt</code> when needed.</p>
-        <div class="platform"><h3>8.3. Windows</h3><ol><li>Check <code>params.txt</code>.</li><li>Run <code>fdv-bouldering-timer.exe</code>. It displays local and network addresses, starts the server, and opens the browser.</li><li>Closing the window keeps the launcher in the notification area. Use <strong>Stop and exit</strong> to stop the server.</li><li>Use <code>start-timer-win.bat</code> as a fallback when the EXE is unavailable.</li><li>Allow Node.js on private networks in Windows Firewall.</li></ol></div>
-        <div class="platform"><h3>8.4. macOS</h3><ol><li>Check <code>params.txt</code>.</li><li>Run <code>start-timer-mac.command</code>.</li><li>Keep Terminal open; stop with <kbd>Ctrl+C</kbd>.</li></ol><p>If blocked, right-click and choose Open. For Permission denied run <code>chmod +x start-timer-mac.command create-https-certificate-mac.command</code>.</p></div>
-        <div class="platform"><h3>8.5. Linux</h3><ol><li>Open a terminal in the timer folder.</li><li>Run <code>chmod +x start-timer-linux.sh create-https-certificate-linux.sh</code> when required.</li><li>Run <code>./start-timer-linux.sh</code>.</li><li>Keep Terminal open; stop with <kbd>Ctrl+C</kbd>.</li></ol><p>Linux portable releases are provided for x64 and arm64 glibc distributions. Alpine Linux/musl requires a compatible Node.js build.</p></div>
+        <figure><img src="help-assets/server-launcher-linux.png" alt="FDV Bouldering Timer server launcher window"><figcaption>The server app has the same purpose on Windows, macOS, and Linux: timer addresses, server status, opening, copying, restarting, and stopping.</figcaption></figure>
+        <div class="platform"><h3>8.3. Windows</h3><ol><li>Check <code>params.txt</code>.</li><li>Run <span class="inline-app-name"><img class="inline-app-icon" src="help-assets/timer-launcher.png" alt=""><code>fdv-bouldering-timer.exe</code>. It displays local and network addresses, starts the server, and opens the browser.</li><li>Closing the window keeps the launcher in the notification area. Use <strong>Stop and exit</strong> to stop the server.</li><li>Use <code>start-timer-win.bat</code> as a fallback when the EXE is unavailable.</li><li>Allow Node.js on private networks in Windows Firewall.</li></ol></div>
+        <div class="platform"><h3>8.4. macOS</h3><ol><li>Check <code>params.txt</code>.</li><li>Run <code>FDV Bouldering Timer.app</code> or the adjacent <code>fdv-bouldering-timer</code> file from the portable package.</li><li>The server app displays local and network addresses, starts the server, and opens the browser.</li><li>Closing the window stops the server. Use <strong>Restart server</strong> after changing ports or Node.js settings.</li><li>Use <code>start-timer-mac.command</code> as a fallback; keep Terminal open and stop with <kbd>Ctrl+C</kbd>.</li></ol><p>If blocked, right-click and choose Open. For Permission denied run <code>chmod +x fdv-bouldering-timer start-timer-mac.command create-https-certificate-mac.command</code>.</p></div>
+        <div class="platform"><h3>8.5. Linux</h3><ol><li>Open a terminal in the timer folder.</li><li>Run <code>chmod +x fdv-bouldering-timer install-linux-launcher.sh start-timer-linux.sh create-https-certificate-linux.sh</code> when required.</li><li>Run <code>./fdv-bouldering-timer</code> to open the server app.</li><li>To add the app to the Ubuntu/GNOME applications menu with its icon, run <code>./install-linux-launcher.sh</code> once. Then launch <strong>FDV Bouldering Timer</strong> from the app menu and pin it to the Dock if needed.</li><li>Closing the server app window stops the server. Use <code>./start-timer-linux.sh</code> as a fallback; keep Terminal open and stop with <kbd>Ctrl+C</kbd>.</li></ol><p>Linux file managers may still show a generic icon for the executable itself. The app menu and Dock icon come from the installed <code>.desktop</code> entry created by <code>install-linux-launcher.sh</code>.</p><p>Linux portable releases are provided for x64 and arm64 glibc distributions. Alpine Linux/musl requires a compatible Node.js build.</p></div>
+
         <div class="platform"><h3>8.6. HTTP and HTTPS</h3><p>HTTP works immediately. For HTTPS run <code>create-https-certificate.bat</code> on Windows, <code>create-https-certificate-mac.command</code> on macOS, or <code>create-https-certificate-linux.sh</code> on Linux, then restart the server. Recreate the certificate after changing computer or local IP.</p><p class="warning">The certificate is self-signed, so browsers may show a warning on first use.</p></div>
         <h3>8.7. Verification</h3>
         <ul class="checklist"><li>The local page opens through 127.0.0.1.</li><li>A phone opens the Wi-Fi or Ethernet address.</li><li>One browser is primary and other displays are listed.</li><li>Controls and shortcuts work.</li><li>NET, SYNC, AUDIO, WAKE, SSE, and TAB show expected states.</li><li>Only intended devices play sound.</li></ul>
@@ -1530,7 +1556,7 @@
           <details><summary>No sound or fullscreen on a phone</summary><div>Tap the page once, inspect AUDIO, check volume and silent mode. Fullscreen may require another tap.</div></details>
           <details><summary>The screen turned off or the tab slept</summary><div>Inspect WAKE and TAB, disable power saving and auto-lock, and keep the tab visible.</div></details>
           <details><summary>Commands stop after switching to mobile data</summary><div>The server is local-network only. The display continues locally and receives commands after returning to Wi-Fi.</div></details>
-          <details><summary>Interface changes are missing</summary><div>Hard-refresh with <kbd>Command+Shift+R</kbd> on macOS or <kbd>Ctrl+Shift+R</kbd> on Windows. Restart the server after changing server code or params.</div></details>
+          <details><summary>You accidentally closed the main browser tab</summary><div>Open the timer in a new tab. It will start as a timer-only screen, but pressing <kbd>Ctrl+M</kbd> makes it the main tab again and restores the controls. This does not affect the running timer, sound, or any other open screens.</div></details>
           <details><summary>A port is already in use</summary><div>Change <code>http_port</code> and <code>https_port</code>, or stop the other application using those ports.</div></details>
           <details><summary>HTTPS shows a warning</summary><div>The certificate is self-signed. Allow the local site through advanced options and recreate the certificate when the IP changes.</div></details>
           <details><summary>Unsupported PKCS12 PFX data</summary><div>Delete only the damaged <code>timer-cert.pfx</code>, recreate it with the supplied Windows script, and restart the timer.</div></details>

@@ -60,6 +60,7 @@ jobs:
       - name: Build launcher
         run: |
           chmod +x launcher/unix/build-launcher.sh
+          export LAUNCHER_VERSION="${GITHUB_REF_NAME#v}"
           launcher/unix/build-launcher.sh "${{ matrix.rid }}" "${{ runner.temp }}/unix-launcher"
           mkdir -p "${{ runner.temp }}/launcher-artifact"
           cp -R "${{ runner.temp }}/unix-launcher"/. "${{ runner.temp }}/launcher-artifact/"

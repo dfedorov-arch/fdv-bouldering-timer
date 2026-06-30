@@ -9,7 +9,7 @@ const paramsPath = path.join(root, "params.txt");
 const beepsPath = path.join(root, "beeps");
 const fontsPath = path.join(root, "fonts");
 const offlineAudioPath = path.join(root, "offline-audio.js");
-const BUILD_NUMBER = 149;
+const BUILD_NUMBER = 150;
 const defaultConfig = {
   httpPort: 8008,
   httpsPort: 8443,
@@ -415,6 +415,7 @@ function registerClient(req, source = {}) {
     syncError: syncError ?? (usesFallbackSync ? latency / 2 : null),
     syncJitter: optionalNumber(sourceValue(source, "syncJitter"), usesFallbackSync ? 0 : existing.syncJitter ?? null),
     syncSamples: optionalNumber(sourceValue(source, "syncSamples"), usesFallbackSync ? 1 : existing.syncSamples ?? null),
+    syncRate: optionalNumber(sourceValue(source, "syncRate"), existing.syncRate ?? null),
     visibility: sourceValue(source, "visibility") || existing.visibility || "",
     viewport: sourceValue(source, "viewport") || existing.viewport || "",
     screen: sourceValue(source, "screen") || existing.screen || "",
@@ -508,9 +509,11 @@ function armStateTransition(targetTime) {
   }, Math.max(0, targetTime - Date.now() + 5));
 }
 
-function publicState() {
+function publicState(timing = {}) {
   finalizeScheduledCountdown();
   finalizeOneShot();
+  const sentAt = Date.now();
+  const receivedAt = Number(timing.receivedAt);
   return {
     ...timerState,
     config: {
@@ -520,8 +523,10 @@ function publicState() {
       httpsPort
     },
     clients: publicClients(),
-    elapsed: elapsedSeconds(),
-    now: Date.now()
+    elapsed: elapsedSeconds(sentAt),
+    serverReceivedAt: Number.isFinite(receivedAt) ? receivedAt : null,
+    serverSentAt: sentAt,
+    now: sentAt
   };
 }
 
@@ -583,8 +588,9 @@ function handleRequest(req, res) {
   const requestUrl = new URL(req.url, `http://localhost:${port}`);
 
   if (requestUrl.pathname === "/api/state" && req.method === "GET") {
+    const receivedAt = Date.now();
     registerClient(req, requestUrl.searchParams);
-    sendJson(res, 200, publicState());
+    sendJson(res, 200, publicState({ receivedAt }));
     return;
   }
 
@@ -624,7 +630,9 @@ function handleRequest(req, res) {
       if (type === "start") {
         const settings = body.settings || timerState.activeSettings;
         const wasCompleted = timerState.completed;
-        const elapsed = wasCompleted ? 0 : timerState.running ? elapsedSeconds(now) : timerState.elapsedBeforePause;
+        const requestedElapsed = Number(body.elapsedBeforePause);
+        const pausedElapsed = Number.isFinite(requestedElapsed) ? Math.max(0, requestedElapsed) : timerState.elapsedBeforePause;
+        const elapsed = wasCompleted ? 0 : timerState.running ? elapsedSeconds(now) : pausedElapsed;
         const hasScheduledStart = body.startHours !== "" || body.startMinutes !== "";
         const manualStart = Boolean(body.manualStart || timerState.waitingForManualStart);
         timerState.activeSettings = {
@@ -792,7 +800,7 @@ function handleRequest(req, res) {
         }
       }
 
-      const state = publicState();
+      const state = publicState({ receivedAt: now });
       sendJson(res, 200, state);
       broadcastState();
       if (audioTestCommand) {
