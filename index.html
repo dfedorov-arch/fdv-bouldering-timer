@@ -2805,12 +2805,13 @@
       els.browserList.innerHTML = visibleClients.map((client) => {
         const isPrimary = client.id === state.primaryClientId;
         const standaloneSelf = standaloneMode && client.id === clientId;
-        const displayIp = clientAddress(client.displayAddress || client.address);
+        const clientIp = clientAddress(client.address);
+        const linkIp = clientAddress(client.displayAddress || client.address);
         const clientPrefix = isPrimary ? `${t("thisBrowser")}, IP: ` : "IP: ";
-        const copyUrl = isPrimary ? browserLink(displayIp, clients) : "";
+        const copyUrl = isPrimary ? browserLink(linkIp, clients) : "";
         const displayIpHtml = isPrimary
-          ? `<button type="button" class="browser-address-copy" data-copy-browser-url="${escapeHtml(copyUrl)}" title="${escapeHtml(`${t("copyLink")}: ${copyUrl}`)}">${escapeHtml(displayIp)}</button><span class="browser-copy-feedback" aria-live="polite"></span>`
-          : escapeHtml(displayIp);
+          ? `<button type="button" class="browser-address-copy" data-copy-browser-url="${escapeHtml(copyUrl)}" title="${escapeHtml(`${t("copyLink")}: ${copyUrl}`)}">${escapeHtml(clientIp)}</button><span class="browser-copy-feedback" aria-live="polite"></span>`
+          : escapeHtml(clientIp);
         const classes = ["browser-item"];
         const clientConnected = standaloneSelf || (serverAvailable && client.connected);
         if (!clientConnected) classes.push("offline");
