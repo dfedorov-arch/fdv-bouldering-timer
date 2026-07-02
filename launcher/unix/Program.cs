@@ -123,10 +123,15 @@ internal sealed class LauncherWindow : Window
     private readonly Button _restartButton = new() { Content = "Restart server" };
     private readonly Button _stopButton = new() { Content = "Stop and exit" };
     private readonly DispatcherTimer _startupTimer = new() { Interval = TimeSpan.FromMilliseconds(300) };
+    private readonly DispatcherTimer _healthTimer = new() { Interval = TimeSpan.FromSeconds(1) };
+    private readonly DispatcherTimer _restartTimer = new();
     private Process? _serverProcess;
     private int _startupAttempts;
+    private int _healthFailures;
+    private int _restartAttempts;
     private bool _ready;
     private bool _allowClose;
+    private bool _intentionalStop;
     private bool _openBrowserAfterStart = true;
 
     public LauncherWindow()
@@ -151,6 +156,8 @@ internal sealed class LauncherWindow : Window
         Opened += (_, _) => StartServer(_openBrowserAfterStart);
         Closing += OnClosing;
         _startupTimer.Tick += CheckServerReady;
+        _healthTimer.Tick += CheckServerHealth;
+        _restartTimer.Tick += RestartTimerTick;
     }
 
     private static string DetectBaseDirectory()
@@ -345,7 +352,10 @@ internal sealed class LauncherWindow : Window
     private void StartServer(bool openBrowser)
     {
         _startupTimer.Stop();
+        _healthTimer.Stop();
+        _restartTimer.Stop();
         _ready = false;
+        _intentionalStop = true;
         _openButton.IsEnabled = false;
         _status.Text = "Starting server...";
         _status.Foreground = Brush(255, 200, 87);
@@ -353,6 +363,7 @@ internal sealed class LauncherWindow : Window
 
         StopServerProcess();
         StopPortListeners();
+        _intentionalStop = false;
 
         var nodePath = FindNodeExecutable();
         if (nodePath == null)
@@ -390,6 +401,7 @@ internal sealed class LauncherWindow : Window
             AppendLog("Using Node.js: " + nodePath);
 
             _startupAttempts = 0;
+            _healthFailures = 0;
             _openBrowserAfterStart = openBrowser;
             _startupTimer.Start();
         }
@@ -430,10 +442,14 @@ internal sealed class LauncherWindow : Window
         {
             _startupTimer.Stop();
             _ready = true;
+            _restartAttempts = 0;
+            _healthFailures = 0;
             _openButton.IsEnabled = true;
             _status.Text = "Server is running";
             _status.Foreground = Brush(87, 211, 140);
             AppendLog("Server is ready.");
+            AppendLog("Keep this computer connected to power and disable sleep while the timer is running.");
+            _healthTimer.Start();
             if (_openBrowserAfterStart) OpenLocalTimer();
             return;
         }
@@ -442,6 +458,7 @@ internal sealed class LauncherWindow : Window
         {
             _startupTimer.Stop();
             SetError("The server did not start. Check the server log and configured ports.");
+            ScheduleServerRestart("server did not become ready");
         }
     }
 
@@ -457,6 +474,71 @@ internal sealed class LauncherWindow : Window
         {
             return false;
         }
+    }
+
+    private async void CheckServerHealth(object? sender, EventArgs args)
+    {
+        if (_allowClose || !_ready) return;
+        if (_serverProcess == null || _serverProcess.HasExited)
+        {
+            ScheduleServerRestart("server process exited");
+            return;
+        }
+
+        if (await CanReach("http://127.0.0.1:" + _settings.HttpPort + "/api/state"))
+        {
+            _healthFailures = 0;
+            return;
+        }
+
+        _healthFailures++;
+        if (_healthFailures < 6) return;
+        AppendLog("Health check failed for " + _healthFailures + " seconds; restarting server.");
+        ScheduleServerRestart("server health check failed");
+    }
+
+    private void ScheduleServerRestart(string reason)
+    {
+        if (_allowClose) return;
+        _startupTimer.Stop();
+        _healthTimer.Stop();
+        _restartTimer.Stop();
+        _ready = false;
+        _openButton.IsEnabled = false;
+        _status.Text = "Restarting server...";
+        _status.Foreground = Brush(255, 200, 87);
+        AppendLog("Scheduling server restart: " + reason);
+
+        _intentionalStop = true;
+        StopServerProcess();
+        _intentionalStop = false;
+
+        _restartAttempts++;
+        var delay = RestartDelay(_restartAttempts);
+        if (_restartAttempts >= 5)
+        {
+            _status.Text = "Server is restarting repeatedly; check the log.";
+            AppendLog("Crash-loop warning: multiple restarts in a row.");
+        }
+        _restartTimer.Interval = delay;
+        _restartTimer.Start();
+    }
+
+    private static TimeSpan RestartDelay(int attempt)
+    {
+        return attempt switch
+        {
+            <= 1 => TimeSpan.FromMilliseconds(500),
+            2 => TimeSpan.FromSeconds(1),
+            3 => TimeSpan.FromSeconds(2),
+            _ => TimeSpan.FromSeconds(5)
+        };
+    }
+
+    private void RestartTimerTick(object? sender, EventArgs args)
+    {
+        _restartTimer.Stop();
+        StartServer(false);
     }
 
     private string? FindNodeExecutable()
@@ -583,11 +665,12 @@ internal sealed class LauncherWindow : Window
     {
         Dispatcher.UIThread.Post(() =>
         {
-            if (_allowClose) return;
+            if (_allowClose || _intentionalStop) return;
             _ready = false;
             _openButton.IsEnabled = false;
-            _status.Text = "Server stopped";
+            _status.Text = "Server stopped unexpectedly";
             _status.Foreground = Brush(240, 90, 89);
+            ScheduleServerRestart("server process exited unexpectedly");
         });
     }
 
@@ -661,6 +744,9 @@ internal sealed class LauncherWindow : Window
     {
         _allowClose = true;
         _startupTimer.Stop();
+        _healthTimer.Stop();
+        _restartTimer.Stop();
+        _intentionalStop = true;
         StopServerProcess();
         Close();
     }
@@ -670,6 +756,9 @@ internal sealed class LauncherWindow : Window
         if (_allowClose) return;
         _allowClose = true;
         _startupTimer.Stop();
+        _healthTimer.Stop();
+        _restartTimer.Stop();
+        _intentionalStop = true;
         StopServerProcess();
     }
 

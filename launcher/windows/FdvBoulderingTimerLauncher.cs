@@ -110,10 +110,15 @@ namespace FdvBoulderingTimerLauncher
         private readonly Button _stopButton = new Button();
         private readonly NotifyIcon _tray = new NotifyIcon();
         private readonly System.Windows.Forms.Timer _startupTimer = new System.Windows.Forms.Timer();
+        private readonly System.Windows.Forms.Timer _healthTimer = new System.Windows.Forms.Timer();
+        private readonly System.Windows.Forms.Timer _restartTimer = new System.Windows.Forms.Timer();
         private Process _serverProcess;
         private int _startupAttempts;
+        private int _healthFailures;
+        private int _restartAttempts;
         private bool _ready;
         private bool _allowClose;
+        private bool _intentionalStop;
 
         public LauncherForm()
         {
@@ -220,6 +225,9 @@ namespace FdvBoulderingTimerLauncher
 
             _startupTimer.Interval = 300;
             _startupTimer.Tick += CheckServerReady;
+            _healthTimer.Interval = 1000;
+            _healthTimer.Tick += CheckServerHealth;
+            _restartTimer.Tick += RestartTimerTick;
         }
 
         private void ConfigureTray()
@@ -286,7 +294,10 @@ namespace FdvBoulderingTimerLauncher
         private void StartServer(bool openBrowser)
         {
             _startupTimer.Stop();
+            _healthTimer.Stop();
+            _restartTimer.Stop();
             _ready = false;
+            _intentionalStop = true;
             _openButton.Enabled = false;
             _status.Text = "Starting server...";
             _status.ForeColor = Color.FromArgb(255, 200, 87);
@@ -294,6 +305,7 @@ namespace FdvBoulderingTimerLauncher
 
             StopServerProcess();
             StopPortListeners();
+            _intentionalStop = false;
 
             var nodePath = FindNodeExecutable();
             if (nodePath == null)
@@ -334,6 +346,7 @@ namespace FdvBoulderingTimerLauncher
                 AppendLog("Using Node.js: " + nodePath);
 
                 _startupAttempts = 0;
+                _healthFailures = 0;
                 _startupTimer.Tag = openBrowser;
                 _startupTimer.Start();
             }
@@ -350,11 +363,15 @@ namespace FdvBoulderingTimerLauncher
             {
                 _startupTimer.Stop();
                 _ready = true;
+                _restartAttempts = 0;
+                _healthFailures = 0;
                 _openButton.Enabled = true;
                 _status.Text = "Server is running";
                 _status.ForeColor = Color.FromArgb(87, 211, 140);
                 _tray.Text = "FDV Bouldering Timer - running";
                 AppendLog("Server is ready.");
+                AppendLog("Keep this computer connected to power and disable sleep while the timer is running.");
+                _healthTimer.Start();
                 if (_startupTimer.Tag is bool && (bool)_startupTimer.Tag) OpenLocalTimer();
                 return;
             }
@@ -363,6 +380,7 @@ namespace FdvBoulderingTimerLauncher
             {
                 _startupTimer.Stop();
                 SetError("The server did not start. Check the server log and configured ports.");
+                ScheduleServerRestart("server did not become ready");
             }
         }
 
@@ -383,6 +401,69 @@ namespace FdvBoulderingTimerLauncher
             {
                 return false;
             }
+        }
+
+        private void CheckServerHealth(object sender, EventArgs args)
+        {
+            if (_allowClose || !_ready) return;
+            if (_serverProcess == null || _serverProcess.HasExited)
+            {
+                ScheduleServerRestart("server process exited");
+                return;
+            }
+
+            if (CanReach("http://127.0.0.1:" + _settings.HttpPort + "/api/state"))
+            {
+                _healthFailures = 0;
+                return;
+            }
+
+            _healthFailures++;
+            if (_healthFailures < 6) return;
+            AppendLog("Health check failed for " + _healthFailures + " seconds; restarting server.");
+            ScheduleServerRestart("server health check failed");
+        }
+
+        private void ScheduleServerRestart(string reason)
+        {
+            if (_allowClose) return;
+            _startupTimer.Stop();
+            _healthTimer.Stop();
+            _restartTimer.Stop();
+            _ready = false;
+            _openButton.Enabled = false;
+            _status.Text = "Restarting server...";
+            _status.ForeColor = Color.FromArgb(255, 200, 87);
+            _tray.Text = "FDV Bouldering Timer - restarting";
+            AppendLog("Scheduling server restart: " + reason);
+
+            _intentionalStop = true;
+            StopServerProcess();
+            _intentionalStop = false;
+
+            _restartAttempts++;
+            var delay = RestartDelayMs(_restartAttempts);
+            if (_restartAttempts >= 5)
+            {
+                _status.Text = "Server is restarting repeatedly; check the log.";
+                AppendLog("Crash-loop warning: multiple restarts in a row.");
+            }
+            _restartTimer.Interval = delay;
+            _restartTimer.Start();
+        }
+
+        private static int RestartDelayMs(int attempt)
+        {
+            if (attempt <= 1) return 500;
+            if (attempt == 2) return 1000;
+            if (attempt == 3) return 2000;
+            return 5000;
+        }
+
+        private void RestartTimerTick(object sender, EventArgs args)
+        {
+            _restartTimer.Stop();
+            StartServer(false);
         }
 
         private string FindNodeExecutable()
@@ -453,12 +534,13 @@ namespace FdvBoulderingTimerLauncher
 
         private void OnServerExited()
         {
-            if (_allowClose) return;
+            if (_allowClose || _intentionalStop) return;
             _ready = false;
             _openButton.Enabled = false;
-            _status.Text = "Server stopped";
+            _status.Text = "Server stopped unexpectedly";
             _status.ForeColor = Color.FromArgb(240, 90, 89);
             _tray.Text = "FDV Bouldering Timer - stopped";
+            ScheduleServerRestart("server process exited unexpectedly");
         }
 
         private void OnServerProcessExited(object sender, EventArgs args)
@@ -551,6 +633,9 @@ namespace FdvBoulderingTimerLauncher
         {
             _allowClose = true;
             _startupTimer.Stop();
+            _healthTimer.Stop();
+            _restartTimer.Stop();
+            _intentionalStop = true;
             StopServerProcess();
             StopPortListeners();
             _tray.Visible = false;
@@ -575,6 +660,8 @@ namespace FdvBoulderingTimerLauncher
             if (disposing)
             {
                 _startupTimer.Dispose();
+                _healthTimer.Dispose();
+                _restartTimer.Dispose();
                 _tray.Dispose();
                 if (_serverProcess != null) _serverProcess.Dispose();
             }

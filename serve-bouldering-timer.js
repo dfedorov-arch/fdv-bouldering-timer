@@ -3,13 +3,24 @@ const https = require("https");
 const fs = require("fs");
 const os = require("os");
 const path = require("path");
+const crypto = require("crypto");
+const { performance } = require("perf_hooks");
 
 const root = __dirname;
 const paramsPath = path.join(root, "params.txt");
+const runtimeStateDir = path.join(root, "runtime-state");
+const runtimeStatePath = path.join(runtimeStateDir, "timer-state.json");
 const beepsPath = path.join(root, "beeps");
 const fontsPath = path.join(root, "fonts");
 const offlineAudioPath = path.join(root, "offline-audio.js");
-const BUILD_NUMBER = 150;
+const BUILD_NUMBER = 156;
+const SNAPSHOT_SCHEMA_VERSION = 1;
+const SNAPSHOT_MAX_AGE_MS = 12 * 60 * 60 * 1000;
+const PRIMARY_RESTORE_GRACE_MS = 10000;
+const COMMAND_CACHE_MAX = 256;
+const DIAGNOSTICS_BROADCAST_MS = 2500;
+const PRIMARY_PIN_MAX_FAILURES = 5;
+const PRIMARY_PIN_BLOCK_MS = 5000;
 const defaultConfig = {
   httpPort: 8008,
   httpsPort: 8443,
@@ -181,6 +192,20 @@ function numberOrDefault(value, fallback) {
   return Number.isFinite(number) ? number : fallback;
 }
 
+function wallNow() {
+  return Date.now();
+}
+
+function monoNow() {
+  return performance.now();
+}
+
+function clampNumber(value, min, max, fallback) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return fallback;
+  return Math.min(max, Math.max(min, number));
+}
+
 const params = readParams();
 const soundProfiles = loadSoundProfiles();
 const initialSoundProfile = selectedSoundProfile(params, soundProfiles);
@@ -275,15 +300,28 @@ const timerState = {
   festivalAnnouncements: config.festivalAnnouncements,
   soundProfile: config.soundProfile,
   language: config.language,
+  primaryPinHash: "",
+  primaryPinSalt: "",
+  primaryPinClientId: "",
+  primaryPinValue: "",
   version: 1
 };
 
 const clients = new Map();
 const clientAudioOffsets = new Map();
 const eventClients = new Map();
+const diagnosticEventClients = new Map();
+const commandResults = new Map();
+const primaryPinFailures = new Map();
 let nextClientOrder = 1;
 let nextAudioTestId = 1;
 let stateTransitionTimer = null;
+let snapshotWriteTimer = null;
+let timerStartedAtMono = 0;
+let diagnosticsBroadcastTimer = null;
+let lastDiagnosticsBroadcastAt = 0;
+
+const runtimeCommandTypes = new Set(["start", "pause", "stopCountdown", "reset", "seek"]);
 
 function browserInfo(userAgent = "") {
   const rules = [
@@ -398,10 +436,258 @@ function hostAddressFromHeader(hostHeader = "") {
   }
   return cleanAddress(host.replace(/:\d+$/, ""));
 }
+
+function setTimerStartedAt(startedAtWall) {
+  const start = Number(startedAtWall);
+  if (!Number.isFinite(start) || start <= 0) {
+    timerState.startedAt = 0;
+    timerStartedAtMono = 0;
+    return;
+  }
+  timerState.startedAt = start;
+  timerStartedAtMono = monoNow() + (start - wallNow());
+}
+
+function setTimerStartedFromElapsed(elapsed, effectiveWallNow = wallNow()) {
+  const safeElapsed = Math.max(0, numberOrDefault(elapsed, 0));
+  timerState.startedAt = effectiveWallNow - safeElapsed * 1000;
+  timerStartedAtMono = monoNow() - safeElapsed * 1000;
+}
+
+function clearTimerStartedAt() {
+  timerState.startedAt = 0;
+  timerStartedAtMono = 0;
+}
+
+function elapsedSecondsAtWall(targetWallNow = wallNow()) {
+  if (!timerState.running) return timerState.elapsedBeforePause;
+  if (timerState.startedAt > targetWallNow) return 0;
+  const currentElapsed = elapsedSeconds();
+  const wallDeltaSeconds = (targetWallNow - wallNow()) / 1000;
+  return Math.max(0, currentElapsed + wallDeltaSeconds);
+}
+
+function publicStartedAt(sentAtWall, elapsed) {
+  if (!timerState.running || !timerState.startedAt) return timerState.startedAt;
+  if (timerState.startedAt > sentAtWall) return timerState.startedAt;
+  return Math.round(sentAtWall - Math.max(0, elapsed) * 1000);
+}
+
+function snapshotPayload() {
+  const savedAtWall = wallNow();
+  return {
+    schemaVersion: SNAPSHOT_SCHEMA_VERSION,
+    savedAtWall,
+    runningElapsedAtSave: timerState.running ? elapsedSeconds() : timerState.elapsedBeforePause,
+    timerState: {
+      ...timerState
+    },
+    audioOffsets: [...clientAudioOffsets.entries()]
+  };
+}
+
+function writeSnapshotNow() {
+  if (snapshotWriteTimer) {
+    clearTimeout(snapshotWriteTimer);
+    snapshotWriteTimer = null;
+  }
+  try {
+    fs.mkdirSync(runtimeStateDir, { recursive: true });
+    const tempPath = `${runtimeStatePath}.tmp`;
+    const body = `${JSON.stringify(snapshotPayload(), null, 2)}\n`;
+    const fd = fs.openSync(tempPath, "w");
+    try {
+      fs.writeFileSync(fd, body, "utf8");
+      fs.fsyncSync(fd);
+    } finally {
+      fs.closeSync(fd);
+    }
+    fs.renameSync(tempPath, runtimeStatePath);
+  } catch (error) {
+    console.warn(`Timer state snapshot was not saved: ${error.message}`);
+  }
+}
+
+function scheduleSnapshotWrite(immediate = false) {
+  if (immediate) {
+    writeSnapshotNow();
+    return;
+  }
+  if (snapshotWriteTimer) return;
+  snapshotWriteTimer = setTimeout(writeSnapshotNow, 200);
+}
+
+function assignTimerState(source = {}) {
+  for (const key of [
+    "running",
+    "completed",
+    "countdownOnly",
+    "waitingForManualStart",
+    "elapsedBeforePause",
+    "startedAt",
+    "activePreset",
+    "activeSettings",
+    "draftSettings",
+    "primaryClientId",
+    "instancesSound",
+    "instancesFullscreen",
+    "globalSound",
+    "festivalAnnouncements",
+    "soundProfile",
+    "language",
+    "primaryPinHash",
+    "primaryPinSalt",
+    "primaryPinClientId",
+    "primaryPinValue",
+    "version"
+  ]) {
+    if (Object.prototype.hasOwnProperty.call(source, key)) timerState[key] = source[key];
+  }
+}
+
+function restoreTimerSnapshot() {
+  if (!fs.existsSync(runtimeStatePath)) return false;
+  try {
+    const snapshot = JSON.parse(fs.readFileSync(runtimeStatePath, "utf8"));
+    if (!snapshot || snapshot.schemaVersion !== SNAPSHOT_SCHEMA_VERSION || !snapshot.timerState) return false;
+    const savedAtWall = Number(snapshot.savedAtWall);
+    const now = wallNow();
+    const age = now - savedAtWall;
+    if (!Number.isFinite(savedAtWall) || age < 0 || age > SNAPSHOT_MAX_AGE_MS) {
+      console.warn("Timer state snapshot is too old; starting from defaults.");
+      return false;
+    }
+
+    assignTimerState(snapshot.timerState);
+    clientAudioOffsets.clear();
+    if (Array.isArray(snapshot.audioOffsets)) {
+      snapshot.audioOffsets.forEach(([id, offset]) => {
+        if (id) clientAudioOffsets.set(String(id), Math.round(numberOrDefault(offset, 0)));
+      });
+    }
+
+    if (timerState.running) {
+      const savedStart = Number(snapshot.timerState.startedAt || 0);
+      const savedElapsed = Math.max(0, numberOrDefault(snapshot.runningElapsedAtSave, 0));
+      if (savedStart > savedAtWall && now < savedStart) {
+        setTimerStartedAt(savedStart);
+      } else if (savedStart > savedAtWall && now >= savedStart) {
+        setTimerStartedFromElapsed((now - savedStart) / 1000, now);
+      } else {
+        setTimerStartedFromElapsed(savedElapsed + Math.max(0, age) / 1000, now);
+      }
+    } else {
+      timerStartedAtMono = 0;
+    }
+
+    timerState.version = Math.max(1, numberOrDefault(timerState.version, 1)) + 1;
+    console.log("Timer state restored from runtime-state/timer-state.json");
+    return true;
+  } catch (error) {
+    console.warn(`Timer state snapshot was not restored: ${error.message}`);
+    return false;
+  }
+}
+
+function armPrimaryRestoreGrace() {
+  const restoredPrimaryClientId = timerState.primaryClientId;
+  if (!restoredPrimaryClientId) return;
+  setTimeout(() => {
+    if (timerState.primaryClientId !== restoredPrimaryClientId) return;
+    if (clients.has(restoredPrimaryClientId)) return;
+    timerState.primaryClientId = null;
+    timerState.version += 1;
+    scheduleSnapshotWrite(true);
+    broadcastState();
+    broadcastDiagnostics(true);
+  }, PRIMARY_RESTORE_GRACE_MS);
+}
+
+function effectiveActionWallNow(body, fallbackNow = wallNow()) {
+  const intended = Number(body.intendedServerTime);
+  if (!Number.isFinite(intended)) return fallbackNow;
+  return clampNumber(intended, fallbackNow - 5000, fallbackNow + 1000, fallbackNow);
+}
+
+function rememberCommandResult(commandId, status, payload) {
+  if (!commandId) return;
+  commandResults.set(commandId, { status, payload });
+  while (commandResults.size > COMMAND_CACHE_MAX) {
+    const firstKey = commandResults.keys().next().value;
+    commandResults.delete(firstKey);
+  }
+}
+
+function cleanCommandId(value) {
+  const id = String(value || "").trim();
+  return id ? id.slice(0, 160) : "";
+}
+
+function cleanPrimaryPin(value) {
+  const pin = String(value || "").trim();
+  return /^\d{4}$/.test(pin) ? pin : "";
+}
+
+function primaryPinActive() {
+  return Boolean(timerState.primaryClientId
+    && timerState.primaryPinHash
+    && timerState.primaryPinSalt
+    && timerState.primaryPinClientId === timerState.primaryClientId);
+}
+
+function primaryPinHash(pin, salt) {
+  return crypto.createHash("sha256").update(`${salt}:${pin}`).digest("hex");
+}
+
+function setPrimaryPin(clientId, pin) {
+  const salt = crypto.randomBytes(16).toString("hex");
+  timerState.primaryPinSalt = salt;
+  timerState.primaryPinHash = primaryPinHash(pin, salt);
+  timerState.primaryPinClientId = clientId || "";
+  timerState.primaryPinValue = pin;
+}
+
+function clearPrimaryPin() {
+  timerState.primaryPinHash = "";
+  timerState.primaryPinSalt = "";
+  timerState.primaryPinClientId = "";
+  timerState.primaryPinValue = "";
+}
+
+function primaryPinFailure(clientId) {
+  const id = clientId || "";
+  const now = wallNow();
+  const entry = primaryPinFailures.get(id) || { count: 0, blockedUntil: 0 };
+  if (entry.blockedUntil > now) return entry;
+  const count = entry.count + 1;
+  const blockedUntil = count >= PRIMARY_PIN_MAX_FAILURES ? now + PRIMARY_PIN_BLOCK_MS : 0;
+  const next = { count: blockedUntil ? 0 : count, blockedUntil };
+  primaryPinFailures.set(id, next);
+  return next;
+}
+
+function primaryPinAllowed(clientId) {
+  const entry = primaryPinFailures.get(clientId || "");
+  return !entry || !entry.blockedUntil || entry.blockedUntil <= wallNow();
+}
+
+function verifyPrimaryPin(clientId, pin) {
+  if (!primaryPinActive()) return true;
+  if (!primaryPinAllowed(clientId)) return false;
+  const cleanPin = cleanPrimaryPin(pin);
+  const ok = Boolean(cleanPin && primaryPinHash(cleanPin, timerState.primaryPinSalt) === timerState.primaryPinHash);
+  if (ok) {
+    primaryPinFailures.delete(clientId || "");
+    return true;
+  }
+  primaryPinFailure(clientId);
+  return false;
+}
+
 function registerClient(req, source = {}) {
   const id = sourceValue(source, "clientId") || req.headers["x-client-id"];
   if (!id) return null;
-  const now = Date.now();
+  const now = wallNow();
   const userAgent = req.headers["user-agent"] || "";
   const existing = clients.get(id) || {};
   const latency = optionalNumber(sourceValue(source, "latency"), existing.latency ?? null);
@@ -427,6 +713,14 @@ function registerClient(req, source = {}) {
     syncJitter: optionalNumber(sourceValue(source, "syncJitter"), usesFallbackSync ? 0 : existing.syncJitter ?? null),
     syncSamples: optionalNumber(sourceValue(source, "syncSamples"), usesFallbackSync ? 1 : existing.syncSamples ?? null),
     syncRate: optionalNumber(sourceValue(source, "syncRate"), existing.syncRate ?? null),
+    syncRateConfidence: sourceValue(source, "syncRateConfidence") || existing.syncRateConfidence || "",
+    syncRateGateReason: sourceValue(source, "syncRateGateReason") || existing.syncRateGateReason || "",
+    syncRateCandidatePpm: optionalNumber(sourceValue(source, "syncRateCandidatePpm"), existing.syncRateCandidatePpm ?? null),
+    syncRateAcceptedPpm: optionalNumber(sourceValue(source, "syncRateAcceptedPpm"), existing.syncRateAcceptedPpm ?? null),
+    syncRateResidualJitter: optionalNumber(sourceValue(source, "syncRateResidualJitter"), existing.syncRateResidualJitter ?? null),
+    syncRateResidualMinMax: optionalNumber(sourceValue(source, "syncRateResidualMinMax"), existing.syncRateResidualMinMax ?? null),
+    syncRateHalfDiffPpm: optionalNumber(sourceValue(source, "syncRateHalfDiffPpm"), existing.syncRateHalfDiffPpm ?? null),
+    syncRateOutlierShare: optionalNumber(sourceValue(source, "syncRateOutlierShare"), existing.syncRateOutlierShare ?? null),
     visibility: sourceValue(source, "visibility") || existing.visibility || "",
     viewport: sourceValue(source, "viewport") || existing.viewport || "",
     screen: sourceValue(source, "screen") || existing.screen || "",
@@ -440,6 +734,8 @@ function registerClient(req, source = {}) {
     wakeLockActive: optionalBool(sourceValue(source, "wakeLockActive"), existing.wakeLockActive ?? null),
     eventSourceSupported: optionalBool(sourceValue(source, "eventSourceSupported"), existing.eventSourceSupported ?? null),
     eventSourceConnected: optionalBool(sourceValue(source, "eventSourceConnected"), existing.eventSourceConnected ?? null),
+    lastSseAge: optionalNumber(sourceValue(source, "lastSseAge"), existing.lastSseAge ?? null),
+    sseRestarts: optionalNumber(sourceValue(source, "sseRestarts"), existing.sseRestarts ?? null),
     stateVersion: optionalNumber(sourceValue(source, "stateVersion"), existing.stateVersion ?? null),
     displayStatus: sourceValue(source, "displayStatus") || existing.displayStatus || ""
   });
@@ -447,7 +743,7 @@ function registerClient(req, source = {}) {
 }
 
 function publicClients() {
-  const now = Date.now();
+  const now = wallNow();
   for (const [id, client] of clients) {
     if (now - client.lastSeen > 30000) clients.delete(id);
   }
@@ -466,9 +762,10 @@ function publicClients() {
     }));
 }
 
-function elapsedSeconds(now = Date.now()) {
+function elapsedSeconds(now = monoNow()) {
   if (!timerState.running) return timerState.elapsedBeforePause;
-  return Math.max(0, (now - timerState.startedAt) / 1000);
+  if (timerStartedAtMono) return Math.max(0, (now - timerStartedAtMono) / 1000);
+  return Math.max(0, (wallNow() - timerState.startedAt) / 1000);
 }
 
 function scheduledStartTime(now, hoursValue, minutesValue, restorePast = false) {
@@ -484,29 +781,31 @@ function scheduledStartTime(now, hoursValue, minutesValue, restorePast = false) 
   return target.getTime();
 }
 
-function finalizeOneShot(now = Date.now()) {
+function finalizeOneShot(now = wallNow()) {
   if (!timerState.running || timerState.countdownOnly || !timerState.activeSettings.oneShot) return;
   const duration = Math.max(0,
     numberOrDefault(timerState.activeSettings.rotationSeconds, 0)
     + numberOrDefault(timerState.activeSettings.breakSeconds, 0));
-  if (now < timerState.startedAt || elapsedSeconds(now) < duration) return;
+  if (now < timerState.startedAt || elapsedSeconds() < duration) return;
   timerState.running = false;
   timerState.completed = true;
   timerState.elapsedBeforePause = duration;
-  timerState.startedAt = 0;
+  clearTimerStartedAt();
   timerState.version += 1;
+  scheduleSnapshotWrite(true);
 }
 
-function finalizeScheduledCountdown(now = Date.now()) {
+function finalizeScheduledCountdown(now = wallNow()) {
   if (!timerState.running || !timerState.countdownOnly || now < timerState.startedAt) return;
   timerState.running = false;
   timerState.countdownOnly = false;
   timerState.waitingForManualStart = true;
   timerState.elapsedBeforePause = 0;
-  timerState.startedAt = 0;
+  clearTimerStartedAt();
   timerState.draftSettings.startHours = "";
   timerState.draftSettings.startMinutes = "";
   timerState.version += 1;
+  scheduleSnapshotWrite(true);
 }
 
 function armStateTransition(targetTime) {
@@ -517,24 +816,71 @@ function armStateTransition(targetTime) {
     stateTransitionTimer = null;
     publicState();
     broadcastState();
-  }, Math.max(0, targetTime - Date.now() + 5));
+  }, Math.max(0, targetTime - wallNow() + 5));
 }
 
-function publicState(timing = {}) {
+function armCurrentStateTransition() {
+  if (!timerState.running) {
+    armStateTransition(0);
+    return;
+  }
+  if (timerState.countdownOnly) {
+    armStateTransition(timerState.startedAt);
+    return;
+  }
+  if (timerState.activeSettings.oneShot) {
+    const duration = Math.max(0,
+      numberOrDefault(timerState.activeSettings.rotationSeconds, 0)
+      + numberOrDefault(timerState.activeSettings.breakSeconds, 0));
+    const remainingMs = Math.max(0, (duration - elapsedSeconds()) * 1000);
+    armStateTransition(wallNow() + remainingMs);
+  }
+}
+
+function shouldIncludeDiagnostics(clientId, requestedDiagnostics = false) {
+  if (requestedDiagnostics) return true;
+  if (!timerState.primaryClientId) return true;
+  return Boolean(clientId && timerState.primaryClientId === clientId);
+}
+
+function publicState(options = {}) {
   finalizeScheduledCountdown();
   finalizeOneShot();
-  const sentAt = Date.now();
-  const receivedAt = Number(timing.receivedAt);
+  const sentAt = wallNow();
+  const receivedAt = Number(options.receivedAt);
+  const clientId = options.clientId || "";
+  const includeClients = options.includeClients !== false;
+  const elapsed = elapsedSeconds();
+  const ownAudioOffset = clientId ? clientAudioOffsets.get(clientId) ?? clients.get(clientId)?.audioUserOffset ?? 0 : 0;
+  const {
+    primaryPinHash: _primaryPinHash,
+    primaryPinSalt: _primaryPinSalt,
+    primaryPinClientId: _primaryPinClientId,
+    primaryPinValue: _primaryPinValue,
+    ...publicTimerState
+  } = timerState;
   return {
-    ...timerState,
+    ...publicTimerState,
+    startedAt: publicStartedAt(sentAt, elapsed),
     config: {
       ...config,
       buildNumber: BUILD_NUMBER,
       httpPort: port,
       httpsPort
     },
-    clients: publicClients(),
-    elapsed: elapsedSeconds(sentAt),
+    primaryPinSet: primaryPinActive(),
+    ownPrimaryPinSaved: Boolean(clientId
+      && timerState.primaryPinHash
+      && timerState.primaryPinClientId === clientId),
+    ownPrimaryPinValue: clientId
+      && timerState.primaryPinHash
+      && timerState.primaryPinClientId === clientId
+      ? timerState.primaryPinValue || ""
+      : "",
+    clients: includeClients ? publicClients() : [],
+    diagnosticsIncluded: includeClients,
+    audioUserOffset: ownAudioOffset,
+    elapsed,
     serverReceivedAt: Number.isFinite(receivedAt) ? receivedAt : null,
     serverSentAt: sentAt,
     now: sentAt
@@ -542,13 +888,48 @@ function publicState(timing = {}) {
 }
 
 function broadcastState() {
-  const payload = `event: state\ndata: ${JSON.stringify(publicState())}\n\n`;
+  const state = publicState({ includeClients: false });
+  const payload = `event: state\ndata: ${JSON.stringify(state)}\n\n`;
   for (const [res, eventClient] of eventClients) {
     try {
       res.write(payload);
     } catch (error) {
       clearInterval(eventClient.keepAlive);
       eventClients.delete(res);
+    }
+  }
+}
+
+function diagnosticsPayload() {
+  return {
+    primaryClientId: timerState.primaryClientId,
+    clients: publicClients(),
+    version: timerState.version,
+    now: wallNow()
+  };
+}
+
+function broadcastDiagnostics(force = false) {
+  if (!diagnosticEventClients.size) return;
+  const now = wallNow();
+  if (!force && now - lastDiagnosticsBroadcastAt < DIAGNOSTICS_BROADCAST_MS) {
+    if (!diagnosticsBroadcastTimer) {
+      diagnosticsBroadcastTimer = setTimeout(() => {
+        diagnosticsBroadcastTimer = null;
+        broadcastDiagnostics(true);
+      }, DIAGNOSTICS_BROADCAST_MS - (now - lastDiagnosticsBroadcastAt));
+    }
+    return;
+  }
+  lastDiagnosticsBroadcastAt = now;
+  const payload = `event: diagnostics\ndata: ${JSON.stringify(diagnosticsPayload())}\n\n`;
+  for (const [res, eventClient] of diagnosticEventClients) {
+    if (!shouldIncludeDiagnostics(eventClient.clientId)) continue;
+    try {
+      res.write(payload);
+    } catch (error) {
+      clearInterval(eventClient.keepAlive);
+      diagnosticEventClients.delete(res);
     }
   }
 }
@@ -599,9 +980,10 @@ function handleRequest(req, res) {
   const requestUrl = new URL(req.url, `http://localhost:${port}`);
 
   if (requestUrl.pathname === "/api/state" && req.method === "GET") {
-    const receivedAt = Date.now();
-    registerClient(req, requestUrl.searchParams);
-    sendJson(res, 200, publicState({ receivedAt }));
+    const receivedAt = wallNow();
+    const clientId = registerClient(req, requestUrl.searchParams);
+    const includeClients = shouldIncludeDiagnostics(clientId, requestUrl.searchParams.get("diagnostics") === "1");
+    sendJson(res, 200, publicState({ receivedAt, clientId, includeClients }));
     return;
   }
 
@@ -614,13 +996,13 @@ function handleRequest(req, res) {
       "x-accel-buffering": "no"
     });
     res.write("retry: 1000\n\n");
-    res.write(`event: state\ndata: ${JSON.stringify(publicState())}\n\n`);
+    res.write(`event: state\ndata: ${JSON.stringify(publicState({ clientId: eventClientId, includeClients: false }))}\n\n`);
     const keepAlive = setInterval(() => {
       try {
         if (eventClientId && clients.has(eventClientId)) {
-          clients.get(eventClientId).lastSeen = Date.now();
+          clients.get(eventClientId).lastSeen = wallNow();
         }
-        res.write(`event: ping\ndata: ${Date.now()}\n\n`);
+        res.write(`event: ping\ndata: ${wallNow()}\n\n`);
       } catch (error) {}
     }, 15000);
     eventClients.set(res, { keepAlive, clientId: eventClientId });
@@ -631,11 +1013,62 @@ function handleRequest(req, res) {
     return;
   }
 
+  if (requestUrl.pathname === "/api/diagnostics/events" && req.method === "GET") {
+    const eventClientId = registerClient(req, requestUrl.searchParams);
+    res.writeHead(200, {
+      "content-type": "text/event-stream; charset=utf-8",
+      "cache-control": "no-store",
+      "connection": "keep-alive",
+      "x-accel-buffering": "no"
+    });
+    res.write("retry: 2000\n\n");
+    if (shouldIncludeDiagnostics(eventClientId)) {
+      res.write(`event: diagnostics\ndata: ${JSON.stringify(diagnosticsPayload())}\n\n`);
+    }
+    const keepAlive = setInterval(() => {
+      try {
+        if (eventClientId && clients.has(eventClientId)) {
+          clients.get(eventClientId).lastSeen = wallNow();
+        }
+        res.write(`event: ping\ndata: ${wallNow()}\n\n`);
+      } catch (error) {}
+    }, 15000);
+    diagnosticEventClients.set(res, { keepAlive, clientId: eventClientId });
+    req.on("close", () => {
+      clearInterval(keepAlive);
+      diagnosticEventClients.delete(res);
+    });
+    return;
+  }
+
   if (requestUrl.pathname === "/api/action" && req.method === "POST") {
     readJson(req).then((body) => {
-      registerClient(req, body);
-      const now = Date.now();
+      const clientId = registerClient(req, body);
+      const now = wallNow();
       const type = body.type;
+      const isRuntimeCommand = runtimeCommandTypes.has(type);
+      const commandId = cleanCommandId(body.commandId);
+      const cachedCommand = commandId ? commandResults.get(commandId) : null;
+      if (cachedCommand) {
+        sendJson(res, cachedCommand.status, {
+          ...cachedCommand.payload,
+          commandDuplicate: true
+        });
+        return;
+      }
+      const baseVersion = Number(body.baseVersion);
+      if (isRuntimeCommand && Number.isFinite(baseVersion) && baseVersion !== timerState.version) {
+        const conflictState = {
+          ...publicState({ receivedAt: now, clientId, includeClients: shouldIncludeDiagnostics(clientId) }),
+          commandConflict: true,
+          expectedVersion: timerState.version
+        };
+        rememberCommandResult(commandId, 409, conflictState);
+        sendJson(res, 409, conflictState);
+        return;
+      }
+      const actionNow = effectiveActionWallNow(body, now);
+      const previousVersion = timerState.version;
       let audioTestCommand = null;
 
       if (type === "start") {
@@ -643,7 +1076,7 @@ function handleRequest(req, res) {
         const wasCompleted = timerState.completed;
         const requestedElapsed = Number(body.elapsedBeforePause);
         const pausedElapsed = Number.isFinite(requestedElapsed) ? Math.max(0, requestedElapsed) : timerState.elapsedBeforePause;
-        const elapsed = wasCompleted ? 0 : timerState.running ? elapsedSeconds(now) : pausedElapsed;
+        const elapsed = wasCompleted ? 0 : timerState.running ? elapsedSecondsAtWall(actionNow) : pausedElapsed;
         const hasScheduledStart = body.startHours !== "" || body.startMinutes !== "";
         const manualStart = Boolean(body.manualStart || timerState.waitingForManualStart);
         timerState.activeSettings = {
@@ -662,9 +1095,9 @@ function handleRequest(req, res) {
           body.startMinutes,
           hasScheduledStart && !timerState.activeSettings.oneShot
         );
-        timerState.startedAt = elapsed > 0 || manualStart
-          ? now - Math.max(0, elapsed) * 1000
-          : scheduledTime;
+        setTimerStartedAt(elapsed > 0 || manualStart
+          ? actionNow - Math.max(0, elapsed) * 1000
+          : scheduledTime);
         if (manualStart) {
           timerState.draftSettings.startHours = "";
           timerState.draftSettings.startMinutes = "";
@@ -677,10 +1110,10 @@ function handleRequest(req, res) {
       }
 
       if (type === "pause" && timerState.running && timerState.startedAt <= now) {
-        timerState.elapsedBeforePause = elapsedSeconds(now);
+        timerState.elapsedBeforePause = elapsedSecondsAtWall(actionNow);
         timerState.running = false;
         timerState.countdownOnly = false;
-        timerState.startedAt = 0;
+        clearTimerStartedAt();
         armStateTransition(0);
         timerState.version += 1;
       }
@@ -690,7 +1123,7 @@ function handleRequest(req, res) {
         timerState.countdownOnly = false;
         timerState.waitingForManualStart = false;
         timerState.elapsedBeforePause = 0;
-        timerState.startedAt = 0;
+        clearTimerStartedAt();
         armStateTransition(0);
         timerState.version += 1;
       }
@@ -702,7 +1135,7 @@ function handleRequest(req, res) {
         timerState.countdownOnly = false;
         timerState.waitingForManualStart = false;
         timerState.elapsedBeforePause = 0;
-        timerState.startedAt = 0;
+        clearTimerStartedAt();
         armStateTransition(0);
         timerState.activeSettings = {
           rotationSeconds: numberOrDefault(settings.rotationSeconds, config.classicRotationMinutes * 60),
@@ -716,7 +1149,7 @@ function handleRequest(req, res) {
         const elapsed = Number(body.elapsed);
         if (Number.isFinite(elapsed)) {
           timerState.elapsedBeforePause = Math.max(0, elapsed);
-          timerState.startedAt = 0;
+          clearTimerStartedAt();
           timerState.version += 1;
         }
       }
@@ -744,8 +1177,55 @@ function handleRequest(req, res) {
       }
 
       if (type === "primary") {
-        timerState.primaryClientId = body.clientId || null;
+        const nextPrimaryClientId = body.clientId || null;
+        const shortcutTakeover = body.source === "shortcut"
+          && nextPrimaryClientId
+          && timerState.primaryClientId
+          && timerState.primaryClientId !== nextPrimaryClientId;
+        let verifiedTakeoverPin = "";
+        if (shortcutTakeover && primaryPinActive()) {
+          const cleanPin = cleanPrimaryPin(body.pin);
+          if (!verifyPrimaryPin(clientId, cleanPin)) {
+            const entry = primaryPinFailures.get(clientId || "") || {};
+            sendJson(res, 403, {
+              ...publicState({ receivedAt: now, clientId, includeClients: shouldIncludeDiagnostics(clientId) }),
+              primaryPinRequired: true,
+              primaryPinBlockedUntil: entry.blockedUntil || 0
+            });
+            return;
+          }
+          verifiedTakeoverPin = cleanPin;
+        }
+        timerState.primaryClientId = nextPrimaryClientId;
+        if (verifiedTakeoverPin) setPrimaryPin(nextPrimaryClientId, verifiedTakeoverPin);
         timerState.version += 1;
+      }
+
+      if (type === "primaryPin") {
+        const currentPrimary = timerState.primaryClientId === clientId;
+        if (!currentPrimary) {
+          sendJson(res, 403, {
+            ...publicState({ receivedAt: now, clientId, includeClients: shouldIncludeDiagnostics(clientId) }),
+            primaryPinDenied: true
+          });
+          return;
+        }
+        const pin = String(body.pin || "").trim();
+        if (!pin) {
+          clearPrimaryPin();
+          timerState.version += 1;
+        } else {
+          const cleanPin = cleanPrimaryPin(pin);
+          if (!cleanPin) {
+            sendJson(res, 400, {
+              ...publicState({ receivedAt: now, clientId, includeClients: shouldIncludeDiagnostics(clientId) }),
+              primaryPinInvalidFormat: true
+            });
+            return;
+          }
+          setPrimaryPin(clientId, cleanPin);
+          timerState.version += 1;
+        }
       }
 
       if (type === "instancesSound") {
@@ -811,9 +1291,18 @@ function handleRequest(req, res) {
         }
       }
 
-      const state = publicState({ receivedAt: now });
+      if (timerState.version !== previousVersion) {
+        scheduleSnapshotWrite(isRuntimeCommand);
+      }
+      const state = publicState({
+        receivedAt: now,
+        clientId,
+        includeClients: shouldIncludeDiagnostics(clientId)
+      });
+      rememberCommandResult(commandId, 200, state);
       sendJson(res, 200, state);
       broadcastState();
+      broadcastDiagnostics();
       if (audioTestCommand) {
         sendEvent(
           "audio-test",
@@ -849,6 +1338,27 @@ function handleRequest(req, res) {
     res.end(body);
   });
 }
+
+const restoredFromSnapshot = restoreTimerSnapshot();
+if (restoredFromSnapshot) {
+  finalizeScheduledCountdown();
+  finalizeOneShot();
+  armCurrentStateTransition();
+  armPrimaryRestoreGrace();
+  scheduleSnapshotWrite(true);
+}
+setInterval(() => broadcastDiagnostics(true), DIAGNOSTICS_BROADCAST_MS);
+
+function flushSnapshotAndExit(exitCode = 0) {
+  try {
+    writeSnapshotNow();
+  } finally {
+    process.exit(exitCode);
+  }
+}
+
+process.on("SIGINT", () => flushSnapshotAndExit(0));
+process.on("SIGTERM", () => flushSnapshotAndExit(0));
 
 const server = http.createServer(handleRequest);
 

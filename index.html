@@ -427,6 +427,70 @@
       accent-color: var(--cyan);
     }
 
+    .primary-controls {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .primary-pin-button {
+      width: 35px;
+      height: 20px;
+      min-height: 20px;
+      padding: 0;
+      border-radius: 6px;
+      border: 1px solid var(--yellow);
+      background: #10141b;
+      color: var(--muted);
+      font-size: 10px;
+      line-height: 18px;
+      cursor: pointer;
+    }
+
+    .primary-pin-button.is-set {
+      border-color: var(--green);
+      color: var(--text);
+    }
+
+    .primary-pin-button:disabled {
+      opacity: .5;
+      cursor: default;
+    }
+
+    .primary-pin-panel {
+      display: grid;
+      grid-template-columns: 70px auto auto minmax(0, 1fr);
+      gap: 8px;
+      align-items: center;
+      margin-top: 6px;
+    }
+
+    .primary-pin-panel[hidden] {
+      display: none;
+    }
+
+    .primary-pin-panel input {
+      height: 32px;
+      text-align: center;
+      letter-spacing: 0;
+    }
+
+    .primary-pin-panel button {
+      min-height: 32px;
+      border-radius: 6px;
+      border: 1px solid var(--line);
+      background: #151b24;
+      color: var(--text);
+      padding: 0 10px;
+      cursor: pointer;
+    }
+
+    .primary-pin-panel span {
+      min-width: 0;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
     .primary-option {
       display: none;
     }
@@ -1229,10 +1293,19 @@
       </section>
 
       <section class="section no-divider">
-        <label id="primaryRow" class="switch-row" title="Основной браузер: Ctrl+M / Ctrl+Ь">
+        <div id="primaryRow" class="switch-row" title="Основной браузер: Ctrl+M / Ctrl+Ь">
           <span id="primaryLabel">Основной браузер</span>
-          <input id="primaryToggle" type="checkbox">
-        </label>
+          <span class="primary-controls">
+            <button id="primaryPinButton" class="primary-pin-button" type="button" title="PIN" hidden>PIN</button>
+            <input id="primaryToggle" type="checkbox">
+          </span>
+        </div>
+        <div id="primaryPinPanel" class="primary-pin-panel" hidden>
+          <input id="primaryPinInput" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="4" placeholder="0000" autocomplete="off" aria-label="PIN">
+          <button id="primaryPinApply" type="button">OK</button>
+          <button id="primaryPinClear" type="button" hidden>Clear</button>
+          <span id="primaryPinStatus" aria-live="polite"></span>
+        </div>
         <label class="switch-row">
           <span id="soundLabel">Звук</span>
           <input id="soundToggle" type="checkbox" checked>
@@ -1339,6 +1412,9 @@
       soundProfile: "",
       festivalAnnouncements: true,
       primaryClientId: null,
+      primaryPinSet: false,
+      ownPrimaryPinSaved: false,
+      ownPrimaryPinValue: "",
       timeline: []
     };
 
@@ -1392,6 +1468,16 @@
         serverRecoveredTitle: "Связь с сервером восстановлена",
         serverRecoveredText: "Автономный таймер продолжает работать отдельно. Вернуться к состоянию сервера?",
         returnToServer: "Вернуться к серверу",
+        primaryPinTitle: "PIN основного браузера",
+        primaryPinUnset: "PIN не задан",
+        primaryPinSet: "PIN задан",
+        primaryPinSaved: "PIN сохранён",
+        primaryPinCleared: "PIN очищен",
+        primaryPinInvalid: "Введите 4 цифры",
+        primaryPinPrompt: "Введите PIN основного браузера",
+        primaryPinWrong: "Неверный PIN",
+        primaryPinBlocked: "Слишком много попыток",
+        clear: "Очистить",
         buildLabel: "сборка"
       },
       en: {
@@ -1440,6 +1526,16 @@
         serverRecoveredTitle: "Server connection restored",
         serverRecoveredText: "The standalone timer is still running separately. Return to the server state?",
         returnToServer: "Return to server",
+        primaryPinTitle: "Primary browser PIN",
+        primaryPinUnset: "PIN is not set",
+        primaryPinSet: "PIN is set",
+        primaryPinSaved: "PIN saved",
+        primaryPinCleared: "PIN cleared",
+        primaryPinInvalid: "Enter 4 digits",
+        primaryPinPrompt: "Enter primary browser PIN",
+        primaryPinWrong: "Wrong PIN",
+        primaryPinBlocked: "Too many attempts",
+        clear: "Clear",
         buildLabel: "Build"
       }
     };
@@ -1463,6 +1559,12 @@
       parametersTitle: document.getElementById("parametersTitle"),
       primaryLabel: document.getElementById("primaryLabel"),
       primaryRow: document.getElementById("primaryRow"),
+      primaryPinButton: document.getElementById("primaryPinButton"),
+      primaryPinPanel: document.getElementById("primaryPinPanel"),
+      primaryPinInput: document.getElementById("primaryPinInput"),
+      primaryPinApply: document.getElementById("primaryPinApply"),
+      primaryPinClear: document.getElementById("primaryPinClear"),
+      primaryPinStatus: document.getElementById("primaryPinStatus"),
       instancesSoundLabel: document.getElementById("instancesSoundLabel"),
       instancesFullscreenLabel: document.getElementById("instancesFullscreenLabel"),
       instancesFullscreenRow: document.getElementById("instancesFullscreenRow"),
@@ -1537,6 +1639,7 @@
     let scheduledAudioNodes = [];
     let scheduledFinalSignalKey = "";
     let scheduledSignalKeys = new Set();
+    let playedSignalKeys = new Set();
     let speechVoice = null;
     let serverTimeOffset = 0;
     let serverPerfOffset = Date.now() - performance.now();
@@ -1565,6 +1668,14 @@
     let eventSource = null;
     let eventSourceConnected = false;
     let eventStreamGeneration = 0;
+    let diagnosticsEventSource = null;
+    let diagnosticsStreamGeneration = 0;
+    let lastSseEventAt = performance.now();
+    let sseRestarts = 0;
+    let commandSeq = 0;
+    let serverClockRateHighConfidence = false;
+    let serverClockRateConfidence = "default";
+    let serverClockRateGateReason = "";
     let lastResumeSyncAt = 0;
     let pageHiddenAt = 0;
     let suppressPhaseSignalsUntil = 0;
@@ -1595,16 +1706,37 @@
     const syncSampleWindowMs = 60000;
     const syncMaxSamples = 48;
     const syncRateMinSpanMs = 8000;
-    const syncRateMin = 0.90;
-    const syncRateMax = 1.10;
+    const syncRateNormalMin = 0.999;
+    const syncRateNormalMax = 1.001;
+    const syncRateLargeMin = 0.90;
+    const syncRateLargeMax = 1.10;
+    const syncRateLargeThresholdPpm = 1000;
+    const syncRateLargeMinSpanMs = 30000;
+    const syncRateLargeMinSamples = 12;
+    const syncRateLargeMaxResidualMs = 120;
+    const syncRateLargeMaxHalfDiffPpm = 2000;
+    const syncRateLargeMaxOutlierShare = 0.2;
     const syncRateDeadband = 0.0001;
     const syncRateSmoothing = 0.25;
     const serverOfflineAfterMs = 4500;
     const serverTimerLookaheadSeconds = 1.25;
     const staleResumeAfterMs = 3000;
     const staleSignalGraceMs = 500;
+    const signalLateGraceMs = {
+      rotationBoundary: 1500,
+      start: 1500,
+      end: 1500,
+      minute: 2000,
+      warn: 700,
+      festival: 2000,
+      default: 500,
+      noncritical: 0
+    };
     const audioScheduleAheadSeconds = 2.8;
     const audioPrewarmSeconds = 2;
+    const seekEndGuardSeconds = 0.9;
+    const sseSilentRestartMs = 25000;
+    const runtimeCommandTypes = new Set(["start", "pause", "stopCountdown", "reset", "seek"]);
 
     function scheduleFitTimer() {
       if (timerFitQueued) return;
@@ -1658,6 +1790,7 @@
         return;
       }
       serverAvailable = nextAvailable;
+      if (!serverAvailable) holdServerClockRateForOffline();
       document.body.classList.toggle("server-offline", !serverAvailable);
       updateConnectionWarning();
       syncButtons();
@@ -1859,10 +1992,27 @@
       const correction = nextServerNow - currentServerNow;
       const maxCorrection = direct ? Infinity : 250;
       const adjustedServerNow = currentServerNow + clampFloat(correction, -maxCorrection, maxCorrection, 0);
-      serverClockRate = clampFloat(nextRate, syncRateMin, syncRateMax, 1);
+      serverClockRate = clampFloat(nextRate, syncRateLargeMin, syncRateLargeMax, 1);
       serverPerfAnchor = localNow;
       serverTimeAnchor = adjustedServerNow;
       serverPerfOffset = adjustedServerNow - localNow;
+    }
+
+    function holdServerClockRateForOffline() {
+      const heldServerNow = serverNow();
+      const localNow = performance.now();
+      serverClockRateConfidence = "offline-held";
+      serverClockRateGateReason = "offline-held";
+      serverPerfAnchor = localNow;
+      serverTimeAnchor = heldServerNow;
+      serverPerfOffset = heldServerNow - localNow;
+      syncQuality = {
+        ...syncQuality,
+        rate: serverClockRate,
+        rateConfidence: serverClockRateConfidence,
+        rateGateReason: serverClockRateGateReason,
+        rateAcceptedPpm: Math.round((serverClockRate - 1) * 1000000)
+      };
     }
 
     function resetServerClockModel() {
@@ -1870,6 +2020,8 @@
       const dateNow = Date.now();
       syncSamples = [];
       serverClockRate = 1;
+      serverClockRateHighConfidence = false;
+      serverClockRateConfidence = "reset";
       serverPerfAnchor = localNow;
       serverTimeAnchor = dateNow;
       serverPerfOffset = dateNow - localNow;
@@ -1877,6 +2029,10 @@
     }
 
     function updateServerTiming(remote, timing = {}) {
+      const remoteVersion = Number(remote?.version || 0);
+      if (Number.isFinite(remoteVersion) && remoteVersion > lastServerVersion) {
+        lastServerVersion = remoteVersion;
+      }
       const date0 = Number(timing.date0 ?? timing.t0);
       const date1 = Number(timing.date1 ?? timing.t1);
       const perf0 = Number(timing.perf0 ?? timing.t0);
@@ -1936,21 +2092,68 @@
           ? lastModelSample.perfTime - firstModelSample.perfTime
           : 0;
 
+        let candidateRate = 1;
+        let candidateRatePpm = 0;
+        let acceptedRatePpm = Math.round((serverClockRate - 1) * 1000000);
+        let residualJitter = jitter;
+        let residualMinMax = jitter;
+        let rateHalfDiffPpm = 0;
+        let rateOutlierShare = 0;
+        serverClockRateGateReason = "insufficient-window";
+
         if (modelSamples.length >= 4 && modelSpan >= syncRateMinSpanMs) {
-          const meanPerf = modelSamples.reduce((sum, item) => sum + item.perfTime, 0) / modelSamples.length;
-          const meanServer = modelSamples.reduce((sum, item) => sum + item.serverTime, 0) / modelSamples.length;
-          const denominator = modelSamples.reduce((sum, item) => {
-            const diff = item.perfTime - meanPerf;
-            return sum + (diff * diff);
-          }, 0);
-          const numerator = modelSamples.reduce((sum, item) => {
-            return sum + ((item.perfTime - meanPerf) * (item.serverTime - meanServer));
-          }, 0);
-          let fittedRate = denominator > 0 ? numerator / denominator : 1;
-          fittedRate = clampFloat(fittedRate, syncRateMin, syncRateMax, 1);
+          const fit = fitClockRate(modelSamples);
+          let fittedRate = fit?.rate ?? 1;
+          candidateRate = fittedRate;
+          candidateRatePpm = Math.round((candidateRate - 1) * 1000000);
+          residualJitter = fit?.residualJitter ?? jitter;
+          residualMinMax = fit?.residualMinMax ?? residualJitter;
+          rateOutlierShare = fit?.outlierShare ?? 0;
+          const fittedRatePpm = Math.abs(candidateRatePpm);
+          const largeRateCandidate = fittedRatePpm > syncRateLargeThresholdPpm;
+          let stableHalfRates = true;
+          if (largeRateCandidate) {
+            const middleTime = firstModelSample.perfTime + (modelSpan / 2);
+            const firstHalf = modelSamples.filter((item) => item.perfTime <= middleTime);
+            const secondHalf = modelSamples.filter((item) => item.perfTime > middleTime);
+            const firstHalfFit = firstHalf.length >= 4 ? fitClockRate(firstHalf) : null;
+            const secondHalfFit = secondHalf.length >= 4 ? fitClockRate(secondHalf) : null;
+            if (firstHalfFit && secondHalfFit) {
+              rateHalfDiffPpm = Math.abs(Math.round((firstHalfFit.rate - secondHalfFit.rate) * 1000000));
+              stableHalfRates = rateHalfDiffPpm <= syncRateLargeMaxHalfDiffPpm;
+            } else {
+              stableHalfRates = false;
+              rateHalfDiffPpm = NaN;
+            }
+          }
+          const highConfidenceLargeRate = largeRateCandidate
+            && modelSpan >= syncRateLargeMinSpanMs
+            && modelSamples.length >= syncRateLargeMinSamples
+            && residualJitter <= syncRateLargeMaxResidualMs
+            && stableHalfRates
+            && rateOutlierShare <= syncRateLargeMaxOutlierShare;
+          if (largeRateCandidate && !highConfidenceLargeRate) {
+            fittedRate = 1;
+            serverClockRateHighConfidence = false;
+            serverClockRateConfidence = "gated";
+            if (modelSpan < syncRateLargeMinSpanMs) serverClockRateGateReason = "short-window";
+            else if (modelSamples.length < syncRateLargeMinSamples) serverClockRateGateReason = "few-samples";
+            else if (residualJitter > syncRateLargeMaxResidualMs) serverClockRateGateReason = "unstable-residuals";
+            else if (!stableHalfRates) serverClockRateGateReason = "unstable-rate";
+            else if (rateOutlierShare > syncRateLargeMaxOutlierShare) serverClockRateGateReason = "outliers";
+            else serverClockRateGateReason = "gated";
+          } else {
+            fittedRate = largeRateCandidate
+              ? fittedRate
+              : clampFloat(fittedRate, syncRateNormalMin, syncRateNormalMax, 1);
+            serverClockRateHighConfidence = highConfidenceLargeRate;
+            serverClockRateConfidence = highConfidenceLargeRate ? "high" : "normal";
+            serverClockRateGateReason = largeRateCandidate ? "accepted-large" : "normal";
+          }
           if (Math.abs(fittedRate - 1) < syncRateDeadband) fittedRate = 1;
           const smoothing = syncSamples.length < 8 ? 0.45 : syncRateSmoothing;
           nextRate = serverClockRate + ((fittedRate - serverClockRate) * smoothing);
+          acceptedRatePpm = Math.round((nextRate - 1) * 1000000);
           const modelOffsets = modelSamples
             .map((item) => item.serverTime - (nextRate * item.perfTime))
             .sort((a, b) => a - b);
@@ -1959,7 +2162,9 @@
           const residuals = modelSamples
             .map((item) => item.serverTime - (modelOffset + (nextRate * item.perfTime)))
             .sort((a, b) => a - b);
-          jitter = residuals.length > 1 ? residuals[residuals.length - 1] - residuals[0] : 0;
+          jitter = residuals.length > 1
+            ? percentile(residuals, 0.9) - percentile(residuals, 0.1)
+            : 0;
           qualitySamples = modelSamples.length;
         }
 
@@ -1971,7 +2176,15 @@
           error: (bestLatency / 2) + jitter,
           jitter,
           samples: qualitySamples,
-          rate: serverClockRate
+          rate: serverClockRate,
+          rateConfidence: serverClockRateConfidence,
+          rateGateReason: serverClockRateGateReason,
+          rateCandidatePpm: candidateRatePpm,
+          rateAcceptedPpm: acceptedRatePpm,
+          rateResidualJitter: residualJitter,
+          rateResidualMinMax: residualMinMax,
+          rateHalfDiffPpm,
+          rateOutlierShare
         };
         return;
       }
@@ -1985,7 +2198,8 @@
         syncQuality = {
           ...syncQuality,
           offset: serverTimeOffset,
-          rate: serverClockRate
+          rate: serverClockRate,
+          rateConfidence: serverClockRateConfidence
         };
       }
     }
@@ -1997,6 +2211,47 @@
       return (values[middle - 1] + values[middle]) / 2;
     }
 
+    function percentile(sortedValues, ratio) {
+      if (!sortedValues.length) return 0;
+      const index = Math.min(sortedValues.length - 1, Math.max(0, Math.round((sortedValues.length - 1) * ratio)));
+      return sortedValues[index];
+    }
+
+    function fitClockRate(samples) {
+      if (!samples.length) return null;
+      const meanPerf = samples.reduce((sum, item) => sum + item.perfTime, 0) / samples.length;
+      const meanServer = samples.reduce((sum, item) => sum + item.serverTime, 0) / samples.length;
+      const denominator = samples.reduce((sum, item) => {
+        const diff = item.perfTime - meanPerf;
+        return sum + (diff * diff);
+      }, 0);
+      if (denominator <= 0) return null;
+      const numerator = samples.reduce((sum, item) => {
+        return sum + ((item.perfTime - meanPerf) * (item.serverTime - meanServer));
+      }, 0);
+      let rate = numerator / denominator;
+      rate = clampFloat(rate, syncRateLargeMin, syncRateLargeMax, 1);
+      const offsets = samples
+        .map((item) => item.serverTime - (rate * item.perfTime))
+        .sort((a, b) => a - b);
+      const offset = median(offsets);
+      const residuals = samples
+        .map((item) => item.serverTime - (offset + (rate * item.perfTime)))
+        .sort((a, b) => a - b);
+      const residualJitter = residuals.length > 1
+        ? percentile(residuals, 0.9) - percentile(residuals, 0.1)
+        : 0;
+      const outlierLimit = Math.max(syncRateLargeMaxResidualMs * 2, residualJitter * 3, 250);
+      const outliers = residuals.filter((value) => Math.abs(value) > outlierLimit).length;
+      return {
+        rate,
+        offset,
+        residualJitter,
+        residualMinMax: residuals.length > 1 ? residuals[residuals.length - 1] - residuals[0] : 0,
+        outlierShare: samples.length ? outliers / samples.length : 0
+      };
+    }
+
     function clampFloat(value, min, max, fallback) {
       const number = Number(value);
       if (!Number.isFinite(number)) return fallback;
@@ -2006,6 +2261,7 @@
     function clientDiagnostics() {
       const audioBaseLatency = Number(audioContext?.baseLatency);
       const audioOutputLatency = Number(audioContext?.outputLatency);
+      const finiteOrBlank = (value) => Number.isFinite(Number(value)) ? value : "";
       return {
         clientId,
         latency: syncQuality.latency ?? "",
@@ -2014,6 +2270,14 @@
         syncJitter: syncQuality.jitter ?? "",
         syncSamples: syncQuality.samples ?? "",
         syncRate: syncQuality.rate ?? "",
+        syncRateConfidence: syncQuality.rateConfidence ?? serverClockRateConfidence,
+        syncRateGateReason: syncQuality.rateGateReason ?? serverClockRateGateReason,
+        syncRateCandidatePpm: finiteOrBlank(syncQuality.rateCandidatePpm),
+        syncRateAcceptedPpm: finiteOrBlank(syncQuality.rateAcceptedPpm),
+        syncRateResidualJitter: finiteOrBlank(syncQuality.rateResidualJitter),
+        syncRateResidualMinMax: finiteOrBlank(syncQuality.rateResidualMinMax),
+        syncRateHalfDiffPpm: finiteOrBlank(syncQuality.rateHalfDiffPpm),
+        syncRateOutlierShare: finiteOrBlank(syncQuality.rateOutlierShare),
         visibility: document.visibilityState,
         viewport: `${window.innerWidth}x${window.innerHeight}`,
         screen: `${window.screen.width}x${window.screen.height}`,
@@ -2026,6 +2290,8 @@
         wakeLockActive: Boolean(screenWakeLock),
         eventSourceSupported: Boolean(window.EventSource),
         eventSourceConnected,
+        lastSseAge: Math.max(0, performance.now() - lastSseEventAt),
+        sseRestarts,
         stateVersion: lastServerVersion || "",
         displayStatus: els.status?.textContent || ""
       };
@@ -2084,6 +2350,9 @@
       els.festivalAnnouncementsLabel.textContent = t("festivalAnnouncements");
       els.festivalAnnouncementsRow.title = t("festivalAnnouncementsHint");
       els.primaryLabel.textContent = t("primary");
+      els.primaryPinButton.title = state.primaryPinSet ? t("primaryPinSet") : t("primaryPinUnset");
+      els.primaryPinInput.setAttribute("aria-label", t("primaryPinTitle"));
+      els.primaryPinClear.textContent = t("clear");
       els.instancesSoundLabel.textContent = t("otherSound");
       els.instancesFullscreenLabel.textContent = t("otherFullscreen");
       els.primaryRow.title = t("primaryHint");
@@ -2419,8 +2688,10 @@
       state.festivalAnnouncements = remote.festivalAnnouncements !== false;
       applySoundProfile(String(remote.soundProfile || ""));
       buildTimeline(state.activeSettings);
-      const ownClient = (remote.clients || []).find((client) => client.id === clientId);
-      const nextAudioOffset = Number(ownClient?.audioUserOffset || 0);
+      const remoteClients = Array.isArray(remote.clients) ? remote.clients : [];
+      const diagnosticsIncluded = remote.diagnosticsIncluded !== false && Array.isArray(remote.clients);
+      const ownClient = remoteClients.find((client) => client.id === clientId);
+      const nextAudioOffset = Number(ownClient?.audioUserOffset ?? remote.audioUserOffset ?? 0);
       const audioOffsetChanged = nextAudioOffset !== audioUserOffsetMs;
       audioUserOffsetMs = nextAudioOffset;
 
@@ -2437,9 +2708,12 @@
       const primaryClientId = remote.primaryClientId || null;
       const isPrimary = primaryClientId === clientId;
       state.primaryClientId = primaryClientId;
+      state.primaryPinSet = Boolean(remote.primaryPinSet);
+      state.ownPrimaryPinSaved = Boolean(remote.ownPrimaryPinSaved);
+      state.ownPrimaryPinValue = String(remote.ownPrimaryPinValue || "");
       isPrimaryClient = isPrimary;
       isViewerClient = Boolean(primaryClientId && !isPrimary);
-      updatePrimaryComputerFlag(remote.clients || [], primaryClientId);
+      updatePrimaryComputerFlag(diagnosticsIncluded ? remoteClients : lastKnownClients, primaryClientId);
       instancesSoundEnabled = Boolean(remote.instancesSound);
       instancesFullscreenEnabled = Boolean(remote.instancesFullscreen);
       globalSoundEnabled = remote.globalSound !== false;
@@ -2451,6 +2725,7 @@
       els.soundToggle.checked = isPrimary ? primarySoundEnabled : globalSoundEnabled;
       document.body.classList.toggle("primary-active", isPrimary);
       document.body.classList.toggle("viewer-mode", isViewerClient);
+      syncDiagnosticsStream();
       applyViewerFullscreenPreference();
       scheduleFitTimer();
 
@@ -2479,42 +2754,69 @@
       lastServerVersion = Number(remote.version || lastServerVersion);
       lastRemoteRunning = state.running;
       syncButtons();
-      renderBrowserList(remote.clients || []);
+      if (diagnosticsIncluded) renderBrowserList(remoteClients);
       render();
     }
 
     async function sendServerAction(type, payload = {}, options = {}) {
       if (!serverAvailable || standaloneMode) return false;
-      const controller = new AbortController();
-      const timeout = window.setTimeout(() => controller.abort(), syncRequestTimeoutMs);
-      try {
-        const timing = {
-          date0: Date.now(),
-          perf0: performance.now()
-        };
-        const response = await fetch("/api/action", {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          signal: controller.signal,
-          body: JSON.stringify({
-            type,
-            ...clientDiagnostics(),
-            ...payload
-          })
-        });
-        timing.date1 = Date.now();
-        timing.perf1 = performance.now();
-        if (!response.ok) throw new Error("Server action failed");
-        const remote = await response.json();
-        if (options.applyResponse !== false) applyServerState(remote, { ...options, timing });
-        else updateServerTiming(remote, timing);
-        return true;
-      } catch (error) {
-        markServerFailure(true);
-        return false;
-      } finally {
-        window.clearTimeout(timeout);
+      const isRuntimeCommand = runtimeCommandTypes.has(type);
+      const commandId = isRuntimeCommand ? `${clientId}:${++commandSeq}` : "";
+      const baseVersion = isRuntimeCommand && lastServerVersion ? lastServerVersion : undefined;
+      const intendedServerTime = isRuntimeCommand ? serverNow() : undefined;
+      const attempts = isRuntimeCommand ? 3 : 1;
+
+      for (let attempt = 0; attempt < attempts; attempt += 1) {
+        const controller = new AbortController();
+        const timeout = window.setTimeout(() => controller.abort(), syncRequestTimeoutMs);
+        try {
+          const timing = {
+            date0: Date.now(),
+            perf0: performance.now()
+          };
+          const response = await fetch("/api/action", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            signal: controller.signal,
+            body: JSON.stringify({
+              type,
+              commandId,
+              baseVersion,
+              intendedServerTime,
+              ...clientDiagnostics(),
+              ...payload
+            })
+          });
+          timing.date1 = Date.now();
+          timing.perf1 = performance.now();
+          const remote = await response.json().catch(() => null);
+          if (response.status === 409 && remote) {
+            applyServerState(remote, { ...options, timing, includePhaseSignal: false });
+            return "conflict";
+          }
+          if ((response.status === 400 || response.status === 403) && remote) {
+            applyServerState(remote, { ...options, timing, includePhaseSignal: false });
+            if (remote.primaryPinBlockedUntil) return "pin-blocked";
+            if (remote.primaryPinRequired) return "pin-required";
+            if (remote.primaryPinInvalidFormat) return "pin-invalid";
+            if (remote.primaryPinDenied) return "pin-denied";
+            return false;
+          }
+          if (!response.ok || !remote) throw new Error("Server action failed");
+          if (options.applyResponse !== false) applyServerState(remote, { ...options, timing });
+          else updateServerTiming(remote, timing);
+          return true;
+        } catch (error) {
+          if (attempt >= attempts - 1) {
+            markServerFailure(true);
+            return false;
+          }
+          await new Promise((resolve) => window.setTimeout(resolve, 160 * (attempt + 1)));
+        } finally {
+          window.clearTimeout(timeout);
+        }
       }
+      return false;
     }
 
     async function syncFromServer(options = {}) {
@@ -2528,7 +2830,10 @@
           date0: Date.now(),
           perf0: performance.now()
         };
-        const params = new URLSearchParams(clientDiagnostics());
+        const params = new URLSearchParams({
+          ...clientDiagnostics(),
+          diagnostics: (isPrimaryClient || !state.primaryClientId) ? "1" : "0"
+        });
         const response = await fetch(`/api/state?${params}`, {
           cache: "no-store",
           signal: controller.signal
@@ -2544,6 +2849,10 @@
           return true;
         }
         const version = Number(remote.version || 0);
+        if (version && version < lastServerVersion) {
+          updateServerTiming(remote, timing);
+          return true;
+        }
         if (version !== lastServerVersion) {
           const isRemoteStart = Date.now() >= suppressPhaseSignalsUntil
             && lastServerVersion !== 0
@@ -2557,8 +2866,10 @@
         } else {
           updateServerTiming(remote, timing);
           lastRemoteRunning = Boolean(remote.running);
-          updatePrimaryComputerFlag(remote.clients || [], remote.primaryClientId || null);
-          renderBrowserList(remote.clients || []);
+          if (remote.diagnosticsIncluded !== false && Array.isArray(remote.clients)) {
+            updatePrimaryComputerFlag(remote.clients, remote.primaryClientId || null);
+            renderBrowserList(remote.clients);
+          }
         }
         maybeBurstSync(options);
         return true;
@@ -2591,6 +2902,13 @@
       syncFromServer();
       startEventStream();
       syncTimer = window.setInterval(syncFromServer, 2000);
+      window.setInterval(checkSseHeartbeat, 5000);
+      window.setInterval(syncDiagnosticsStream, 5000);
+    }
+
+    function markSseEvent() {
+      lastSseEventAt = performance.now();
+      markServerContact();
     }
 
     function startEventStream() {
@@ -2601,18 +2919,23 @@
       eventSource.onopen = () => {
         if (generation !== eventStreamGeneration) return;
         eventSourceConnected = true;
-        markServerContact();
+        markSseEvent();
       };
+      eventSource.addEventListener("ping", () => {
+        if (generation !== eventStreamGeneration) return;
+        markSseEvent();
+      });
       eventSource.addEventListener("state", (event) => {
         if (generation !== eventStreamGeneration) return;
         try {
           const remote = JSON.parse(event.data);
-          markServerContact();
+          markSseEvent();
           if (standaloneMode) {
             pendingServerState = remote;
             return;
           }
           const version = Number(remote.version || 0);
+          if (version && version < lastServerVersion) return;
           const isRemoteStart = Date.now() >= suppressPhaseSignalsUntil
             && version !== lastServerVersion
             && lastServerVersion !== 0
@@ -2626,6 +2949,7 @@
       eventSource.addEventListener("audio-test", (event) => {
         if (generation !== eventStreamGeneration) return;
         try {
+          markSseEvent();
           handleAudioTest(JSON.parse(event.data));
         } catch (error) {}
       });
@@ -2646,6 +2970,66 @@
       eventSource = null;
       eventSourceConnected = false;
       startEventStream();
+    }
+
+    function shouldUseDiagnosticsStream() {
+      return !standaloneMode && (isPrimaryClient || !state.primaryClientId);
+    }
+
+    function syncDiagnosticsStream() {
+      if (!window.EventSource || !shouldUseDiagnosticsStream()) {
+        stopDiagnosticsStream();
+        return;
+      }
+      startDiagnosticsStream();
+    }
+
+    function startDiagnosticsStream() {
+      if (diagnosticsEventSource) return;
+      const params = new URLSearchParams({ clientId });
+      const generation = ++diagnosticsStreamGeneration;
+      diagnosticsEventSource = new EventSource(`/api/diagnostics/events?${params}`);
+      diagnosticsEventSource.onopen = () => {
+        if (generation !== diagnosticsStreamGeneration) return;
+        markSseEvent();
+      };
+      diagnosticsEventSource.addEventListener("ping", () => {
+        if (generation !== diagnosticsStreamGeneration) return;
+        markSseEvent();
+      });
+      diagnosticsEventSource.addEventListener("diagnostics", (event) => {
+        if (generation !== diagnosticsStreamGeneration) return;
+        try {
+          markSseEvent();
+          const diagnostics = JSON.parse(event.data);
+          if (Array.isArray(diagnostics.clients)) {
+            updatePrimaryComputerFlag(diagnostics.clients, diagnostics.primaryClientId || state.primaryClientId || null);
+            renderBrowserList(diagnostics.clients);
+          }
+        } catch (error) {}
+      });
+      diagnosticsEventSource.onerror = () => {
+        if (generation !== diagnosticsStreamGeneration) return;
+        stopDiagnosticsStream();
+      };
+    }
+
+    function stopDiagnosticsStream() {
+      diagnosticsStreamGeneration += 1;
+      if (diagnosticsEventSource) {
+        try {
+          diagnosticsEventSource.close();
+        } catch (error) {}
+      }
+      diagnosticsEventSource = null;
+    }
+
+    function checkSseHeartbeat() {
+      if (!eventSource || !eventSourceConnected) return;
+      if (performance.now() - lastSseEventAt <= sseSilentRestartMs) return;
+      sseRestarts += 1;
+      restartEventStream();
+      syncDiagnosticsStream();
     }
 
     function shouldResetSignalsOnResume(event = null) {
@@ -2670,6 +3054,7 @@
       pageHiddenAt = 0;
       requestScreenWakeLock();
       restartEventStream();
+      syncDiagnosticsStream();
       await syncFromServer({ forceApply: true });
       window.setTimeout(() => syncFromServer({ forceApply: true }), 600);
     }
@@ -2847,11 +3232,42 @@
         const syncRateValue = client.syncRate;
         const syncRate = syncRateValue === null || syncRateValue === undefined || syncRateValue === "" ? NaN : Number(syncRateValue);
         const syncDriftPpm = Number.isFinite(syncRate) ? Math.round((syncRate - 1) * 1000000) : 0;
+        const syncCandidatePpm = Number(client.syncRateCandidatePpm);
+        const syncAcceptedPpm = Number(client.syncRateAcceptedPpm);
+        const syncGateReason = client.syncRateGateReason || client.syncRateConfidence || "";
+        const syncResidual = Number(client.syncRateResidualJitter);
+        const syncHalfDiff = Number(client.syncRateHalfDiffPpm);
+        const syncOutlierShare = Number(client.syncRateOutlierShare);
         const syncDriftText = Number.isFinite(syncRate) && Math.abs(syncDriftPpm) >= 100
           ? language === "ru"
             ? `; поправка хода ${syncDriftPpm > 0 ? "+" : ""}${syncDriftPpm} ppm`
             : `; clock rate ${syncDriftPpm > 0 ? "+" : ""}${syncDriftPpm} ppm`
           : "";
+        const syncRateDetails = [
+          Number.isFinite(syncCandidatePpm) && Math.abs(syncCandidatePpm) >= 100
+            ? language === "ru"
+              ? `кандидат хода ${syncCandidatePpm > 0 ? "+" : ""}${syncCandidatePpm} ppm`
+              : `rate candidate ${syncCandidatePpm > 0 ? "+" : ""}${syncCandidatePpm} ppm`
+            : "",
+          Number.isFinite(syncAcceptedPpm) && Math.abs(syncAcceptedPpm) >= 100
+            ? language === "ru"
+              ? `принято ${syncAcceptedPpm > 0 ? "+" : ""}${syncAcceptedPpm} ppm`
+              : `accepted ${syncAcceptedPpm > 0 ? "+" : ""}${syncAcceptedPpm} ppm`
+            : "",
+          syncGateReason
+            ? language === "ru" ? `статус rate ${syncGateReason}` : `rate status ${syncGateReason}`
+            : "",
+          Number.isFinite(syncResidual)
+            ? language === "ru" ? `остаточный разброс ${formatMs(syncResidual)}` : `residual jitter ${formatMs(syncResidual)}`
+            : "",
+          Number.isFinite(syncHalfDiff)
+            ? language === "ru" ? `разница половин ${Math.round(syncHalfDiff)} ppm` : `half-window diff ${Math.round(syncHalfDiff)} ppm`
+            : "",
+          Number.isFinite(syncOutlierShare)
+            ? language === "ru" ? `выбросов ${Math.round(syncOutlierShare * 100)}%` : `outliers ${Math.round(syncOutlierShare * 100)}%`
+            : ""
+        ].filter(Boolean).join("; ");
+        const syncRateDetailsText = syncRateDetails ? `; ${syncRateDetails}` : "";
         const netStatus = clientConnected ? thresholdStatus(latency, 100, 200) : "bad";
         const syncStatus = clientConnected ? thresholdStatus(estimatedSyncError, 100, 300) : "bad";
         const audioOk = client.soundAllowed !== false && client.audioUnlocked === true;
@@ -2874,14 +3290,14 @@
         ];
         const chips = language === "ru" ? (standaloneSelf ? ruLocalChips : [
           diagChip("NET", netStatus, `Соединение: ${clientConnected ? "онлайн" : "нет связи"}; задержка ${formatMs(client.latency)}; зелёный ≤100 мс, жёлтый ≤200 мс, красный >200 мс`),
-          diagChip("SYNC", syncStatus, `${hasSyncError ? "Оценка ошибки синхронизации" : "Приблизительная оценка по задержке сети"}: ${formatMs(estimatedSyncError)}; разброс ${formatMs(client.syncJitter)}; замеров ${client.syncSamples || "n/a"}${syncDriftText}; зелёный ≤100 мс, жёлтый ≤300 мс, красный >300 мс`),
+          diagChip("SYNC", syncStatus, `${hasSyncError ? "Оценка ошибки синхронизации" : "Приблизительная оценка по задержке сети"}: ${formatMs(estimatedSyncError)}; разброс ${formatMs(client.syncJitter)}; замеров ${client.syncSamples || "n/a"}${syncDriftText}${syncRateDetailsText}; зелёный ≤100 мс, жёлтый ≤300 мс, красный >300 мс`),
           diagChip("AUDIO", audioClasses, `Звук разрешён: ${yesNo(client.soundAllowed !== false)}; разблокирован тапом: ${yesNo(client.audioUnlocked === true)}; ${t("audioOffsetUser")}: ${formatMs(userAudioOffset)}`, ` data-audio-client="${escapeHtml(client.id)}"`),
           diagChip("WAKE", wakeOk ? "good" : "bad", `Wake Lock поддерживается: ${yesNo(client.wakeLockSupported === true)}; активен: ${yesNo(client.wakeLockActive === true)}`),
           diagChip("SSE", sseOk ? "good" : "bad", `Мгновенные события сервера: поддержка ${yesNo(client.eventSourceSupported === true)}; подключено ${yesNo(sseOk)}`),
           diagChip("TAB", tabOk ? "good" : "bad", `Видимость вкладки: ${client.visibility || "неизвестно"}`)
         ]) : (standaloneSelf ? enLocalChips : [
           diagChip("NET", netStatus, `Connection: ${clientConnected ? "online" : "offline"}; latency ${formatMs(client.latency)}; green ≤100 ms, yellow ≤200 ms, red >200 ms`),
-          diagChip("SYNC", syncStatus, `${hasSyncError ? "Estimated synchronization error" : "Approximate estimate from network latency"}: ${formatMs(estimatedSyncError)}; jitter ${formatMs(client.syncJitter)}; samples ${client.syncSamples || "n/a"}${syncDriftText}; green ≤100 ms, yellow ≤300 ms, red >300 ms`),
+          diagChip("SYNC", syncStatus, `${hasSyncError ? "Estimated synchronization error" : "Approximate estimate from network latency"}: ${formatMs(estimatedSyncError)}; jitter ${formatMs(client.syncJitter)}; samples ${client.syncSamples || "n/a"}${syncDriftText}${syncRateDetailsText}; green ≤100 ms, yellow ≤300 ms, red >300 ms`),
           diagChip("AUDIO", audioClasses, `Sound allowed: ${yesNo(client.soundAllowed !== false)}; unlocked by tap: ${yesNo(client.audioUnlocked === true)}; ${t("audioOffsetUser")}: ${formatMs(userAudioOffset)}`, ` data-audio-client="${escapeHtml(client.id)}"`),
           diagChip("WAKE", wakeOk ? "good" : "bad", `Wake Lock supported: ${yesNo(client.wakeLockSupported === true)}; active: ${yesNo(client.wakeLockActive === true)}`),
           diagChip("SSE", sseOk ? "good" : "bad", `Instant server events: supported ${yesNo(client.eventSourceSupported === true)}; connected ${yesNo(sseOk)}`),
@@ -3027,7 +3443,7 @@
       }
     }
 
-    function playBuffer(kind, delaySeconds = 0, preserveOnTransition = false, signalKey = "") {
+    function playBuffer(kind, delaySeconds = 0, preserveOnTransition = false, signalKey = "", onStarted = null) {
       if (!canPlaySound() || !audioContext) return false;
       const buffer = soundBuffer(kind);
       if (!buffer) return false;
@@ -3037,12 +3453,23 @@
       source.connect(gain).connect(audioContext.destination);
       const start = Math.max(audioContext.currentTime, audioContext.currentTime + Math.max(0, delaySeconds));
       gain.gain.setValueAtTime(kind === "warn" ? 0.82 : 1, start);
+      const item = { node: source, start, preserveOnTransition, signalKey, started: false, playedTimer: null };
+      const markStarted = () => {
+        if (item.started) return;
+        item.started = true;
+        if (signalKey) markSignalPlayed(signalKey);
+        onStarted?.();
+      };
+      item.playedTimer = window.setTimeout(markStarted, Math.max(0, (start - audioContext.currentTime) * 1000));
       source.start(start);
       source.stop(start + buffer.duration + 0.02);
-      scheduledAudioNodes.push({ node: source, start, preserveOnTransition, signalKey });
+      scheduledAudioNodes.push(item);
       source.onended = () => {
-        scheduledAudioNodes = scheduledAudioNodes.filter((item) => item.node !== source);
-        if (signalKey) scheduledSignalKeys.delete(signalKey);
+        if (item.playedTimer) window.clearTimeout(item.playedTimer);
+        scheduledAudioNodes = scheduledAudioNodes.filter((entry) => entry.node !== source);
+        if (signalKey && !scheduledAudioNodes.some((entry) => entry.signalKey === signalKey)) {
+          scheduledSignalKeys.delete(signalKey);
+        }
       };
       return true;
     }
@@ -3089,19 +3516,21 @@
       offsets.forEach((offset) => scheduleDiagnosticSound(kind, baseServerTime + offset));
     }
 
-    function beep(kind, delaySeconds = 0, scheduled = false, signalKey = "") {
-      if (!canPlaySound()) return;
-      if (audioKinds.includes(kind) && playBuffer(kind, delaySeconds, false, signalKey)) {
-        return;
+    function beep(kind, delaySeconds = 0, scheduled = false, signalKey = "", preserveOnTransition = false, onStarted = null) {
+      if (!canPlaySound()) return false;
+      if (audioKinds.includes(kind) && playBuffer(kind, delaySeconds, preserveOnTransition, signalKey, onStarted)) {
+        return true;
       }
       if (delaySeconds === 0 && audioKinds.includes(kind) && playHtmlAudio(kind)) {
-        return;
+        if (signalKey) markSignalPlayed(signalKey);
+        onStarted?.();
+        return true;
       }
-      beepSynthetic(kind, delaySeconds, scheduled);
+      return beepSynthetic(kind, delaySeconds, scheduled, signalKey, preserveOnTransition, onStarted);
     }
 
-    function beepSynthetic(kind, delaySeconds = 0, scheduled = false) {
-      if (!canPlaySound()) return;
+    function beepSynthetic(kind, delaySeconds = 0, scheduled = false, signalKey = "", preserveOnTransition = false, onStarted = null) {
+      if (!canPlaySound()) return false;
       audioContext ||= new (window.AudioContext || window.webkitAudioContext)();
       const plans = {
         finish: [{ offset: 0, frequency: 220, duration: .36 }],
@@ -3124,7 +3553,7 @@
 
       const now = audioContext.currentTime + Math.max(0, delaySeconds);
       const plan = plans[kind] || plans.start;
-      plan.forEach(({ offset, frequency, duration, volume = .22, type = "sine", attack = .02 }) => {
+      plan.forEach(({ offset, frequency, duration, volume = .22, type = "sine", attack = .02 }, index) => {
         const start = now + offset;
         const osc = audioContext.createOscillator();
         const gain = audioContext.createGain();
@@ -3134,10 +3563,32 @@
         gain.gain.exponentialRampToValueAtTime(volume, start + attack);
         gain.gain.exponentialRampToValueAtTime(0.0001, start + duration);
         osc.connect(gain).connect(audioContext.destination);
+        const itemSignalKey = index === 0 ? signalKey : "";
+        const itemOnStarted = index === 0 ? onStarted : null;
+        const item = { node: osc, start, preserveOnTransition, signalKey: itemSignalKey, started: false, playedTimer: null };
+        const markStarted = () => {
+          if (item.started) return;
+          item.started = true;
+          if (itemSignalKey) markSignalPlayed(itemSignalKey);
+          itemOnStarted?.();
+        };
         osc.start(start);
         osc.stop(start + duration + 0.02);
-        if (scheduled) scheduledAudioNodes.push({ node: osc, start });
+        if (scheduled) {
+          item.playedTimer = window.setTimeout(markStarted, Math.max(0, (start - audioContext.currentTime) * 1000));
+          scheduledAudioNodes.push(item);
+          osc.onended = () => {
+            if (item.playedTimer) window.clearTimeout(item.playedTimer);
+            scheduledAudioNodes = scheduledAudioNodes.filter((entry) => entry.node !== osc);
+            if (itemSignalKey && !scheduledAudioNodes.some((entry) => entry.signalKey === itemSignalKey)) {
+              scheduledSignalKeys.delete(itemSignalKey);
+            }
+          };
+        } else if (index === 0) {
+          markStarted();
+        }
       });
+      return true;
     }
 
     function flash() {
@@ -3201,50 +3652,81 @@
       return serverNow() - targetServerTime <= graceMs;
     }
 
+    function shouldScheduleServerSignal(targetServerTime, graceMs = staleSignalGraceMs) {
+      return Boolean(targetServerTime) && isServerSignalCurrent(targetServerTime, graceMs);
+    }
+
+    function lateGraceForSignal(kind, category = "") {
+      if (category === "rotationBoundary") return signalLateGraceMs.rotationBoundary;
+      if (kind === "warn") return signalLateGraceMs.warn;
+      if (kind === "minute") return signalLateGraceMs.minute;
+      if (kind && kind.startsWith("festival")) return signalLateGraceMs.festival;
+      if (kind === "warm" || kind === "prewarm") return signalLateGraceMs.noncritical;
+      return signalLateGraceMs[kind] ?? signalLateGraceMs.default;
+    }
+
+    function markSignalPlayed(signalKey) {
+      if (!signalKey) return true;
+      if (playedSignalKeys.has(signalKey)) return false;
+      playedSignalKeys.add(signalKey);
+      return true;
+    }
+
     function audioServerTime(targetServerTime) {
       return targetServerTime ? targetServerTime + audioUserOffsetMs : targetServerTime;
     }
 
-    function scheduleSignalAt(segment, targetServerTime, kind, withFlash = true) {
+    function shouldTryBufferImmediately(targetServerTime) {
       const soundTargetServerTime = audioServerTime(targetServerTime);
-      const delay = delayUntilServerTime(soundTargetServerTime);
-      if (kind === "minute" || kind === "warn") {
-        scheduleBufferedSignalAt(segment, targetServerTime, kind, withFlash);
-        return;
-      }
-      if (kind === "warm" || kind === "prewarm") {
-        scheduleServerTimeoutAt(soundTargetServerTime, () => wakeAudioOutput(kind));
-        return;
-      }
-      beep(kind, delay, true);
-      if (!withFlash) return;
-      scheduleSegmentTimeoutAt(segment, targetServerTime, () => flash());
+      return Boolean(soundTargetServerTime) && delayUntilServerTime(soundTargetServerTime) <= audioScheduleAheadSeconds;
     }
 
-    function scheduleBufferedSignalAt(segment, targetServerTime, kind, withFlash = true, scheduleImmediately = false, fallback = null) {
+    function scheduleSignalAt(segment, targetServerTime, kind, withFlash = true) {
       const soundTargetServerTime = audioServerTime(targetServerTime);
-      const signalKey = `${segment.cycle}:${segment.type}:${kind}:${Math.round(soundTargetServerTime)}`;
-      if (scheduledSignalKeys.has(signalKey)) return;
+      if (kind === "warm" || kind === "prewarm") {
+        scheduleServerTimeoutAt(soundTargetServerTime, () => wakeAudioOutput(kind), { lateGraceMs: lateGraceForSignal(kind) });
+        return;
+      }
+      scheduleBufferedSignalAt(segment, targetServerTime, kind, withFlash);
+    }
+
+    function scheduleBufferedSignalAt(segment, targetServerTime, kind, withFlash = true, scheduleImmediately = false, fallback = null, options = {}) {
+      const soundTargetServerTime = audioServerTime(targetServerTime);
+      const signalKey = options.signalKey || `${segment.cycle}:${segment.type}:${kind}:${Math.round(soundTargetServerTime)}`;
+      const lateGraceMs = options.lateGraceMs ?? lateGraceForSignal(kind, options.category || "");
+      const preserveOnTransition = Boolean(options.preserveOnTransition);
+      const allowAfterSegment = Boolean(options.allowAfterSegment);
+      if (scheduledSignalKeys.has(signalKey) || playedSignalKeys.has(signalKey)) return;
       scheduledSignalKeys.add(signalKey);
       let scheduledByBuffer = false;
       const cancelFallback = scheduleServerTimeoutAt(soundTargetServerTime, () => {
         if (scheduledByBuffer) return;
+        if (!markSignalPlayed(signalKey)) return;
+        options.onPlay?.();
         if (fallback) fallback();
         else beep(kind);
-      });
-      if (withFlash) scheduleSegmentTimeoutAt(segment, targetServerTime, () => flash());
+      }, { lateGraceMs, preserveOnTransition });
+      if (withFlash) {
+        const flashScheduler = allowAfterSegment
+          ? scheduleServerTimeoutAt
+          : (target, callback, scheduleOptions) => scheduleSegmentTimeoutAt(segment, target, callback, scheduleOptions);
+        flashScheduler(targetServerTime, () => flash(), { lateGraceMs, preserveOnTransition });
+      }
 
       const tryScheduleBuffer = () => {
         if (scheduledByBuffer || !soundBuffer(kind)) return false;
         const current = getCurrentSegment(elapsedSeconds());
         if (!state.running || !current) return false;
-        if (current.cycle !== segment.cycle || current.type !== segment.type) return false;
+        if (!allowAfterSegment && (current.cycle !== segment.cycle || current.type !== segment.type)) return false;
 
         const nextDelay = delayUntilServerTime(soundTargetServerTime);
         if (nextDelay <= 0.08) return false;
+        const scheduled = beep(kind, nextDelay, true, signalKey, preserveOnTransition, () => {
+          options.onPlay?.();
+        });
+        if (!scheduled) return false;
         scheduledByBuffer = true;
         cancelFallback();
-        beep(kind, nextDelay, true, signalKey);
         return true;
       };
 
@@ -3264,7 +3746,7 @@
             tryScheduleBuffer();
           });
         }
-      });
+      }, { lateGraceMs: Math.max(lateGraceMs, 1000) });
     }
 
     function nextPhaseSignalKey(segment) {
@@ -3287,43 +3769,18 @@
       const soundKind = transitionSoundKind(segment, finalTransition);
       if (lastPhaseSignalKey === phaseKey || scheduledPhaseSignalKeys.has(phaseKey)) return;
       scheduledPhaseSignalKeys.add(phaseKey);
-      const soundTargetServerTime = audioServerTime(targetServerTime);
-      let scheduledByBuffer = false;
-      const playFallback = () => {
-        if (scheduledByBuffer) return;
-        beep(soundKind);
-      };
-      const cancelFallback = scheduleServerTimeoutAt(soundTargetServerTime, () => {
+      const signalKey = `rotationBoundary:${phaseKey}:${Math.round(targetServerTime)}`;
+      const onPlay = () => {
         lastPhaseSignalKey = phaseKey;
         scheduledPhaseSignalKeys.delete(phaseKey);
-        playFallback();
-      }, true);
-      const scheduleFlashAtTarget = finalTransition ? scheduleServerTimeoutAt : (target, callback) => scheduleSegmentTimeoutAt(segment, target, callback);
-      scheduleFlashAtTarget(targetServerTime, () => flash());
-
-      const tryScheduleBuffer = () => {
-        if (scheduledByBuffer || !canPlaySound() || !soundBuffer(soundKind)) return false;
-        const current = getCurrentSegment(elapsedSeconds());
-        if (!state.running || !current) return false;
-        if (current.cycle !== segment.cycle || current.type !== segment.type) return false;
-
-        const nextDelay = delayUntilServerTime(soundTargetServerTime);
-        if (nextDelay <= 0.08) return false;
-        scheduledByBuffer = true;
-        cancelFallback();
-        lastPhaseSignalKey = phaseKey;
-        scheduledPhaseSignalKeys.delete(phaseKey);
-        playBuffer(soundKind, nextDelay, true);
-        return true;
       };
-
-      scheduleSegmentTimeoutAt(segment, soundTargetServerTime - audioScheduleAheadSeconds * 1000, () => {
-        if (tryScheduleBuffer()) return;
-        if (audioContext && !soundBuffer(soundKind)) {
-          loadAudioBuffers()?.then(() => {
-            tryScheduleBuffer();
-          });
-        }
+      scheduleBufferedSignalAt(segment, targetServerTime, soundKind, true, shouldTryBufferImmediately(targetServerTime), null, {
+        signalKey,
+        category: "rotationBoundary",
+        lateGraceMs: signalLateGraceMs.rotationBoundary,
+        preserveOnTransition: true,
+        allowAfterSegment: true,
+        onPlay
       });
     }
 
@@ -3340,11 +3797,15 @@
       scheduledAudioNodes = scheduledAudioNodes.filter((item) => {
         const node = item.node || item;
         const start = Number(item.start ?? 0);
-        if (!forceStopAudio && preserveTransition && item.preserveOnTransition && start > now - 2) return true;
+        if (!forceStopAudio && preserveTransition && item.preserveOnTransition && start > now - 2) {
+          if (item.signalKey) retainedSignalKeys.add(item.signalKey);
+          return true;
+        }
         if (!forceStopAudio && start <= now + 0.2) {
           if (item.signalKey) retainedSignalKeys.add(item.signalKey);
           return true;
         }
+        if (item.playedTimer && !item.started) window.clearTimeout(item.playedTimer);
         try { node.stop(0); } catch (error) {}
         return false;
       });
@@ -3395,21 +3856,23 @@
 
       scheduleFestivalAnnouncements(segment, remaining);
 
-      if (remaining > 0.2) {
+      const phaseTargetServerTime = serverTimeForElapsed(segment.end);
+      if (shouldScheduleServerSignal(phaseTargetServerTime, signalLateGraceMs.rotationBoundary)) {
         const settings = activeSettings();
         const totalDuration = settings.rotationSeconds + settings.breakSeconds;
         const finalTransition = settings.oneShot && segment.end >= totalDuration;
-        schedulePhaseTransitionAt(segment, serverTimeForElapsed(segment.end), finalTransition);
+        schedulePhaseTransitionAt(segment, phaseTargetServerTime, finalTransition);
       }
 
-      if (duration > 60 && remaining > 60) {
+      const minuteTargetServerTime = serverTimeForElapsed(segment.end - 60);
+      if (duration > 60 && shouldScheduleServerSignal(minuteTargetServerTime, signalLateGraceMs.minute)) {
         if (remaining > 60 + audioPrewarmSeconds) {
           scheduleSignalAt(segment, serverTimeForElapsed(segment.end - 60 - audioPrewarmSeconds), "prewarm", false);
         }
         if (remaining > 60.8) {
           scheduleSignalAt(segment, serverTimeForElapsed(segment.end - 60.8), "warm", false);
         }
-        scheduleSignalAt(segment, serverTimeForElapsed(segment.end - 60), "minute", true);
+        scheduleBufferedSignalAt(segment, minuteTargetServerTime, "minute", true, shouldTryBufferImmediately(minuteTargetServerTime));
       }
 
       if (remaining > 6) {
@@ -3437,7 +3900,9 @@
           });
           return;
         }
-        scheduleServerTimeoutAt(audioServerTime(targetServerTime), () => speak(announcement[language]));
+        scheduleServerTimeoutAt(audioServerTime(targetServerTime), () => speak(announcement[language]), {
+          lateGraceMs: signalLateGraceMs.festival
+        });
       });
     }
 
@@ -3450,9 +3915,10 @@
       }, Math.max(0, delaySeconds * 1000)));
     }
 
-    function scheduleSegmentTimeoutAt(segment, targetServerTime, callback) {
+    function scheduleSegmentTimeoutAt(segment, targetServerTime, callback, options = {}) {
       let cancelled = false;
       let activeTimer = null;
+      const lateGraceMs = options.lateGraceMs ?? staleSignalGraceMs;
       const arm = () => {
         if (cancelled) return;
         const delay = delayUntilServerTime(targetServerTime);
@@ -3466,7 +3932,7 @@
             arm();
             return;
           }
-          if (!isServerSignalCurrent(targetServerTime)) return;
+          if (!isServerSignalCurrent(targetServerTime, lateGraceMs)) return;
           callback();
         }, wait * 1000);
         signalTimers.push(activeTimer);
@@ -3478,9 +3944,11 @@
       };
     }
 
-    function scheduleServerTimeoutAt(targetServerTime, callback, preserveOnTransition = false) {
+    function scheduleServerTimeoutAt(targetServerTime, callback, options = false) {
       let cancelled = false;
       let activeTimer = null;
+      const preserveOnTransition = typeof options === "boolean" ? options : Boolean(options.preserveOnTransition);
+      const lateGraceMs = typeof options === "object" ? options.lateGraceMs ?? staleSignalGraceMs : staleSignalGraceMs;
       const timerList = preserveOnTransition ? transitionSignalTimers : signalTimers;
       const forgetTimer = () => {
         if (!activeTimer) return;
@@ -3498,7 +3966,7 @@
             arm();
             return;
           }
-          if (!isServerSignalCurrent(targetServerTime)) return;
+          if (!isServerSignalCurrent(targetServerTime, lateGraceMs)) return;
           callback();
         }, wait * 1000);
         timerList.push(activeTimer);
@@ -3725,6 +4193,7 @@
       els.soundProfileSelect.disabled = !available || (state.running && !beforeScheduledStart)
         || state.elapsedBeforePause > 0
         || state.completed;
+      updatePrimaryPinUi();
     }
 
     function finalizeStandaloneState() {
@@ -3946,7 +4415,7 @@
         settings: activeSettingsFromDraft()
       });
       if (sent) {
-        if (shouldSignal) signal("finish");
+        if (sent !== "conflict" && shouldSignal) signal("finish");
         return;
       }
       if (!serverAvailable) return;
@@ -3969,15 +4438,87 @@
     }
 
     function setPrimaryMode(enabled) {
+      return setPrimaryModeWithOptions(enabled);
+    }
+
+    async function setPrimaryModeWithOptions(enabled, options = {}) {
       if (!serverAvailable || standaloneMode) return;
       els.primaryToggle.checked = enabled;
-      sendServerAction("primary", {
-        clientId: enabled ? clientId : null
+      const changed = await sendServerAction("primary", {
+        clientId: enabled ? clientId : null,
+        source: options.source || "",
+        pin: options.pin || ""
       });
+      if (changed !== true) els.primaryToggle.checked = isPrimaryClient;
+      return changed;
     }
 
     function togglePrimaryMode() {
       setPrimaryMode(!isPrimaryClient);
+    }
+
+    function closePrimaryPinPanel() {
+      els.primaryPinPanel.hidden = true;
+      els.primaryPinInput.value = "";
+      els.primaryPinStatus.textContent = "";
+    }
+
+    function updatePrimaryPinUi() {
+      const showButton = isPrimaryClient && !standaloneMode && serverAvailable;
+      els.primaryPinButton.hidden = !showButton;
+      els.primaryPinButton.disabled = !showButton;
+      els.primaryPinButton.classList.toggle("is-set", Boolean(state.primaryPinSet));
+      els.primaryPinButton.title = state.primaryPinSet ? t("primaryPinSet") : t("primaryPinUnset");
+      els.primaryPinClear.hidden = !state.primaryPinSet;
+      if (!showButton) closePrimaryPinPanel();
+    }
+
+    function togglePrimaryPinPanel() {
+      if (!isPrimaryClient) return;
+      const nextHidden = !els.primaryPinPanel.hidden;
+      els.primaryPinPanel.hidden = nextHidden;
+      els.primaryPinStatus.textContent = state.primaryPinSet ? t("primaryPinSet") : t("primaryPinUnset");
+      if (!nextHidden) {
+        els.primaryPinInput.value = state.ownPrimaryPinValue || "";
+        els.primaryPinInput.focus();
+        els.primaryPinInput.select();
+      }
+    }
+
+    async function savePrimaryPin() {
+      if (!isPrimaryClient) return;
+      const pin = els.primaryPinInput.value.trim();
+      if (!/^\d{4}$/.test(pin)) {
+        els.primaryPinStatus.textContent = t("primaryPinInvalid");
+        els.primaryPinInput.select();
+        return;
+      }
+      const saved = await sendServerAction("primaryPin", { pin });
+      if (saved !== true) {
+        els.primaryPinStatus.textContent = t("primaryPinWrong");
+        return;
+      }
+      els.primaryPinStatus.textContent = t("primaryPinSaved");
+      closePrimaryPinPanel();
+    }
+
+    async function clearPrimaryPinFromUi() {
+      if (!isPrimaryClient) return;
+      const cleared = await sendServerAction("primaryPin", { pin: "" });
+      if (cleared !== true) return;
+      els.primaryPinStatus.textContent = t("primaryPinCleared");
+      closePrimaryPinPanel();
+    }
+
+    function promptPrimaryPin() {
+      const pin = window.prompt(t("primaryPinPrompt"));
+      if (pin === null) return null;
+      const cleanPin = pin.trim();
+      if (!/^\d{4}$/.test(cleanPin)) {
+        window.alert(t("primaryPinInvalid"));
+        return null;
+      }
+      return cleanPin;
     }
 
     function canScrub() {
@@ -3992,7 +4533,7 @@
       const rect = els.progressTrack.getBoundingClientRect();
       const ratio = Math.min(1, Math.max(0, (event.clientX - rect.left) / rect.width));
       const duration = segment.end - segment.start;
-      const segmentEnd = Math.max(segment.start, segment.end - 0.001);
+      const segmentEnd = Math.max(segment.start, segment.end - seekEndGuardSeconds);
       const elapsed = Math.min(segmentEnd, segment.start + duration * ratio);
 
       state.running = false;
@@ -4028,7 +4569,7 @@
       scrubSegment = null;
       els.progressTrack.releasePointerCapture?.(event.pointerId);
       if (!standaloneMode && Number.isFinite(pendingSeekElapsed)) {
-        pendingSeekAction = sendServerAction("seek", { elapsed: pendingSeekElapsed }, { applyResponse: false });
+        pendingSeekAction = sendServerAction("seek", { elapsed: pendingSeekElapsed });
       }
       pendingSeekElapsed = null;
     }
@@ -4186,6 +4727,23 @@
     els.primaryToggle.addEventListener("change", () => {
       setPrimaryMode(els.primaryToggle.checked);
     });
+    els.primaryPinButton.addEventListener("click", togglePrimaryPinPanel);
+    els.primaryPinApply.addEventListener("click", savePrimaryPin);
+    els.primaryPinClear.addEventListener("click", clearPrimaryPinFromUi);
+    els.primaryPinInput.addEventListener("input", () => {
+      els.primaryPinInput.value = els.primaryPinInput.value.replace(/\D/g, "").slice(0, 4);
+      els.primaryPinStatus.textContent = "";
+    });
+    els.primaryPinInput.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        savePrimaryPin();
+      }
+      if (event.key === "Escape") {
+        event.preventDefault();
+        closePrimaryPinPanel();
+      }
+    });
 
     els.instancesSoundToggle.addEventListener("change", () => {
       sendServerAction("instancesSound", {
@@ -4298,14 +4856,22 @@
       }, { passive: true });
     });
 
-    document.addEventListener("keydown", (event) => {
+    document.addEventListener("keydown", async (event) => {
       unlockAudio();
       const key = event.key.toLowerCase();
       const isCtrl = event.ctrlKey || event.metaKey;
       const isPrimaryShortcut = isCtrl && (event.code === "KeyM" || key === "m" || key === "ь");
       if (isPrimaryShortcut) {
         event.preventDefault();
-        togglePrimaryMode();
+        if (isViewerClient && state.primaryPinSet) {
+          const pin = promptPrimaryPin();
+          if (pin === null) return;
+          const changed = await setPrimaryModeWithOptions(true, { source: "shortcut", pin });
+          if (changed === "pin-blocked") window.alert(t("primaryPinBlocked"));
+          else if (changed !== true) window.alert(t("primaryPinWrong"));
+          return;
+        }
+        setPrimaryModeWithOptions(!isPrimaryClient, { source: "shortcut" });
         return;
       }
       if (isViewerClient) return;
