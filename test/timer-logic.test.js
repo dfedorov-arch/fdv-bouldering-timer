@@ -21,6 +21,8 @@ const signalLateGraceMs = {
   minute: 1000
 };
 
+const manualStartAudioLeadMs = 300;
+
 function clampFloat(value, min, max, fallback) {
   const number = Number(value);
   if (!Number.isFinite(number)) return fallback;
@@ -161,6 +163,15 @@ function holdServerClockRateForOffline(currentRate) {
   };
 }
 
+function reanchorServerClockModelForResume(currentRate) {
+  return {
+    rate: currentRate,
+    confidence: "resume-held",
+    gateReason: "resume-held",
+    acceptedRatePpm: Math.round((currentRate - 1) * 1000000)
+  };
+}
+
 function buildTimeline(settings, labels = { rotation: "rotation", break: "break" }) {
   return [
     { type: "rotation", label: labels.rotation, duration: settings.rotationSeconds },
@@ -220,6 +231,10 @@ function shouldRestoreSnapshot(savedAtWall, now, maxAgeMs) {
   return Number.isFinite(savedAtWall) && age >= 0 && age <= maxAgeMs;
 }
 
+function manualStartLeadMs(freshStart, soundNeeded) {
+  return freshStart && soundNeeded ? manualStartAudioLeadMs : 0;
+}
+
 test("stable large VM clock rate is accepted after enough samples", () => {
   const result = evaluateClockRate(makeSamples(1.078, 16, 2500));
 
@@ -264,6 +279,14 @@ test("offline hold keeps the applied clock rate instead of resetting to 1", () =
   assert.equal(held.confidence, "offline-held");
   assert.equal(held.rate, 1.078);
   assert.equal(held.acceptedRatePpm, 78000);
+});
+
+test("stale resume reanchor keeps the applied clock rate instead of resetting to 1", () => {
+  const held = reanchorServerClockModelForResume(0.9231);
+
+  assert.equal(held.confidence, "resume-held");
+  assert.equal(held.rate, 0.9231);
+  assert.equal(held.acceptedRatePpm, -76900);
 });
 
 test("classic timeline with break switches at rotation and cycle boundaries", () => {
@@ -361,4 +384,10 @@ test("snapshot restore accepts twelve hours and rejects anything older", () => {
   assert.equal(shouldRestoreSnapshot(now - maxAge, now, maxAge), true);
   assert.equal(shouldRestoreSnapshot(now - maxAge - 1, now, maxAge), false);
   assert.equal(shouldRestoreSnapshot(now + 1, now, maxAge), false);
+});
+
+test("manual start lead is used only when a fresh start needs sound", () => {
+  assert.equal(manualStartLeadMs(true, true), 300);
+  assert.equal(manualStartLeadMs(true, false), 0);
+  assert.equal(manualStartLeadMs(false, true), 0);
 });

@@ -1418,6 +1418,10 @@
       timeline: []
     };
 
+    const pageBuildNumber = 162;
+    const offlineSnapshotKey = "fdvBoulderingTimerOfflineSnapshot";
+    const offlineSnapshotMaxAgeMs = 12 * 60 * 60 * 1000;
+
     let language = "ru";
     let buildNumber = "";
     const translations = {
@@ -1698,7 +1702,9 @@
     let timerFitQueued = false;
     let serverAvailable = true;
     let standaloneMode = false;
+    let offlineReloadMode = window.__FDV_SW_OFFLINE_FALLBACK === true;
     let pendingServerState = null;
+    let lastStartupConfig = null;
     let lastServerContactAt = performance.now();
     let consecutiveServerFailures = 0;
     let serverPorts = { http: 8008, https: 8443 };
@@ -1735,6 +1741,7 @@
     const audioScheduleAheadSeconds = 2.8;
     const audioPrewarmSeconds = 2;
     const seekEndGuardSeconds = 0.9;
+    const manualStartWatchdogDelayMs = 250;
     const sseSilentRestartMs = 25000;
     const runtimeCommandTypes = new Set(["start", "pause", "stopCountdown", "reset", "seek"]);
 
@@ -1868,6 +1875,110 @@
       refreshStandaloneBrowserList();
     }
 
+    function saveOfflineSnapshot() {
+      if (window.location.protocol === "file:" || !window.localStorage) return;
+      if (offlineReloadMode || !serverAvailable) return;
+      try {
+        const snapshot = {
+          schemaVersion: 1,
+          pageBuildNumber,
+          savedAtWall: Date.now(),
+          serverNow: serverNow(),
+          serverClockRate,
+          config: lastStartupConfig,
+          language,
+          primarySoundEnabled,
+          globalSoundEnabled,
+          instancesSoundEnabled,
+          instancesFullscreenEnabled,
+          audioUserOffsetMs,
+          draftSettings: draftSettings(),
+          state: {
+            running: state.running,
+            completed: state.completed,
+            countdownOnly: state.countdownOnly,
+            waitingForManualStart: state.waitingForManualStart,
+            serverStartedAt: state.serverStartedAt,
+            elapsedBeforePause: state.elapsedBeforePause,
+            activePreset: state.activePreset,
+            activeSettings: state.activeSettings,
+            soundProfile: state.soundProfile,
+            festivalAnnouncements: state.festivalAnnouncements,
+            primaryClientId: state.primaryClientId,
+            primaryPinSet: state.primaryPinSet
+          }
+        };
+        localStorage.setItem(offlineSnapshotKey, JSON.stringify(snapshot));
+      } catch (error) {}
+    }
+
+    function restoreOfflineReloadSnapshot() {
+      if (!offlineReloadMode || window.location.protocol === "file:" || !window.localStorage) return false;
+      try {
+        const snapshot = JSON.parse(localStorage.getItem(offlineSnapshotKey) || "null");
+        if (!snapshot || snapshot.schemaVersion !== 1 || !snapshot.state) return false;
+        const savedAtWall = Number(snapshot.savedAtWall);
+        const age = Date.now() - savedAtWall;
+        if (!Number.isFinite(savedAtWall) || age < 0 || age > offlineSnapshotMaxAgeMs) return false;
+
+        if (snapshot.config && typeof snapshot.config === "object") applyStartupConfig(snapshot.config);
+        if (snapshot.language) applyLanguage(snapshot.language);
+        primarySoundEnabled = snapshot.primarySoundEnabled !== false;
+        globalSoundEnabled = snapshot.globalSoundEnabled !== false;
+        instancesSoundEnabled = Boolean(snapshot.instancesSoundEnabled);
+        instancesFullscreenEnabled = Boolean(snapshot.instancesFullscreenEnabled);
+        audioUserOffsetMs = Number(snapshot.audioUserOffsetMs || 0);
+
+        Object.assign(state, {
+          running: Boolean(snapshot.state.running),
+          completed: Boolean(snapshot.state.completed),
+          countdownOnly: Boolean(snapshot.state.countdownOnly),
+          waitingForManualStart: Boolean(snapshot.state.waitingForManualStart),
+          serverStartedAt: Number(snapshot.state.serverStartedAt || 0),
+          elapsedBeforePause: Number(snapshot.state.elapsedBeforePause || 0),
+          activePreset: snapshot.state.activePreset || "",
+          activeSettings: snapshot.state.activeSettings || activeSettingsFromDraft(),
+          festivalAnnouncements: snapshot.state.festivalAnnouncements !== false,
+          primaryClientId: snapshot.state.primaryClientId || null,
+          primaryPinSet: Boolean(snapshot.state.primaryPinSet)
+        });
+        if (snapshot.draftSettings) setInputsFromDraft(snapshot.draftSettings);
+        applySoundProfile(String(snapshot.state.soundProfile || ""));
+        buildTimeline(state.activeSettings);
+
+        const restoredRate = clampFloat(snapshot.serverClockRate, syncRateLargeMin, syncRateLargeMax, 1);
+        const savedServerNow = Number(snapshot.serverNow);
+        const restoredServerNow = (Number.isFinite(savedServerNow) ? savedServerNow : savedAtWall)
+          + (age * restoredRate);
+        const localNow = performance.now();
+        serverClockRate = restoredRate;
+        serverClockRateConfidence = "offline-reload";
+        serverClockRateGateReason = "offline-reload";
+        serverPerfAnchor = localNow;
+        serverTimeAnchor = restoredServerNow;
+        serverPerfOffset = restoredServerNow - localNow;
+        syncQuality = {
+          ...syncQuality,
+          rate: serverClockRate,
+          rateConfidence: serverClockRateConfidence,
+          rateGateReason: serverClockRateGateReason,
+          rateAcceptedPpm: Math.round((serverClockRate - 1) * 1000000)
+        };
+
+        els.presets.forEach((button) => {
+          button.classList.toggle("active", button.dataset.preset === state.activePreset);
+        });
+        els.soundToggle.checked = primarySoundEnabled;
+        els.instancesSoundToggle.checked = instancesSoundEnabled;
+        els.instancesFullscreenToggle.checked = instancesFullscreenEnabled;
+        els.festivalAnnouncementsToggle.checked = state.festivalAnnouncements;
+        setServerAvailable(false);
+        return true;
+      } catch (error) {
+        return false;
+      }
+    }
+
     async function returnToServerMode() {
       if (!standaloneMode || !serverAvailable) return;
       clearSignalTimers();
@@ -1998,11 +2109,11 @@
       serverPerfOffset = adjustedServerNow - localNow;
     }
 
-    function holdServerClockRateForOffline() {
+    function reanchorServerClockModel(confidence = "held") {
       const heldServerNow = serverNow();
       const localNow = performance.now();
-      serverClockRateConfidence = "offline-held";
-      serverClockRateGateReason = "offline-held";
+      serverClockRateConfidence = confidence;
+      serverClockRateGateReason = confidence;
       serverPerfAnchor = localNow;
       serverTimeAnchor = heldServerNow;
       serverPerfOffset = heldServerNow - localNow;
@@ -2013,6 +2124,10 @@
         rateGateReason: serverClockRateGateReason,
         rateAcceptedPpm: Math.round((serverClockRate - 1) * 1000000)
       };
+    }
+
+    function holdServerClockRateForOffline() {
+      reanchorServerClockModel("offline-held");
     }
 
     function resetServerClockModel() {
@@ -2435,10 +2550,22 @@
       setSupported("--timer-break-bg", "background-color", config.breakBackgroundColor);
     }
 
+    function maybeReloadForNewerServerBuild(nextBuildNumber) {
+      if (!Number.isFinite(nextBuildNumber) || nextBuildNumber <= pageBuildNumber) return false;
+      if (window.location.protocol === "file:" || standaloneMode || offlineReloadMode || state.running) return false;
+      const url = new URL(window.location.href);
+      url.searchParams.set("build", String(Math.round(nextBuildNumber)));
+      url.searchParams.set("reload", String(Date.now()));
+      window.location.replace(url.toString());
+      return true;
+    }
+
     function applyStartupConfig(config) {
       if (!config || typeof config !== "object") return;
+      lastStartupConfig = { ...config };
       applyTimerAppearance(config);
       const nextBuildNumber = Number(config.buildNumber);
+      if (maybeReloadForNewerServerBuild(nextBuildNumber)) return;
       buildNumber = Number.isFinite(nextBuildNumber) ? String(Math.round(nextBuildNumber)) : "";
       renderBuildInfo();
       serverPorts = {
@@ -2756,6 +2883,26 @@
       syncButtons();
       if (diagnosticsIncluded) renderBrowserList(remoteClients);
       render();
+      saveOfflineSnapshot();
+    }
+
+    function applyServerRuntimeClockState(remote) {
+      if (!remote || typeof remote !== "object" || standaloneMode) return;
+      const nextActiveSettings = remote.activeSettings || state.activeSettings;
+      const settingsChanged = JSON.stringify(nextActiveSettings || {}) !== JSON.stringify(state.activeSettings || {});
+      state.running = Boolean(remote.running);
+      state.completed = Boolean(remote.completed);
+      state.countdownOnly = Boolean(remote.countdownOnly);
+      state.waitingForManualStart = Boolean(remote.waitingForManualStart);
+      state.serverStartedAt = Number(remote.startedAt || 0);
+      state.elapsedBeforePause = Number(remote.elapsedBeforePause || 0);
+      state.activePreset = remote.activePreset || state.activePreset || "";
+      state.activeSettings = nextActiveSettings || activeSettingsFromDraft();
+      if (settingsChanged) buildTimeline(state.activeSettings);
+      lastRemoteRunning = state.running;
+      syncButtons();
+      render();
+      saveOfflineSnapshot();
     }
 
     async function sendServerAction(type, payload = {}, options = {}) {
@@ -2848,6 +2995,13 @@
           pendingServerState = remote;
           return true;
         }
+        if (offlineReloadMode) {
+          offlineReloadMode = false;
+          document.body.classList.remove("offline-reload-mode");
+          applyServerState(remote, { rescheduleSignals: true, includePhaseSignal: false, timing });
+          maybeBurstSync(options);
+          return true;
+        }
         const version = Number(remote.version || 0);
         if (version && version < lastServerVersion) {
           updateServerTiming(remote, timing);
@@ -2865,7 +3019,7 @@
           applyServerState(remote, { rescheduleSignals: true, includePhaseSignal: false, timing });
         } else {
           updateServerTiming(remote, timing);
-          lastRemoteRunning = Boolean(remote.running);
+          applyServerRuntimeClockState(remote);
           if (remote.diagnosticsIncluded !== false && Array.isArray(remote.clients)) {
             updatePrimaryComputerFlag(remote.clients, remote.primaryClientId || null);
             renderBrowserList(remote.clients);
@@ -2906,6 +3060,15 @@
       window.setInterval(syncDiagnosticsStream, 5000);
     }
 
+    function registerOfflineServiceWorker() {
+      if (!("serviceWorker" in navigator) || window.location.protocol === "file:" || !window.isSecureContext) return;
+      window.addEventListener("load", () => {
+        navigator.serviceWorker.register("/sw.js")
+          .then((registration) => registration.update().catch(() => {}))
+          .catch(() => {});
+      });
+    }
+
     function markSseEvent() {
       lastSseEventAt = performance.now();
       markServerContact();
@@ -2934,6 +3097,12 @@
             pendingServerState = remote;
             return;
           }
+          if (offlineReloadMode) {
+            offlineReloadMode = false;
+            document.body.classList.remove("offline-reload-mode");
+            applyServerState(remote, { rescheduleSignals: true, includePhaseSignal: false });
+            return;
+          }
           const version = Number(remote.version || 0);
           if (version && version < lastServerVersion) return;
           const isRemoteStart = Date.now() >= suppressPhaseSignalsUntil
@@ -2951,6 +3120,14 @@
         try {
           markSseEvent();
           handleAudioTest(JSON.parse(event.data));
+        } catch (error) {}
+      });
+      eventSource.addEventListener("audio-wake", (event) => {
+        if (generation !== eventStreamGeneration) return;
+        try {
+          markSseEvent();
+          const command = JSON.parse(event.data);
+          wakeAudioOutput(command.kind || "prewarm");
         } catch (error) {}
       });
       eventSource.onerror = () => {
@@ -3043,7 +3220,7 @@
       const resetStaleSignals = Boolean(options.resetStaleSignals);
       if (resetStaleSignals) {
         clearSignalTimers(false, true);
-        resetServerClockModel();
+        reanchorServerClockModel("resume-held");
         syncRequestGeneration += 1;
         syncRequestInFlight = false;
         lastSegmentIndex = -1;
@@ -3229,20 +3406,12 @@
         const estimatedSyncError = hasSyncError
           ? syncError
           : Number.isFinite(latency) ? latency / 2 : NaN;
-        const syncRateValue = client.syncRate;
-        const syncRate = syncRateValue === null || syncRateValue === undefined || syncRateValue === "" ? NaN : Number(syncRateValue);
-        const syncDriftPpm = Number.isFinite(syncRate) ? Math.round((syncRate - 1) * 1000000) : 0;
         const syncCandidatePpm = Number(client.syncRateCandidatePpm);
         const syncAcceptedPpm = Number(client.syncRateAcceptedPpm);
         const syncGateReason = client.syncRateGateReason || client.syncRateConfidence || "";
         const syncResidual = Number(client.syncRateResidualJitter);
         const syncHalfDiff = Number(client.syncRateHalfDiffPpm);
         const syncOutlierShare = Number(client.syncRateOutlierShare);
-        const syncDriftText = Number.isFinite(syncRate) && Math.abs(syncDriftPpm) >= 100
-          ? language === "ru"
-            ? `; поправка хода ${syncDriftPpm > 0 ? "+" : ""}${syncDriftPpm} ppm`
-            : `; clock rate ${syncDriftPpm > 0 ? "+" : ""}${syncDriftPpm} ppm`
-          : "";
         const syncRateDetails = [
           Number.isFinite(syncCandidatePpm) && Math.abs(syncCandidatePpm) >= 100
             ? language === "ru"
@@ -3290,14 +3459,14 @@
         ];
         const chips = language === "ru" ? (standaloneSelf ? ruLocalChips : [
           diagChip("NET", netStatus, `Соединение: ${clientConnected ? "онлайн" : "нет связи"}; задержка ${formatMs(client.latency)}; зелёный ≤100 мс, жёлтый ≤200 мс, красный >200 мс`),
-          diagChip("SYNC", syncStatus, `${hasSyncError ? "Оценка ошибки синхронизации" : "Приблизительная оценка по задержке сети"}: ${formatMs(estimatedSyncError)}; разброс ${formatMs(client.syncJitter)}; замеров ${client.syncSamples || "n/a"}${syncDriftText}${syncRateDetailsText}; зелёный ≤100 мс, жёлтый ≤300 мс, красный >300 мс`),
+          diagChip("SYNC", syncStatus, `${hasSyncError ? "Оценка ошибки синхронизации" : "Приблизительная оценка по задержке сети"}: ${formatMs(estimatedSyncError)}; разброс ${formatMs(client.syncJitter)}; замеров ${client.syncSamples || "n/a"}${syncRateDetailsText}; зелёный ≤100 мс, жёлтый ≤300 мс, красный >300 мс`),
           diagChip("AUDIO", audioClasses, `Звук разрешён: ${yesNo(client.soundAllowed !== false)}; разблокирован тапом: ${yesNo(client.audioUnlocked === true)}; ${t("audioOffsetUser")}: ${formatMs(userAudioOffset)}`, ` data-audio-client="${escapeHtml(client.id)}"`),
           diagChip("WAKE", wakeOk ? "good" : "bad", `Wake Lock поддерживается: ${yesNo(client.wakeLockSupported === true)}; активен: ${yesNo(client.wakeLockActive === true)}`),
           diagChip("SSE", sseOk ? "good" : "bad", `Мгновенные события сервера: поддержка ${yesNo(client.eventSourceSupported === true)}; подключено ${yesNo(sseOk)}`),
           diagChip("TAB", tabOk ? "good" : "bad", `Видимость вкладки: ${client.visibility || "неизвестно"}`)
         ]) : (standaloneSelf ? enLocalChips : [
           diagChip("NET", netStatus, `Connection: ${clientConnected ? "online" : "offline"}; latency ${formatMs(client.latency)}; green ≤100 ms, yellow ≤200 ms, red >200 ms`),
-          diagChip("SYNC", syncStatus, `${hasSyncError ? "Estimated synchronization error" : "Approximate estimate from network latency"}: ${formatMs(estimatedSyncError)}; jitter ${formatMs(client.syncJitter)}; samples ${client.syncSamples || "n/a"}${syncDriftText}${syncRateDetailsText}; green ≤100 ms, yellow ≤300 ms, red >300 ms`),
+          diagChip("SYNC", syncStatus, `${hasSyncError ? "Estimated synchronization error" : "Approximate estimate from network latency"}: ${formatMs(estimatedSyncError)}; jitter ${formatMs(client.syncJitter)}; samples ${client.syncSamples || "n/a"}${syncRateDetailsText}; green ≤100 ms, yellow ≤300 ms, red >300 ms`),
           diagChip("AUDIO", audioClasses, `Sound allowed: ${yesNo(client.soundAllowed !== false)}; unlocked by tap: ${yesNo(client.audioUnlocked === true)}; ${t("audioOffsetUser")}: ${formatMs(userAudioOffset)}`, ` data-audio-client="${escapeHtml(client.id)}"`),
           diagChip("WAKE", wakeOk ? "good" : "bad", `Wake Lock supported: ${yesNo(client.wakeLockSupported === true)}; active: ${yesNo(client.wakeLockActive === true)}`),
           diagChip("SSE", sseOk ? "good" : "bad", `Instant server events: supported ${yesNo(client.eventSourceSupported === true)}; connected ${yesNo(sseOk)}`),
@@ -3625,6 +3794,26 @@
       }
       beep("start");
       flash();
+    }
+
+    function shouldUseManualStartAudioLead() {
+      if (standaloneMode) return false;
+      return Boolean(primarySoundEnabled || instancesSoundEnabled || globalSoundEnabled);
+    }
+
+    function manualStartSignalKey(targetServerTime) {
+      return `1:rotation:start:${Math.round(audioServerTime(targetServerTime))}`;
+    }
+
+    function scheduleManualStartWatchdog(targetServerTime) {
+      if (!canPlaySound() || !Number.isFinite(targetServerTime) || targetServerTime <= 0) return;
+      const signalKey = manualStartSignalKey(targetServerTime);
+      scheduleServerTimeoutAt(audioServerTime(targetServerTime) + manualStartWatchdogDelayMs, () => {
+        if (playedSignalKeys.has(signalKey)) return;
+        markSignalPlayed(signalKey);
+        beep("start");
+        flash();
+      }, { lateGraceMs: signalLateGraceMs.start, preserveOnTransition: true });
     }
 
     function scheduleSignal(segment, delaySeconds, kind, withFlash = true) {
@@ -4284,7 +4473,8 @@
         return;
       }
       const isFreshStart = state.elapsedBeforePause === 0 || state.completed;
-      if (isFreshStart) {
+      const useStartAudioLead = isFreshStart && shouldUseManualStartAudioLead();
+      if (isFreshStart && !useStartAudioLead) {
         lastPhaseSignalKey = "1:rotation";
         immediateStartSignal();
       }
@@ -4294,9 +4484,13 @@
         elapsedBeforePause: state.elapsedBeforePause,
         startHours: "",
         startMinutes: "",
-        manualStart: state.waitingForManualStart
+        manualStart: state.waitingForManualStart,
+        startAudioLead: useStartAudioLead
       }, { rescheduleSignals: true, includePhaseSignal: false });
-      if (sent) return;
+      if (sent) {
+        if (useStartAudioLead) scheduleManualStartWatchdog(state.serverStartedAt);
+        return;
+      }
       if (!serverAvailable) return;
 
       if (state.completed) {
@@ -4923,6 +5117,7 @@
 
     window.addEventListener("pagehide", () => {
       pageHiddenAt = Date.now();
+      saveOfflineSnapshot();
     });
 
     ["pageshow", "focus", "online"].forEach((eventName) => {
@@ -4947,12 +5142,19 @@
 
     const fileMode = window.location.protocol === "file:";
     if (fileMode) initializeFileMode();
-    else buildTimeline();
+    else if (!restoreOfflineReloadSnapshot()) {
+      buildTimeline();
+      if (offlineReloadMode) setServerAvailable(false);
+    }
     syncControlsScrollbarPadding();
     render();
     scheduleFitTimer();
     tick();
-    if (!fileMode) startSync();
+    if (!fileMode) {
+      registerOfflineServiceWorker();
+      startSync();
+      window.setInterval(saveOfflineSnapshot, 2000);
+    }
     window.setInterval(refreshServerAvailability, 500);
     requestScreenWakeLock();
   </script>

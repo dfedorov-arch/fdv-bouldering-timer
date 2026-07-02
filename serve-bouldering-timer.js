@@ -13,10 +13,11 @@ const runtimeStatePath = path.join(runtimeStateDir, "timer-state.json");
 const beepsPath = path.join(root, "beeps");
 const fontsPath = path.join(root, "fonts");
 const offlineAudioPath = path.join(root, "offline-audio.js");
-const BUILD_NUMBER = 156;
+const BUILD_NUMBER = 162;
 const SNAPSHOT_SCHEMA_VERSION = 1;
 const SNAPSHOT_MAX_AGE_MS = 12 * 60 * 60 * 1000;
 const PRIMARY_RESTORE_GRACE_MS = 10000;
+const MANUAL_START_AUDIO_LEAD_MS = 300;
 const COMMAND_CACHE_MAX = 256;
 const DIAGNOSTICS_BROADCAST_MS = 2500;
 const PRIMARY_PIN_MAX_FAILURES = 5;
@@ -1070,6 +1071,7 @@ function handleRequest(req, res) {
       const actionNow = effectiveActionWallNow(body, now);
       const previousVersion = timerState.version;
       let audioTestCommand = null;
+      let audioWakeCommand = null;
 
       if (type === "start") {
         const settings = body.settings || timerState.activeSettings;
@@ -1079,6 +1081,10 @@ function handleRequest(req, res) {
         const elapsed = wasCompleted ? 0 : timerState.running ? elapsedSecondsAtWall(actionNow) : pausedElapsed;
         const hasScheduledStart = body.startHours !== "" || body.startMinutes !== "";
         const manualStart = Boolean(body.manualStart || timerState.waitingForManualStart);
+        const freshManualStart = !hasScheduledStart && elapsed === 0;
+        const startAudioLeadMs = freshManualStart && body.startAudioLead === true
+          ? MANUAL_START_AUDIO_LEAD_MS
+          : 0;
         timerState.activeSettings = {
           rotationSeconds: numberOrDefault(settings.rotationSeconds, config.classicRotationMinutes * 60),
           breakSeconds: numberOrDefault(settings.breakSeconds, config.classicBreakSeconds),
@@ -1095,9 +1101,16 @@ function handleRequest(req, res) {
           body.startMinutes,
           hasScheduledStart && !timerState.activeSettings.oneShot
         );
-        setTimerStartedAt(elapsed > 0 || manualStart
+        setTimerStartedAt(elapsed > 0
           ? actionNow - Math.max(0, elapsed) * 1000
-          : scheduledTime);
+          : manualStart ? actionNow + startAudioLeadMs : scheduledTime + startAudioLeadMs);
+        if (startAudioLeadMs > 0) {
+          audioWakeCommand = {
+            kind: "prewarm",
+            startedAt: timerState.startedAt,
+            leadMs: startAudioLeadMs
+          };
+        }
         if (manualStart) {
           timerState.draftSettings.startHours = "";
           timerState.draftSettings.startMinutes = "";
@@ -1310,6 +1323,9 @@ function handleRequest(req, res) {
           (eventClient) => audioTestCommand.everywhere
             || eventClient.clientId === audioTestCommand.targetClientId
         );
+      }
+      if (audioWakeCommand) {
+        sendEvent("audio-wake", audioWakeCommand);
       }
     }).catch(() => sendJson(res, 400, { error: "Invalid JSON" }));
     return;
