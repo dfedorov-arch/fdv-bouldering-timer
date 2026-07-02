@@ -25,3 +25,5 @@ Thumbs.db
 # Generated portable releases
 dist/
 /fdv-bouldering-timer.exe
+  
+runtime-state/ 
