@@ -15,7 +15,19 @@
       }
 
       try {
-        if ((window.location.search || "").indexOf("modern=1") !== -1) return;
+        var forceModern = false;
+        try {
+          forceModern = sessionStorage.getItem("boulderingTimerForceModern") === "1";
+          if (forceModern) sessionStorage.removeItem("boulderingTimerForceModern");
+        } catch (error) {}
+        if (forceModern || (window.location.search || "").indexOf("modern=1") !== -1) {
+          if (window.history && window.history.replaceState && window.location.search) {
+            try {
+              window.history.replaceState(null, document.title, window.location.pathname + window.location.hash);
+            } catch (error) {}
+          }
+          return;
+        }
         if (!window.JSON || !window.XMLHttpRequest || !window.Promise || !window.requestAnimationFrame ||
             !window.performance || !document.querySelector || !document.addEventListener ||
             !window.localStorage || !window.sessionStorage) {
@@ -3269,9 +3281,12 @@
           markSseEvent();
           const command = JSON.parse(event.data);
           if (command.enabled) {
-            window.location.replace(`/legacy.html?manualLegacy=1&clientId=${encodeURIComponent(clientId)}`);
+            window.location.replace("/legacy.html");
           } else {
-            window.location.replace("/?modern=1");
+            try {
+              sessionStorage.setItem("boulderingTimerForceModern", "1");
+            } catch (error) {}
+            window.location.replace("/");
           }
         } catch (error) {}
       });
