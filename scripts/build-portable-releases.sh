@@ -61,7 +61,7 @@ copy_common_files() {
   local target="$1"
   mkdir -p "$target"
   cp "$ROOT_DIR/LICENSE" "$ROOT_DIR/help.html" \
-    "$ROOT_DIR/index.html" "$ROOT_DIR/offline-audio.js" "$ROOT_DIR/params.txt" \
+    "$ROOT_DIR/index.html" "$ROOT_DIR/legacy.html" "$ROOT_DIR/offline-audio.js" "$ROOT_DIR/params.txt" \
     "$ROOT_DIR/serve-bouldering-timer.js" "$target/"
   cp -R "$ROOT_DIR/beeps" "$ROOT_DIR/fonts" "$ROOT_DIR/help-assets" "$target/"
   if [[ -f "$ROOT_DIR/compare-btimer-and-fdv-bouldering-timer.html" ]]; then

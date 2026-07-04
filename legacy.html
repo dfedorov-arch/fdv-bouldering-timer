@@ -32,19 +32,22 @@
       top: 0;
       right: 0;
       bottom: 0;
+      width: 100%;
+      height: 100%;
+      display: table;
       text-align: center;
       white-space: nowrap;
     }
 
     #time {
-      position: absolute;
-      left: 0;
-      right: 0;
-      top: 50%;
-      margin-top: -18vw;
-      font-size: 34vw;
+      display: table-cell;
+      width: 100%;
+      height: 100%;
+      vertical-align: middle;
+      font-size: 26vw;
       line-height: 1;
       font-weight: 900;
+      font-variant-numeric: tabular-nums;
       letter-spacing: 0;
     }
 
@@ -64,6 +67,9 @@
       var activeRequest = null;
       var activeRequestStartedAt = 0;
       var pollTimer = null;
+      var lastFitKey = "";
+      var clockSamples = [];
+      var maxClockSamples = 10;
       var timerColors = {
         rotationText: "#f4f7fb",
         warningText: "#f4f7fb",
@@ -73,14 +79,81 @@
         breakBg: "#f05a59"
       };
       var manualLegacyUrl = /(?:^|[?&])manualLegacy=1(?:&|$)/.test(window.location.search || "");
-      var clientId = queryValue("clientId") || ("legacy-" + String(new Date().getTime()) + "-" + String(Math.random()).slice(2));
+      var storedClientId = "";
+      var storedFitText = "";
+      try {
+        storedClientId = sessionStorage.getItem("boulderingTimerClientId") || "";
+        storedFitText = sessionStorage.getItem("boulderingTimerLegacyFitText") || "";
+      } catch (error) {}
+      var clientId = queryValue("clientId") || storedClientId || ("legacy-" + String(new Date().getTime()) + "-" + String(Math.random()).slice(2));
       var isOldBrowser = !window.Promise || !window.fetch || !window.requestAnimationFrame || !window.performance;
-      sessionStorage.setItem("boulderingTimerClientId", clientId);
+      try {
+        sessionStorage.setItem("boulderingTimerClientId", clientId);
+      } catch (error) {}
+      if (window.history && window.history.replaceState && window.location.search) {
+        try {
+          window.history.replaceState(null, document.title, window.location.pathname + window.location.hash);
+        } catch (error) {}
+      }
+      var wrapEl = document.getElementById("wrap");
       var timeEl = document.getElementById("time");
 
-      function fitTimerText() {
-        var w = window.innerWidth || document.documentElement.clientWidth || 360;
-        var h = window.innerHeight || document.documentElement.clientHeight || 640;
+      function viewportWidth() {
+        if (window.visualViewport && window.visualViewport.width) return Math.floor(window.visualViewport.width);
+        return window.innerWidth || document.documentElement.clientWidth || document.body.clientWidth || 360;
+      }
+
+      function viewportHeight() {
+        if (window.visualViewport && window.visualViewport.height) return Math.floor(window.visualViewport.height);
+        return window.innerHeight || document.documentElement.clientHeight || document.body.clientHeight || 640;
+      }
+
+      function syncViewportSize() {
+        var w = viewportWidth();
+        var h = viewportHeight();
+        if (w < 1) w = 360;
+        if (h < 1) h = 640;
+        wrapEl.style.width = w + "px";
+        wrapEl.style.height = h + "px";
+        timeEl.style.width = w + "px";
+        timeEl.style.height = h + "px";
+        return { width: w, height: h };
+      }
+
+      function wideTimerText(value) {
+        var text = String(value || "88:88");
+        var colon = text.indexOf(":");
+        var minuteDigits = colon > 0 ? colon : 2;
+        var wide = "";
+        var i;
+
+        if (text === "--:--") minuteDigits = 2;
+        if (minuteDigits < 2) minuteDigits = 2;
+        for (i = 0; i < minuteDigits; i += 1) {
+          wide += "8";
+        }
+        return wide + ":88";
+      }
+
+      function fitSampleText(value) {
+        var text = String(value || "");
+        if ((text === "" || text === "--:--") && storedFitText) return storedFitText;
+        return wideTimerText(text || "88:88");
+      }
+
+      function rememberFitText(value) {
+        var next = wideTimerText(value);
+        if (next === storedFitText) return;
+        storedFitText = next;
+        try {
+          sessionStorage.setItem("boulderingTimerLegacyFitText", storedFitText);
+        } catch (error) {}
+      }
+
+      function fitTimerText(force) {
+        var viewport = syncViewportSize();
+        var w = viewport.width;
+        var h = viewport.height;
         if (w < 1 || h < 1) return;
         var maxW = w * 0.985;
         var maxH = h * 0.96;
@@ -88,10 +161,17 @@
         var high = Math.min(1800, Math.max(220, w, h * 1.45));
         var i, mid, testW, testH;
         var canvas = document.createElement("canvas");
-        var ctx = canvas.getContext("2d");
-        var text = timeEl.textContent || "04:00";
+        var ctx = canvas.getContext ? canvas.getContext("2d") : null;
+        var text = fitSampleText(timeEl.textContent || timeEl.innerHTML);
         var fw = timeEl.currentStyle ? timeEl.currentStyle.fontWeight : (window.getComputedStyle ? getComputedStyle(timeEl).fontWeight : "900");
         var ff = timeEl.currentStyle ? timeEl.currentStyle.fontFamily : (window.getComputedStyle ? getComputedStyle(timeEl).fontFamily : "Arial, sans-serif");
+        var fitKey = w + "x" + h + "|" + text + "|" + fw + "|" + ff;
+        if (!force && fitKey === lastFitKey) return;
+        lastFitKey = fitKey;
+        if (!ctx) {
+          timeEl.style.fontSize = Math.floor(Math.min(maxH, maxW / Math.max(1, text.length * 0.62))) + "px";
+          return;
+        }
         for (i = 0; i < 13; i += 1) {
           mid = (low + high) / 2;
           ctx.font = fw + " " + mid + "px " + ff;
@@ -106,8 +186,24 @@
         timeEl.style.fontSize = Math.floor(low) + "px";
       }
 
-      fitTimerText();
-      window.onresize = fitTimerText;
+      function scheduleViewportFit() {
+        fitTimerText(true);
+        window.setTimeout(function () { fitTimerText(true); }, 100);
+        window.setTimeout(function () { fitTimerText(true); }, 300);
+        window.setTimeout(function () { fitTimerText(true); }, 700);
+      }
+
+      scheduleViewportFit();
+      window.onresize = scheduleViewportFit;
+      if (window.addEventListener) {
+        window.addEventListener("orientationchange", scheduleViewportFit);
+        if (window.visualViewport && window.visualViewport.addEventListener) {
+          window.visualViewport.addEventListener("resize", scheduleViewportFit);
+          window.visualViewport.addEventListener("scroll", scheduleViewportFit);
+        }
+      } else {
+        window.onorientationchange = scheduleViewportFit;
+      }
 
       function queryValue(name) {
         var query = String(window.location.search || "").replace(/^\?/, "").split("&");
@@ -148,6 +244,45 @@
         return new Date().getTime() + serverOffset;
       }
 
+      function compareLatency(a, b) {
+        return a.latency - b.latency;
+      }
+
+      function compareOffset(a, b) {
+        return a.offset - b.offset;
+      }
+
+      function updateServerOffset(remoteNow, requestStartedAt, responseReceivedAt) {
+        var latency;
+        var midpoint;
+        var fastest;
+        var offsets;
+        var keep;
+        var i;
+
+        remoteNow = Number(remoteNow || 0);
+        if (!remoteNow) return;
+        latency = Math.max(0, responseReceivedAt - requestStartedAt);
+        midpoint = requestStartedAt + latency / 2;
+        clockSamples.push({
+          latency: latency,
+          offset: remoteNow - midpoint
+        });
+        if (clockSamples.length > maxClockSamples) {
+          clockSamples.shift();
+        }
+
+        fastest = clockSamples.slice(0);
+        fastest.sort(compareLatency);
+        keep = Math.min(5, fastest.length);
+        offsets = [];
+        for (i = 0; i < keep; i += 1) {
+          offsets.push({ offset: fastest[i].offset });
+        }
+        offsets.sort(compareOffset);
+        serverOffset = offsets[Math.floor(offsets.length / 2)].offset;
+      }
+
       function applyTitle(language) {
         document.title = language === "en"
           ? "Bouldering timer (legacy mode)"
@@ -177,6 +312,7 @@
         appliedFontKey = key;
         if (!fontUrl) {
           timeEl.style.fontFamily = fallback || "Arial, Helvetica, sans-serif";
+          fitTimerText(true);
           return;
         }
 
@@ -188,11 +324,11 @@
         }
         style.innerHTML = "@font-face{font-family:\"FDV Legacy Timer\";src:url(\"" + cssUrl(fontUrl) + "\");font-weight:100 900;font-style:normal;font-display:swap;}";
         timeEl.style.fontFamily = "\"FDV Legacy Timer\", " + (cssString(fallback) || "Arial, Helvetica, sans-serif");
-        fitTimerText();
+        fitTimerText(true);
         if (window.FontFace) {
           try {
             var ff = new FontFace("FDV Legacy Timer", "url(" + cssUrl(fontUrl) + ")");
-            ff.load().then(function () { fitTimerText(); });
+            ff.load().then(function () { fitTimerText(true); });
           } catch (e) {}
         } else {
           window.setTimeout(fitTimerText, 500);
@@ -263,7 +399,12 @@
         document.body.className = (view.isBreak ? "break-active " : "") + (view.warning ? "warning-active " : "") + (online ? "" : "offline");
         document.body.style.backgroundColor = view.isBreak ? timerColors.breakBg : view.warning ? timerColors.warningBg : timerColors.rotationBg;
         timeEl.style.color = view.isBreak ? timerColors.breakText : view.warning ? timerColors.warningText : timerColors.rotationText;
-        timeEl.innerHTML = formatTime(view.seconds);
+        var label = formatTime(view.seconds);
+        if (timeEl.innerHTML !== label) {
+          rememberFitText(label);
+          timeEl.innerHTML = label;
+          fitTimerText();
+        }
       }
 
       function scheduleRequest(delay) {
@@ -298,7 +439,11 @@
         } catch (error) {}
         xhr.onreadystatechange = function () {
           var remote;
+          var requestStartedAt;
+          var responseReceivedAt;
           if (xhr.readyState !== 4) return;
+          requestStartedAt = activeRequestStartedAt;
+          responseReceivedAt = new Date().getTime();
           finishRequest();
           if (xhr.status < 200 || xhr.status >= 300) {
             scheduleRequest(1000);
@@ -312,20 +457,22 @@
           }
           if (remote.legacyRedirect) {
             sessionStorage.setItem("boulderingTimerClientId", clientId);
-            window.location.replace("/?modern=1");
+            sessionStorage.setItem("boulderingTimerForceModern", "1");
+            window.location.replace("/");
             return;
           }
           if (manualLegacyUrl && remote.manualLegacy !== true) {
             sessionStorage.setItem("boulderingTimerClientId", clientId);
-            window.location.replace("/?modern=1");
+            sessionStorage.setItem("boulderingTimerForceModern", "1");
+            window.location.replace("/");
             return;
           }
           state = remote;
           applyTitle(remote.language || (remote.config && remote.config.language));
           applyTimerFont(remote.config);
           applyTimerColors(remote.config);
-          if (Number(remote.now)) serverOffset = Number(remote.now) - new Date().getTime();
-          lastContact = new Date().getTime();
+          updateServerOffset(remote.now, requestStartedAt || responseReceivedAt, responseReceivedAt);
+          lastContact = responseReceivedAt;
           render();
           scheduleRequest(1000);
         };
@@ -356,8 +503,8 @@
       window.setInterval(render, 250);
       if (window.addEventListener) {
         window.addEventListener("online", function () { scheduleRequest(0); });
-        window.addEventListener("pageshow", function () { scheduleRequest(0); });
-        window.addEventListener("focus", function () { scheduleRequest(0); });
+        window.addEventListener("pageshow", function () { scheduleRequest(0); scheduleViewportFit(); });
+        window.addEventListener("focus", function () { scheduleRequest(0); scheduleViewportFit(); });
       }
     })();
   </script>
