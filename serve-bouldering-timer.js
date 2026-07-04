@@ -13,7 +13,7 @@ const runtimeStatePath = path.join(runtimeStateDir, "timer-state.json");
 const beepsPath = path.join(root, "beeps");
 const fontsPath = path.join(root, "fonts");
 const offlineAudioPath = path.join(root, "offline-audio.js");
-const BUILD_NUMBER = 162;
+const BUILD_NUMBER = 191;
 const SNAPSHOT_SCHEMA_VERSION = 1;
 const SNAPSHOT_MAX_AGE_MS = 12 * 60 * 60 * 1000;
 const PRIMARY_RESTORE_GRACE_MS = 10000;
@@ -21,7 +21,8 @@ const MANUAL_START_AUDIO_LEAD_MS = 300;
 const COMMAND_CACHE_MAX = 256;
 const DIAGNOSTICS_BROADCAST_MS = 2500;
 const PRIMARY_PIN_MAX_FAILURES = 5;
-const PRIMARY_PIN_BLOCK_MS = 5000;
+const PRIMARY_PIN_BLOCK_STEPS_MS = [5000, 30000, 300000];
+const AUDIO_TEST_RATE_LIMIT_MS = 3000;
 const defaultConfig = {
   httpPort: 8008,
   httpsPort: 8443,
@@ -310,10 +311,14 @@ const timerState = {
 
 const clients = new Map();
 const clientAudioOffsets = new Map();
+const manualLegacyClients = new Set();
+const oldBrowserClients = new Set();
+const legacyRedirectPending = new Set();
 const eventClients = new Map();
 const diagnosticEventClients = new Map();
 const commandResults = new Map();
 const primaryPinFailures = new Map();
+let lastAudioTestCommandAt = 0;
 let nextClientOrder = 1;
 let nextAudioTestId = 1;
 let stateTransitionTimer = null;
@@ -323,6 +328,21 @@ let diagnosticsBroadcastTimer = null;
 let lastDiagnosticsBroadcastAt = 0;
 
 const runtimeCommandTypes = new Set(["start", "pause", "stopCountdown", "reset", "seek"]);
+
+function actionRequiresPrimary(type) {
+  return type !== "primary" && type !== "primaryPin";
+}
+
+function primaryControlAllowed(clientId) {
+  if (!timerState.primaryClientId) return true;
+  return Boolean(clientId && timerState.primaryClientId === clientId);
+}
+
+function primaryActionAllowed(clientId, nextPrimaryClientId) {
+  if (!timerState.primaryClientId) return !nextPrimaryClientId || nextPrimaryClientId === clientId;
+  if (timerState.primaryClientId === clientId) return true;
+  return Boolean(nextPrimaryClientId && nextPrimaryClientId === clientId);
+}
 
 function browserInfo(userAgent = "") {
   const rules = [
@@ -483,7 +503,8 @@ function snapshotPayload() {
     timerState: {
       ...timerState
     },
-    audioOffsets: [...clientAudioOffsets.entries()]
+    audioOffsets: [...clientAudioOffsets.entries()],
+    manualLegacyClients: [...manualLegacyClients]
   };
 }
 
@@ -564,6 +585,12 @@ function restoreTimerSnapshot() {
     if (Array.isArray(snapshot.audioOffsets)) {
       snapshot.audioOffsets.forEach(([id, offset]) => {
         if (id) clientAudioOffsets.set(String(id), Math.round(numberOrDefault(offset, 0)));
+      });
+    }
+    manualLegacyClients.clear();
+    if (Array.isArray(snapshot.manualLegacyClients)) {
+      snapshot.manualLegacyClients.forEach((id) => {
+        if (id) manualLegacyClients.add(String(id));
       });
     }
 
@@ -658,11 +685,21 @@ function clearPrimaryPin() {
 function primaryPinFailure(clientId) {
   const id = clientId || "";
   const now = wallNow();
-  const entry = primaryPinFailures.get(id) || { count: 0, blockedUntil: 0 };
+  const entry = primaryPinFailures.get(id) || { count: 0, blockedUntil: 0, blockLevel: 0 };
   if (entry.blockedUntil > now) return entry;
-  const count = entry.count + 1;
-  const blockedUntil = count >= PRIMARY_PIN_MAX_FAILURES ? now + PRIMARY_PIN_BLOCK_MS : 0;
-  const next = { count: blockedUntil ? 0 : count, blockedUntil };
+  const blockLevel = Math.max(0, Number(entry.blockLevel) || 0);
+  const count = (Number(entry.count) || 0) + 1;
+  if (count < PRIMARY_PIN_MAX_FAILURES) {
+    const next = { count, blockedUntil: 0, blockLevel };
+    primaryPinFailures.set(id, next);
+    return next;
+  }
+  const blockMs = PRIMARY_PIN_BLOCK_STEPS_MS[Math.min(blockLevel, PRIMARY_PIN_BLOCK_STEPS_MS.length - 1)];
+  const next = {
+    count: 0,
+    blockedUntil: now + blockMs,
+    blockLevel: blockLevel + 1
+  };
   primaryPinFailures.set(id, next);
   return next;
 }
@@ -685,6 +722,15 @@ function verifyPrimaryPin(clientId, pin) {
   return false;
 }
 
+function consumeAudioTestRateLimit(now = wallNow()) {
+  const retryAfterMs = AUDIO_TEST_RATE_LIMIT_MS - (now - lastAudioTestCommandAt);
+  if (retryAfterMs > 0) {
+    return { allowed: false, retryAfterMs: Math.ceil(retryAfterMs) };
+  }
+  lastAudioTestCommandAt = now;
+  return { allowed: true, retryAfterMs: 0 };
+}
+
 function registerClient(req, source = {}) {
   const id = sourceValue(source, "clientId") || req.headers["x-client-id"];
   if (!id) return null;
@@ -701,6 +747,8 @@ function registerClient(req, source = {}) {
     order: existing.order || nextClientOrder++,
     label: compactUserAgent(userAgent),
     browser: browserName(userAgent),
+    legacyViewer: optionalBool(sourceValue(source, "legacy"), existing.legacyViewer === true),
+    oldBrowser: optionalBool(sourceValue(source, "oldBrowser"), existing.oldBrowser === true),
     userAgent,
     address: req.socket.remoteAddress || "",
     displayAddress: displayAddressForClient(req.socket.remoteAddress || ""),
@@ -740,13 +788,20 @@ function registerClient(req, source = {}) {
     stateVersion: optionalNumber(sourceValue(source, "stateVersion"), existing.stateVersion ?? null),
     displayStatus: sourceValue(source, "displayStatus") || existing.displayStatus || ""
   });
+  if (optionalBool(sourceValue(source, "oldBrowser"), false)) {
+    oldBrowserClients.add(id);
+  }
   return id;
 }
 
 function publicClients() {
   const now = wallNow();
   for (const [id, client] of clients) {
-    if (now - client.lastSeen > 30000) clients.delete(id);
+    if (now - client.lastSeen > 30000) {
+      clients.delete(id);
+      manualLegacyClients.delete(id);
+      oldBrowserClients.delete(id);
+    }
   }
   return [...clients.values()]
     .sort((a, b) => {
@@ -757,7 +812,8 @@ function publicClients() {
     })
     .map((client) => ({
       ...client,
-      role: timerState.primaryClientId ? (timerState.primaryClientId === client.id ? "Основной" : "Экран") : "",
+      manualLegacy: manualLegacyClients.has(client.id),
+      role: client.legacyViewer ? "Упрощённый экран" : timerState.primaryClientId ? (timerState.primaryClientId === client.id ? "Основной" : "Экран") : "",
       age: now - client.lastSeen,
       connected: now - client.lastSeen < 6000
     }));
@@ -853,6 +909,8 @@ function publicState(options = {}) {
   const includeClients = options.includeClients !== false;
   const elapsed = elapsedSeconds();
   const ownAudioOffset = clientId ? clientAudioOffsets.get(clientId) ?? clients.get(clientId)?.audioUserOffset ?? 0 : 0;
+  const ownManualLegacy = clientId ? manualLegacyClients.has(clientId) : false;
+  const ownLegacyRedirect = clientId ? legacyRedirectPending.has(clientId) : false;
   const {
     primaryPinHash: _primaryPinHash,
     primaryPinSalt: _primaryPinSalt,
@@ -880,6 +938,8 @@ function publicState(options = {}) {
       : "",
     clients: includeClients ? publicClients() : [],
     diagnosticsIncluded: includeClients,
+    manualLegacy: ownManualLegacy,
+    legacyRedirect: ownLegacyRedirect,
     audioUserOffset: ownAudioOffset,
     elapsed,
     serverReceivedAt: Number.isFinite(receivedAt) ? receivedAt : null,
@@ -977,6 +1037,38 @@ function readJson(req) {
   });
 }
 
+function browserMajor(userAgent, pattern) {
+  const match = String(userAgent || "").match(pattern);
+  if (!match) return 0;
+  const major = Number(match[1]);
+  return Number.isFinite(major) ? major : 0;
+}
+
+function shouldServeLegacyViewer(req, requestUrl) {
+  const pathname = requestUrl.pathname;
+  if (pathname !== "/" && pathname !== "/index.html") return false;
+  if (requestUrl.searchParams.get("modern") === "1") return false;
+  if (requestUrl.searchParams.get("legacy") === "1") return true;
+
+  const userAgent = String(req.headers["user-agent"] || "");
+  const chromeMajor = browserMajor(userAgent, /(?:Chrome|CriOS)\/(\d+)/);
+  const firefoxMajor = browserMajor(userAgent, /Firefox\/(\d+)/);
+  const edgeLegacyMajor = browserMajor(userAgent, /Edge\/(\d+)/);
+  const safariMajor = browserMajor(userAgent, /Version\/(\d+)/);
+  const isChrome = chromeMajor > 0 || /Chrome\//i.test(userAgent) || /CriOS\//i.test(userAgent);
+  const isAndroidBrowser = /Android/i.test(userAgent) && /Version\/\d/i.test(userAgent) && !isChrome;
+  const isOldAndroid = /Android [1-4]\./i.test(userAgent);
+  const isSafari = !isChrome && safariMajor > 0 && /Safari\//i.test(userAgent);
+
+  if (chromeMajor && chromeMajor < 80) return true;
+  if (firefoxMajor && firefoxMajor < 74) return true;
+  if (edgeLegacyMajor) return true;
+  if (isSafari && safariMajor < 13) return true;
+  if (isAndroidBrowser || isOldAndroid) return true;
+  if (/MSIE |Trident\//i.test(userAgent)) return true;
+  return false;
+}
+
 function handleRequest(req, res) {
   const requestUrl = new URL(req.url, `http://localhost:${port}`);
 
@@ -985,6 +1077,7 @@ function handleRequest(req, res) {
     const clientId = registerClient(req, requestUrl.searchParams);
     const includeClients = shouldIncludeDiagnostics(clientId, requestUrl.searchParams.get("diagnostics") === "1");
     sendJson(res, 200, publicState({ receivedAt, clientId, includeClients }));
+    if (clientId) legacyRedirectPending.delete(clientId);
     return;
   }
 
@@ -1049,6 +1142,13 @@ function handleRequest(req, res) {
       const type = body.type;
       const isRuntimeCommand = runtimeCommandTypes.has(type);
       const commandId = cleanCommandId(body.commandId);
+      if (actionRequiresPrimary(type) && !primaryControlAllowed(clientId)) {
+        sendJson(res, 403, {
+          ...publicState({ receivedAt: now, clientId, includeClients: shouldIncludeDiagnostics(clientId) }),
+          actionDenied: true
+        });
+        return;
+      }
       const cachedCommand = commandId ? commandResults.get(commandId) : null;
       if (cachedCommand) {
         sendJson(res, cachedCommand.status, {
@@ -1072,6 +1172,7 @@ function handleRequest(req, res) {
       const previousVersion = timerState.version;
       let audioTestCommand = null;
       let audioWakeCommand = null;
+      let legacyModeCommand = null;
 
       if (type === "start") {
         const settings = body.settings || timerState.activeSettings;
@@ -1190,7 +1291,16 @@ function handleRequest(req, res) {
       }
 
       if (type === "primary") {
-        const nextPrimaryClientId = body.clientId || null;
+        const nextPrimaryClientId = Object.prototype.hasOwnProperty.call(body, "primaryClientId")
+          ? body.primaryClientId || null
+          : body.clientId || null;
+        if (!primaryActionAllowed(clientId, nextPrimaryClientId)) {
+          sendJson(res, 403, {
+            ...publicState({ receivedAt: now, clientId, includeClients: shouldIncludeDiagnostics(clientId) }),
+            actionDenied: true
+          });
+          return;
+        }
         const shortcutTakeover = body.source === "shortcut"
           && nextPrimaryClientId
           && timerState.primaryClientId
@@ -1288,7 +1398,40 @@ function handleRequest(req, res) {
         }
       }
 
+      if (type === "legacyMode") {
+        const targetClientId = String(body.targetClientId || "");
+        const enabled = Boolean(body.enabled);
+        if (targetClientId && targetClientId !== timerState.primaryClientId) {
+          if (enabled) {
+            manualLegacyClients.add(targetClientId);
+          } else {
+            manualLegacyClients.delete(targetClientId);
+          }
+          if (enabled || !oldBrowserClients.has(targetClientId)) {
+            legacyModeCommand = {
+              targetClientId,
+              enabled,
+              manual: true,
+              serverTime: now
+            };
+            if (!enabled) {
+              legacyRedirectPending.add(targetClientId);
+            }
+          }
+          timerState.version += 1;
+        }
+      }
+
       if (type === "audioTest") {
+        const rateLimit = consumeAudioTestRateLimit(now);
+        if (!rateLimit.allowed) {
+          sendJson(res, 429, {
+            ...publicState({ receivedAt: now, clientId, includeClients: shouldIncludeDiagnostics(clientId) }),
+            audioTestRateLimited: true,
+            audioTestRetryAfterMs: rateLimit.retryAfterMs
+          });
+          return;
+        }
         const kind = ["start", "end", "minute", "warn"].includes(body.kind) ? body.kind : "start";
         const targetClientId = String(body.targetClientId || "");
         const everywhere = Boolean(body.everywhere && timerState.primaryClientId);
@@ -1327,11 +1470,21 @@ function handleRequest(req, res) {
       if (audioWakeCommand) {
         sendEvent("audio-wake", audioWakeCommand);
       }
+      if (legacyModeCommand) {
+        sendEvent(
+          "legacy-mode",
+          legacyModeCommand,
+          (eventClient) => eventClient.clientId === legacyModeCommand.targetClientId
+        );
+      }
     }).catch(() => sendJson(res, 400, { error: "Invalid JSON" }));
     return;
   }
 
-  const relativePath = requestUrl.pathname === "/" ? "index.html" : decodeURIComponent(requestUrl.pathname.slice(1));
+  let relativePath = requestUrl.pathname === "/" ? "index.html" : decodeURIComponent(requestUrl.pathname.slice(1));
+  if (shouldServeLegacyViewer(req, requestUrl)) {
+    relativePath = "legacy.html";
+  }
   const filePath = path.resolve(root, relativePath);
 
   if (!filePath.startsWith(root)) {

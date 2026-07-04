@@ -1,0 +1,365 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Таймер болдеринга (упрощённый вид)</title>
+  <style>
+    html,
+    body {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      overflow: hidden;
+      background: #0e1116;
+      color: #f4f7fb;
+      font-family: Arial, Helvetica, sans-serif;
+    }
+
+    body.break-active {
+      background: #f05a59;
+      color: #f4f7fb;
+    }
+
+    body.warning-active {
+      background: #0e1116;
+      color: #f4f7fb;
+    }
+
+    #wrap {
+      position: absolute;
+      left: 0;
+      top: 0;
+      right: 0;
+      bottom: 0;
+      text-align: center;
+      white-space: nowrap;
+    }
+
+    #time {
+      position: absolute;
+      left: 0;
+      right: 0;
+      top: 50%;
+      margin-top: -18vw;
+      font-size: 34vw;
+      line-height: 1;
+      font-weight: 900;
+      letter-spacing: 0;
+    }
+
+  </style>
+</head>
+<body>
+  <div id="wrap">
+    <div id="time">--:--</div>
+  </div>
+
+  <script>
+    (function () {
+      var state = null;
+      var serverOffset = 0;
+      var lastContact = 0;
+      var appliedFontKey = "";
+      var activeRequest = null;
+      var activeRequestStartedAt = 0;
+      var pollTimer = null;
+      var timerColors = {
+        rotationText: "#f4f7fb",
+        warningText: "#f4f7fb",
+        breakText: "#f4f7fb",
+        rotationBg: "#0e1116",
+        warningBg: "#0e1116",
+        breakBg: "#f05a59"
+      };
+      var manualLegacyUrl = /(?:^|[?&])manualLegacy=1(?:&|$)/.test(window.location.search || "");
+      var clientId = queryValue("clientId") || ("legacy-" + String(new Date().getTime()) + "-" + String(Math.random()).slice(2));
+      var isOldBrowser = !window.Promise || !window.fetch || !window.requestAnimationFrame || !window.performance;
+      sessionStorage.setItem("boulderingTimerClientId", clientId);
+      var timeEl = document.getElementById("time");
+
+      function fitTimerText() {
+        var w = window.innerWidth || document.documentElement.clientWidth || 360;
+        var h = window.innerHeight || document.documentElement.clientHeight || 640;
+        if (w < 1 || h < 1) return;
+        var maxW = w * 0.985;
+        var maxH = h * 0.96;
+        var low = 48;
+        var high = Math.min(1800, Math.max(220, w, h * 1.45));
+        var i, mid, testW, testH;
+        var canvas = document.createElement("canvas");
+        var ctx = canvas.getContext("2d");
+        var text = timeEl.textContent || "04:00";
+        var fw = timeEl.currentStyle ? timeEl.currentStyle.fontWeight : (window.getComputedStyle ? getComputedStyle(timeEl).fontWeight : "900");
+        var ff = timeEl.currentStyle ? timeEl.currentStyle.fontFamily : (window.getComputedStyle ? getComputedStyle(timeEl).fontFamily : "Arial, sans-serif");
+        for (i = 0; i < 13; i += 1) {
+          mid = (low + high) / 2;
+          ctx.font = fw + " " + mid + "px " + ff;
+          testW = ctx.measureText(text).width;
+          testH = mid;
+          if (testW <= maxW && testH <= maxH) {
+            low = mid;
+          } else {
+            high = mid;
+          }
+        }
+        timeEl.style.fontSize = Math.floor(low) + "px";
+      }
+
+      fitTimerText();
+      window.onresize = fitTimerText;
+
+      function queryValue(name) {
+        var query = String(window.location.search || "").replace(/^\?/, "").split("&");
+        var prefix = name + "=";
+        var i;
+        for (i = 0; i < query.length; i += 1) {
+          if (query[i].indexOf(prefix) === 0) {
+            try {
+              return decodeURIComponent(query[i].slice(prefix.length).replace(/\+/g, " "));
+            } catch (error) {
+              return query[i].slice(prefix.length);
+            }
+          }
+        }
+        return "";
+      }
+
+      function two(value) {
+        value = Math.max(0, Math.floor(value));
+        return value < 10 ? "0" + value : String(value);
+      }
+
+      function formatTime(seconds) {
+        seconds = Math.max(0, Math.ceil(seconds));
+        return two(seconds / 60) + ":" + two(seconds % 60);
+      }
+
+      function activeSettings() {
+        var settings = state && state.activeSettings ? state.activeSettings : null;
+        return {
+          rotationSeconds: Number(settings && settings.rotationSeconds) || 240,
+          breakSeconds: Number(settings && settings.breakSeconds) || 0,
+          oneShot: Boolean(settings && settings.oneShot)
+        };
+      }
+
+      function serverNow() {
+        return new Date().getTime() + serverOffset;
+      }
+
+      function applyTitle(language) {
+        document.title = language === "en"
+          ? "Bouldering timer (legacy mode)"
+          : "Таймер болдеринга (упрощённый вид)";
+      }
+
+      function cssString(value) {
+        return String(value || "").replace(/\\/g, "\\\\").replace(/"/g, "\\\"");
+      }
+
+      function cssUrl(value) {
+        return String(value || "").replace(/\\/g, "\\\\").replace(/"/g, "%22").replace(/\)/g, "%29");
+      }
+
+      function colorValue(value, fallback) {
+        value = String(value || "").replace(/[;"{}<>]/g, "").trim();
+        return value || fallback;
+      }
+
+      function applyTimerFont(config) {
+        var fontUrl = config && config.timerFontUrl ? String(config.timerFontUrl) : "";
+        var fallback = config && config.timerFont ? String(config.timerFont) : "Arial, Helvetica, sans-serif";
+        var key = fontUrl + "|" + fallback;
+        var style;
+
+        if (key === appliedFontKey) return;
+        appliedFontKey = key;
+        if (!fontUrl) {
+          timeEl.style.fontFamily = fallback || "Arial, Helvetica, sans-serif";
+          return;
+        }
+
+        style = document.getElementById("legacyTimerFontFace");
+        if (!style) {
+          style = document.createElement("style");
+          style.id = "legacyTimerFontFace";
+          document.getElementsByTagName("head")[0].appendChild(style);
+        }
+        style.innerHTML = "@font-face{font-family:\"FDV Legacy Timer\";src:url(\"" + cssUrl(fontUrl) + "\");font-weight:100 900;font-style:normal;font-display:swap;}";
+        timeEl.style.fontFamily = "\"FDV Legacy Timer\", " + (cssString(fallback) || "Arial, Helvetica, sans-serif");
+        fitTimerText();
+        if (window.FontFace) {
+          try {
+            var ff = new FontFace("FDV Legacy Timer", "url(" + cssUrl(fontUrl) + ")");
+            ff.load().then(function () { fitTimerText(); });
+          } catch (e) {}
+        } else {
+          window.setTimeout(fitTimerText, 500);
+        }
+      }
+
+      function applyTimerColors(config) {
+        config = config || {};
+        timerColors = {
+          rotationText: colorValue(config.rotationTextColor, timerColors.rotationText),
+          warningText: colorValue(config.rotationLastFiveTextColor, timerColors.warningText),
+          breakText: colorValue(config.breakTextColor, timerColors.breakText),
+          rotationBg: colorValue(config.rotationBackgroundColor, timerColors.rotationBg),
+          warningBg: colorValue(config.rotationLastFiveBackgroundColor, timerColors.warningBg),
+          breakBg: colorValue(config.breakBackgroundColor, timerColors.breakBg)
+        };
+      }
+
+      function elapsedSeconds() {
+        if (!state) return 0;
+        if (!state.running) return Number(state.elapsedBeforePause || state.elapsed || 0) || 0;
+        if (Number(state.startedAt || 0) > serverNow()) return 0;
+        return Math.max(0, (serverNow() - Number(state.startedAt || 0)) / 1000);
+      }
+
+      function currentDisplay() {
+        var settings = activeSettings();
+        var elapsed = elapsedSeconds();
+        var rotation = settings.rotationSeconds;
+        var rest = settings.breakSeconds;
+        var cycle = rotation + rest;
+        var pos;
+
+        if (!state) return { phase: "waiting", seconds: 0, isBreak: false, warning: false };
+        if (state.countdownOnly || (state.running && Number(state.startedAt || 0) > serverNow())) {
+          return {
+            phase: "start",
+            seconds: Math.max(0, (Number(state.startedAt || 0) - serverNow()) / 1000),
+            isBreak: false,
+            warning: false
+          };
+        }
+        if (state.waitingForManualStart) return { phase: "ready", seconds: 0, isBreak: false, warning: false };
+        if (state.completed) return { phase: "done", seconds: 0, isBreak: false, warning: false };
+        if (!state.running && elapsed <= 0) return { phase: "ready", seconds: rotation, isBreak: false, warning: false };
+
+        if (settings.oneShot) {
+          if (elapsed < rotation) {
+            return { phase: "rotation", seconds: rotation - elapsed, isBreak: false, warning: rotation - elapsed <= 5 };
+          }
+          if (rest > 0 && elapsed < rotation + rest) {
+            return { phase: "break", seconds: rotation + rest - elapsed, isBreak: true, warning: false };
+          }
+          return { phase: "done", seconds: 0, isBreak: false, warning: false };
+        }
+
+        if (cycle <= 0) return { phase: "ready", seconds: 0, isBreak: false, warning: false };
+        pos = elapsed % cycle;
+        if (rest > 0 && pos >= rotation) {
+          return { phase: "break", seconds: cycle - pos, isBreak: true, warning: false };
+        }
+        return { phase: "rotation", seconds: rotation - pos, isBreak: false, warning: rotation - pos <= 5 };
+      }
+
+      function render() {
+        var view = currentDisplay();
+        var online = new Date().getTime() - lastContact < 5000;
+        document.body.className = (view.isBreak ? "break-active " : "") + (view.warning ? "warning-active " : "") + (online ? "" : "offline");
+        document.body.style.backgroundColor = view.isBreak ? timerColors.breakBg : view.warning ? timerColors.warningBg : timerColors.rotationBg;
+        timeEl.style.color = view.isBreak ? timerColors.breakText : view.warning ? timerColors.warningText : timerColors.rotationText;
+        timeEl.innerHTML = formatTime(view.seconds);
+      }
+
+      function scheduleRequest(delay) {
+        if (pollTimer) window.clearTimeout(pollTimer);
+        pollTimer = window.setTimeout(requestState, delay);
+      }
+
+      function finishRequest() {
+        activeRequest = null;
+        activeRequestStartedAt = 0;
+      }
+
+      function abortStaleRequest() {
+        if (!activeRequest) return;
+        if (new Date().getTime() - activeRequestStartedAt < 7000) return;
+        try {
+          activeRequest.abort();
+        } catch (error) {}
+        finishRequest();
+      }
+
+      function requestState() {
+        var xhr = new XMLHttpRequest();
+        var url = "/api/state?legacy=1" + (manualLegacyUrl ? "&manualLegacy=1" : "") + (isOldBrowser ? "&oldBrowser=1" : "") + "&clientId=" + encodeURIComponent(clientId);
+        abortStaleRequest();
+        if (activeRequest) return;
+        activeRequest = xhr;
+        activeRequestStartedAt = new Date().getTime();
+        xhr.open("GET", url, true);
+        try {
+          xhr.timeout = 5000;
+        } catch (error) {}
+        xhr.onreadystatechange = function () {
+          var remote;
+          if (xhr.readyState !== 4) return;
+          finishRequest();
+          if (xhr.status < 200 || xhr.status >= 300) {
+            scheduleRequest(1000);
+            return;
+          }
+          try {
+            remote = JSON.parse(xhr.responseText);
+          } catch (error) {
+            scheduleRequest(1000);
+            return;
+          }
+          if (remote.legacyRedirect) {
+            sessionStorage.setItem("boulderingTimerClientId", clientId);
+            window.location.replace("/?modern=1");
+            return;
+          }
+          if (manualLegacyUrl && remote.manualLegacy !== true) {
+            sessionStorage.setItem("boulderingTimerClientId", clientId);
+            window.location.replace("/?modern=1");
+            return;
+          }
+          state = remote;
+          applyTitle(remote.language || (remote.config && remote.config.language));
+          applyTimerFont(remote.config);
+          applyTimerColors(remote.config);
+          if (Number(remote.now)) serverOffset = Number(remote.now) - new Date().getTime();
+          lastContact = new Date().getTime();
+          render();
+          scheduleRequest(1000);
+        };
+        xhr.onerror = function () {
+          finishRequest();
+          scheduleRequest(1000);
+        };
+        xhr.ontimeout = function () {
+          finishRequest();
+          scheduleRequest(1000);
+        };
+        xhr.onabort = function () {
+          finishRequest();
+          scheduleRequest(1000);
+        };
+        try {
+          xhr.send(null);
+        } catch (error) {
+          finishRequest();
+          scheduleRequest(1000);
+        }
+      }
+
+      requestState();
+      window.setInterval(function () {
+        abortStaleRequest();
+      }, 3000);
+      window.setInterval(render, 250);
+      if (window.addEventListener) {
+        window.addEventListener("online", function () { scheduleRequest(0); });
+        window.addEventListener("pageshow", function () { scheduleRequest(0); });
+        window.addEventListener("focus", function () { scheduleRequest(0); });
+      }
+    })();
+  </script>
+</body>
+</html>

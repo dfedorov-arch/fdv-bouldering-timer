@@ -1,7 +1,7 @@
-const BUILD_NUMBER = 162;
+const BUILD_NUMBER = 191;
 const CACHE_NAME = `fdv-bouldering-timer-v${BUILD_NUMBER}`;
 const CACHE_PREFIX = "fdv-bouldering-timer-v";
-const CORE_URLS = ["/", "/index.html", "/offline-audio.js", "/help.html"];
+const CORE_URLS = ["/", "/index.html", "/legacy.html", "/offline-audio.js", "/help.html"];
 
 function isApiRequest(url) {
   return url.pathname.startsWith("/api/");

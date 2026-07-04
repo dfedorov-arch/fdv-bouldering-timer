@@ -22,6 +22,9 @@ const signalLateGraceMs = {
 };
 
 const manualStartAudioLeadMs = 300;
+const primaryPinMaxFailures = 5;
+const primaryPinBlockStepsMs = [5000, 30000, 300000];
+const audioTestRateLimitMs = 3000;
 
 function clampFloat(value, min, max, fallback) {
   const number = Number(value);
@@ -78,9 +81,10 @@ function fitClockRate(samples) {
   };
 }
 
-function evaluateClockRate(samples, currentRate = 1) {
+function evaluateClockRate(samples, currentRate = 1, options = {}) {
   const modelSpan = samples.length > 1 ? samples[samples.length - 1].perfTime - samples[0].perfTime : 0;
   const model = modelSpan >= 8000 ? fitClockRate(samples) : null;
+  const holdExistingRate = Boolean(options.holdExistingRate);
   if (!model) {
     return {
       nextRate: currentRate,
@@ -110,8 +114,8 @@ function evaluateClockRate(samples, currentRate = 1) {
   let confidence = "normal";
   let gateReason = "normal";
   if (largeRateCandidate && !highConfidenceLargeRate) {
-    fittedRate = 1;
-    confidence = "gated";
+    fittedRate = holdExistingRate ? currentRate : 1;
+    confidence = holdExistingRate ? "resume-held" : "gated";
     if (modelSpan < syncRateOptions.largeMinSpanMs) gateReason = "short-window";
     else if (samples.length < syncRateOptions.largeMinSamples) gateReason = "few-samples";
     else if (model.residualJitter > syncRateOptions.largeMaxResidualMs) gateReason = "unstable-residuals";
@@ -235,6 +239,36 @@ function manualStartLeadMs(freshStart, soundNeeded) {
   return freshStart && soundNeeded ? manualStartAudioLeadMs : 0;
 }
 
+function nextPrimaryPinFailure(entry = {}, now = 0) {
+  if (entry.blockedUntil > now) return entry;
+  const blockLevel = Math.max(0, Number(entry.blockLevel) || 0);
+  const count = (Number(entry.count) || 0) + 1;
+  if (count < primaryPinMaxFailures) return { count, blockedUntil: 0, blockLevel };
+  const blockMs = primaryPinBlockStepsMs[Math.min(blockLevel, primaryPinBlockStepsMs.length - 1)];
+  return {
+    count: 0,
+    blockedUntil: now + blockMs,
+    blockLevel: blockLevel + 1
+  };
+}
+
+function primaryControlAllowed(primaryClientId, clientId) {
+  if (!primaryClientId) return true;
+  return Boolean(clientId && primaryClientId === clientId);
+}
+
+function primaryActionAllowed(primaryClientId, clientId, nextPrimaryClientId) {
+  if (!primaryClientId) return !nextPrimaryClientId || nextPrimaryClientId === clientId;
+  if (primaryClientId === clientId) return true;
+  return Boolean(nextPrimaryClientId && nextPrimaryClientId === clientId);
+}
+
+function consumeAudioTestRateLimit(lastCommandAt, now) {
+  const retryAfterMs = audioTestRateLimitMs - (now - lastCommandAt);
+  if (retryAfterMs > 0) return { allowed: false, retryAfterMs };
+  return { allowed: true, retryAfterMs: 0, lastCommandAt: now };
+}
+
 test("stable large VM clock rate is accepted after enough samples", () => {
   const result = evaluateClockRate(makeSamples(1.078, 16, 2500));
 
@@ -252,6 +286,14 @@ test("large clock rate is gated before the confidence window is long enough", ()
   assert.equal(result.confidence, "gated");
   assert.equal(result.gateReason, "short-window");
   assert.equal(result.acceptedRatePpm, 0);
+});
+
+test("held VM clock rate survives the short post-resume confidence window", () => {
+  const result = evaluateClockRate(makeSamples(1.078, 8, 2500), 1.078, { holdExistingRate: true });
+
+  assert.equal(result.confidence, "resume-held");
+  assert.equal(result.gateReason, "short-window");
+  assert.equal(result.acceptedRatePpm, 78000);
 });
 
 test("unstable large clock rate is gated even with enough samples", () => {
@@ -390,4 +432,47 @@ test("manual start lead is used only when a fresh start needs sound", () => {
   assert.equal(manualStartLeadMs(true, true), 300);
   assert.equal(manualStartLeadMs(true, false), 0);
   assert.equal(manualStartLeadMs(false, true), 0);
+});
+
+test("primary PIN lockout escalates after repeated failure windows", () => {
+  let entry = {};
+  for (let index = 0; index < 4; index += 1) entry = nextPrimaryPinFailure(entry, 1000);
+  assert.deepEqual(entry, { count: 4, blockedUntil: 0, blockLevel: 0 });
+
+  entry = nextPrimaryPinFailure(entry, 1000);
+  assert.deepEqual(entry, { count: 0, blockedUntil: 6000, blockLevel: 1 });
+  assert.equal(nextPrimaryPinFailure(entry, 2000), entry);
+
+  for (let index = 0; index < 5; index += 1) entry = nextPrimaryPinFailure(entry, 7000);
+  assert.deepEqual(entry, { count: 0, blockedUntil: 37000, blockLevel: 2 });
+
+  for (let index = 0; index < 5; index += 1) entry = nextPrimaryPinFailure(entry, 38000);
+  assert.deepEqual(entry, { count: 0, blockedUntil: 338000, blockLevel: 3 });
+
+  for (let index = 0; index < 5; index += 1) entry = nextPrimaryPinFailure(entry, 339000);
+  assert.deepEqual(entry, { count: 0, blockedUntil: 639000, blockLevel: 4 });
+});
+
+test("primary-selected mode accepts control only from the primary client", () => {
+  assert.equal(primaryControlAllowed(null, "viewer"), true);
+  assert.equal(primaryControlAllowed("primary", "primary"), true);
+  assert.equal(primaryControlAllowed("primary", "viewer"), false);
+  assert.equal(primaryControlAllowed("primary", ""), false);
+
+  assert.equal(primaryActionAllowed("primary", "primary", null), true);
+  assert.equal(primaryActionAllowed("primary", "viewer", null), false);
+  assert.equal(primaryActionAllowed("primary", "viewer", "other"), false);
+  assert.equal(primaryActionAllowed("primary", "viewer", "viewer"), true);
+});
+
+test("audio test rate limit allows one command every three seconds", () => {
+  let rate = consumeAudioTestRateLimit(0, 10000);
+  assert.equal(rate.allowed, true);
+
+  rate = consumeAudioTestRateLimit(rate.lastCommandAt, 12000);
+  assert.equal(rate.allowed, false);
+  assert.equal(rate.retryAfterMs, 1000);
+
+  rate = consumeAudioTestRateLimit(10000, 13000);
+  assert.equal(rate.allowed, true);
 });
