@@ -965,6 +965,7 @@
           <li>Запустите таймер. В окне запуска найдите адрес Wi-Fi или Ethernet, например <code>http://192.168.1.68:8008/</code>.</li>
           <li>Откройте этот адрес на телефоне, планшете, телевизоре или другом компьютере.</li>
           <li>В управляющем браузере включите «Основной браузер». Все остальные подключения автоматически перейдут в режим экрана.</li>
+          <li>Если подключён старый телевизор или браузер с проблемами современного JavaScript, переключите его в Legacy-режим из списка браузеров.</li>
           <li>На мобильных устройствах один раз коснитесь страницы, чтобы браузер разрешил звук и попытку перехода в полный экран.</li>
         </ol>
         <p class="success"><strong>Основной IP:</strong> даже если управляющий браузер открыт через <code>127.0.0.1</code>, приложение старается показать пригодный для других устройств сетевой IP. Только IP основного браузера кликабелен и копирует готовую ссылку.</p>
@@ -976,18 +977,33 @@
           <li>Включать «Звук в других браузерах» для всех второстепенных экранов.</li>
           <li>Включать «Полный экран в других браузерах». Если браузер блокирует удалённый переход, на экране потребуется тап.</li>
           <li>Просматривать состояние каждого браузера, тестировать его звук и настраивать индивидуальную временную поправку.</li>
+          <li>Переключать отдельный экран в Legacy-режим кнопкой LEGACY в строке браузера.</li>
         </ul>
         <p>Основной браузер расположен первым в списке и отмечен словом «этот». Сочетание <kbd>Ctrl+M</kbd> / <kbd>Ctrl+Ь</kbd> позволяет быстро переназначить роль при аварийной ситуации.</p>
 
-        <h3 id="diagnostics">6.3. Диагностика подключений</h3>
+
+        <h3 id="legacy-mode">6.3. Legacy-режим для старых экранов</h3>
+        <p>Legacy-экран предназначен для старых браузеров в телевизорах, планшетах и медиаплеерах, где обычная страница может работать нестабильно. Он открывается как <code>/legacy.html</code> без видимых служебных параметров в адресной строке.</p>
+        <ul>
+          <li>На экране остаётся только крупное табло времени без панели управления, списка браузеров, диагностики и настроек звука.</li>
+          <li>Страница использует упрощённый JavaScript и обычные XHR-запросы к <code>/api/state</code>, поэтому не зависит от SSE, Fetch API, Web Audio, Wake Lock и других современных возможностей.</li>
+          <li>Звук в Legacy-режиме не воспроизводится. Если нужны звуковые сигналы, оставьте звук на основном браузере или на обычном современном экране.</li>
+          <li>Время считается локально по состоянию сервера и периодически уточняется по лучшим сетевым измерениям. Из-за упрощённой синхронизации точность может быть немного ниже, чем на обычном экране.</li>
+          <li>Размер цифр подбирается под экран, включая длинные значения фестиваля вроде <code>120:00</code>. После поворота устройства Legacy-экран несколько раз пересчитывает размер и центрирование.</li>
+          <li>Повторное нажатие LEGACY из основного браузера возвращает экран на обычную страницу <code>/</code>.</li>
+        </ul>
+        <p class="note">Legacy-режим лучше использовать только для устройств, на которых обычный экран не работает или работает слишком тяжело. На современных телефонах, планшетах и компьютерах обычный экран точнее синхронизирует время и поддерживает звук.</p>
+
+        <h3 id="diagnostics">6.4. Диагностика подключений</h3>
         <p>Строка браузера содержит название и версию, операционную систему, IP, роль, протокол и цветные индикаторы. Наведение на индикатор показывает подробности.</p>
         <figure class="detail-shot">
           <img src="help-assets/browser-diagnostics.png" alt="Строка браузера с диагностическими индикаторами NET, SYNC, AUDIO, WAKE, SSE и TAB">
-          <figcaption>Строка подключённого браузера и шесть диагностических индикаторов.</figcaption>
+          <figcaption>Строка подключённого браузера: кнопка LEGACY и шесть диагностических индикаторов.</figcaption>
         </figure>
         <table>
           <thead><tr><th>Индикатор</th><th>Назначение</th></tr></thead>
           <tbody>
+            <tr><td><span class="diag">LEGACY</span></td><td>Кнопка переключает выбранный экран между обычным табло и Legacy-страницей для старых браузеров. Зелёная плашка означает, что этот браузер сейчас открыт в Legacy-режиме.</td></tr>
             <tr><td><span class="diag">NET</span></td><td>Состояние связи и задержка запроса. До 100 мс — зелёный, до 200 мс — жёлтый, выше — красный.</td></tr>
             <tr><td><span class="diag">SYNC</span></td><td>Оценка ошибки синхронизации и разброс последних измерений. До 100 мс — зелёный, до 300 мс — жёлтый.</td></tr>
             <tr><td><span class="diag">AUDIO</span></td><td>Разрешён ли звук, разблокирован ли он пользовательским касанием и какая задана индивидуальная поправка.</td></tr>
@@ -1016,7 +1032,7 @@
           <li>Повторно нажмите AUDIO, чтобы сохранить поправку.</li>
         </ol>
 
-        <h3 id="network">6.4. Работа при временной потере сети</h3>
+        <h3 id="network">6.5. Работа при временной потере сети</h3>
         <p>Сервер хранит общую точку старта, но каждый браузер самостоятельно рассчитывает текущее время. Поэтому потеря Wi-Fi сама по себе не должна останавливать цифры.</p>
         <ul>
           <li>Команды обычно приходят через SSE; резервная синхронизация выполняется примерно раз в две секунды.</li>
@@ -1079,6 +1095,7 @@
         <p>Перед копированием остановите таймер. В новой папке должны сохраниться как минимум:</p>
         <ul class="file-list">
           <li><code>index.html</code></li>
+          <li><code>legacy.html</code></li>
           <li><code>offline-audio.js</code> для звуков при прямом автономном открытии</li>
           <li><code>serve-bouldering-timer.js</code></li>
           <li><code>params.txt</code></li>
@@ -1124,7 +1141,12 @@
             <li>Закрытие окна останавливает сервер. Используйте <strong>Restart server</strong> после изменения портов или настроек Node.js.</li>
             <li>Если приложение недоступно, используйте резервный <code>start-timer-mac.command</code>; Terminal нужно держать открытым, остановка — <kbd>Ctrl+C</kbd>.</li>
           </ol>
-          <p>Если macOS сообщает, что разработчик не подтверждён, щёлкните приложение или скрипт правой кнопкой и выберите «Открыть». Если появляется «Permission denied», выполните в Terminal из папки проекта:</p>
+          <p>Если macOS сообщает, что разработчик не подтверждён, сначала щёлкните приложение или скрипт правой кнопкой и выберите «Открыть». Если запуск всё равно заблокирован, откройте <strong>Системные настройки → Конфиденциальность и безопасность</strong> и в разделе безопасности нажмите «Всё равно открыть» / «Разрешить» для FDV Bouldering Timer.</p>
+          <p>Если после распаковки блокируется приложение сервера, файл запуска или встроенный <code>runtime/mac/bin/node</code>, снимите quarantine-атрибут с распакованной папки или с самого приложения:</p>
+          <pre><code>xattr -dr com.apple.quarantine .
+xattr -dr com.apple.quarantine "FDV Bouldering Timer.app"
+xattr -dr com.apple.quarantine "/полный/путь/к/fdv-bouldering-timer-v1.0.7-macos-arm64"</code></pre>
+          <p>Первый вариант выполняется из папки распакованного релиза. Второй снимает quarantine только с приложения. Третий удобен, если папка лежит в <code>Downloads</code> или на внешнем диске. Если появляется «Permission denied», выполните в Terminal из папки проекта:</p>
           <p><code>chmod +x fdv-bouldering-timer start-timer-mac.command create-https-certificate-mac.command</code></p>
           <p>Для portable Node.js выбирайте сборку своей архитектуры: <code>arm64</code> для Apple Silicon или <code>x64</code> для Intel.</p>
         </div>
@@ -1430,19 +1452,34 @@
           <li>Open a Wi-Fi or Ethernet address printed by the launcher.</li>
           <li>Enable Primary browser on one controlling device.</li>
         </ol>
-        <p>Other browsers become clean timer-only displays. They receive the same server state and continually correct their local time against the server.</p>
+        <p>Other browsers become clean timer-only displays. They receive the same server state and continually correct their local time against the server. For older TV browsers, switch an individual display to Legacy mode from the browser list.</p>
         <h3>6.2. Primary browser controls</h3>
         <ul>
           <li><strong>Sound in primary browser</strong> controls only that browser.</li>
           <li><strong>Sound in other browsers</strong> enables sound on remote displays.</li>
           <li><strong>Fullscreen in other browsers</strong> requests fullscreen; a tap may still be required.</li>
           <li>Browsers on the same computer as the primary do not duplicate its sound.</li>
+          <li>Click LEGACY in a browser row to move that display to the simplified Legacy page.</li>
         </ul>
-        <h3>6.3. Diagnostics</h3>
-        <figure class="detail-shot"><img src="help-assets/browser-diagnostics-en.png" alt="Browser diagnostics"><figcaption>NET, SYNC, AUDIO, WAKE, SSE, and TAB summarize each connection.</figcaption></figure>
+
+        <h3>6.3. Legacy mode for older displays</h3>
+        <p>Legacy mode is intended for old TV browsers, tablets, and media players where the normal page may be unstable. It opens as <code>/legacy.html</code> without visible service parameters in the address bar.</p>
+        <ul>
+          <li>The page shows only the large timer, without controls, browser diagnostics, sound settings, or the browser list.</li>
+          <li>It uses simplified JavaScript and plain XHR requests to <code>/api/state</code>, so it does not depend on SSE, Fetch API, Web Audio, Wake Lock, or other modern browser features.</li>
+          <li>Legacy mode does not play sound. Keep sound on the primary browser or on a normal modern display when audio signals are needed.</li>
+          <li>The display calculates time locally from the server state and periodically refines its clock offset using the best network samples. Because synchronization is simplified, it may be slightly less precise than the normal display.</li>
+          <li>The digit size is fitted to the screen, including long Festival values such as <code>120:00</code>. After device rotation the Legacy page recalculates sizing and centering several times.</li>
+          <li>Click LEGACY again from the primary browser to return that display to the normal <code>/</code> page.</li>
+        </ul>
+        <p class="note">Use Legacy mode only for devices where the normal display does not work or is too heavy. On modern phones, tablets, and computers the normal display has better synchronization and sound support.</p>
+
+        <h3>6.4. Diagnostics</h3>
+        <figure class="detail-shot"><img src="help-assets/browser-diagnostics-en.png" alt="Browser diagnostics with LEGACY button"><figcaption>The LEGACY button and the NET, SYNC, AUDIO, WAKE, SSE, and TAB badges summarize each connection.</figcaption></figure>
         <table>
           <thead><tr><th>Badge</th><th>Meaning</th></tr></thead>
           <tbody>
+            <tr><td>LEGACY</td><td>Switches the selected display between the normal timer display and the Legacy page for older browsers. A green badge means that this browser is currently in Legacy mode.</td></tr>
             <tr><td>NET</td><td>Connection latency: green ≤100 ms, yellow ≤200 ms.</td></tr>
             <tr><td>SYNC</td><td>Estimated timer synchronization error: green ≤100 ms, yellow ≤300 ms.</td></tr>
             <tr><td>AUDIO</td><td>Sound permission, unlock status, and user sound offset.</td></tr>
@@ -1457,7 +1494,7 @@
           <figure class="detail-shot"><img src="help-assets/audio-test-en.png" alt="Sound test buttons"><figcaption>Test Start, End, one-minute, and five-second signals.</figcaption></figure>
         </div>
         <p>Click AUDIO, adjust the scale, test signals, then click AUDIO again to save. From the primary browser you can test everywhere sound is allowed. Sound test buttons are disabled while the timer is actively running, but remain available during the scheduled-start countdown and while paused.</p>
-        <h3>6.4. Temporary network loss</h3>
+        <h3>6.5. Temporary network loss</h3>
         <p>A display continues from the last known server timeline. After about 4.5 seconds without the server, the control panel shows a warning and NET, SYNC, and SSE turn red. Choose <strong>Standalone mode</strong> to control the timer in this browser only; other browsers will not be synchronized. Its browser list contains the current browser only: click AUDIO to adjust the −500 to +500 ms offset and test START, END, MINUTE, and WARNING. A past scheduled start restores Classic and Festival as if they started today at that time; in Final it schedules tomorrow. When the server returns, the standalone timer stays independent until you explicitly return to the server state. Standalone changes are discarded when returning.</p>
         <a class="back-to-toc" href="#en-contents">↑ Back to contents</a>
       </section>
@@ -1495,12 +1532,14 @@
         <p class="lead">Copy the entire project folder, prepare Node.js, connect the network, and recreate the certificate if required.</p>
         <p class="success">Ready-to-use packages with portable Node.js for Windows, macOS, and Linux are published in <a href="https://github.com/dfedorov-arch/fdv-bouldering-timer/releases">GitHub Releases</a>. Choose the asset matching your operating system and CPU architecture.</p>
         <h3>8.1. Files to copy</h3>
-        <p>Keep <code>index.html</code>, <code>offline-audio.js</code>, <code>serve-bouldering-timer.js</code>, <code>params.txt</code>, <code>beeps</code>, <code>help.html</code>, <code>help-assets</code>, OS launcher scripts, and portable Node.js if used.</p>
+        <p>Keep <code>index.html</code>, <code>legacy.html</code>, <code>offline-audio.js</code>, <code>serve-bouldering-timer.js</code>, <code>params.txt</code>, <code>beeps</code>, <code>help.html</code>, <code>help-assets</code>, OS launcher scripts, and portable Node.js if used.</p>
         <h3>8.2. Node.js</h3>
         <p>Use a current Node.js LTS from <a href="https://nodejs.org/en/download">nodejs.org</a>. Install it system-wide or download a Standalone Binary. Default portable paths are <code>runtime\win\node.exe</code>, <code>runtime/mac/bin/node</code>, and <code>runtime/linux/bin/node</code>; change them in <code>params.txt</code> when needed.</p>
         <figure><img src="help-assets/server-launcher-linux.png" alt="FDV Bouldering Timer server launcher window"><figcaption>The server app has the same purpose on Windows, macOS, and Linux: timer addresses, server status, opening, copying, restarting, and stopping.</figcaption></figure>
         <div class="platform"><h3>8.3. Windows</h3><ol><li>Check <code>params.txt</code>.</li><li>Run <span class="inline-app-name"><img class="inline-app-icon" src="help-assets/timer-launcher.png" alt=""><code>fdv-bouldering-timer.exe</code>. It displays local and network addresses, starts the server, and opens the browser.</li><li>Closing the window keeps the launcher in the notification area. Use <strong>Stop and exit</strong> to stop the server.</li><li>Use <code>start-timer-win.bat</code> as a fallback when the EXE is unavailable.</li><li>Allow Node.js on private networks in Windows Firewall.</li></ol></div>
-        <div class="platform"><h3>8.4. macOS</h3><ol><li>Check <code>params.txt</code>.</li><li>Run <code>FDV Bouldering Timer.app</code> or the adjacent <code>fdv-bouldering-timer</code> file from the portable package.</li><li>The server app displays local and network addresses, starts the server, and opens the browser.</li><li>Closing the window stops the server. Use <strong>Restart server</strong> after changing ports or Node.js settings.</li><li>Use <code>start-timer-mac.command</code> as a fallback; keep Terminal open and stop with <kbd>Ctrl+C</kbd>.</li></ol><p>If blocked, right-click and choose Open. For Permission denied run <code>chmod +x fdv-bouldering-timer start-timer-mac.command create-https-certificate-mac.command</code>.</p></div>
+        <div class="platform"><h3>8.4. macOS</h3><ol><li>Check <code>params.txt</code>.</li><li>Run <code>FDV Bouldering Timer.app</code> or the adjacent <code>fdv-bouldering-timer</code> file from the portable package.</li><li>The server app displays local and network addresses, starts the server, and opens the browser.</li><li>Closing the window stops the server. Use <strong>Restart server</strong> after changing ports or Node.js settings.</li><li>Use <code>start-timer-mac.command</code> as a fallback; keep Terminal open and stop with <kbd>Ctrl+C</kbd>.</li></ol><p>If blocked, right-click and choose Open first. If macOS still blocks the launch, open <strong>System Settings → Privacy &amp; Security</strong> and click <strong>Open Anyway</strong> / <strong>Allow</strong> for FDV Bouldering Timer in the security section.</p><p>If the server app, launcher, or bundled <code>runtime/mac/bin/node</code> is still blocked after extraction, clear the quarantine attribute on the extracted folder or on the app itself:</p><pre><code>xattr -dr com.apple.quarantine .
+xattr -dr com.apple.quarantine "FDV Bouldering Timer.app"
+xattr -dr com.apple.quarantine "/full/path/to/fdv-bouldering-timer-v1.0.7-macos-arm64"</code></pre><p>The first command is run from inside the extracted release folder. The second command clears quarantine only on the app. The full-path form is useful for Downloads or external drives. For Permission denied run <code>chmod +x fdv-bouldering-timer start-timer-mac.command create-https-certificate-mac.command</code>.</p></div>
         <div class="platform"><h3>8.5. Linux</h3><ol><li>Open a terminal in the timer folder.</li><li>Run <code>chmod +x fdv-bouldering-timer install-linux-launcher.sh start-timer-linux.sh create-https-certificate-linux.sh</code> when required.</li><li>Run <code>./fdv-bouldering-timer</code> to open the server app.</li><li>To add the app to the Ubuntu/GNOME applications menu with its icon, run <code>./install-linux-launcher.sh</code> once. Then launch <strong>FDV Bouldering Timer</strong> from the app menu and pin it to the Dock if needed.</li><li>Closing the server app window stops the server. Use <code>./start-timer-linux.sh</code> as a fallback; keep Terminal open and stop with <kbd>Ctrl+C</kbd>.</li></ol><p>Linux file managers may still show a generic icon for the executable itself. The app menu and Dock icon come from the installed <code>.desktop</code> entry created by <code>install-linux-launcher.sh</code>.</p><p>Linux portable releases are provided for x64 and arm64 glibc distributions. Alpine Linux/musl requires a compatible Node.js build.</p></div>
 
         <div class="platform"><h3>8.6. HTTP and HTTPS</h3><p>HTTP works immediately. For HTTPS run <code>create-https-certificate.bat</code> on Windows, <code>create-https-certificate-mac.command</code> on macOS, or <code>create-https-certificate-linux.sh</code> on Linux, then restart the server. Recreate the certificate after changing computer or local IP.</p><p class="warning">The certificate is self-signed, so browsers may show a warning on first use.</p></div>

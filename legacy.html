@@ -354,6 +354,14 @@
         return Math.max(0, (serverNow() - Number(state.startedAt || 0)) / 1000);
       }
 
+      function isManualStartHoldPending() {
+        return state
+          && state.running
+          && !state.countdownOnly
+          && Boolean(state.manualStartDisplayHold)
+          && Number(state.startedAt || 0) > serverNow();
+      }
+
       function currentDisplay() {
         var settings = activeSettings();
         var elapsed = elapsedSeconds();
@@ -363,6 +371,9 @@
         var pos;
 
         if (!state) return { phase: "waiting", seconds: 0, isBreak: false, warning: false };
+        if (isManualStartHoldPending()) {
+          return { phase: "rotation", seconds: rotation, isBreak: false, warning: false };
+        }
         if (state.countdownOnly || (state.running && Number(state.startedAt || 0) > serverNow())) {
           return {
             phase: "start",

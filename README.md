@@ -12,6 +12,7 @@
 
 - Форматы **Классика**, **Фестиваль** и **Финал**.
 - Синхронизация нескольких экранов по локальной сети.
+- Legacy-экран для старых браузеров и телевизоров с упрощённым табло.
 - Продолжение отсчёта на экране при временной потере соединения.
 - Запуск сразу или по заданному времени.
 - Управление подключёнными браузерами и диагностика связи.
@@ -28,7 +29,7 @@
 4. На компьютере сервера откройте `http://127.0.0.1:8008/`.
 5. На остальных экранах откройте сетевой адрес, показанный при запуске, например `http://192.168.1.68:8008/`.
 
-Все устройства должны находиться в одной локальной сети. В Windows разрешите Node.js доступ к частной сети. В macOS при первом запуске может потребоваться открыть приложение через контекстное меню **Открыть**. В Linux для иконки в меню приложений выполните `./install-linux-launcher.sh` один раз.
+Все устройства должны находиться в одной локальной сети. В Windows разрешите Node.js доступ к частной сети. В macOS при первом запуске может потребоваться открыть приложение через контекстное меню **Открыть**, разрешить запуск в **Системные настройки → Конфиденциальность и безопасность** или снять quarantine-атрибут с распакованной папки. В Linux для иконки в меню приложений выполните `./install-linux-launcher.sh` один раз.
 
 Подробная первоначальная настройка, перенос на другой компьютер, HTTPS и диагностика описаны в [краткой инструкции](ReadMe.txt) и [полном руководстве](help.html).
 
@@ -72,6 +73,7 @@ FDV Bouldering Timer is a networked competition timer. One computer controls the
 
 - Classic, Festival, and Final competition formats.
 - Multiple synchronized displays over a local network.
+- Legacy display for older browsers and TV browsers.
 - Local countdown continuity during temporary connection loss.
 - Immediate or scheduled starts.
 - Connected-browser controls and connection diagnostics.
@@ -88,6 +90,6 @@ FDV Bouldering Timer is a networked competition timer. One computer controls the
 4. Open `http://127.0.0.1:8008/` on the server computer.
 5. Open the network address printed by the launcher on other displays, for example `http://192.168.1.68:8008/`.
 
-All devices must be connected to the same local network. On Linux, run `./install-linux-launcher.sh` once to add the app-menu icon. See the [quick-start guide](ReadMe.txt) and the [full user guide](help.html?lang=en) for setup, migration, HTTPS, and troubleshooting.
+All devices must be connected to the same local network. On macOS, the first launch may require right-clicking the app and choosing **Open**, allowing it in **System Settings → Privacy & Security**, or clearing the quarantine attribute on the extracted folder. On Linux, run `./install-linux-launcher.sh` once to add the app-menu icon. See the [quick-start guide](ReadMe.txt) and the [full user guide](help.html?lang=en) for setup, migration, HTTPS, and troubleshooting.
 
 The project is available under the [MIT License](LICENSE).
