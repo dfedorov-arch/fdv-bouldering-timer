@@ -1481,6 +1481,8 @@
       elapsedBeforePause: 0,
       countdownOnly: false,
       waitingForManualStart: false,
+      manualStartLeadMs: 0,
+      manualStartDisplayHold: false,
       activePreset: "classic",
       activeSettings: null,
       soundProfile: "",
@@ -1492,7 +1494,7 @@
       timeline: []
     };
 
-    const pageBuildNumber = 191;
+    const pageBuildNumber = 192;
     const offlineSnapshotKey = "fdvBoulderingTimerOfflineSnapshot";
     const primarySoundPreferenceKey = "fdvBoulderingTimerPrimarySound";
     const offlineSnapshotMaxAgeMs = 12 * 60 * 60 * 1000;
@@ -2945,6 +2947,8 @@
       state.completed = Boolean(remote.completed);
       state.countdownOnly = Boolean(remote.countdownOnly);
       state.waitingForManualStart = Boolean(remote.waitingForManualStart);
+      state.manualStartLeadMs = Number(remote.manualStartLeadMs || 0);
+      state.manualStartDisplayHold = Boolean(remote.manualStartDisplayHold);
       state.serverStartedAt = Number(remote.startedAt || 0);
       state.elapsedBeforePause = Number(remote.elapsedBeforePause || 0);
       state.activePreset = remote.activePreset || "";
@@ -3033,6 +3037,8 @@
       state.completed = Boolean(remote.completed);
       state.countdownOnly = Boolean(remote.countdownOnly);
       state.waitingForManualStart = Boolean(remote.waitingForManualStart);
+      state.manualStartLeadMs = Number(remote.manualStartLeadMs || 0);
+      state.manualStartDisplayHold = Boolean(remote.manualStartDisplayHold);
       state.serverStartedAt = Number(remote.startedAt || 0);
       state.elapsedBeforePause = Number(remote.elapsedBeforePause || 0);
       state.activePreset = remote.activePreset || state.activePreset || "";
@@ -4450,6 +4456,14 @@
       return state.running || state.countdownOnly || state.waitingForManualStart;
     }
 
+    function isManualStartHoldPending() {
+      return state.running
+        && !state.countdownOnly
+        && state.elapsedBeforePause === 0
+        && Boolean(state.manualStartDisplayHold)
+        && state.serverStartedAt > serverNow();
+    }
+
     function render() {
       lastRenderAt = performance.now();
       if (resumeSnapPending && shouldKeepDisplayFresh()) {
@@ -4484,6 +4498,32 @@
         els.schedule.innerHTML = `<div class="chip current"><span>${untilStart > 0 ? t("untilStart") : t("waitingManual")}</span></div>`;
         syncButtons();
         return;
+      }
+
+      if (isManualStartHoldPending()) {
+        const initialSegment = getCurrentSegment(0);
+        if (initialSegment) {
+          const initialDuration = initialSegment.end - initialSegment.start;
+          document.body.classList.toggle("break-active", initialSegment.type === "break");
+          els.phase.textContent = initialSegment.label;
+          els.phase.className = `phase ${initialSegment.type}`;
+          setDisplayTime(initialDuration);
+          els.status.textContent = t("roundRunning");
+          els.cycleMeta.textContent = `${t("cycle")} ${initialSegment.cycle}`;
+          els.rotationMeta.textContent = initialSegment.type === "break"
+            ? `${t("break")} ${formatTime(settings.breakSeconds)}`
+            : `${t("rotation")} ${formatTime(settings.rotationSeconds)}`;
+          els.nextMeta.textContent = initialSegment.type === "break"
+            ? settings.oneShot ? t("nextComplete") : t("nextRotation")
+            : settings.oneShot ? t("nextComplete") : settings.breakSeconds > 0 ? t("nextBreak") : t("nextRotation");
+          if (settings.oneShot && initialSegment.type === "rotation" && settings.breakSeconds > 0) {
+            els.nextMeta.textContent = t("nextBreak");
+          }
+          els.progressBar.style.width = "0%";
+          drawSchedule(initialSegment);
+          syncButtons();
+          return;
+        }
       }
 
       if (state.running && state.serverStartedAt > serverNow()) {
@@ -4597,7 +4637,8 @@
     function isBeforeScheduledStart() {
       return state.running
         && state.elapsedBeforePause === 0
-        && state.serverStartedAt > serverNow();
+        && state.serverStartedAt > serverNow()
+        && !isManualStartHoldPending();
     }
 
     function shouldDisableAudioTestButtons() {
@@ -4767,6 +4808,7 @@
         elapsedBeforePause: state.elapsedBeforePause,
         startHours: "",
         startMinutes: "",
+        startMode: "manual",
         manualStart: state.waitingForManualStart,
         startAudioLead: useStartAudioLead
       }, { rescheduleSignals: true, includePhaseSignal: false });
@@ -4835,6 +4877,7 @@
       }
       await sendServerAction("start", {
         settings: activeSettingsFromDraft(),
+        startMode: "scheduled",
         startHours: els.startHours.value,
         startMinutes: els.startMinutes.value,
         manualStart: false

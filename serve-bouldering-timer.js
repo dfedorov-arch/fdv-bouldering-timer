@@ -13,7 +13,7 @@ const runtimeStatePath = path.join(runtimeStateDir, "timer-state.json");
 const beepsPath = path.join(root, "beeps");
 const fontsPath = path.join(root, "fonts");
 const offlineAudioPath = path.join(root, "offline-audio.js");
-const BUILD_NUMBER = 191;
+const BUILD_NUMBER = 192;
 const SNAPSHOT_SCHEMA_VERSION = 1;
 const SNAPSHOT_MAX_AGE_MS = 12 * 60 * 60 * 1000;
 const PRIMARY_RESTORE_GRACE_MS = 10000;
@@ -280,6 +280,8 @@ const timerState = {
   completed: false,
   countdownOnly: false,
   waitingForManualStart: false,
+  manualStartLeadMs: 0,
+  manualStartDisplayHold: false,
   elapsedBeforePause: 0,
   startedAt: 0,
   activePreset: "classic",
@@ -847,6 +849,8 @@ function finalizeOneShot(now = wallNow()) {
   timerState.running = false;
   timerState.completed = true;
   timerState.elapsedBeforePause = duration;
+  timerState.manualStartLeadMs = 0;
+  timerState.manualStartDisplayHold = false;
   clearTimerStartedAt();
   timerState.version += 1;
   scheduleSnapshotWrite(true);
@@ -858,6 +862,8 @@ function finalizeScheduledCountdown(now = wallNow()) {
   timerState.countdownOnly = false;
   timerState.waitingForManualStart = true;
   timerState.elapsedBeforePause = 0;
+  timerState.manualStartLeadMs = 0;
+  timerState.manualStartDisplayHold = false;
   clearTimerStartedAt();
   timerState.draftSettings.startHours = "";
   timerState.draftSettings.startMinutes = "";
@@ -1180,9 +1186,13 @@ function handleRequest(req, res) {
         const requestedElapsed = Number(body.elapsedBeforePause);
         const pausedElapsed = Number.isFinite(requestedElapsed) ? Math.max(0, requestedElapsed) : timerState.elapsedBeforePause;
         const elapsed = wasCompleted ? 0 : timerState.running ? elapsedSecondsAtWall(actionNow) : pausedElapsed;
-        const hasScheduledStart = body.startHours !== "" || body.startMinutes !== "";
-        const manualStart = Boolean(body.manualStart || timerState.waitingForManualStart);
-        const freshManualStart = !hasScheduledStart && elapsed === 0;
+        const hasScheduledStartFields = body.startHours !== "" || body.startMinutes !== "";
+        const startMode = body.startMode === "scheduled" || (!body.startMode && hasScheduledStartFields)
+          ? "scheduled"
+          : "manual";
+        const scheduledStart = startMode === "scheduled";
+        const manualAfterCountdown = Boolean(body.manualStart || timerState.waitingForManualStart);
+        const freshManualStart = !scheduledStart && elapsed === 0;
         const startAudioLeadMs = freshManualStart && body.startAudioLead === true
           ? MANUAL_START_AUDIO_LEAD_MS
           : 0;
@@ -1194,17 +1204,21 @@ function handleRequest(req, res) {
         timerState.running = true;
         timerState.completed = false;
         timerState.elapsedBeforePause = 0;
-        timerState.countdownOnly = Boolean(settings.oneShot && hasScheduledStart && !manualStart && elapsed === 0);
+        timerState.manualStartLeadMs = startAudioLeadMs;
+        timerState.manualStartDisplayHold = freshManualStart;
+        timerState.countdownOnly = Boolean(settings.oneShot && scheduledStart && !manualAfterCountdown && elapsed === 0);
         timerState.waitingForManualStart = false;
-        const scheduledTime = scheduledStartTime(
-          now,
-          body.startHours,
-          body.startMinutes,
-          hasScheduledStart && !timerState.activeSettings.oneShot
-        );
+        const scheduledTime = scheduledStart
+          ? scheduledStartTime(
+            now,
+            body.startHours,
+            body.startMinutes,
+            !timerState.activeSettings.oneShot
+          )
+          : 0;
         setTimerStartedAt(elapsed > 0
           ? actionNow - Math.max(0, elapsed) * 1000
-          : manualStart ? actionNow + startAudioLeadMs : scheduledTime + startAudioLeadMs);
+          : scheduledStart ? scheduledTime : actionNow + startAudioLeadMs);
         if (startAudioLeadMs > 0) {
           audioWakeCommand = {
             kind: "prewarm",
@@ -1212,7 +1226,7 @@ function handleRequest(req, res) {
             leadMs: startAudioLeadMs
           };
         }
-        if (manualStart) {
+        if (manualAfterCountdown) {
           timerState.draftSettings.startHours = "";
           timerState.draftSettings.startMinutes = "";
         }
@@ -1227,6 +1241,8 @@ function handleRequest(req, res) {
         timerState.elapsedBeforePause = elapsedSecondsAtWall(actionNow);
         timerState.running = false;
         timerState.countdownOnly = false;
+        timerState.manualStartLeadMs = 0;
+        timerState.manualStartDisplayHold = false;
         clearTimerStartedAt();
         armStateTransition(0);
         timerState.version += 1;
@@ -1237,6 +1253,8 @@ function handleRequest(req, res) {
         timerState.countdownOnly = false;
         timerState.waitingForManualStart = false;
         timerState.elapsedBeforePause = 0;
+        timerState.manualStartLeadMs = 0;
+        timerState.manualStartDisplayHold = false;
         clearTimerStartedAt();
         armStateTransition(0);
         timerState.version += 1;
@@ -1249,6 +1267,8 @@ function handleRequest(req, res) {
         timerState.countdownOnly = false;
         timerState.waitingForManualStart = false;
         timerState.elapsedBeforePause = 0;
+        timerState.manualStartLeadMs = 0;
+        timerState.manualStartDisplayHold = false;
         clearTimerStartedAt();
         armStateTransition(0);
         timerState.activeSettings = {
@@ -1263,6 +1283,8 @@ function handleRequest(req, res) {
         const elapsed = Number(body.elapsed);
         if (Number.isFinite(elapsed)) {
           timerState.elapsedBeforePause = Math.max(0, elapsed);
+          timerState.manualStartLeadMs = 0;
+          timerState.manualStartDisplayHold = false;
           clearTimerStartedAt();
           timerState.version += 1;
         }
