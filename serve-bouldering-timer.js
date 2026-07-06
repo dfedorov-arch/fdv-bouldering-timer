@@ -731,6 +731,30 @@ function consumeAudioTestRateLimit(now = wallNow()) {
   return { allowed: true, retryAfterMs: 0 };
 }
 
+function timerDisplayStatusLabel(language = timerState.language) {
+  const text = (ru, en) => language === "en" ? en : ru;
+  const now = wallNow();
+  const startedAt = Number(timerState.startedAt || 0);
+  const running = Boolean(timerState.running);
+
+  if (timerState.countdownOnly) {
+    return startedAt > now ? text("Ожидание старта", "Waiting for start") : text("Готов к старту", "Ready to start");
+  }
+  if (running && startedAt > now) return text("Ожидание старта", "Waiting for start");
+  if (timerState.waitingForManualStart) return text("Готов к старту", "Ready to start");
+
+  const activeSettings = timerState.activeSettings || {};
+  const oneShotDuration = Math.max(0,
+    numberOrDefault(activeSettings.rotationSeconds, 0)
+    + numberOrDefault(activeSettings.breakSeconds, 0));
+  const elapsed = elapsedSeconds();
+  if (timerState.completed || (activeSettings.oneShot && elapsed >= oneShotDuration)) {
+    return text("Завершено", "Completed");
+  }
+  if (!running && !timerState.completed && timerState.elapsedBeforePause === 0) return text("Готов", "Ready");
+  return running ? text("Раунд идет", "Round running") : text("Пауза", "Paused");
+}
+
 function registerClient(req, source = {}) {
   const id = sourceValue(source, "clientId") || req.headers["x-client-id"];
   if (!id) return null;
@@ -741,13 +765,14 @@ function registerClient(req, source = {}) {
   const syncError = optionalNumber(sourceValue(source, "syncError"), existing.syncError ?? null);
   const usesFallbackSync = syncError === null && Number.isFinite(latency);
   const connectionAddress = hostAddressFromHeader(req.headers.host || "");
+  const legacyViewer = optionalBool(sourceValue(source, "legacy"), existing.legacyViewer === true);
   clients.set(id, {
     id,
     firstSeen: existing.firstSeen || now,
     order: existing.order || nextClientOrder++,
     label: compactUserAgent(userAgent),
     browser: browserName(userAgent),
-    legacyViewer: optionalBool(sourceValue(source, "legacy"), existing.legacyViewer === true),
+    legacyViewer,
     oldBrowser: optionalBool(sourceValue(source, "oldBrowser"), existing.oldBrowser === true),
     userAgent,
     address: req.socket.remoteAddress || "",
@@ -785,8 +810,8 @@ function registerClient(req, source = {}) {
     eventSourceConnected: optionalBool(sourceValue(source, "eventSourceConnected"), existing.eventSourceConnected ?? null),
     lastSseAge: optionalNumber(sourceValue(source, "lastSseAge"), existing.lastSseAge ?? null),
     sseRestarts: optionalNumber(sourceValue(source, "sseRestarts"), existing.sseRestarts ?? null),
-    stateVersion: optionalNumber(sourceValue(source, "stateVersion"), existing.stateVersion ?? null),
-    displayStatus: sourceValue(source, "displayStatus") || existing.displayStatus || ""
+    stateVersion: legacyViewer ? timerState.version : optionalNumber(sourceValue(source, "stateVersion"), existing.stateVersion ?? null),
+    displayStatus: legacyViewer ? timerDisplayStatusLabel(timerState.language) : sourceValue(source, "displayStatus") || existing.displayStatus || ""
   });
   if (optionalBool(sourceValue(source, "oldBrowser"), false)) {
     oldBrowserClients.add(id);
