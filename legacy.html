@@ -67,7 +67,10 @@
       var activeRequest = null;
       var activeRequestStartedAt = 0;
       var pollTimer = null;
+      var renderTimer = null;
       var lastFitKey = "";
+      var legacyFullscreenUnavailable = false;
+      var legacyFullscreenAttemptPending = false;
       var clockSamples = [];
       var maxClockSamples = 10;
       var timerColors = {
@@ -193,7 +196,80 @@
         window.setTimeout(function () { fitTimerText(true); }, 700);
       }
 
+      function fullscreenWanted() {
+        return Boolean(state && state.instancesFullscreen);
+      }
+
+      function fullscreenElement() {
+        return document.fullscreenElement
+          || document.webkitFullscreenElement
+          || document.webkitCurrentFullScreenElement
+          || document.webkitIsFullScreen
+          || document.mozFullScreenElement
+          || document.mozFullScreen
+          || document.msFullscreenElement
+          || null;
+      }
+
+      function rememberLegacyFullscreenFailure() {
+        legacyFullscreenUnavailable = true;
+        legacyFullscreenAttemptPending = false;
+      }
+
+      function clearLegacyFullscreenPending() {
+        legacyFullscreenAttemptPending = false;
+      }
+
+      function checkLegacyFullscreenResult() {
+        if (fullscreenElement()) {
+          clearLegacyFullscreenPending();
+        } else {
+          rememberLegacyFullscreenFailure();
+        }
+      }
+
+      function requestLegacyFullscreen() {
+        var target;
+        var request;
+        var result;
+
+        if (legacyFullscreenUnavailable || legacyFullscreenAttemptPending) return;
+        if (!fullscreenWanted() || fullscreenElement()) return;
+        target = document.documentElement || document.body;
+        if (!target) return;
+        request = target.requestFullscreen
+          || target.webkitRequestFullscreen
+          || target.webkitRequestFullScreen
+          || target.mozRequestFullScreen
+          || target.msRequestFullscreen;
+        if (!request) {
+          rememberLegacyFullscreenFailure();
+          return;
+        }
+        legacyFullscreenAttemptPending = true;
+        try {
+          result = request.call(target);
+          if (result && typeof result.then === "function") {
+            result.then(clearLegacyFullscreenPending, rememberLegacyFullscreenFailure);
+          }
+          window.setTimeout(checkLegacyFullscreenResult, 800);
+        } catch (error) {
+          rememberLegacyFullscreenFailure();
+        }
+      }
+
+      function bindFullscreenGesture() {
+        if (window.addEventListener) {
+          document.addEventListener("click", requestLegacyFullscreen, false);
+          document.addEventListener("touchend", requestLegacyFullscreen, false);
+        } else {
+          document.onclick = requestLegacyFullscreen;
+          document.ontouchend = requestLegacyFullscreen;
+        }
+      }
+
       scheduleViewportFit();
+      bindFullscreenGesture();
       window.onresize = scheduleViewportFit;
       if (window.addEventListener) {
         window.addEventListener("orientationchange", scheduleViewportFit);
@@ -416,6 +492,30 @@
           timeEl.innerHTML = label;
           fitTimerText();
         }
+        return view;
+      }
+
+      function nextRenderDelay(view) {
+        var seconds;
+        var fraction;
+
+        if (state && view && (state.running || state.countdownOnly)) {
+          seconds = Number(view.seconds);
+          if (seconds > 0 && isFinite(seconds)) {
+            fraction = seconds - Math.floor(seconds);
+            return Math.max(30, Math.min(1025, (fraction > 0.001 ? fraction * 1000 : 1000) + 25));
+          }
+        }
+        return 250;
+      }
+
+      function scheduleRender(view) {
+        if (renderTimer) window.clearTimeout(renderTimer);
+        renderTimer = window.setTimeout(renderLoop, nextRenderDelay(view));
+      }
+
+      function renderLoop() {
+        scheduleRender(render());
       }
 
       function scheduleRequest(delay) {
@@ -484,7 +584,7 @@
           applyTimerColors(remote.config);
           updateServerOffset(remote.now, requestStartedAt || responseReceivedAt, responseReceivedAt);
           lastContact = responseReceivedAt;
-          render();
+          scheduleRender(render());
           scheduleRequest(1000);
         };
         xhr.onerror = function () {
@@ -508,10 +608,10 @@
       }
 
       requestState();
+      scheduleRender(render());
       window.setInterval(function () {
         abortStaleRequest();
       }, 3000);
-      window.setInterval(render, 250);
       if (window.addEventListener) {
         window.addEventListener("online", function () { scheduleRequest(0); });
         window.addEventListener("pageshow", function () { scheduleRequest(0); scheduleViewportFit(); });
