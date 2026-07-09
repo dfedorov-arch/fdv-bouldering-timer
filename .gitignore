@@ -26,4 +26,8 @@ Thumbs.db
 dist/
 /fdv-bouldering-timer.exe
   
-runtime-state/ 
+runtime-state/
+
+# MiMoCode and workspace
+.mimocode/
+fdv-bouldering-timer.code-workspace
