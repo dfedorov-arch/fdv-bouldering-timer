@@ -1,7 +1,18 @@
-const BUILD_NUMBER = 191;
+const BUILD_NUMBER = 201;
 const CACHE_NAME = `fdv-bouldering-timer-v${BUILD_NUMBER}`;
 const CACHE_PREFIX = "fdv-bouldering-timer-v";
-const CORE_URLS = ["/", "/index.html", "/legacy.html", "/offline-audio.js", "/help.html"];
+const CORE_URLS = [
+  "/",
+  "/index.html",
+  "/legacy.html",
+  "/offline-audio.js",
+  "/help.html",
+  "/fonts/BarlowCondensed-Bold.ttf",
+  "/fonts/CourierPrime-Bold.ttf",
+  "/fonts/OpenSans-Variable.ttf",
+  "/fonts/Roboto-Variable.ttf",
+  "/fonts/SyneMono-Regular.ttf"
+];
 
 function isApiRequest(url) {
   return url.pathname.startsWith("/api/");
@@ -45,19 +56,30 @@ async function cacheNetworkResponse(request, response) {
   }
 }
 
-async function offlineDocumentFallback() {
-  const cached = await caches.match("/index.html") || await caches.match("/");
+async function offlineDocumentFallback(request) {
+  const url = new URL(request.url);
+  const candidates = url.pathname === "/legacy.html"
+    ? ["/legacy.html"]
+    : url.pathname === "/help.html"
+      ? ["/help.html"]
+      : ["/index.html", "/"];
+  let cached = null;
+  for (const candidate of candidates) {
+    cached = await caches.match(candidate);
+    if (cached) break;
+  }
   if (!cached) {
     return new Response("Offline copy is not available", {
       status: 503,
       headers: { "content-type": "text/plain; charset=utf-8", "cache-control": "no-store" }
     });
   }
+  const isIndexFallback = candidates.includes("/index.html");
   const html = await cached.text();
-  const marked = html.includes("window.__FDV_SW_OFFLINE_FALLBACK=true")
+  const body = !isIndexFallback || html.includes("window.__FDV_SW_OFFLINE_FALLBACK=true")
     ? html
     : html.replace("<head>", "<head>\n  <script>window.__FDV_SW_OFFLINE_FALLBACK=true;</script>");
-  return new Response(marked, {
+  return new Response(body, {
     status: 200,
     headers: {
       "content-type": "text/html; charset=utf-8",
@@ -73,7 +95,7 @@ async function networkFirstDocument(request) {
     await cacheNetworkResponse(request, response);
     return response;
   } catch (error) {
-    return offlineDocumentFallback();
+    return offlineDocumentFallback(request);
   }
 }
 

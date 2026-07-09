@@ -1494,7 +1494,7 @@
       timeline: []
     };
 
-    const pageBuildNumber = 193;
+    const pageBuildNumber = 201;
     const offlineSnapshotKey = "fdvBoulderingTimerOfflineSnapshot";
     const primarySoundPreferenceKey = "fdvBoulderingTimerPrimarySound";
     const offlineSnapshotMaxAgeMs = 12 * 60 * 60 * 1000;
@@ -1786,6 +1786,7 @@
     let standaloneMode = false;
     let offlineReloadMode = window.__FDV_SW_OFFLINE_FALLBACK === true;
     let pendingServerState = null;
+    let returnToServerPromise = null;
     let lastStartupConfig = null;
     let lastServerContactAt = performance.now();
     let consecutiveServerFailures = 0;
@@ -1908,9 +1909,13 @@
     }
 
     function markServerContact() {
+      const shouldReturnToServer = standaloneMode
+        && !offlineReloadMode
+        && window.location.protocol !== "file:";
       lastServerContactAt = performance.now();
       consecutiveServerFailures = 0;
       setServerAvailable(true);
+      if (shouldReturnToServer) requestReturnToServerMode();
     }
 
     function markServerFailure(immediate = false) {
@@ -1988,6 +1993,7 @@
       try {
         const snapshot = {
           schemaVersion: 1,
+          clientId,
           standaloneMode,
           pageBuildNumber,
           savedAtWall: Date.now(),
@@ -2040,6 +2046,13 @@
         instancesFullscreenEnabled = Boolean(snapshot.instancesFullscreenEnabled);
         audioUserOffsetMs = Number(snapshot.audioUserOffsetMs || 0);
 
+        const snapshotClientId = String(snapshot.clientId || "");
+        const snapshotPrimaryClientId = snapshot.state.primaryClientId || null;
+        const restoredPrimaryClientId = snapshotClientId
+          && snapshotPrimaryClientId === snapshotClientId
+          ? clientId
+          : snapshotPrimaryClientId;
+
         Object.assign(state, {
           running: Boolean(snapshot.state.running),
           completed: Boolean(snapshot.state.completed),
@@ -2050,9 +2063,13 @@
           activePreset: snapshot.state.activePreset || "",
           activeSettings: snapshot.state.activeSettings || activeSettingsFromDraft(),
           festivalAnnouncements: snapshot.state.festivalAnnouncements !== false,
-          primaryClientId: snapshot.state.primaryClientId || null,
+          primaryClientId: restoredPrimaryClientId,
           primaryPinSet: Boolean(snapshot.state.primaryPinSet)
         });
+        isPrimaryClient = state.primaryClientId === clientId;
+        isViewerClient = Boolean(state.primaryClientId && !isPrimaryClient);
+        document.body.classList.toggle("primary-active", isPrimaryClient);
+        document.body.classList.toggle("viewer-mode", isViewerClient);
         if (snapshot.draftSettings) setInputsFromDraft(snapshot.draftSettings);
         applySoundProfile(String(snapshot.state.soundProfile || ""));
         buildTimeline(state.activeSettings);
@@ -2084,9 +2101,9 @@
         els.instancesFullscreenToggle.checked = instancesFullscreenEnabled;
         els.festivalAnnouncementsToggle.checked = state.festivalAnnouncements;
         setServerAvailable(false);
+        revealControlsIfAllowed();
         if (standaloneMode) {
           rescheduleStandaloneSignals();
-          revealControlsIfAllowed();
           refreshStandaloneBrowserList();
         }
         return true;
@@ -2095,7 +2112,23 @@
       }
     }
 
+    function requestReturnToServerMode() {
+      if (returnToServerPromise || !standaloneMode || !serverAvailable) return;
+      window.setTimeout(() => {
+        returnToServerMode();
+      }, 0);
+    }
+
     async function returnToServerMode() {
+      if (returnToServerPromise) return returnToServerPromise;
+      returnToServerPromise = doReturnToServerMode()
+        .finally(() => {
+          returnToServerPromise = null;
+        });
+      return returnToServerPromise;
+    }
+
+    async function doReturnToServerMode() {
       if (!standaloneMode || !serverAvailable) return;
       clearSignalTimers();
       standaloneMode = false;
@@ -4911,10 +4944,20 @@
     async function pauseTimer() {
       if (!controlsAvailable() || !state.running || isBeforeScheduledStart()) return;
       if (standaloneMode) {
-        pauseStandaloneTimer();
-        return;
+        if (serverAvailable) {
+          await returnToServerMode();
+          if (!state.running || isBeforeScheduledStart()) return;
+        }
+        if (standaloneMode) {
+          pauseStandaloneTimer();
+          return;
+        }
       }
       const sent = await sendServerAction("pause");
+      if (sent === "conflict" && serverAvailable && !standaloneMode && state.running && !isBeforeScheduledStart()) {
+        const retried = await sendServerAction("pause");
+        if (retried) return;
+      }
       if (sent) return;
       if (!serverAvailable) return;
 
