@@ -1494,7 +1494,7 @@
       timeline: []
     };
 
-    const pageBuildNumber = 201;
+    const pageBuildNumber = 202;
     const offlineSnapshotKey = "fdvBoulderingTimerOfflineSnapshot";
     const primarySoundPreferenceKey = "fdvBoulderingTimerPrimarySound";
     const offlineSnapshotMaxAgeMs = 12 * 60 * 60 * 1000;
@@ -2184,6 +2184,7 @@
 
     const clientId = sessionStorage.getItem("boulderingTimerClientId") || createClientId();
     sessionStorage.setItem("boulderingTimerClientId", clientId);
+    const commandSessionId = createClientId();
 
     async function requestScreenWakeLock() {
       if (screenWakeLock || document.visibilityState !== "visible") return;
@@ -3086,7 +3087,7 @@
     async function sendServerAction(type, payload = {}, options = {}) {
       if (!serverAvailable || standaloneMode) return false;
       const isRuntimeCommand = runtimeCommandTypes.has(type);
-      const commandId = isRuntimeCommand ? `${clientId}:${++commandSeq}` : "";
+      const commandId = isRuntimeCommand ? `${clientId}:${commandSessionId}:${++commandSeq}` : "";
       const baseVersion = isRuntimeCommand && lastServerVersion ? lastServerVersion : undefined;
       const intendedServerTime = isRuntimeCommand ? serverNow() : undefined;
       const attempts = isRuntimeCommand ? 3 : 1;
@@ -3117,6 +3118,9 @@
           const remote = await response.json().catch(() => null);
           if (response.status === 409 && remote) {
             applyServerState(remote, { ...options, timing, includePhaseSignal: false });
+            if (isRuntimeCommand && !options.conflictRetried && serverAvailable && !standaloneMode) {
+              return sendServerAction(type, payload, { ...options, conflictRetried: true });
+            }
             return "conflict";
           }
           if ((response.status === 400 || response.status === 403 || response.status === 429) && remote) {
@@ -4845,10 +4849,11 @@
         manualStart: state.waitingForManualStart,
         startAudioLead: useStartAudioLead
       }, { rescheduleSignals: true, includePhaseSignal: false });
-      if (sent) {
+      if (sent === true) {
         if (useStartAudioLead) scheduleManualStartWatchdog(state.serverStartedAt);
         return;
       }
+      if (sent === "conflict") return;
       if (!serverAvailable) return;
 
       if (state.completed) {
@@ -4928,7 +4933,7 @@
         return;
       }
       const stopped = await sendServerAction("stopCountdown");
-      if (stopped) return;
+      if (stopped === true || stopped === "conflict") return;
       if (!serverAvailable) return;
 
       state.running = false;
@@ -4954,11 +4959,7 @@
         }
       }
       const sent = await sendServerAction("pause");
-      if (sent === "conflict" && serverAvailable && !standaloneMode && state.running && !isBeforeScheduledStart()) {
-        const retried = await sendServerAction("pause");
-        if (retried) return;
-      }
-      if (sent) return;
+      if (sent === true || sent === "conflict") return;
       if (!serverAvailable) return;
 
       state.elapsedBeforePause = elapsedSeconds();
@@ -4978,10 +4979,11 @@
       const sent = await sendServerAction("reset", {
         settings: activeSettingsFromDraft()
       });
-      if (sent) {
-        if (sent !== "conflict" && shouldSignal) signal("finish");
+      if (sent === true) {
+        if (shouldSignal) signal("finish");
         return;
       }
+      if (sent === "conflict") return;
       if (!serverAvailable) return;
 
       state.running = false;
