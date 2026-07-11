@@ -13,7 +13,7 @@ const runtimeStatePath = path.join(runtimeStateDir, "timer-state.json");
 const beepsPath = path.join(root, "beeps");
 const fontsPath = path.join(root, "fonts");
 const offlineAudioPath = path.join(root, "offline-audio.js");
-const BUILD_NUMBER = 201;
+const BUILD_NUMBER = 202;
 const SNAPSHOT_SCHEMA_VERSION = 1;
 const SNAPSHOT_MAX_AGE_MS = 12 * 60 * 60 * 1000;
 const PRIMARY_RESTORE_GRACE_MS = 10000;
@@ -23,6 +23,10 @@ const DIAGNOSTICS_BROADCAST_MS = 2500;
 const PRIMARY_PIN_MAX_FAILURES = 5;
 const PRIMARY_PIN_BLOCK_STEPS_MS = [5000, 30000, 300000];
 const AUDIO_TEST_RATE_LIMIT_MS = 3000;
+const MAX_ROTATION_MINUTES = 240;
+const MAX_ROTATION_SECONDS = MAX_ROTATION_MINUTES * 60;
+const MAX_CLASSIC_BREAK_SECONDS = 3600;
+const MAX_FESTIVAL_BREAK_SECONDS = 240 * 60;
 const defaultConfig = {
   httpPort: 8008,
   httpsPort: 8443,
@@ -243,6 +247,69 @@ const config = {
   soundProfile: initialSoundProfile,
   soundProfiles
 };
+
+function boundedInteger(value, min, max, fallback) {
+  const fallbackNumber = Number(fallback);
+  const safeFallback = Number.isFinite(fallbackNumber)
+    ? Math.min(max, Math.max(min, Math.round(fallbackNumber)))
+    : min;
+  if (value === null || value === undefined || value === "") return safeFallback;
+  const number = Number(value);
+  if (!Number.isFinite(number)) return safeFallback;
+  return Math.min(max, Math.max(min, Math.round(number)));
+}
+
+function normalizeActiveSettings(source = {}, fallback = {}) {
+  if (!source || typeof source !== "object") source = {};
+  if (!fallback || typeof fallback !== "object") fallback = {};
+  const oneShot = Boolean(source.oneShot);
+  const fallbackRotation = boundedInteger(
+    fallback.rotationSeconds,
+    1,
+    MAX_ROTATION_SECONDS,
+    config.classicRotationMinutes * 60
+  );
+  const fallbackBreak = boundedInteger(
+    fallback.breakSeconds,
+    0,
+    MAX_FESTIVAL_BREAK_SECONDS,
+    config.classicBreakSeconds
+  );
+  return {
+    rotationSeconds: boundedInteger(source.rotationSeconds, 1, MAX_ROTATION_SECONDS, fallbackRotation),
+    breakSeconds: source.breakSeconds === "" && oneShot
+      ? 0
+      : boundedInteger(source.breakSeconds, 0, MAX_FESTIVAL_BREAK_SECONDS, fallbackBreak),
+    oneShot
+  };
+}
+
+function normalizeOptionalClockPart(value, max) {
+  if (value === null || value === undefined || value === "") return "";
+  return boundedInteger(value, 0, max, 0);
+}
+
+function normalizeDraftSettings(source = {}, activePreset = "") {
+  if (!source || typeof source !== "object") source = {};
+  const oneShot = Boolean(source.oneShot);
+  const maxBreakSeconds = activePreset === "festival"
+    ? MAX_FESTIVAL_BREAK_SECONDS
+    : MAX_CLASSIC_BREAK_SECONDS;
+  return {
+    rotationMinutes: boundedInteger(
+      source.rotationMinutes,
+      1,
+      MAX_ROTATION_MINUTES,
+      config.classicRotationMinutes
+    ),
+    breakSeconds: oneShot && source.breakSeconds === ""
+      ? ""
+      : boundedInteger(source.breakSeconds, 0, maxBreakSeconds, config.classicBreakSeconds),
+    oneShot,
+    startHours: normalizeOptionalClockPart(source.startHours, 23),
+    startMinutes: normalizeOptionalClockPart(source.startMinutes, 59)
+  };
+}
 
 try {
   generateOfflineAudioBundle({ ...config, buildNumber: BUILD_NUMBER });
@@ -547,6 +614,8 @@ function assignTimerState(source = {}) {
     "completed",
     "countdownOnly",
     "waitingForManualStart",
+    "manualStartLeadMs",
+    "manualStartDisplayHold",
     "elapsedBeforePause",
     "startedAt",
     "activePreset",
@@ -583,6 +652,12 @@ function restoreTimerSnapshot() {
     }
 
     assignTimerState(snapshot.timerState);
+    timerState.activeSettings = normalizeActiveSettings(timerState.activeSettings, {
+      rotationSeconds: config.classicRotationMinutes * 60,
+      breakSeconds: config.classicBreakSeconds,
+      oneShot: false
+    });
+    timerState.draftSettings = normalizeDraftSettings(timerState.draftSettings, timerState.activePreset);
     clientAudioOffsets.clear();
     if (Array.isArray(snapshot.audioOffsets)) {
       snapshot.audioOffsets.forEach(([id, offset]) => {
@@ -767,7 +842,11 @@ function registerClient(req, source = {}) {
   const syncError = optionalNumber(sourceValue(source, "syncError"), existing.syncError ?? null);
   const usesFallbackSync = syncError === null && Number.isFinite(latency);
   const connectionAddress = hostAddressFromHeader(req.headers.host || "");
-  const legacyViewer = optionalBool(sourceValue(source, "legacy"), existing.legacyViewer === true);
+  const reportedLegacy = sourceValue(source, "legacy");
+  const legacyViewer = optionalBool(reportedLegacy, existing.legacyViewer === true);
+  if (reportedLegacy !== null && reportedLegacy !== undefined && reportedLegacy !== "" && legacyViewer === false && manualLegacyClients.delete(id)) {
+    scheduleSnapshotWrite();
+  }
   clients.set(id, {
     id,
     firstSeen: existing.firstSeen || now,
@@ -1221,17 +1300,13 @@ function handleRequest(req, res) {
         const startAudioLeadMs = freshManualStart && body.startAudioLead === true
           ? MANUAL_START_AUDIO_LEAD_MS
           : 0;
-        timerState.activeSettings = {
-          rotationSeconds: numberOrDefault(settings.rotationSeconds, config.classicRotationMinutes * 60),
-          breakSeconds: numberOrDefault(settings.breakSeconds, config.classicBreakSeconds),
-          oneShot: Boolean(settings.oneShot)
-        };
+        timerState.activeSettings = normalizeActiveSettings(settings, timerState.activeSettings);
         timerState.running = true;
         timerState.completed = false;
         timerState.elapsedBeforePause = 0;
         timerState.manualStartLeadMs = startAudioLeadMs;
         timerState.manualStartDisplayHold = freshManualStart;
-        timerState.countdownOnly = Boolean(settings.oneShot && scheduledStart && !manualAfterCountdown && elapsed === 0);
+        timerState.countdownOnly = Boolean(timerState.activeSettings.oneShot && scheduledStart && !manualAfterCountdown && elapsed === 0);
         timerState.waitingForManualStart = false;
         const scheduledTime = scheduledStart
           ? scheduledStartTime(
@@ -1296,11 +1371,7 @@ function handleRequest(req, res) {
         timerState.manualStartDisplayHold = false;
         clearTimerStartedAt();
         armStateTransition(0);
-        timerState.activeSettings = {
-          rotationSeconds: numberOrDefault(settings.rotationSeconds, config.classicRotationMinutes * 60),
-          breakSeconds: numberOrDefault(settings.breakSeconds, config.classicBreakSeconds),
-          oneShot: Boolean(settings.oneShot)
-        };
+        timerState.activeSettings = normalizeActiveSettings(settings, timerState.activeSettings);
         timerState.version += 1;
       }
 
@@ -1317,22 +1388,14 @@ function handleRequest(req, res) {
 
       if (type === "settings") {
         const settings = body.settings || {};
-        timerState.draftSettings = {
-          rotationMinutes: numberOrDefault(settings.rotationMinutes, config.classicRotationMinutes),
-          breakSeconds: settings.oneShot && settings.breakSeconds === ""
-            ? ""
-            : numberOrDefault(settings.breakSeconds, config.classicBreakSeconds),
-          oneShot: Boolean(settings.oneShot),
-          startHours: settings.startHours ?? "",
-          startMinutes: settings.startMinutes ?? ""
-        };
         timerState.activePreset = body.activePreset || "";
+        timerState.draftSettings = normalizeDraftSettings(settings, timerState.activePreset);
         if (!timerState.running && timerState.elapsedBeforePause === 0) {
-          timerState.activeSettings = {
+          timerState.activeSettings = normalizeActiveSettings({
             rotationSeconds: timerState.draftSettings.rotationMinutes * 60,
-            breakSeconds: timerState.draftSettings.breakSeconds,
+            breakSeconds: Number(timerState.draftSettings.breakSeconds) || 0,
             oneShot: timerState.draftSettings.oneShot
-          };
+          }, timerState.activeSettings);
         }
         timerState.version += 1;
       }
