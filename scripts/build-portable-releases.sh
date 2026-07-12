@@ -64,6 +64,7 @@ copy_common_files() {
     "$ROOT_DIR/index.html" "$ROOT_DIR/legacy.html" "$ROOT_DIR/offline-audio.js" "$ROOT_DIR/params.txt" \
     "$ROOT_DIR/serve-bouldering-timer.js" "$target/"
   cp -R "$ROOT_DIR/beeps" "$ROOT_DIR/fonts" "$ROOT_DIR/help-assets" "$target/"
+  cp -R "$ROOT_DIR/lib" "$target/"
   if [[ -f "$ROOT_DIR/compare-btimer-and-fdv-bouldering-timer.html" ]]; then
     cp "$ROOT_DIR/compare-btimer-and-fdv-bouldering-timer.html" "$target/"
   fi

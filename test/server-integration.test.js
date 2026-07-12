@@ -27,6 +27,7 @@ function copyFixture(target) {
   for (const name of ["beeps", "fonts"]) {
     fs.cpSync(path.join(projectRoot, name), path.join(target, name), { recursive: true });
   }
+  fs.cpSync(path.join(projectRoot, "lib"), path.join(target, "lib"), { recursive: true });
 }
 
 async function waitForServer(baseUrl, child, output) {

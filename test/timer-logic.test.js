@@ -1,5 +1,6 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
+const { scheduledStartTime } = require("../lib/timer-domain");
 
 const syncRateOptions = {
   normalMin: 0.999,
@@ -212,18 +213,6 @@ function getCurrentSegment(elapsed, settings, labels = { rotation: "rotation", b
     start,
     end: start + duration
   };
-}
-
-function scheduledStartTime(now, hoursValue, minutesValue, restorePast = false) {
-  const hasHours = hoursValue !== null && hoursValue !== undefined && hoursValue !== "";
-  const hasMinutes = minutesValue !== null && minutesValue !== undefined && minutesValue !== "";
-  if (!hasHours && !hasMinutes) return now;
-  const hours = Math.min(23, Math.max(0, Math.round(Number.isFinite(Number(hoursValue)) ? Number(hoursValue) : 0)));
-  const minutes = Math.min(59, Math.max(0, Math.round(Number.isFinite(Number(minutesValue)) ? Number(minutesValue) : 0)));
-  const target = new Date(now);
-  target.setHours(hours, minutes, 0, 0);
-  if (!restorePast && target.getTime() <= now) target.setDate(target.getDate() + 1);
-  return target.getTime();
 }
 
 function shouldScheduleServerSignal(targetServerTime, currentServerTime, lateGraceMs) {
