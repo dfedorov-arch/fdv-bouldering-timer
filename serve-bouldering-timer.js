@@ -5,7 +5,8 @@ const os = require("os");
 const path = require("path");
 const crypto = require("crypto");
 const { performance } = require("perf_hooks");
-const { createTimerDomain, scheduledStartTime } = require("./lib/timer-domain");
+const { createTimerDomain } = require("./lib/timer-domain");
+const { createTimerTransitions } = require("./lib/timer-transitions");
 
 const root = __dirname;
 const paramsPath = path.join(root, "params.txt");
@@ -247,6 +248,9 @@ const config = {
 
 const timerDomain = createTimerDomain(config);
 const { normalizeActiveSettings, normalizeDraftSettings } = timerDomain;
+const timerTransitions = createTimerTransitions(timerDomain, {
+  manualStartAudioLeadMs: MANUAL_START_AUDIO_LEAD_MS
+});
 
 try {
   generateOfflineAudioBundle({ ...config, buildNumber: BUILD_NUMBER });
@@ -1208,120 +1212,19 @@ function handleRequest(req, res) {
       let audioWakeCommand = null;
       let legacyModeCommand = null;
 
-      if (type === "start") {
-        const settings = body.settings || timerState.activeSettings;
-        const wasCompleted = timerState.completed;
-        const requestedElapsed = Number(body.elapsedBeforePause);
-        const pausedElapsed = Number.isFinite(requestedElapsed) ? Math.max(0, requestedElapsed) : timerState.elapsedBeforePause;
-        const elapsed = wasCompleted ? 0 : timerState.running ? elapsedSecondsAtWall(actionNow) : pausedElapsed;
-        const hasScheduledStartFields = body.startHours !== "" || body.startMinutes !== "";
-        const startMode = body.startMode === "scheduled" || (!body.startMode && hasScheduledStartFields)
-          ? "scheduled"
-          : "manual";
-        const scheduledStart = startMode === "scheduled";
-        const manualAfterCountdown = Boolean(body.manualStart || timerState.waitingForManualStart);
-        const freshManualStart = !scheduledStart && elapsed === 0;
-        const startAudioLeadMs = freshManualStart && body.startAudioLead === true
-          ? MANUAL_START_AUDIO_LEAD_MS
-          : 0;
-        timerState.activeSettings = normalizeActiveSettings(settings, timerState.activeSettings);
-        timerState.running = true;
-        timerState.completed = false;
-        timerState.elapsedBeforePause = 0;
-        timerState.manualStartLeadMs = startAudioLeadMs;
-        timerState.manualStartDisplayHold = freshManualStart;
-        timerState.countdownOnly = Boolean(timerState.activeSettings.oneShot && scheduledStart && !manualAfterCountdown && elapsed === 0);
-        timerState.waitingForManualStart = false;
-        const scheduledTime = scheduledStart
-          ? scheduledStartTime(
-            now,
-            body.startHours,
-            body.startMinutes,
-            !timerState.activeSettings.oneShot
-          )
-          : 0;
-        setTimerStartedAt(elapsed > 0
-          ? actionNow - Math.max(0, elapsed) * 1000
-          : scheduledStart ? scheduledTime : actionNow + startAudioLeadMs);
-        if (startAudioLeadMs > 0) {
-          audioWakeCommand = {
-            kind: "prewarm",
-            startedAt: timerState.startedAt,
-            leadMs: startAudioLeadMs
-          };
+      const timerAction = timerTransitions.applyTimerAction(timerState, body, {
+        now,
+        actionNow,
+        elapsedAtAction: elapsedSecondsAtWall(actionNow)
+      });
+      if (timerAction.changed) {
+        assignTimerState(timerAction.state);
+        if (timerAction.effects.clock === "set") setTimerStartedAt(timerAction.state.startedAt);
+        if (timerAction.effects.clock === "clear") clearTimerStartedAt();
+        if (timerAction.effects.transitionAt !== null) {
+          armStateTransition(timerAction.effects.transitionAt);
         }
-        if (manualAfterCountdown) {
-          timerState.draftSettings.startHours = "";
-          timerState.draftSettings.startMinutes = "";
-        }
-        const oneShotDuration = timerState.activeSettings.rotationSeconds + timerState.activeSettings.breakSeconds;
-        armStateTransition(timerState.countdownOnly
-          ? timerState.startedAt
-          : timerState.activeSettings.oneShot ? timerState.startedAt + oneShotDuration * 1000 : 0);
-        timerState.version += 1;
-      }
-
-      if (type === "pause" && timerState.running && timerState.startedAt <= now) {
-        timerState.elapsedBeforePause = elapsedSecondsAtWall(actionNow);
-        timerState.running = false;
-        timerState.countdownOnly = false;
-        timerState.manualStartLeadMs = 0;
-        timerState.manualStartDisplayHold = false;
-        clearTimerStartedAt();
-        armStateTransition(0);
-        timerState.version += 1;
-      }
-
-      if (type === "stopCountdown" && timerState.running && timerState.startedAt > now) {
-        timerState.running = false;
-        timerState.countdownOnly = false;
-        timerState.waitingForManualStart = false;
-        timerState.elapsedBeforePause = 0;
-        timerState.manualStartLeadMs = 0;
-        timerState.manualStartDisplayHold = false;
-        clearTimerStartedAt();
-        armStateTransition(0);
-        timerState.version += 1;
-      }
-
-      if (type === "reset") {
-        const settings = body.settings || timerState.draftSettings;
-        timerState.running = false;
-        timerState.completed = false;
-        timerState.countdownOnly = false;
-        timerState.waitingForManualStart = false;
-        timerState.elapsedBeforePause = 0;
-        timerState.manualStartLeadMs = 0;
-        timerState.manualStartDisplayHold = false;
-        clearTimerStartedAt();
-        armStateTransition(0);
-        timerState.activeSettings = normalizeActiveSettings(settings, timerState.activeSettings);
-        timerState.version += 1;
-      }
-
-      if (type === "seek" && !timerState.running) {
-        const elapsed = Number(body.elapsed);
-        if (Number.isFinite(elapsed)) {
-          timerState.elapsedBeforePause = Math.max(0, elapsed);
-          timerState.manualStartLeadMs = 0;
-          timerState.manualStartDisplayHold = false;
-          clearTimerStartedAt();
-          timerState.version += 1;
-        }
-      }
-
-      if (type === "settings") {
-        const settings = body.settings || {};
-        timerState.activePreset = body.activePreset || "";
-        timerState.draftSettings = normalizeDraftSettings(settings, timerState.activePreset);
-        if (!timerState.running && timerState.elapsedBeforePause === 0) {
-          timerState.activeSettings = normalizeActiveSettings({
-            rotationSeconds: timerState.draftSettings.rotationMinutes * 60,
-            breakSeconds: Number(timerState.draftSettings.breakSeconds) || 0,
-            oneShot: timerState.draftSettings.oneShot
-          }, timerState.activeSettings);
-        }
-        timerState.version += 1;
+        audioWakeCommand = timerAction.effects.audioWakeCommand;
       }
 
       if (type === "primary") {
