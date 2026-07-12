@@ -390,13 +390,20 @@ test("one-shot with break returns break segment before completion", () => {
 });
 
 test("scheduled start rolls to tomorrow unless restorePast is requested", () => {
-  const now = new Date("2026-07-02T10:30:00+03:00").getTime();
+  const nowBase = new Date();
+  nowBase.setHours(10, 30, 0, 0);
+  const now = nowBase.getTime();
   const sameMorning = scheduledStartTime(now, 9, 0, false);
   const restoredMorning = scheduledStartTime(now, 9, 0, true);
 
-  assert.equal(new Date(sameMorning).getDate(), 3);
-  assert.equal(new Date(restoredMorning).getDate(), 2);
-  assert.equal(new Date(restoredMorning).getHours(), 9);
+  const sameDate = new Date(sameMorning);
+  const restoredDate = new Date(restoredMorning);
+  const todayDate = new Date(now).getDate();
+  const tomorrowDate = todayDate + 1;
+
+  assert.equal(sameDate.getDate(), tomorrowDate > 31 ? 1 : tomorrowDate);
+  assert.equal(restoredDate.getDate(), todayDate);
+  assert.equal(restoredDate.getHours(), 9);
 });
 
 test("transition signal is eligible even one millisecond before boundary", () => {
