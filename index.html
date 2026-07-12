@@ -1464,6 +1464,7 @@
       document.write('<script src="offline-audio.js"><\/script>');
     }
   </script>
+  <script src="lib/client-action-transport.js"></script>
   <script>
     const presets = {
       classic: { rotationMinutes: 4, breakSeconds: 15, oneShot: false },
@@ -1494,7 +1495,7 @@
       timeline: []
     };
 
-    const pageBuildNumber = 202;
+    const pageBuildNumber = 203;
     const offlineSnapshotKey = "fdvBoulderingTimerOfflineSnapshot";
     const primarySoundPreferenceKey = "fdvBoulderingTimerPrimarySound";
     const offlineSnapshotMaxAgeMs = 12 * 60 * 60 * 1000;
@@ -3084,68 +3085,27 @@
       saveOfflineSnapshot();
     }
 
-    async function sendServerAction(type, payload = {}, options = {}) {
-      if (!serverAvailable || standaloneMode) return false;
-      const isRuntimeCommand = runtimeCommandTypes.has(type);
-      const commandId = isRuntimeCommand ? `${clientId}:${commandSessionId}:${++commandSeq}` : "";
-      const baseVersion = isRuntimeCommand && lastServerVersion ? lastServerVersion : undefined;
-      const intendedServerTime = isRuntimeCommand ? serverNow() : undefined;
-      const attempts = isRuntimeCommand ? 3 : 1;
+    const clientActionTransport = window.FDVClientActionTransport.createActionTransport({
+      applyRemote: (remote, options) => applyServerState(remote, options),
+      clientDiagnostics,
+      fetch: (...args) => fetch(...args),
+      getBaseVersion: () => lastServerVersion || undefined,
+      isAvailable: () => serverAvailable,
+      isRuntimeCommand: (type) => runtimeCommandTypes.has(type),
+      isStandalone: () => standaloneMode,
+      markFailure: (immediate) => markServerFailure(immediate),
+      nextCommandId: () => `${clientId}:${commandSessionId}:${++commandSeq}`,
+      requestTimeoutMs: syncRequestTimeoutMs,
+      serverNow,
+      updateTiming: (remote, timing) => updateServerTiming(remote, timing),
+      setTimeout: (...args) => window.setTimeout(...args),
+      clearTimeout: (timeout) => window.clearTimeout(timeout),
+      now: () => Date.now(),
+      perfNow: () => performance.now()
+    });
 
-      for (let attempt = 0; attempt < attempts; attempt += 1) {
-        const controller = new AbortController();
-        const timeout = window.setTimeout(() => controller.abort(), syncRequestTimeoutMs);
-        try {
-          const timing = {
-            date0: Date.now(),
-            perf0: performance.now()
-          };
-          const response = await fetch("/api/action", {
-            method: "POST",
-            headers: { "content-type": "application/json" },
-            signal: controller.signal,
-            body: JSON.stringify({
-              type,
-              commandId,
-              baseVersion,
-              intendedServerTime,
-              ...clientDiagnostics(),
-              ...payload
-            })
-          });
-          timing.date1 = Date.now();
-          timing.perf1 = performance.now();
-          const remote = await response.json().catch(() => null);
-          if (response.status === 409 && remote) {
-            applyServerState(remote, { ...options, timing, includePhaseSignal: false });
-            if (isRuntimeCommand && !options.conflictRetried && serverAvailable && !standaloneMode) {
-              return sendServerAction(type, payload, { ...options, conflictRetried: true });
-            }
-            return "conflict";
-          }
-          if ((response.status === 400 || response.status === 403 || response.status === 429) && remote) {
-            applyServerState(remote, { ...options, timing, includePhaseSignal: false });
-            if (remote.primaryPinBlockedUntil) return "pin-blocked";
-            if (remote.primaryPinRequired) return "pin-required";
-            if (remote.primaryPinInvalidFormat) return "pin-invalid";
-            if (remote.primaryPinDenied) return "pin-denied";
-            return false;
-          }
-          if (!response.ok || !remote) throw new Error("Server action failed");
-          if (options.applyResponse !== false) applyServerState(remote, { ...options, timing });
-          else updateServerTiming(remote, timing);
-          return true;
-        } catch (error) {
-          if (attempt >= attempts - 1) {
-            markServerFailure(true);
-            return false;
-          }
-          await new Promise((resolve) => window.setTimeout(resolve, 160 * (attempt + 1)));
-        } finally {
-          window.clearTimeout(timeout);
-        }
-      }
-      return false;
+    function sendServerAction(type, payload = {}, options = {}) {
+      return clientActionTransport.send(type, payload, options);
     }
 
     async function syncFromServer(options = {}) {

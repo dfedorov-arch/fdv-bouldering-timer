@@ -1,18 +1,8 @@
+"use strict";
+
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const fs = require("node:fs");
-const path = require("node:path");
-const vm = require("node:vm");
-const { performance } = require("node:perf_hooks");
-
-const indexHtml = fs.readFileSync(path.resolve(__dirname, "..", "index.html"), "utf8");
-
-function productionSendServerActionSource() {
-  const start = indexHtml.indexOf("async function sendServerAction");
-  const end = indexHtml.indexOf("async function syncFromServer", start);
-  assert.ok(start >= 0 && end > start, "sendServerAction must be present in index.html");
-  return indexHtml.slice(start, end).trim();
-}
+const { createActionTransport } = require("../lib/client-action-transport");
 
 function response(status, body) {
   return {
@@ -22,51 +12,44 @@ function response(status, body) {
   };
 }
 
-function makeContext(fetchImpl) {
-  const context = {
-    AbortController,
-    clientId: "test-client",
-    commandSessionId: "page-session",
-    commandSeq: 0,
+function makeTransport(fetchImpl, overrides = {}) {
+  let version = 10;
+  let commandSequence = 0;
+  const applied = [];
+  const failures = [];
+  const transport = createActionTransport({
+    applyRemote: (remote, options) => {
+      version = remote.version || version;
+      applied.push({ remote, options });
+    },
+    clientDiagnostics: () => ({ clientId: "test-client" }),
     fetch: fetchImpl,
-    lastServerVersion: 10,
-    markServerFailure: () => {},
-    performance,
-    runtimeCommandTypes: new Set(["start", "pause", "stopCountdown", "reset", "seek"]),
-    serverAvailable: true,
+    getBaseVersion: () => version,
+    isAvailable: () => true,
+    isRuntimeCommand: (type) => new Set(["start", "pause", "stopCountdown", "reset", "seek"]).has(type),
+    isStandalone: () => false,
+    markFailure: (immediate) => failures.push(immediate),
+    nextCommandId: () => `test-client:page-session:${++commandSequence}`,
+    requestTimeoutMs: 2000,
     serverNow: () => 123456,
-    standaloneMode: false,
-    syncRequestTimeoutMs: 2000,
-    updateServerTiming: () => {},
-    clientDiagnostics: () => ({}),
-    window: {
-      clearTimeout,
-      setTimeout
-    }
-  };
-  context.applyServerState = (remote) => {
-    context.lastServerVersion = remote.version;
-  };
-  return context;
-}
-
-async function runProductionAction(context) {
-  vm.runInNewContext(
-    `${productionSendServerActionSource()}\nresult = sendServerAction("start", { settings: { rotationSeconds: 60, breakSeconds: 0, oneShot: true } });`,
-    context
-  );
-  return context.result;
+    updateTiming: () => {},
+    delay: async () => {},
+    ...overrides
+  });
+  return { applied, failures, transport };
 }
 
 test("production client retries one version conflict with a fresh command id and version", async () => {
   const requests = [];
-  const context = makeContext(async (url, options) => {
+  const fixture = makeTransport(async (url, options) => {
     requests.push(JSON.parse(options.body));
     if (requests.length === 1) return response(409, { version: 11, commandConflict: true });
     return response(200, { version: 12, running: true });
   });
 
-  const result = await runProductionAction(context);
+  const result = await fixture.transport.send("start", {
+    settings: { rotationSeconds: 60, breakSeconds: 0, oneShot: true }
+  });
 
   assert.equal(result, true);
   assert.equal(requests.length, 2);
@@ -78,15 +61,50 @@ test("production client retries one version conflict with a fresh command id and
 
 test("production client stops after the single conflict retry", async () => {
   const requests = [];
-  const context = makeContext(async (url, options) => {
+  const fixture = makeTransport(async (url, options) => {
     requests.push(JSON.parse(options.body));
     return response(409, { version: 10 + requests.length, commandConflict: true });
   });
 
-  const result = await runProductionAction(context);
+  const result = await fixture.transport.send("start", {});
 
   assert.equal(result, "conflict");
   assert.equal(requests.length, 2);
   assert.equal(requests[0].commandId, "test-client:page-session:1");
   assert.equal(requests[1].commandId, "test-client:page-session:2");
+});
+
+test("runtime network failures retry three times and mark the server unavailable", async () => {
+  let attempts = 0;
+  const fixture = makeTransport(async () => {
+    attempts += 1;
+    throw new Error("network unavailable");
+  });
+
+  assert.equal(await fixture.transport.send("pause"), false);
+  assert.equal(attempts, 3);
+  assert.deepEqual(fixture.failures, [true]);
+});
+
+test("control rejection statuses remain distinguishable", async () => {
+  for (const [remote, expected] of [
+    [{ version: 11, primaryPinBlockedUntil: 1000 }, "pin-blocked"],
+    [{ version: 11, primaryPinRequired: true }, "pin-required"],
+    [{ version: 11, primaryPinInvalidFormat: true }, "pin-invalid"],
+    [{ version: 11, primaryPinDenied: true }, "pin-denied"]
+  ]) {
+    const fixture = makeTransport(async () => response(403, remote));
+    assert.equal(await fixture.transport.send("primaryPin", {}), expected);
+  }
+});
+
+test("successful action can update timing without applying response state", async () => {
+  let timingUpdates = 0;
+  const fixture = makeTransport(async () => response(200, { version: 11 }), {
+    updateTiming: () => { timingUpdates += 1; }
+  });
+
+  assert.equal(await fixture.transport.send("settings", {}, { applyResponse: false }), true);
+  assert.equal(timingUpdates, 1);
+  assert.equal(fixture.applied.length, 0);
 });

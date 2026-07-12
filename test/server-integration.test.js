@@ -187,4 +187,49 @@ test("production server validates settings, rejects stale commands, and deduplic
   assert.equal(restored.manualStartLeadMs, 300);
   assert.equal(restored.manualStartDisplayHold, true);
   assert.ok(restored.version > started.body.version);
+
+  const untilStartedMs = Math.max(0, Number(restored.startedAt || 0) - Date.now());
+  await new Promise((resolve) => setTimeout(resolve, untilStartedMs + 25));
+  const paused = await postAction(baseUrl, {
+    type: "pause",
+    commandId: "pause-after-restore",
+    baseVersion: restored.version
+  });
+  assert.equal(paused.status, 200);
+  assert.equal(paused.body.running, false);
+  assert.ok(paused.body.elapsedBeforePause >= 0);
+
+  await stopServer(child);
+  child = spawnServer();
+  const restoredPause = await waitForServer(baseUrl, child, output);
+  assert.equal(restoredPause.running, false);
+  assert.ok(restoredPause.elapsedBeforePause >= paused.body.elapsedBeforePause);
+  assert.ok(restoredPause.version > paused.body.version);
+
+  const competingBaseVersion = restoredPause.version;
+  const competingActions = [
+    {
+      type: "start",
+      commandId: "competing-start",
+      baseVersion: competingBaseVersion,
+      startMode: "manual",
+      startHours: "",
+      startMinutes: "",
+      settings: { rotationSeconds: 60, breakSeconds: 0, oneShot: true }
+    },
+    {
+      type: "reset",
+      commandId: "competing-reset",
+      baseVersion: competingBaseVersion,
+      settings: { rotationSeconds: 90, breakSeconds: 0, oneShot: true }
+    }
+  ];
+  const competingResults = await Promise.all(competingActions.map((action) => postAction(baseUrl, action)));
+  assert.deepEqual(competingResults.map((result) => result.status).sort(), [200, 409]);
+  const rejectedIndex = competingResults.findIndex((result) => result.status === 409);
+  const rejectedAction = competingActions[rejectedIndex];
+  const rejectedReplay = await postAction(baseUrl, rejectedAction);
+  assert.equal(rejectedReplay.status, 409);
+  assert.equal(rejectedReplay.body.commandDuplicate, true);
+  assert.equal(rejectedReplay.body.commandConflict, true);
 });
