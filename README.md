@@ -43,6 +43,16 @@ node serve-bouldering-timer.js
 
 Основные параметры находятся в `params.txt`. Порты по умолчанию: `8008` для HTTP и `8443` для HTTPS.
 
+### Проверка изменений
+
+```bash
+node serve-bouldering-timer.js --generate-offline-audio
+node scripts/verify-release-inputs.js
+node --test test/*.test.js
+```
+
+Архитектурные границы и релизные проверки описаны в [docs/architecture.md](docs/architecture.md). Каталог `dist/` является автоматически создаваемым результатом сборки; его файлы не следует редактировать вручную.
+
 ## Горячие клавиши
 
 | Клавиши | Действие |

@@ -21,7 +21,10 @@ jobs:
           node-version: "24.17.0"
 
       - name: Run timer tests
-        run: node --test test/*.test.js
+        run: |
+          node serve-bouldering-timer.js --generate-offline-audio
+          node scripts/verify-release-inputs.js
+          node --test test/*.test.js
 
   windows-launcher:
     runs-on: windows-latest

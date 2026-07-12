@@ -6,9 +6,11 @@ APP_VERSION=${1:-local}
 NODE_VERSION=${NODE_VERSION:-24.17.0}
 DIST_DIR=${DIST_DIR:-"$ROOT_DIR/dist"}
 WORK_DIR=$(mktemp -d)
+DOWNLOAD_DIR=${NODE_DOWNLOAD_CACHE:-"$WORK_DIR/downloads"}
 NODE_BASE_URL="https://nodejs.org/dist/v${NODE_VERSION}"
 
 node "$ROOT_DIR/serve-bouldering-timer.js" --generate-offline-audio
+node "$ROOT_DIR/scripts/verify-release-inputs.js"
 
 cleanup() {
   rm -rf "$WORK_DIR"
@@ -23,7 +25,7 @@ for command in curl tar unzip zip; do
 done
 
 rm -rf "$DIST_DIR"
-mkdir -p "$DIST_DIR" "$WORK_DIR/downloads" "$WORK_DIR/extracted"
+mkdir -p "$DIST_DIR" "$DOWNLOAD_DIR" "$WORK_DIR/extracted"
 
 curl -fsSL "$NODE_BASE_URL/SHASUMS256.txt" -o "$WORK_DIR/SHASUMS256.txt"
 
@@ -38,7 +40,8 @@ checksum_value() {
 
 download_node() {
   local archive="$1"
-  local target="$WORK_DIR/downloads/$archive"
+  local target="$DOWNLOAD_DIR/$archive"
+  local partial="$target.partial"
   local expected
   local actual
 
@@ -48,7 +51,18 @@ download_node() {
     exit 1
   fi
 
-  curl -fsSL "$NODE_BASE_URL/$archive" -o "$target"
+  if [[ -f "$target" ]]; then
+    actual=$(checksum_value "$target")
+    if [[ "$actual" == "$expected" ]]; then
+      echo "Using cached $archive" >&2
+      echo "$target"
+      return
+    fi
+    rm -f "$target"
+  fi
+  echo "Downloading $archive" >&2
+  curl -fL -C - "$NODE_BASE_URL/$archive" -o "$partial"
+  mv "$partial" "$target"
   actual=$(checksum_value "$target")
   if [[ "$actual" != "$expected" ]]; then
     echo "Checksum mismatch for $archive" >&2
@@ -176,6 +190,18 @@ build_unix "macos" "arm64" "darwin" "start-timer-mac.command" "create-https-cert
 build_unix "macos" "x64" "darwin" "start-timer-mac.command" "create-https-certificate-mac.command" "mac"
 build_unix "linux" "x64" "linux" "start-timer-linux.sh" "create-https-certificate-linux.sh" "linux"
 build_unix "linux" "arm64" "linux" "start-timer-linux.sh" "create-https-certificate-linux.sh" "linux"
+
+for expected in \
+  "$DIST_DIR/fdv-bouldering-timer-${APP_VERSION}-windows-x64.zip" \
+  "$DIST_DIR/fdv-bouldering-timer-${APP_VERSION}-macos-arm64.tar.gz" \
+  "$DIST_DIR/fdv-bouldering-timer-${APP_VERSION}-macos-x64.tar.gz" \
+  "$DIST_DIR/fdv-bouldering-timer-${APP_VERSION}-linux-x64.tar.gz" \
+  "$DIST_DIR/fdv-bouldering-timer-${APP_VERSION}-linux-arm64.tar.gz"; do
+  if [[ ! -s "$expected" ]]; then
+    echo "Expected portable package was not created: $expected" >&2
+    exit 1
+  fi
+done
 
 (
   cd "$DIST_DIR"
