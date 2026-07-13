@@ -2,15 +2,35 @@
 set -euo pipefail
 
 ROOT_DIR=$(cd "$(dirname "$0")/.." && pwd)
-APP_VERSION=${1:-local}
+APP_VERSION=local
+APP_VERSION_SET=false
+ALLOW_MISSING_LAUNCHERS=false
+PREFLIGHT_ONLY=false
+
+for argument in "$@"; do
+  case "$argument" in
+    --without-launchers) ALLOW_MISSING_LAUNCHERS=true ;;
+    --preflight-only) PREFLIGHT_ONLY=true ;;
+    --*)
+      echo "Unknown option: $argument" >&2
+      exit 2
+      ;;
+    *)
+      if [[ "$APP_VERSION_SET" == true ]]; then
+        echo "Only one application version may be specified." >&2
+        exit 2
+      fi
+      APP_VERSION="$argument"
+      APP_VERSION_SET=true
+      ;;
+  esac
+done
+
 NODE_VERSION=${NODE_VERSION:-24.17.0}
 DIST_DIR=${DIST_DIR:-"$ROOT_DIR/dist"}
 WORK_DIR=$(mktemp -d)
 DOWNLOAD_DIR=${NODE_DOWNLOAD_CACHE:-"$WORK_DIR/downloads"}
 NODE_BASE_URL="https://nodejs.org/dist/v${NODE_VERSION}"
-
-node "$ROOT_DIR/serve-bouldering-timer.js" --generate-offline-audio
-node "$ROOT_DIR/scripts/verify-release-inputs.js"
 
 cleanup() {
   rm -rf "$WORK_DIR"
@@ -23,6 +43,50 @@ for command in curl tar unzip zip; do
     exit 1
   fi
 done
+
+require_launcher() {
+  local variable_name="$1"
+  local launcher_path="$2"
+  local expected_kind="$3"
+  if [[ -z "$launcher_path" ]]; then
+    echo "Required launcher variable is not set: $variable_name" >&2
+    return 1
+  fi
+  if [[ "$expected_kind" == "file" && ! -f "$launcher_path" ]]; then
+    echo "Required launcher file was not found: $variable_name=$launcher_path" >&2
+    return 1
+  fi
+  if [[ "$expected_kind" == "path" && ! -e "$launcher_path" ]]; then
+    echo "Required launcher path was not found: $variable_name=$launcher_path" >&2
+    return 1
+  fi
+}
+
+validate_launchers() {
+  if [[ "$ALLOW_MISSING_LAUNCHERS" == true ]]; then
+    echo "Launcher check skipped by explicit --without-launchers mode." >&2
+    return
+  fi
+  local failed=false
+  require_launcher "WINDOWS_LAUNCHER_EXE" "${WINDOWS_LAUNCHER_EXE:-}" "file" || failed=true
+  require_launcher "MACOS_LAUNCHER_ARM64" "${MACOS_LAUNCHER_ARM64:-}" "path" || failed=true
+  require_launcher "MACOS_LAUNCHER_X64" "${MACOS_LAUNCHER_X64:-}" "path" || failed=true
+  require_launcher "LINUX_LAUNCHER_ARM64" "${LINUX_LAUNCHER_ARM64:-}" "file" || failed=true
+  require_launcher "LINUX_LAUNCHER_X64" "${LINUX_LAUNCHER_X64:-}" "file" || failed=true
+  if [[ "$failed" == true ]]; then
+    echo "Release packaging requires every GUI launcher. Use --without-launchers only for an explicitly incomplete local package." >&2
+    exit 1
+  fi
+}
+
+validate_launchers
+if [[ "$PREFLIGHT_ONLY" == true ]]; then
+  echo "Portable release preflight passed."
+  exit 0
+fi
+
+node "$ROOT_DIR/serve-bouldering-timer.js" --generate-offline-audio
+node "$ROOT_DIR/scripts/verify-release-inputs.js"
 
 rm -rf "$DIST_DIR"
 mkdir -p "$DIST_DIR" "$DOWNLOAD_DIR" "$WORK_DIR/extracted"

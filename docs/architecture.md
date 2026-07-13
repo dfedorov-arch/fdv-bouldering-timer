@@ -41,3 +41,11 @@ node --test test/*.test.js
 ```
 
 `scripts/verify-release-inputs.js` rejects mismatched build numbers or missing runtime modules. `dist/` is generated output and must not be edited manually. Portable packages must be built through `scripts/build-portable-releases.sh` and smoke-tested from the extracted archive.
+
+Release packaging requires the Windows, macOS, and Linux GUI launcher artifacts by default and fails before downloading runtimes if any launcher is missing. An intentionally incomplete local package without GUI launchers must be requested explicitly:
+
+```bash
+scripts/build-portable-releases.sh local --without-launchers
+```
+
+Packages produced in that mode are development artifacts, not release candidates.
