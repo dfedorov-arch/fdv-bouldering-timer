@@ -14,17 +14,20 @@ function response(status, body) {
 
 function makeTransport(fetchImpl, overrides = {}) {
   let version = 10;
+  let serverInstanceId = "server-a";
   let commandSequence = 0;
   const applied = [];
   const failures = [];
   const transport = createActionTransport({
     applyRemote: (remote, options) => {
       version = remote.version || version;
+      serverInstanceId = remote.serverInstanceId || serverInstanceId;
       applied.push({ remote, options });
     },
     clientDiagnostics: () => ({ clientId: "test-client" }),
     fetch: fetchImpl,
     getBaseVersion: () => version,
+    getServerInstanceId: () => serverInstanceId,
     isAvailable: () => true,
     isRuntimeCommand: (type) => new Set(["start", "pause", "stopCountdown", "reset", "seek"]).has(type),
     isStandalone: () => false,
@@ -43,8 +46,8 @@ test("production client retries one version conflict with a fresh command id and
   const requests = [];
   const fixture = makeTransport(async (url, options) => {
     requests.push(JSON.parse(options.body));
-    if (requests.length === 1) return response(409, { version: 11, commandConflict: true });
-    return response(200, { version: 12, running: true });
+    if (requests.length === 1) return response(409, { serverInstanceId: "server-b", version: 1, commandConflict: true });
+    return response(200, { serverInstanceId: "server-b", version: 2, running: true });
   });
 
   const result = await fixture.transport.send("start", {
@@ -55,8 +58,23 @@ test("production client retries one version conflict with a fresh command id and
   assert.equal(requests.length, 2);
   assert.equal(requests[0].commandId, "test-client:page-session:1");
   assert.equal(requests[0].baseVersion, 10);
+  assert.equal(requests[0].baseServerInstanceId, "server-a");
   assert.equal(requests[1].commandId, "test-client:page-session:2");
-  assert.equal(requests[1].baseVersion, 11);
+  assert.equal(requests[1].baseVersion, 1);
+  assert.equal(requests[1].baseServerInstanceId, "server-b");
+});
+
+test("new server instance accepts a lower state version", () => {
+  const reconcile = require("../lib/client-action-transport").reconcileServerStateIdentity;
+  const restarted = reconcile("server-a", 31, { serverInstanceId: "server-b", version: 4 });
+  assert.equal(restarted.instanceChanged, true);
+  assert.equal(restarted.serverRestarted, true);
+  assert.equal(restarted.stale, false);
+  assert.equal(restarted.versionChanged, true);
+
+  const stale = reconcile("server-b", 4, { serverInstanceId: "server-b", version: 3 });
+  assert.equal(stale.instanceChanged, false);
+  assert.equal(stale.stale, true);
 });
 
 test("production client stops after the single conflict retry", async () => {

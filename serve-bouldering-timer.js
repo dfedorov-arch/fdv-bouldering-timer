@@ -16,6 +16,7 @@ const beepsPath = path.join(root, "beeps");
 const fontsPath = path.join(root, "fonts");
 const offlineAudioPath = path.join(root, "offline-audio.js");
 const BUILD_NUMBER = 203;
+const serverInstanceId = crypto.randomUUID();
 const SNAPSHOT_SCHEMA_VERSION = 1;
 const SNAPSHOT_MAX_AGE_MS = 12 * 60 * 60 * 1000;
 const PRIMARY_RESTORE_GRACE_MS = 10000;
@@ -958,6 +959,7 @@ function publicState(options = {}) {
   } = timerState;
   return {
     ...publicTimerState,
+    serverInstanceId,
     startedAt: publicStartedAt(sentAt, elapsed),
     config: {
       ...config,
@@ -1001,6 +1003,7 @@ function broadcastState() {
 
 function diagnosticsPayload() {
   return {
+    serverInstanceId,
     primaryClientId: timerState.primaryClientId,
     clients: publicClients(),
     version: timerState.version,
@@ -1196,11 +1199,15 @@ function handleRequest(req, res) {
         return;
       }
       const baseVersion = Number(body.baseVersion);
-      if (isRuntimeCommand && Number.isFinite(baseVersion) && baseVersion !== timerState.version) {
+      const baseServerInstanceId = String(body.baseServerInstanceId || "");
+      const instanceConflict = Boolean(baseServerInstanceId && baseServerInstanceId !== serverInstanceId);
+      if (isRuntimeCommand && (instanceConflict || (Number.isFinite(baseVersion) && baseVersion !== timerState.version))) {
         const conflictState = {
           ...publicState({ receivedAt: now, clientId, includeClients: shouldIncludeDiagnostics(clientId) }),
           commandConflict: true,
-          expectedVersion: timerState.version
+          instanceConflict,
+          expectedVersion: timerState.version,
+          expectedServerInstanceId: serverInstanceId
         };
         rememberCommandResult(commandId, 409, conflictState);
         sendJson(res, 409, conflictState);

@@ -1729,6 +1729,7 @@
     let serverPerfAnchor = performance.now();
     let serverTimeAnchor = serverPerfAnchor + serverPerfOffset;
     let serverClockRate = 1;
+    let lastServerInstanceId = "";
     let lastServerVersion = 0;
     let syncTimer = null;
     let isPrimaryClient = false;
@@ -2486,6 +2487,20 @@
       }
     }
 
+    function reconcileServerStateIdentity(remote) {
+      const identity = window.FDVClientActionTransport.reconcileServerStateIdentity(
+        lastServerInstanceId,
+        lastServerVersion,
+        remote
+      );
+      if (identity.instanceChanged) {
+        lastServerInstanceId = identity.instanceId;
+        lastServerVersion = 0;
+        if (identity.serverRestarted) lastRemoteRunning = false;
+      }
+      return identity;
+    }
+
     function median(values) {
       if (!values.length) return 0;
       const middle = Math.floor(values.length / 2);
@@ -2965,6 +2980,7 @@
 
     function applyServerState(remote, options = {}) {
       if (!remote || typeof remote !== "object") return;
+      reconcileServerStateIdentity(remote);
       markServerContact();
       if (standaloneMode) {
         pendingServerState = remote;
@@ -3090,6 +3106,7 @@
       clientDiagnostics,
       fetch: (...args) => fetch(...args),
       getBaseVersion: () => lastServerVersion || undefined,
+      getServerInstanceId: () => lastServerInstanceId || undefined,
       isAvailable: () => serverAvailable,
       isRuntimeCommand: (type) => runtimeCommandTypes.has(type),
       isStandalone: () => standaloneMode,
@@ -3145,14 +3162,15 @@
           maybeBurstSync(options);
           return true;
         }
-        const version = Number(remote.version || 0);
-        if (version && version < lastServerVersion) {
+        const identity = reconcileServerStateIdentity(remote);
+        if (identity.stale) {
           updateServerTiming(remote, timing, options);
           if (options.resumeSnap || resumeSnapPending) clearResumeSnapPending(true);
           return true;
         }
-        if (version !== lastServerVersion) {
+        if (identity.versionChanged) {
           const isRemoteStart = Date.now() >= suppressPhaseSignalsUntil
+            && !identity.instanceChanged
             && lastServerVersion !== 0
             && !lastRemoteRunning
             && Boolean(remote.running)
@@ -3248,17 +3266,18 @@
             applyServerState(remote, { rescheduleSignals: true, includePhaseSignal: false });
             return;
           }
-          const version = Number(remote.version || 0);
-          if (version && version < lastServerVersion) return;
+          const identity = reconcileServerStateIdentity(remote);
+          if (identity.stale) return;
           const isRemoteStart = Date.now() >= suppressPhaseSignalsUntil
-            && version !== lastServerVersion
+            && identity.versionChanged
+            && !identity.instanceChanged
             && lastServerVersion !== 0
             && !lastRemoteRunning
             && Boolean(remote.running)
             && Number(remote.elapsedBeforePause || 0) === 0
             && Number(remote.elapsed || 0) < 2;
           applyServerState(remote, {
-            rescheduleSignals: version !== lastServerVersion,
+            rescheduleSignals: identity.versionChanged,
             includePhaseSignal: isRemoteStart
           });
         } catch (error) {}

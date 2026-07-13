@@ -174,6 +174,7 @@ test("production server validates settings, rejects stale commands, and deduplic
   assert.equal(started.body.running, true);
   assert.equal(started.body.manualStartLeadMs, 300);
   assert.equal(started.body.manualStartDisplayHold, true);
+  assert.match(started.body.serverInstanceId, /^[0-9a-f-]{36}$/i);
 
   const duplicate = await postAction(baseUrl, startBody);
   assert.equal(duplicate.status, 200);
@@ -187,13 +188,26 @@ test("production server validates settings, rejects stale commands, and deduplic
   assert.equal(restored.manualStartLeadMs, 300);
   assert.equal(restored.manualStartDisplayHold, true);
   assert.ok(restored.version > started.body.version);
+  assert.notEqual(restored.serverInstanceId, started.body.serverInstanceId);
+
+  const oldInstanceConflict = await postAction(baseUrl, {
+    type: "pause",
+    commandId: "pause-from-old-server-instance",
+    baseVersion: restored.version,
+    baseServerInstanceId: started.body.serverInstanceId
+  });
+  assert.equal(oldInstanceConflict.status, 409);
+  assert.equal(oldInstanceConflict.body.commandConflict, true);
+  assert.equal(oldInstanceConflict.body.instanceConflict, true);
+  assert.equal(oldInstanceConflict.body.expectedServerInstanceId, restored.serverInstanceId);
 
   const untilStartedMs = Math.max(0, Number(restored.startedAt || 0) - Date.now());
   await new Promise((resolve) => setTimeout(resolve, untilStartedMs + 25));
   const paused = await postAction(baseUrl, {
     type: "pause",
     commandId: "pause-after-restore",
-    baseVersion: restored.version
+    baseVersion: restored.version,
+    baseServerInstanceId: restored.serverInstanceId
   });
   assert.equal(paused.status, 200);
   assert.equal(paused.body.running, false);
