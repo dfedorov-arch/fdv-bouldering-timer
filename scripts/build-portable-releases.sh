@@ -6,11 +6,13 @@ APP_VERSION=local
 APP_VERSION_SET=false
 ALLOW_MISSING_LAUNCHERS=false
 PREFLIGHT_ONLY=false
+BUILD_TARGET=all
 
 for argument in "$@"; do
   case "$argument" in
     --without-launchers) ALLOW_MISSING_LAUNCHERS=true ;;
     --preflight-only) PREFLIGHT_ONLY=true ;;
+    --target=*) BUILD_TARGET="${argument#--target=}" ;;
     --*)
       echo "Unknown option: $argument" >&2
       exit 2
@@ -25,6 +27,14 @@ for argument in "$@"; do
       ;;
   esac
 done
+
+case "$BUILD_TARGET" in
+  all|windows-x64|macos-arm64|macos-x64|linux-arm64|linux-x64) ;;
+  *)
+    echo "Unknown build target: $BUILD_TARGET" >&2
+    exit 2
+    ;;
+esac
 
 NODE_VERSION=${NODE_VERSION:-24.17.0}
 DIST_DIR=${DIST_DIR:-"$ROOT_DIR/dist"}
@@ -62,19 +72,23 @@ require_launcher() {
   fi
 }
 
+target_enabled() {
+  [[ "$BUILD_TARGET" == "all" || "$BUILD_TARGET" == "$1" ]]
+}
+
 validate_launchers() {
   if [[ "$ALLOW_MISSING_LAUNCHERS" == true ]]; then
     echo "Launcher check skipped by explicit --without-launchers mode." >&2
     return
   fi
   local failed=false
-  require_launcher "WINDOWS_LAUNCHER_EXE" "${WINDOWS_LAUNCHER_EXE:-}" "file" || failed=true
-  require_launcher "MACOS_LAUNCHER_ARM64" "${MACOS_LAUNCHER_ARM64:-}" "path" || failed=true
-  require_launcher "MACOS_LAUNCHER_X64" "${MACOS_LAUNCHER_X64:-}" "path" || failed=true
-  require_launcher "LINUX_LAUNCHER_ARM64" "${LINUX_LAUNCHER_ARM64:-}" "file" || failed=true
-  require_launcher "LINUX_LAUNCHER_X64" "${LINUX_LAUNCHER_X64:-}" "file" || failed=true
+  if target_enabled "windows-x64"; then require_launcher "WINDOWS_LAUNCHER_EXE" "${WINDOWS_LAUNCHER_EXE:-}" "file" || failed=true; fi
+  if target_enabled "macos-arm64"; then require_launcher "MACOS_LAUNCHER_ARM64" "${MACOS_LAUNCHER_ARM64:-}" "path" || failed=true; fi
+  if target_enabled "macos-x64"; then require_launcher "MACOS_LAUNCHER_X64" "${MACOS_LAUNCHER_X64:-}" "path" || failed=true; fi
+  if target_enabled "linux-arm64"; then require_launcher "LINUX_LAUNCHER_ARM64" "${LINUX_LAUNCHER_ARM64:-}" "file" || failed=true; fi
+  if target_enabled "linux-x64"; then require_launcher "LINUX_LAUNCHER_X64" "${LINUX_LAUNCHER_X64:-}" "file" || failed=true; fi
   if [[ "$failed" == true ]]; then
-    echo "Release packaging requires every GUI launcher. Use --without-launchers only for an explicitly incomplete local package." >&2
+    echo "Release packaging requires the GUI launcher for every selected target. Use --without-launchers only for an explicitly incomplete local package." >&2
     exit 1
   fi
 }
@@ -249,18 +263,29 @@ SH
   tar -czf "$DIST_DIR/$package_name.tar.gz" -C "$WORK_DIR" "$package_name"
 }
 
-build_windows
-build_unix "macos" "arm64" "darwin" "start-timer-mac.command" "create-https-certificate-mac.command" "mac"
-build_unix "macos" "x64" "darwin" "start-timer-mac.command" "create-https-certificate-mac.command" "mac"
-build_unix "linux" "x64" "linux" "start-timer-linux.sh" "create-https-certificate-linux.sh" "linux"
-build_unix "linux" "arm64" "linux" "start-timer-linux.sh" "create-https-certificate-linux.sh" "linux"
+EXPECTED_PACKAGES=()
+if target_enabled "windows-x64"; then
+  build_windows
+  EXPECTED_PACKAGES+=("$DIST_DIR/fdv-bouldering-timer-${APP_VERSION}-windows-x64.zip")
+fi
+if target_enabled "macos-arm64"; then
+  build_unix "macos" "arm64" "darwin" "start-timer-mac.command" "create-https-certificate-mac.command" "mac"
+  EXPECTED_PACKAGES+=("$DIST_DIR/fdv-bouldering-timer-${APP_VERSION}-macos-arm64.tar.gz")
+fi
+if target_enabled "macos-x64"; then
+  build_unix "macos" "x64" "darwin" "start-timer-mac.command" "create-https-certificate-mac.command" "mac"
+  EXPECTED_PACKAGES+=("$DIST_DIR/fdv-bouldering-timer-${APP_VERSION}-macos-x64.tar.gz")
+fi
+if target_enabled "linux-x64"; then
+  build_unix "linux" "x64" "linux" "start-timer-linux.sh" "create-https-certificate-linux.sh" "linux"
+  EXPECTED_PACKAGES+=("$DIST_DIR/fdv-bouldering-timer-${APP_VERSION}-linux-x64.tar.gz")
+fi
+if target_enabled "linux-arm64"; then
+  build_unix "linux" "arm64" "linux" "start-timer-linux.sh" "create-https-certificate-linux.sh" "linux"
+  EXPECTED_PACKAGES+=("$DIST_DIR/fdv-bouldering-timer-${APP_VERSION}-linux-arm64.tar.gz")
+fi
 
-for expected in \
-  "$DIST_DIR/fdv-bouldering-timer-${APP_VERSION}-windows-x64.zip" \
-  "$DIST_DIR/fdv-bouldering-timer-${APP_VERSION}-macos-arm64.tar.gz" \
-  "$DIST_DIR/fdv-bouldering-timer-${APP_VERSION}-macos-x64.tar.gz" \
-  "$DIST_DIR/fdv-bouldering-timer-${APP_VERSION}-linux-x64.tar.gz" \
-  "$DIST_DIR/fdv-bouldering-timer-${APP_VERSION}-linux-arm64.tar.gz"; do
+for expected in "${EXPECTED_PACKAGES[@]}"; do
   if [[ ! -s "$expected" ]]; then
     echo "Expected portable package was not created: $expected" >&2
     exit 1
