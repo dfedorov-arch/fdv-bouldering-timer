@@ -1538,6 +1538,7 @@
         testFiveSignals: "5 сек",
         testEverywhere: "Проверить везде, где разрешён звук",
         audioTestUnavailableRunning: "Проверка звука во время работы таймера невозможна",
+        audioTestCooldown: "Повторная проверка доступна через 1 секунду",
         copyLink: "Копировать ссылку",
         copied: "Скопировано",
         copyManually: "Скопируйте ссылку",
@@ -1596,6 +1597,7 @@
         testFiveSignals: "5 sec",
         testEverywhere: "Test everywhere sound is allowed",
         audioTestUnavailableRunning: "Sound testing is unavailable while the timer is running",
+        audioTestCooldown: "Sound can be tested again in 1 second",
         copyLink: "Copy link",
         copied: "Copied",
         copyManually: "Copy the link",
@@ -1782,7 +1784,8 @@
     let pendingAudioOffset = 0;
     let testAudioEverywhere = false;
     let lastAudioTestId = "";
-    let audioTestButtonsDisabled = null;
+    let audioTestCooldownUntil = 0;
+    let audioTestButtonsDisabledReason = null;
     let timerFitQueued = false;
     let serverAvailable = true;
     let standaloneMode = false;
@@ -1828,6 +1831,7 @@
     const audioPrewarmSeconds = 2;
     const seekEndGuardSeconds = 0.9;
     const manualStartWatchdogDelayMs = 250;
+    const audioTestCooldownMs = 1000;
     const sseSilentRestartMs = 25000;
     const runtimeCommandTypes = new Set(["start", "pause", "stopCountdown", "reset", "seek"]);
 
@@ -3624,8 +3628,8 @@
         }
         return 0;
       });
-      const audioTestDisabled = shouldDisableAudioTestButtons();
-      const audioTestDisabledAttributes = audioTestDisabled ? ` disabled title="${escapeHtml(t("audioTestUnavailableRunning"))}"` : "";
+      const audioTestReason = audioTestDisabledReason();
+      const audioTestDisabledAttributes = audioTestReason ? ` disabled title="${escapeHtml(audioTestDisabledTitle(audioTestReason))}"` : "";
       els.browserList.innerHTML = visibleClients.map((client) => {
         const isPrimary = client.id === state.primaryClientId;
         const isLegacyViewer = client.legacyViewer === true;
@@ -3958,7 +3962,8 @@
         await loadAudioBuffers();
       } catch (error) {}
 
-      const baseServerTime = Number(command.serverTime) + audioUserOffsetMs;
+      const testAudioOffset = window.FDVClientActionTransport.resolveAudioTestOffset(command, clientId, audioUserOffsetMs);
+      const baseServerTime = Number(command.serverTime) + testAudioOffset;
       if (!Number.isFinite(baseServerTime)) return;
       const kind = ["start", "end", "minute", "warn"].includes(command.kind) ? command.kind : "start";
       const offsets = kind === "warn" ? [0, 1000, 2000, 3000, 4000] : [0];
@@ -4657,8 +4662,18 @@
         && !isManualStartHoldPending();
     }
 
+    function audioTestDisabledReason() {
+      if (!controlsAvailable() || (state.running && !isBeforeScheduledStart())) return "running";
+      if (Date.now() < audioTestCooldownUntil) return "cooldown";
+      return "";
+    }
+
+    function audioTestDisabledTitle(reason) {
+      return reason === "cooldown" ? t("audioTestCooldown") : t("audioTestUnavailableRunning");
+    }
+
     function shouldDisableAudioTestButtons() {
-      return !controlsAvailable() || (state.running && !isBeforeScheduledStart());
+      return Boolean(audioTestDisabledReason());
     }
 
     function syncButtonsWhenScheduledStartStateChanges() {
@@ -4669,10 +4684,11 @@
     }
 
     function syncAudioTestButtons() {
-      const disabled = shouldDisableAudioTestButtons();
-      if (disabled === audioTestButtonsDisabled) return;
-      audioTestButtonsDisabled = disabled;
-      const disabledTitle = disabled ? t("audioTestUnavailableRunning") : "";
+      const reason = audioTestDisabledReason();
+      if (reason === audioTestButtonsDisabledReason) return;
+      audioTestButtonsDisabledReason = reason;
+      const disabled = Boolean(reason);
+      const disabledTitle = disabled ? audioTestDisabledTitle(reason) : "";
       els.browserList?.querySelectorAll("[data-audio-test-kind]").forEach((button) => {
         button.disabled = disabled;
         if (disabledTitle) {
@@ -5211,11 +5227,14 @@
         if (testButton.disabled || shouldDisableAudioTestButtons()) return;
         const targetClientId = testButton.dataset.audioTestClient;
         const everywhere = testAudioEverywhere && targetClientId === state.primaryClientId;
+        audioTestCooldownUntil = Date.now() + audioTestCooldownMs;
+        audioTestButtonsDisabledReason = null;
+        syncAudioTestButtons();
         unlockAudio();
         if (standaloneMode) {
           if (targetClientId !== clientId) return;
           const kind = testButton.dataset.audioTestKind;
-          const baseTime = serverNow() + 1800 + audioUserOffsetMs;
+          const baseTime = serverNow() + 1800 + pendingAudioOffset;
           const offsets = kind === "warn" ? [0, 1000, 2000, 3000, 4000] : [0];
           offsets.forEach((offset) => scheduleDiagnosticSound(kind, baseTime + offset));
           return;
@@ -5223,7 +5242,8 @@
         sendServerAction("audioTest", {
           kind: testButton.dataset.audioTestKind,
           targetClientId,
-          everywhere
+          everywhere,
+          previewAudioOffset: pendingAudioOffset
         });
         return;
       }

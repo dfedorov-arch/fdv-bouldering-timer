@@ -77,6 +77,15 @@ test("new server instance accepts a lower state version", () => {
   assert.equal(stale.stale, true);
 });
 
+test("audio test uses a pending offset only for its edited target", () => {
+  const resolve = require("../lib/client-action-transport").resolveAudioTestOffset;
+  const command = { previewTargetClientId: "screen-a", previewAudioOffset: 500 };
+  assert.equal(resolve(command, "screen-a", -200), 500);
+  assert.equal(resolve(command, "screen-b", -200), -200);
+  assert.equal(resolve({ previewTargetClientId: "screen-a", previewAudioOffset: 900 }, "screen-a", 0), 500);
+  assert.equal(resolve({}, "screen-a", -200), -200);
+});
+
 test("production client stops after the single conflict retry", async () => {
   const requests = [];
   const fixture = makeTransport(async (url, options) => {

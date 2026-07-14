@@ -53,6 +53,53 @@ async function postAction(baseUrl, body) {
   return { status: response.status, body: await response.json() };
 }
 
+async function openEventStream(baseUrl, clientId) {
+  const controller = new AbortController();
+  const response = await fetch(`${baseUrl}/api/events?clientId=${encodeURIComponent(clientId)}`, {
+    signal: controller.signal
+  });
+  assert.equal(response.status, 200);
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+
+  async function next(eventName, timeoutMs = 3000) {
+    const readNext = async () => {
+      while (true) {
+        const boundary = buffer.indexOf("\n\n");
+        if (boundary !== -1) {
+          const block = buffer.slice(0, boundary);
+          buffer = buffer.slice(boundary + 2);
+          const lines = block.split("\n");
+          const name = lines.find((line) => line.startsWith("event:"))?.slice(6).trim() || "message";
+          const data = lines.filter((line) => line.startsWith("data:")).map((line) => line.slice(5).trim()).join("\n");
+          if (name === eventName && data) return JSON.parse(data);
+          continue;
+        }
+        const chunk = await reader.read();
+        if (chunk.done) throw new Error(`Event stream ended before ${eventName}`);
+        buffer += decoder.decode(chunk.value, { stream: true });
+      }
+    };
+    let timeout;
+    try {
+      return await Promise.race([
+        readNext(),
+        new Promise((_, reject) => {
+          timeout = setTimeout(() => reject(new Error(`Timed out waiting for ${eventName}`)), timeoutMs);
+        })
+      ]);
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+
+  return {
+    next,
+    close: () => controller.abort()
+  };
+}
+
 async function stopServer(child) {
   if (child.exitCode !== null) return;
   await new Promise((resolve) => {
@@ -74,6 +121,7 @@ test("production server validates settings, rejects stale commands, and deduplic
   const port = await freePort();
   const httpsPort = await freePort();
   const output = [];
+  const eventStreams = [];
   const spawnServer = () => {
     const server = spawn(process.execPath, [path.join(fixture, "serve-bouldering-timer.js")], {
       cwd: fixture,
@@ -86,12 +134,44 @@ test("production server validates settings, rejects stale commands, and deduplic
   };
   let child = spawnServer();
   t.after(async () => {
+    eventStreams.forEach((stream) => stream.close());
     await stopServer(child);
     fs.rmSync(fixture, { recursive: true, force: true });
   });
 
   const baseUrl = `http://127.0.0.1:${port}`;
   await waitForServer(baseUrl, child, output);
+
+  const audioScreenA = await openEventStream(baseUrl, "audio-screen-a");
+  const audioScreenB = await openEventStream(baseUrl, "audio-screen-b");
+  eventStreams.push(audioScreenA, audioScreenB);
+  await Promise.all([audioScreenA.next("state"), audioScreenB.next("state")]);
+
+  const audioOffset = await postAction(baseUrl, {
+    type: "audioOffset",
+    targetClientId: "audio-screen-b",
+    offset: -500
+  });
+  assert.equal(audioOffset.status, 200);
+  const [audioStateA, audioStateB] = await Promise.all([
+    audioScreenA.next("state"),
+    audioScreenB.next("state")
+  ]);
+  assert.equal(audioStateA.audioUserOffset, 0);
+  assert.equal(audioStateB.audioUserOffset, -500);
+
+  const audioPreview = await postAction(baseUrl, {
+    type: "audioTest",
+    kind: "start",
+    targetClientId: "audio-screen-b",
+    previewAudioOffset: 500
+  });
+  assert.equal(audioPreview.status, 200);
+  const audioTestEvent = await audioScreenB.next("audio-test");
+  assert.equal(audioTestEvent.previewTargetClientId, "audio-screen-b");
+  assert.equal(audioTestEvent.previewAudioOffset, 500);
+  audioScreenA.close();
+  audioScreenB.close();
 
   const classic = await postAction(baseUrl, {
     type: "settings",
@@ -172,7 +252,7 @@ test("production server validates settings, rejects stale commands, and deduplic
   const started = await postAction(baseUrl, startBody);
   assert.equal(started.status, 200);
   assert.equal(started.body.running, true);
-  assert.equal(started.body.manualStartLeadMs, 300);
+  assert.equal(started.body.manualStartLeadMs, 600);
   assert.equal(started.body.manualStartDisplayHold, true);
   assert.match(started.body.serverInstanceId, /^[0-9a-f-]{36}$/i);
 
@@ -185,7 +265,7 @@ test("production server validates settings, rejects stale commands, and deduplic
   child = spawnServer();
   const restored = await waitForServer(baseUrl, child, output);
   assert.equal(restored.running, true);
-  assert.equal(restored.manualStartLeadMs, 300);
+  assert.equal(restored.manualStartLeadMs, 600);
   assert.equal(restored.manualStartDisplayHold, true);
   assert.ok(restored.version > started.body.version);
   assert.notEqual(restored.serverInstanceId, started.body.serverInstanceId);

@@ -20,12 +20,12 @@ const serverInstanceId = crypto.randomUUID();
 const SNAPSHOT_SCHEMA_VERSION = 1;
 const SNAPSHOT_MAX_AGE_MS = 12 * 60 * 60 * 1000;
 const PRIMARY_RESTORE_GRACE_MS = 10000;
-const MANUAL_START_AUDIO_LEAD_MS = 300;
+const MANUAL_START_AUDIO_LEAD_MS = 600;
 const COMMAND_CACHE_MAX = 256;
 const DIAGNOSTICS_BROADCAST_MS = 2500;
 const PRIMARY_PIN_MAX_FAILURES = 5;
 const PRIMARY_PIN_BLOCK_STEPS_MS = [5000, 30000, 300000];
-const AUDIO_TEST_RATE_LIMIT_MS = 3000;
+const AUDIO_TEST_RATE_LIMIT_MS = 1000;
 const defaultConfig = {
   httpPort: 8008,
   httpsPort: 8443,
@@ -989,10 +989,10 @@ function publicState(options = {}) {
 }
 
 function broadcastState() {
-  const state = publicState({ includeClients: false });
-  const payload = `event: state\ndata: ${JSON.stringify(state)}\n\n`;
   for (const [res, eventClient] of eventClients) {
     try {
+      const state = publicState({ clientId: eventClient.clientId, includeClients: false });
+      const payload = `event: state\ndata: ${JSON.stringify(state)}\n\n`;
       res.write(payload);
     } catch (error) {
       clearInterval(eventClient.keepAlive);
@@ -1381,11 +1381,23 @@ function handleRequest(req, res) {
         const everywhere = Boolean(body.everywhere && timerState.primaryClientId);
         const timerActivelyRunning = timerState.running && timerState.startedAt <= now;
         if (!timerActivelyRunning && (everywhere || targetClientId)) {
+          const requestedPreviewAudioOffset = body.previewAudioOffset;
+          const hasPreviewAudioOffset = requestedPreviewAudioOffset !== null
+            && requestedPreviewAudioOffset !== undefined
+            && requestedPreviewAudioOffset !== ""
+            && Number.isFinite(Number(requestedPreviewAudioOffset));
+          const previewAudioOffset = hasPreviewAudioOffset
+            ? Math.max(-500, Math.min(500, Number(requestedPreviewAudioOffset)))
+            : 0;
           audioTestCommand = {
             id: `${now}-${nextAudioTestId++}`,
             kind,
             everywhere,
             targetClientId: everywhere ? "" : targetClientId,
+            ...(hasPreviewAudioOffset ? {
+              previewTargetClientId: targetClientId,
+              previewAudioOffset: Math.round(previewAudioOffset)
+            } : {}),
             serverTime: now + 1800
           };
         }

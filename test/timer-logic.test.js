@@ -22,10 +22,10 @@ const signalLateGraceMs = {
   minute: 1000
 };
 
-const manualStartAudioLeadMs = 300;
+const manualStartAudioLeadMs = 600;
 const primaryPinMaxFailures = 5;
 const primaryPinBlockStepsMs = [5000, 30000, 300000];
-const audioTestRateLimitMs = 3000;
+const audioTestRateLimitMs = 1000;
 
 function clampFloat(value, min, max, fallback) {
   const number = Number(value);
@@ -425,7 +425,7 @@ test("snapshot restore accepts twelve hours and rejects anything older", () => {
 });
 
 test("manual start lead is used only when a fresh start needs sound", () => {
-  assert.equal(manualStartLeadMs(true, true), 300);
+  assert.equal(manualStartLeadMs(true, true), 600);
   assert.equal(manualStartLeadMs(true, false), 0);
   assert.equal(manualStartLeadMs(false, true), 0);
 });
@@ -461,14 +461,14 @@ test("primary-selected mode accepts control only from the primary client", () =>
   assert.equal(primaryActionAllowed("primary", "viewer", "viewer"), true);
 });
 
-test("audio test rate limit allows one command every three seconds", () => {
+test("audio test rate limit allows one command every second", () => {
   let rate = consumeAudioTestRateLimit(0, 10000);
   assert.equal(rate.allowed, true);
 
-  rate = consumeAudioTestRateLimit(rate.lastCommandAt, 12000);
+  rate = consumeAudioTestRateLimit(rate.lastCommandAt, 10500);
   assert.equal(rate.allowed, false);
-  assert.equal(rate.retryAfterMs, 1000);
+  assert.equal(rate.retryAfterMs, 500);
 
-  rate = consumeAudioTestRateLimit(10000, 13000);
+  rate = consumeAudioTestRateLimit(10000, 11000);
   assert.equal(rate.allowed, true);
 });
