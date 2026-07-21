@@ -831,12 +831,12 @@
           <li><strong>Формат</strong> — готовые режимы «Классика», «Фестиваль» и «Финал».</li>
           <li><strong>Параметры</strong> — время старта, длительность ротации или раунда и перерыва.</li>
           <li><strong>Переключатели</strong> — роль браузера, звук, удалённый звук, удалённый полный экран и мигание.</li>
-          <li><strong>Управление</strong> — старт, пауза, сброс и полноэкранный режим.</li>
+          <li><strong>Управление</strong> — старт, пауза, остановка и полноэкранный режим.</li>
           <li><strong>Браузеры</strong> — подключённые устройства и их диагностика.</li>
         </ul>
         <h3>Поле таймера</h3>
         <p>Показывает оставшееся время текущего отрезка, ротацию или перерыв, номер цикла, следующее действие и прогресс.</p>
-        <p class="note">Параметры активного запуска фиксируются на сервере. Изменять формат и длительности лучше до старта либо после «Сброса».</p>
+        <p class="note">Параметры активного запуска фиксируются на сервере. Чтобы выбрать другой формат, сначала остановите таймер кнопкой «Стоп».</p>
         <a class="back-to-toc" href="#contents">↑ К оглавлению</a>
       </section>
 
@@ -907,7 +907,7 @@
           <li><strong>Время сегодня уже прошло:</strong> обратный отсчёт назначается на это время следующего дня; восстановление середины финала не выполняется.</li>
         </ul>
         <h3>Отмена назначенного старта</h3>
-        <p>Во время обратного отсчёта маленькая кнопка <strong>▶</strong> превращается в <strong>■</strong>. Нажмите её, чтобы отменить ожидание, сохранив формат, параметры и указанное время. «Сброс» или <kbd>P</kbd> / <kbd>З</kbd> полностью отменяет назначенный старт и возвращает таймер в исходное состояние.</p>
+        <p>Во время обратного отсчёта маленькая кнопка <strong>▶</strong> превращается в <strong>■</strong>. Нажмите её, чтобы отменить ожидание, сохранив формат, параметры и указанное время. «Стоп» или <kbd>P</kbd> / <kbd>З</kbd> полностью отменяет назначенный старт и возвращает таймер в исходное состояние.</p>
         <div class="warning"><strong>Практический совет:</strong> заполняйте и часы, и минуты. До запуска кнопка <strong>▶</strong> назначает старт, а во время обратного отсчёта кнопка <strong>■</strong> отменяет его.</div>
         <a class="back-to-toc" href="#contents">↑ К оглавлению</a>
       </section>
@@ -929,7 +929,7 @@
               <td class="command-key"><kbd>Ctrl+Q</kbd> / <kbd>Ctrl+Й</kbd></td>
             </tr>
             <tr>
-              <td>Сброс</td>
+              <td>Стоп</td>
               <td>Отменяет активный запуск, паузу, назначенный старт или завершённое состояние финала и возвращает начало первого отрезка с текущими параметрами.</td>
               <td class="command-key"><kbd>P</kbd> / <kbd>З</kbd></td>
             </tr>
@@ -1189,7 +1189,7 @@ xattr -dr com.apple.quarantine "/полный/путь/к/fdv-bouldering-timer-v
           <li>Локальная страница открывается по <code>127.0.0.1</code>.</li>
           <li>Телефон открывает адрес Wi-Fi или Ethernet с указанным портом.</li>
           <li>Один браузер назначен основным, остальные видны как экраны.</li>
-          <li>Работают «Старт», «Пауза», «Сброс» и соответствующие горячие клавиши.</li>
+          <li>Работают «Старт», «Пауза», «Стоп» и соответствующие горячие клавиши.</li>
           <li>AUDIO, WAKE, SSE и TAB показывают ожидаемое состояние.</li>
           <li>Звуковые сигналы слышны только на нужных устройствах.</li>
         </ul>
@@ -1257,7 +1257,7 @@ xattr -dr com.apple.quarantine "/полный/путь/к/fdv-bouldering-timer-v
           </details>
           <details>
             <summary>После переключения телефона на сотовую сеть команды не приходят</summary>
-            <div>Это ожидаемо: сервер доступен только в локальной сети. Локальный отсчёт продолжится, но «Пауза» и «Сброс» будут получены только после возвращения к Wi-Fi.</div>
+            <div>Это ожидаемо: сервер доступен только в локальной сети. Локальный отсчёт продолжится, но «Пауза» и «Стоп» будут получены только после возвращения к Wi-Fi.</div>
           </details>
           <details>
             <summary>Вы случайно закрыли вкладку с основным браузером</summary>
@@ -1372,7 +1372,7 @@ xattr -dr com.apple.quarantine "/полный/путь/к/fdv-bouldering-timer-v
         </ul>
         <h3>Timer area</h3>
         <p>The digits always use the largest size that fits the available area. Font, digit colors, and background colors can be configured in <code>params.txt</code>.</p>
-        <p class="note">The active run settings are fixed on the server. Change formats and durations before starting or after Reset.</p>
+        <p class="note">The active run settings are fixed on the server. To select another format, first stop the timer with the Stop button.</p>
         <a class="back-to-toc" href="#en-contents">↑ Back to contents</a>
       </section>
 
@@ -1419,7 +1419,7 @@ xattr -dr com.apple.quarantine "/полный/путь/к/fdv-bouldering-timer-v
           <li>A past time is scheduled for the next day; a Final is not restored in the middle.</li>
         </ul>
         <h3>Canceling a scheduled start</h3>
-        <p>During the countdown <strong>▶</strong> becomes <strong>■</strong>. Press it to stop waiting while preserving parameters and the entered time. Reset fully clears the scheduled state.</p>
+        <p>During the countdown <strong>▶</strong> becomes <strong>■</strong>. Press it to stop waiting while preserving parameters and the entered time. Stop fully clears the scheduled state.</p>
         <a class="back-to-toc" href="#en-contents">↑ Back to contents</a>
       </section>
 
@@ -1431,7 +1431,7 @@ xattr -dr com.apple.quarantine "/полный/путь/к/fdv-bouldering-timer-v
           <tbody>
             <tr><td>Start</td><td>Starts immediately or resumes after a pause.</td><td><kbd>Z</kbd></td></tr>
             <tr><td>Pause</td><td>Pauses a rotation or break. Disabled during the preliminary countdown.</td><td><kbd>Ctrl+Q</kbd></td></tr>
-            <tr><td>Reset</td><td>Cancels running, paused, scheduled, or completed state.</td><td><kbd>P</kbd></td></tr>
+            <tr><td>Stop</td><td>Cancels running, paused, scheduled, or completed state.</td><td><kbd>P</kbd></td></tr>
             <tr><td>Screen</td><td>Toggles fullscreen in the primary browser.</td><td><kbd>Ctrl+F</kbd></td></tr>
             <tr><td>Primary browser</td><td>Assigns or removes the controlling browser role.</td><td><kbd>Ctrl+M</kbd></td></tr>
             <tr><td>Scheduled start ▶</td><td>Uses the entered hours and minutes.</td><td>No shortcut</td></tr>

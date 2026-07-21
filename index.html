@@ -413,6 +413,10 @@
       border-color: var(--yellow);
     }
 
+    .preset.format-locked {
+      cursor: not-allowed;
+    }
+
     .field-grid {
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1451,7 +1455,7 @@
         <div class="actions">
           <button id="startBtn" class="action start" title="Старт: Z / Я">Старт</button>
           <button id="pauseBtn" class="action pause" title="Пауза: Ctrl+Q / Ctrl+Й" disabled>Пауза</button>
-          <button id="resetBtn" class="action reset" title="Сброс: P / З">Сброс</button>
+          <button id="resetBtn" class="action reset" title="Стоп: P / З">Стоп</button>
           <button id="fullBtn" class="action full" title="Экран: Ctrl+F / Ctrl+А">Экран</button>
         </div>
         <div class="connections">
@@ -1490,7 +1494,7 @@
         <div class="compact-actions">
           <button id="compactStart" class="action start" title="Старт: Z / Я">Старт</button>
           <button id="compactPause" class="action pause" title="Пауза: Ctrl+Q / Ctrl+Й" disabled>Пауза</button>
-          <button id="compactReset" class="action reset" title="Сброс: P / З">Сброс</button>
+          <button id="compactReset" class="action reset" title="Стоп: P / З">Стоп</button>
         </div>
       </footer>
     </section>
@@ -1533,7 +1537,7 @@
       timeline: []
     };
 
-    const pageBuildNumber = 206;
+    const pageBuildNumber = 207;
     const offlineSnapshotKey = "fdvBoulderingTimerOfflineSnapshot";
     const primarySoundPreferenceKey = "fdvBoulderingTimerPrimarySound";
     const offlineSnapshotMaxAgeMs = 12 * 60 * 60 * 1000;
@@ -1554,7 +1558,8 @@
         festivalAnnouncementsHint: "Объявления за 60, 30, 10 и 5 минут",
         primarySound: "Звук в основном браузере", otherSound: "Звук в других браузерах",
         otherFullscreen: "Полный экран в других браузерах", flashing: "Мигание",
-        controls: "Управление", start: "Старт", pause: "Пауза", reset: "Сброс",
+        controls: "Управление", start: "Старт", pause: "Пауза", reset: "Стоп",
+        presetLockedHint: "Чтобы выбрать другой формат, сначала остановите таймер кнопкой «Стоп»",
         screen: "Экран", browsers: "Браузеры", ready: "Готов", readiness: "Готовность",
         waitingStart: "Ожидание старта", untilStart: "До начала старта",
         waitingManual: "Ожидание ручного старта", readyStart: "Готов к старту",
@@ -1614,7 +1619,8 @@
         festivalAnnouncementsHint: "Announcements at 60, 30, 10 and 5 minutes remaining",
         primarySound: "Sound in primary browser", otherSound: "Sound in other browsers",
         otherFullscreen: "Fullscreen in other browsers", flashing: "Flashing",
-        controls: "Controls", start: "Start", pause: "Pause", reset: "Reset",
+        controls: "Controls", start: "Start", pause: "Pause", reset: "Stop",
+        presetLockedHint: "To select another format, first stop the timer with the Stop button",
         screen: "Screen", browsers: "Browsers", ready: "Ready", readiness: "Ready",
         waitingStart: "Waiting for start", untilStart: "Until start",
         waitingManual: "Waiting for manual start", readyStart: "Ready to start",
@@ -2747,13 +2753,6 @@
       els.browsersTitle.textContent = t("browsers");
       els.presets.forEach((button) => {
         button.textContent = t(button.dataset.preset);
-        button.title = language === "ru"
-          ? {
-              classic: "Классический формат (французская система)",
-              festival: "Фестивальный формат",
-              final: "Международный формат"
-            }[button.dataset.preset] || ""
-          : "";
       });
       els.startBtn.textContent = t("start");
       els.compactStart.textContent = t("start");
@@ -2771,6 +2770,7 @@
       els.compactStart.title = els.startBtn.title;
       els.compactPause.title = els.pauseBtn.title;
       els.compactReset.title = els.resetBtn.title;
+      updatePresetControlState();
       els.helpLink.textContent = t("helpManual");
       els.helpLink.title = t("helpManualTitle");
       els.helpLink.href = `help.html?lang=${language}`;
@@ -3012,6 +3012,7 @@
 
     async function setPreset(name) {
       if (!controlsAvailable()) return;
+      if (formatSelectionLocked()) return;
       state.activePreset = name;
       els.presets.forEach((button) => button.classList.toggle("active", button.dataset.preset === name));
       if (presets[name]) {
@@ -4848,13 +4849,39 @@
       els.instancesSoundToggle.disabled = !serverControls;
       els.instancesFullscreenToggle.disabled = !serverControls;
       els.festivalAnnouncementsToggle.disabled = !available;
-      els.presets.forEach((button) => { button.disabled = !available; });
+      updatePresetControlState(available);
       [els.climbMinutes, els.breakSeconds, els.startHours, els.startMinutes]
         .forEach((input) => { input.disabled = !available; });
       els.soundProfileSelect.disabled = !available || (state.running && !beforeScheduledStart)
         || state.elapsedBeforePause > 0
         || state.completed;
       updatePrimaryPinUi();
+    }
+
+    function formatSelectionLocked() {
+      return state.running
+        || state.elapsedBeforePause > 0
+        || state.completed
+        || state.waitingForManualStart;
+    }
+
+    function presetDefaultTitle(name) {
+      if (language !== "ru") return "";
+      return {
+        classic: "Классический формат (французская система)",
+        festival: "Фестивальный формат",
+        final: "Международный формат"
+      }[name] || "";
+    }
+
+    function updatePresetControlState(available = controlsAvailable()) {
+      const locked = available && formatSelectionLocked();
+      els.presets.forEach((button) => {
+        button.disabled = !available;
+        button.classList.toggle("format-locked", locked);
+        button.setAttribute("aria-disabled", String(locked));
+        button.title = locked ? t("presetLockedHint") : presetDefaultTitle(button.dataset.preset);
+      });
     }
 
     function finalizeStandaloneState() {
