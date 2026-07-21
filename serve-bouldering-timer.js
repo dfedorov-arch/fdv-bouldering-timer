@@ -14,8 +14,8 @@ const runtimeStateDir = path.join(root, "runtime-state");
 const runtimeStatePath = path.join(runtimeStateDir, "timer-state.json");
 const beepsPath = path.join(root, "beeps");
 const fontsPath = path.join(root, "fonts");
-const offlineAudioPath = path.join(root, "offline-audio.js");
-const BUILD_NUMBER = 203;
+const offlineAudioPath = path.join(root, "lib", "offline-audio.js");
+const BUILD_NUMBER = 205;
 const serverInstanceId = crypto.randomUUID();
 const SNAPSHOT_SCHEMA_VERSION = 1;
 const SNAPSHOT_MAX_AGE_MS = 12 * 60 * 60 * 1000;
@@ -189,7 +189,10 @@ function generateOfflineAudioBundle(config) {
     .replace(/\u2029/g, "\\u2029");
   const contents = `/* Generated automatically from params.txt and beeps. */\nwindow.FDV_OFFLINE_BUNDLE = ${json};\n`;
   const current = fs.existsSync(offlineAudioPath) ? fs.readFileSync(offlineAudioPath, "utf8") : "";
-  if (current !== contents) fs.writeFileSync(offlineAudioPath, contents, "utf8");
+  if (current !== contents) {
+    fs.mkdirSync(path.dirname(offlineAudioPath), { recursive: true });
+    fs.writeFileSync(offlineAudioPath, contents, "utf8");
+  }
 }
 
 function numberOrDefault(value, fallback) {
@@ -1387,7 +1390,7 @@ function handleRequest(req, res) {
             && requestedPreviewAudioOffset !== ""
             && Number.isFinite(Number(requestedPreviewAudioOffset));
           const previewAudioOffset = hasPreviewAudioOffset
-            ? Math.max(-500, Math.min(500, Number(requestedPreviewAudioOffset)))
+            ? Math.max(-750, Math.min(250, Number(requestedPreviewAudioOffset)))
             : 0;
           audioTestCommand = {
             id: `${now}-${nextAudioTestId++}`,

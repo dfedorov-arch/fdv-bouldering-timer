@@ -123,7 +123,7 @@ END, MINUTE и WARNING в WAV или MP3. Для фестивальных объ
 FESTIVAL_60, FESTIVAL_30, FESTIVAL_10 и FESTIVAL_5. Если END отсутствует,
 используется START. Подробности находятся в help.html и beeps\README.txt.
 
-При каждом запуске сервера автоматически обновляется offline-audio.js. Он содержит
+При каждом запуске сервера автоматически обновляется lib/offline-audio.js. Он содержит
 автономную копию профилей и позволяет открыть index.html напрямую без сервера со
 звуком. После замены файлов в beeps один раз запустите таймер для обновления копии.
 В автономном режиме плитка текущего браузера позволяет открыть AUDIO, настроить
@@ -314,7 +314,7 @@ WARNING files in WAV or MP3 format. Festival announcements may use FESTIVAL_60,
 FESTIVAL_30, FESTIVAL_10 and FESTIVAL_5. START is used when END is missing. See
 help.html and beeps\README.txt for details.
 
-Every server start automatically refreshes offline-audio.js. It contains a standalone
+Every server start automatically refreshes lib/offline-audio.js. It contains a standalone
 copy of the profiles, allowing index.html to be opened directly without the server
 and retain sound. After replacing files in beeps, start the timer once to refresh it.
 In standalone mode, the current-browser card provides AUDIO offset adjustment and

@@ -25,7 +25,7 @@ const builds = new Map([
   ["index.html", matchBuild("index.html", /const pageBuildNumber = (\d+);/)],
   ["serve-bouldering-timer.js", matchBuild("serve-bouldering-timer.js", /const BUILD_NUMBER = (\d+);/)],
   ["sw.js", matchBuild("sw.js", /const BUILD_NUMBER = (\d+);/)],
-  ["offline-audio.js", matchBuild("offline-audio.js", /"buildNumber":(\d+)/)]
+  ["lib/offline-audio.js", matchBuild("lib/offline-audio.js", /"buildNumber":(\d+)/)]
 ]);
 const uniqueBuilds = new Set(builds.values());
 if (uniqueBuilds.size !== 1) {
@@ -37,7 +37,7 @@ if (uniqueBuilds.size !== 1) {
   "index.html",
   "legacy.html",
   "help.html",
-  "offline-audio.js",
+  "lib/offline-audio.js",
   "params.txt",
   "serve-bouldering-timer.js",
   "lib/client-action-transport.js",
@@ -52,9 +52,15 @@ const index = read("index.html");
 if (!index.includes('<script src="lib/client-action-transport.js"></script>')) {
   throw new Error("index.html does not load lib/client-action-transport.js");
 }
+if (!index.includes('<script src="lib/offline-audio.js">')) {
+  throw new Error("index.html does not load lib/offline-audio.js");
+}
 const serviceWorker = read("sw.js");
 if (!serviceWorker.includes('"/lib/client-action-transport.js"')) {
   throw new Error("Service worker does not cache the client action transport");
+}
+if (!serviceWorker.includes('"/lib/offline-audio.js"')) {
+  throw new Error("Service worker does not cache the offline audio bundle");
 }
 const buildScript = read("scripts/build-portable-releases.sh");
 if (!buildScript.includes('cp -R "$ROOT_DIR/lib" "$target/"')) {

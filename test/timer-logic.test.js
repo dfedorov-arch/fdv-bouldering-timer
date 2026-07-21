@@ -3,16 +3,18 @@ const assert = require("node:assert/strict");
 const { scheduledStartTime } = require("../lib/timer-domain");
 
 const syncRateOptions = {
-  normalMin: 0.999,
-  normalMax: 1.001,
+  minSpanMs: 30000,
+  normalMin: 0.9998,
+  normalMax: 1.0002,
   largeMin: 0.90,
   largeMax: 1.10,
-  largeThresholdPpm: 1000,
-  largeMinSpanMs: 30000,
-  largeMinSamples: 12,
-  largeMaxResidualMs: 120,
-  largeMaxHalfDiffPpm: 2000,
-  largeMaxOutlierShare: 0.2,
+  largeThresholdPpm: 200,
+  stableMinSamples: 12,
+  stableMaxResidualMs: 120,
+  stableMaxHalfDiffPpm: 50,
+  stableMaxOutlierShare: 0.2,
+  confirmationWindows: 3,
+  confirmationTolerancePpm: 50,
   deadband: 0.0001,
   smoothing: 0.25
 };
@@ -71,7 +73,7 @@ function fitClockRate(samples) {
   const residualJitter = residuals.length > 1
     ? percentile(residuals, 0.9) - percentile(residuals, 0.1)
     : 0;
-  const outlierLimit = Math.max(syncRateOptions.largeMaxResidualMs * 2, residualJitter * 3, 250);
+  const outlierLimit = Math.max(syncRateOptions.stableMaxResidualMs * 2, residualJitter * 3, 250);
   const outliers = residuals.filter((value) => Math.abs(value) > outlierLimit).length;
   return {
     rate,
@@ -84,19 +86,25 @@ function fitClockRate(samples) {
 
 function evaluateClockRate(samples, currentRate = 1, options = {}) {
   const modelSpan = samples.length > 1 ? samples[samples.length - 1].perfTime - samples[0].perfTime : 0;
-  const model = modelSpan >= 8000 ? fitClockRate(samples) : null;
+  const model = modelSpan >= syncRateOptions.minSpanMs ? fitClockRate(samples) : null;
   const holdExistingRate = Boolean(options.holdExistingRate);
+  let confirmationCandidatePpm = Number.isFinite(options.confirmationCandidatePpm)
+    ? options.confirmationCandidatePpm
+    : null;
+  let confirmationCount = Number(options.confirmationCount) || 0;
   if (!model) {
     return {
       nextRate: currentRate,
-      confidence: "default",
-      gateReason: "collecting"
+      confidence: holdExistingRate ? "resume-held" : "gated",
+      gateReason: "short-window",
+      acceptedRatePpm: Math.round((currentRate - 1) * 1000000),
+      confirmationCandidatePpm: null,
+      confirmationCount: 0
     };
   }
 
   let fittedRate = model.rate;
   const candidateRatePpm = Math.round((fittedRate - 1) * 1000000);
-  const largeRateCandidate = Math.abs(candidateRatePpm) > syncRateOptions.largeThresholdPpm;
   const firstHalf = samples.slice(0, Math.floor(samples.length / 2));
   const secondHalf = samples.slice(Math.ceil(samples.length / 2));
   const firstFit = firstHalf.length >= 4 ? fitClockRate(firstHalf) : null;
@@ -104,47 +112,86 @@ function evaluateClockRate(samples, currentRate = 1, options = {}) {
   const halfDiffPpm = firstFit && secondFit
     ? Math.abs((firstFit.rate - secondFit.rate) * 1000000)
     : Infinity;
-  const stableHalfRates = !largeRateCandidate || halfDiffPpm <= syncRateOptions.largeMaxHalfDiffPpm;
-  const highConfidenceLargeRate = largeRateCandidate
-    && modelSpan >= syncRateOptions.largeMinSpanMs
-    && samples.length >= syncRateOptions.largeMinSamples
-    && model.residualJitter <= syncRateOptions.largeMaxResidualMs
+  const stableHalfRates = Boolean(firstFit && secondFit)
+    && halfDiffPpm <= syncRateOptions.stableMaxHalfDiffPpm;
+  const stableRateWindow = samples.length >= syncRateOptions.stableMinSamples
+    && model.residualJitter <= syncRateOptions.stableMaxResidualMs
     && stableHalfRates
-    && model.outlierShare <= syncRateOptions.largeMaxOutlierShare;
+    && model.outlierShare <= syncRateOptions.stableMaxOutlierShare;
 
   let confidence = "normal";
   let gateReason = "normal";
-  if (largeRateCandidate && !highConfidenceLargeRate) {
-    fittedRate = holdExistingRate ? currentRate : 1;
+  let confirmedRateCandidate = false;
+  if (!stableRateWindow) {
+    confirmationCandidatePpm = null;
+    confirmationCount = 0;
+    fittedRate = currentRate;
     confidence = holdExistingRate ? "resume-held" : "gated";
-    if (modelSpan < syncRateOptions.largeMinSpanMs) gateReason = "short-window";
-    else if (samples.length < syncRateOptions.largeMinSamples) gateReason = "few-samples";
-    else if (model.residualJitter > syncRateOptions.largeMaxResidualMs) gateReason = "unstable-residuals";
+    if (samples.length < syncRateOptions.stableMinSamples) gateReason = "few-samples";
+    else if (model.residualJitter > syncRateOptions.stableMaxResidualMs) gateReason = "unstable-residuals";
     else if (!stableHalfRates) gateReason = "unstable-rate";
-    else if (model.outlierShare > syncRateOptions.largeMaxOutlierShare) gateReason = "outliers";
+    else if (model.outlierShare > syncRateOptions.stableMaxOutlierShare) gateReason = "outliers";
     else gateReason = "gated";
   } else {
-    fittedRate = largeRateCandidate
-      ? fittedRate
-      : clampFloat(fittedRate, syncRateOptions.normalMin, syncRateOptions.normalMax, 1);
-    confidence = highConfidenceLargeRate ? "high" : "normal";
-    gateReason = largeRateCandidate ? "accepted-large" : "normal";
+    if (Number.isFinite(confirmationCandidatePpm)
+      && Math.abs(candidateRatePpm - confirmationCandidatePpm) <= syncRateOptions.confirmationTolerancePpm) {
+      const confirmationWeight = Math.min(confirmationCount, syncRateOptions.confirmationWindows - 1);
+      confirmationCandidatePpm = ((confirmationCandidatePpm * confirmationWeight) + candidateRatePpm)
+        / (confirmationWeight + 1);
+      confirmationCount = Math.min(syncRateOptions.confirmationWindows, confirmationCount + 1);
+    } else {
+      confirmationCandidatePpm = candidateRatePpm;
+      confirmationCount = 1;
+    }
+    confirmedRateCandidate = confirmationCount >= syncRateOptions.confirmationWindows;
+    if (!confirmedRateCandidate) {
+      fittedRate = currentRate;
+      confidence = holdExistingRate ? "resume-held" : "gated";
+      gateReason = "confirming-rate";
+    } else {
+      fittedRate = 1 + (confirmationCandidatePpm / 1000000);
+      const confirmedLargeRateCandidate = Math.abs(confirmationCandidatePpm) > syncRateOptions.largeThresholdPpm;
+      fittedRate = confirmedLargeRateCandidate
+        ? fittedRate
+        : clampFloat(fittedRate, syncRateOptions.normalMin, syncRateOptions.normalMax, 1);
+      confidence = confirmedLargeRateCandidate ? "high" : "normal";
+      gateReason = confirmedLargeRateCandidate ? "accepted-large" : "normal";
+    }
   }
-  if (Math.abs(fittedRate - 1) < syncRateOptions.deadband) fittedRate = 1;
-  const smoothing = samples.length < 8 ? 0.45 : syncRateOptions.smoothing;
-  const nextRate = currentRate + ((fittedRate - currentRate) * smoothing);
+  if (confirmedRateCandidate && Math.abs(fittedRate - 1) < syncRateOptions.deadband) fittedRate = 1;
+  const nextRate = confirmedRateCandidate
+    ? currentRate + ((fittedRate - currentRate) * syncRateOptions.smoothing)
+    : currentRate;
   return {
     nextRate,
     fittedRate,
     confidence,
     gateReason,
-    highConfidence: highConfidenceLargeRate,
+    highConfidence: confirmedRateCandidate && Math.abs(confirmationCandidatePpm) > syncRateOptions.largeThresholdPpm,
     candidateRatePpm,
     acceptedRatePpm: Math.round((nextRate - 1) * 1000000),
     residualJitter: model.residualJitter,
     halfDiffPpm: Number.isFinite(halfDiffPpm) ? Math.round(halfDiffPpm) : null,
-    outlierShare: model.outlierShare
+    outlierShare: model.outlierShare,
+    confirmationCandidatePpm,
+    confirmationCount
   };
+}
+
+function evaluateConfirmedClockRate(samples, currentRate = 1, options = {}) {
+  let result;
+  let confirmationCandidatePpm = options.confirmationCandidatePpm;
+  let confirmationCount = options.confirmationCount;
+  for (let index = 0; index < syncRateOptions.confirmationWindows; index += 1) {
+    result = evaluateClockRate(samples, currentRate, {
+      ...options,
+      confirmationCandidatePpm,
+      confirmationCount
+    });
+    confirmationCandidatePpm = result.confirmationCandidatePpm;
+    confirmationCount = result.confirmationCount;
+  }
+  return result;
 }
 
 function makeSamples(rate, count = 16, stepMs = 2500, options = {}) {
@@ -259,7 +306,7 @@ function consumeAudioTestRateLimit(lastCommandAt, now) {
 }
 
 test("stable large VM clock rate is accepted after enough samples", () => {
-  const result = evaluateClockRate(makeSamples(1.078, 16, 2500));
+  const result = evaluateConfirmedClockRate(makeSamples(1.078, 16, 2500));
 
   assert.equal(result.confidence, "high");
   assert.equal(result.gateReason, "accepted-large");
@@ -296,12 +343,58 @@ test("unstable large clock rate is gated even with enough samples", () => {
 });
 
 test("small clock rate correction is accepted as normal and clamped to normal range", () => {
-  const result = evaluateClockRate(makeSamples(1.0005, 12, 2500));
+  const result = evaluateConfirmedClockRate(makeSamples(1.00015, 16, 2500));
 
   assert.equal(result.confidence, "normal");
   assert.equal(result.gateReason, "normal");
   assert.ok(result.acceptedRatePpm > 0);
-  assert.ok(result.acceptedRatePpm < 1000);
+  assert.ok(result.acceptedRatePpm < 200);
+});
+
+test("stable clock rate is held until three consistent windows confirm it", () => {
+  const samples = makeSamples(1.00015, 16, 2500);
+  const first = evaluateClockRate(samples);
+  const second = evaluateClockRate(samples, first.nextRate, {
+    confirmationCandidatePpm: first.confirmationCandidatePpm,
+    confirmationCount: first.confirmationCount
+  });
+  const third = evaluateClockRate(samples, second.nextRate, {
+    confirmationCandidatePpm: second.confirmationCandidatePpm,
+    confirmationCount: second.confirmationCount
+  });
+
+  assert.equal(first.gateReason, "confirming-rate");
+  assert.equal(first.acceptedRatePpm, 0);
+  assert.equal(second.gateReason, "confirming-rate");
+  assert.equal(second.acceptedRatePpm, 0);
+  assert.equal(third.gateReason, "normal");
+  assert.ok(third.acceptedRatePpm > 0);
+});
+
+test("inconsistent stable window restarts clock-rate confirmation", () => {
+  const first = evaluateClockRate(makeSamples(1.00010, 16, 2500));
+  const changed = evaluateClockRate(makeSamples(1.00018, 16, 2500), first.nextRate, {
+    confirmationCandidatePpm: first.confirmationCandidatePpm,
+    confirmationCount: first.confirmationCount
+  });
+
+  assert.equal(first.confirmationCount, 1);
+  assert.equal(changed.gateReason, "confirming-rate");
+  assert.equal(changed.confirmationCount, 1);
+  assert.equal(changed.confirmationCandidatePpm, 180);
+  assert.equal(changed.acceptedRatePpm, 0);
+});
+
+test("changing network asymmetry cannot replace an already accepted clock rate", () => {
+  const samples = makeSamples(1, 16, 2500, {
+    noise: (index) => index < 8 ? index : 7 - ((index - 7) * 0.25)
+  });
+  const result = evaluateClockRate(samples, 1.00012);
+
+  assert.equal(result.confidence, "gated");
+  assert.equal(result.gateReason, "unstable-rate");
+  assert.ok(result.halfDiffPpm > 200);
+  assert.equal(result.acceptedRatePpm, 120);
 });
 
 test("offline hold keeps the applied clock rate instead of resetting to 1", () => {

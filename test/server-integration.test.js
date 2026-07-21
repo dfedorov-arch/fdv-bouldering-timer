@@ -150,7 +150,7 @@ test("production server validates settings, rejects stale commands, and deduplic
   const audioOffset = await postAction(baseUrl, {
     type: "audioOffset",
     targetClientId: "audio-screen-b",
-    offset: -500
+    offset: -750
   });
   assert.equal(audioOffset.status, 200);
   const [audioStateA, audioStateB] = await Promise.all([
@@ -158,18 +158,18 @@ test("production server validates settings, rejects stale commands, and deduplic
     audioScreenB.next("state")
   ]);
   assert.equal(audioStateA.audioUserOffset, 0);
-  assert.equal(audioStateB.audioUserOffset, -500);
+  assert.equal(audioStateB.audioUserOffset, -750);
 
   const audioPreview = await postAction(baseUrl, {
     type: "audioTest",
     kind: "start",
     targetClientId: "audio-screen-b",
-    previewAudioOffset: 500
+    previewAudioOffset: -750
   });
   assert.equal(audioPreview.status, 200);
   const audioTestEvent = await audioScreenB.next("audio-test");
   assert.equal(audioTestEvent.previewTargetClientId, "audio-screen-b");
-  assert.equal(audioTestEvent.previewAudioOffset, 500);
+  assert.equal(audioTestEvent.previewAudioOffset, -750);
   audioScreenA.close();
   audioScreenB.close();
 

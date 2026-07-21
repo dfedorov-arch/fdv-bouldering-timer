@@ -709,21 +709,26 @@
     .audio-offset-editor input[type="range"] {
       width: 100%;
       min-height: 20px;
+      margin: 0;
       padding: 0;
       accent-color: #ff9f43;
       cursor: ew-resize;
+      touch-action: pan-y;
     }
 
     .audio-offset-scale {
-      display: grid;
-      grid-template-columns: repeat(5, 1fr);
-      margin-top: 2px;
+      position: relative;
+      height: 20px;
+      margin: 2px 8px 0;
       color: var(--muted);
       font-size: 9px;
       font-variant-numeric: tabular-nums;
     }
 
     .audio-offset-scale button {
+      position: absolute;
+      top: 0;
+      width: 42px;
       min-width: 0;
       min-height: 20px;
       padding: 0;
@@ -733,6 +738,7 @@
       background: transparent;
       font: inherit;
       text-align: center;
+      transform: translateX(-50%);
       cursor: pointer;
     }
 
@@ -743,12 +749,55 @@
       outline: none;
     }
 
-    .audio-offset-scale button:first-child {
+    .audio-offset-scale button:nth-child(1) {
+      left: 0;
       text-align: left;
+      transform: none;
     }
 
-    .audio-offset-scale button:last-child {
+    .audio-offset-scale button:nth-child(2) {
+      left: 25%;
+    }
+
+    .audio-offset-scale button:nth-child(3) {
+      left: 50%;
+    }
+
+    .audio-offset-scale button:nth-child(4) {
+      left: 75%;
+    }
+
+    .audio-offset-scale button:nth-child(5) {
+      left: 100%;
       text-align: right;
+      transform: translateX(-100%);
+    }
+
+    .audio-offset-nudge {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 5px;
+      margin-top: 5px;
+    }
+
+    .audio-offset-nudge button {
+      min-height: 26px;
+      padding: 3px 8px;
+      border: 1px solid var(--line);
+      border-radius: 5px;
+      color: var(--text);
+      background: rgba(255, 255, 255, .04);
+      font: inherit;
+      font-size: 10px;
+      font-weight: 800;
+      cursor: pointer;
+    }
+
+    .audio-offset-nudge button:hover,
+    .audio-offset-nudge button:focus-visible {
+      border-color: #ff9f43;
+      background: rgba(255, 159, 67, .12);
+      outline: none;
     }
 
     .audio-test-controls {
@@ -830,25 +879,6 @@
     .phase,
     .meta {
       display: none;
-    }
-
-    .competition {
-      min-width: 0;
-    }
-
-    .competition input {
-      max-width: 520px;
-      height: 52px;
-      font-size: clamp(18px, 2vw, 28px);
-      font-weight: 850;
-      background: transparent;
-      border-color: transparent;
-      padding-left: 0;
-    }
-
-    .competition input:focus {
-      border-color: var(--line);
-      padding-left: 12px;
     }
 
     .status-pill {
@@ -991,6 +1021,14 @@
       margin-top: 18px;
     }
 
+    .schedule.with-cycle {
+      grid-template-columns: minmax(88px, 1fr) auto;
+    }
+
+    .schedule.with-cycle.with-break {
+      grid-template-columns: minmax(88px, 1fr) auto minmax(88px, 1fr);
+    }
+
     .chip {
       min-height: 42px;
       display: flex;
@@ -1005,10 +1043,12 @@
       font-weight: 780;
     }
 
-    .chip-cycle {
+    .chip.cycle-chip {
+      min-width: 82px;
+      padding: 0 12px;
       color: var(--text);
-      padding-left: 8px;
-      border-left: 1px solid rgba(255, 255, 255, .22);
+      background: rgba(23, 27, 34, .72);
+      white-space: nowrap;
     }
 
     .phase,
@@ -1427,9 +1467,6 @@
 
     <section class="stage" aria-label="Экран таймера">
       <header class="topbar">
-        <div class="competition">
-          <input id="eventName" aria-label="Название соревнований" value="Boulder League">
-        </div>
         <div id="status" class="status-pill">Готов</div>
       </header>
 
@@ -1461,7 +1498,7 @@
 
   <script>
     if (window.location.protocol === "file:") {
-      document.write('<script src="offline-audio.js"><\/script>');
+      document.write('<script src="lib/offline-audio.js"><\/script>');
     }
   </script>
   <script src="lib/client-action-transport.js"></script>
@@ -1495,7 +1532,7 @@
       timeline: []
     };
 
-    const pageBuildNumber = 203;
+    const pageBuildNumber = 205;
     const offlineSnapshotKey = "fdvBoulderingTimerOfflineSnapshot";
     const primarySoundPreferenceKey = "fdvBoulderingTimerPrimarySound";
     const offlineSnapshotMaxAgeMs = 12 * 60 * 60 * 1000;
@@ -1522,7 +1559,7 @@
         waitingManual: "Ожидание ручного старта", readyStart: "Готов к старту",
         pressStart: "Нажмите Старт", nextManual: "Далее: ручной старт",
         completed: "Завершено", roundRunning: "Раунд идет", cycle: "Цикл",
-        rotation: "Ротация", break: "Перерыв", nextStart: "Далее: старт",
+        rotation: "Ротация", round: "Раунд", break: "Перерыв", nextStart: "Далее: старт",
         nextRotation: "Далее: ротация", nextBreak: "Далее: перерыв",
         nextComplete: "Далее: завершение", noData: "Нет данных", thisBrowser: "этот",
         online: "онлайн", offline: "нет связи", yes: "да", no: "нет",
@@ -1582,7 +1619,7 @@
         waitingManual: "Waiting for manual start", readyStart: "Ready to start",
         pressStart: "Press Start", nextManual: "Next: manual start",
         completed: "Completed", roundRunning: "Round running", cycle: "Cycle",
-        rotation: "Rotation", break: "Break", nextStart: "Next: start",
+        rotation: "Rotation", round: "Round", break: "Break", nextStart: "Next: start",
         nextRotation: "Next: rotation", nextBreak: "Next: break",
         nextComplete: "Next: finish", noData: "No data", thisBrowser: "this",
         online: "online", offline: "offline", yes: "yes", no: "no",
@@ -1731,6 +1768,8 @@
     let serverPerfAnchor = performance.now();
     let serverTimeAnchor = serverPerfAnchor + serverPerfOffset;
     let serverClockRate = 1;
+    let pendingServerClockRatePpm = null;
+    let pendingServerClockRateCount = 0;
     let lastServerInstanceId = "";
     let lastServerVersion = 0;
     let syncTimer = null;
@@ -1799,17 +1838,18 @@
     const syncRequestTimeoutMs = 2000;
     const syncSampleWindowMs = 60000;
     const syncMaxSamples = 48;
-    const syncRateMinSpanMs = 8000;
-    const syncRateNormalMin = 0.999;
-    const syncRateNormalMax = 1.001;
+    const syncRateMinSpanMs = 30000;
+    const syncRateNormalMin = 0.9998;
+    const syncRateNormalMax = 1.0002;
     const syncRateLargeMin = 0.90;
     const syncRateLargeMax = 1.10;
-    const syncRateLargeThresholdPpm = 1000;
-    const syncRateLargeMinSpanMs = 30000;
-    const syncRateLargeMinSamples = 12;
-    const syncRateLargeMaxResidualMs = 120;
-    const syncRateLargeMaxHalfDiffPpm = 2000;
-    const syncRateLargeMaxOutlierShare = 0.2;
+    const syncRateLargeThresholdPpm = 200;
+    const syncRateStableMinSamples = 12;
+    const syncRateStableMaxResidualMs = 120;
+    const syncRateStableMaxHalfDiffPpm = 50;
+    const syncRateStableMaxOutlierShare = 0.2;
+    const syncRateConfirmationWindows = 3;
+    const syncRateConfirmationTolerancePpm = 50;
     const syncRateDeadband = 0.0001;
     const syncRateSmoothing = 0.25;
     const serverOfflineAfterMs = 4500;
@@ -1832,6 +1872,10 @@
     const seekEndGuardSeconds = 0.9;
     const manualStartWatchdogDelayMs = 250;
     const audioTestCooldownMs = 1000;
+    const audioOffsetMinMs = -750;
+    const audioOffsetMaxMs = 250;
+    const audioOffsetStepMs = 5;
+    const audioOffsetNudgeMs = 10;
     const sseSilentRestartMs = 25000;
     const runtimeCommandTypes = new Set(["start", "pause", "stopCountdown", "reset", "seek"]);
 
@@ -2287,10 +2331,16 @@
       reanchorServerClockModel("offline-held");
     }
 
+    function resetServerClockRateConfirmation() {
+      pendingServerClockRatePpm = null;
+      pendingServerClockRateCount = 0;
+    }
+
     function resetServerClockModel() {
       const localNow = performance.now();
       const dateNow = Date.now();
       syncSamples = [];
+      resetServerClockRateConfirmation();
       serverClockRate = 1;
       serverClockRateHighConfidence = false;
       serverClockRateConfidence = "reset";
@@ -2323,7 +2373,10 @@
           };
         }
       }
-      if (options.resetClockSamples) syncSamples = [];
+      if (options.resetClockSamples) {
+        syncSamples = [];
+        resetServerClockRateConfirmation();
+      }
       const rawServerReceivedAt = remote.serverReceivedAt;
       const rawServerSentAt = remote.serverSentAt;
       const serverReceivedAt = rawServerReceivedAt === null || rawServerReceivedAt === undefined || rawServerReceivedAt === "" ? NaN : Number(rawServerReceivedAt);
@@ -2385,7 +2438,14 @@
         let residualMinMax = jitter;
         let rateHalfDiffPpm = 0;
         let rateOutlierShare = 0;
-        serverClockRateGateReason = "insufficient-window";
+        serverClockRateGateReason = modelSpan < syncRateMinSpanMs ? "short-window" : "few-samples";
+        if (modelSpan < syncRateMinSpanMs || modelSamples.length < 4) {
+          resetServerClockRateConfirmation();
+          serverClockRateHighConfidence = false;
+          serverClockRateConfidence = holdExistingClockRate
+            ? serverClockRateConfidence || "resume-held"
+            : "gated";
+        }
 
         if (modelSamples.length >= 4 && modelSpan >= syncRateMinSpanMs) {
           const fit = fitClockRate(modelSamples);
@@ -2395,67 +2455,83 @@
           residualJitter = fit?.residualJitter ?? jitter;
           residualMinMax = fit?.residualMinMax ?? residualJitter;
           rateOutlierShare = fit?.outlierShare ?? 0;
-          const fittedRatePpm = Math.abs(candidateRatePpm);
-          const largeRateCandidate = fittedRatePpm > syncRateLargeThresholdPpm;
-          let stableHalfRates = true;
-          if (largeRateCandidate) {
-            const middleTime = firstModelSample.perfTime + (modelSpan / 2);
-            const firstHalf = modelSamples.filter((item) => item.perfTime <= middleTime);
-            const secondHalf = modelSamples.filter((item) => item.perfTime > middleTime);
-            const firstHalfFit = firstHalf.length >= 4 ? fitClockRate(firstHalf) : null;
-            const secondHalfFit = secondHalf.length >= 4 ? fitClockRate(secondHalf) : null;
-            if (firstHalfFit && secondHalfFit) {
-              rateHalfDiffPpm = Math.abs(Math.round((firstHalfFit.rate - secondHalfFit.rate) * 1000000));
-              stableHalfRates = rateHalfDiffPpm <= syncRateLargeMaxHalfDiffPpm;
-            } else {
-              stableHalfRates = false;
-              rateHalfDiffPpm = NaN;
-            }
-          }
-          const highConfidenceLargeRate = largeRateCandidate
-            && modelSpan >= syncRateLargeMinSpanMs
-            && modelSamples.length >= syncRateLargeMinSamples
-            && residualJitter <= syncRateLargeMaxResidualMs
+          const middleTime = firstModelSample.perfTime + (modelSpan / 2);
+          const firstHalf = modelSamples.filter((item) => item.perfTime <= middleTime);
+          const secondHalf = modelSamples.filter((item) => item.perfTime > middleTime);
+          const firstHalfFit = firstHalf.length >= 4 ? fitClockRate(firstHalf) : null;
+          const secondHalfFit = secondHalf.length >= 4 ? fitClockRate(secondHalf) : null;
+          const stableHalfRates = Boolean(firstHalfFit && secondHalfFit)
+            && Math.abs((firstHalfFit.rate - secondHalfFit.rate) * 1000000) <= syncRateStableMaxHalfDiffPpm;
+          rateHalfDiffPpm = firstHalfFit && secondHalfFit
+            ? Math.abs(Math.round((firstHalfFit.rate - secondHalfFit.rate) * 1000000))
+            : NaN;
+          const stableRateWindow = modelSamples.length >= syncRateStableMinSamples
+            && residualJitter <= syncRateStableMaxResidualMs
             && stableHalfRates
-            && rateOutlierShare <= syncRateLargeMaxOutlierShare;
-          if (largeRateCandidate && !highConfidenceLargeRate) {
-            if (modelSpan < syncRateLargeMinSpanMs) serverClockRateGateReason = "short-window";
-            else if (modelSamples.length < syncRateLargeMinSamples) serverClockRateGateReason = "few-samples";
-            else if (residualJitter > syncRateLargeMaxResidualMs) serverClockRateGateReason = "unstable-residuals";
+            && rateOutlierShare <= syncRateStableMaxOutlierShare;
+          let confirmedRateCandidate = false;
+          if (!stableRateWindow) {
+            resetServerClockRateConfirmation();
+            if (modelSamples.length < syncRateStableMinSamples) serverClockRateGateReason = "few-samples";
+            else if (residualJitter > syncRateStableMaxResidualMs) serverClockRateGateReason = "unstable-residuals";
             else if (!stableHalfRates) serverClockRateGateReason = "unstable-rate";
-            else if (rateOutlierShare > syncRateLargeMaxOutlierShare) serverClockRateGateReason = "outliers";
+            else if (rateOutlierShare > syncRateStableMaxOutlierShare) serverClockRateGateReason = "outliers";
             else serverClockRateGateReason = "gated";
-            if (holdExistingClockRate) {
-              fittedRate = serverClockRate;
-              serverClockRateConfidence = serverClockRateConfidence || "resume-held";
-            } else {
-              fittedRate = 1;
-              serverClockRateHighConfidence = false;
-              serverClockRateConfidence = "gated";
-            }
+            fittedRate = serverClockRate;
+            serverClockRateHighConfidence = false;
+            serverClockRateConfidence = holdExistingClockRate
+              ? serverClockRateConfidence || "resume-held"
+              : "gated";
           } else {
-            fittedRate = largeRateCandidate
-              ? fittedRate
-              : clampFloat(fittedRate, syncRateNormalMin, syncRateNormalMax, 1);
-            serverClockRateHighConfidence = highConfidenceLargeRate;
-            serverClockRateConfidence = highConfidenceLargeRate ? "high" : "normal";
-            serverClockRateGateReason = largeRateCandidate ? "accepted-large" : "normal";
+            if (Number.isFinite(pendingServerClockRatePpm)
+              && Math.abs(candidateRatePpm - pendingServerClockRatePpm) <= syncRateConfirmationTolerancePpm) {
+              const confirmationWeight = Math.min(pendingServerClockRateCount, syncRateConfirmationWindows - 1);
+              pendingServerClockRatePpm = ((pendingServerClockRatePpm * confirmationWeight) + candidateRatePpm)
+                / (confirmationWeight + 1);
+              pendingServerClockRateCount = Math.min(syncRateConfirmationWindows, pendingServerClockRateCount + 1);
+            } else {
+              pendingServerClockRatePpm = candidateRatePpm;
+              pendingServerClockRateCount = 1;
+            }
+            confirmedRateCandidate = pendingServerClockRateCount >= syncRateConfirmationWindows;
+            if (!confirmedRateCandidate) {
+              fittedRate = serverClockRate;
+              serverClockRateHighConfidence = false;
+              serverClockRateConfidence = holdExistingClockRate
+                ? serverClockRateConfidence || "resume-held"
+                : "gated";
+              serverClockRateGateReason = "confirming-rate";
+            } else {
+              fittedRate = 1 + (pendingServerClockRatePpm / 1000000);
+              const confirmedLargeRateCandidate = Math.abs(pendingServerClockRatePpm) > syncRateLargeThresholdPpm;
+              fittedRate = confirmedLargeRateCandidate
+                ? fittedRate
+                : clampFloat(fittedRate, syncRateNormalMin, syncRateNormalMax, 1);
+              serverClockRateHighConfidence = confirmedLargeRateCandidate;
+              serverClockRateConfidence = confirmedLargeRateCandidate ? "high" : "normal";
+              serverClockRateGateReason = confirmedLargeRateCandidate ? "accepted-large" : "normal";
+            }
           }
-          if (Math.abs(fittedRate - 1) < syncRateDeadband) fittedRate = 1;
-          const smoothing = syncSamples.length < 8 ? 0.45 : syncRateSmoothing;
-          nextRate = serverClockRate + ((fittedRate - serverClockRate) * smoothing);
+          if (confirmedRateCandidate) {
+            if (Math.abs(fittedRate - 1) < syncRateDeadband) fittedRate = 1;
+            nextRate = serverClockRate + ((fittedRate - serverClockRate) * syncRateSmoothing);
+          } else {
+            nextRate = serverClockRate;
+          }
           acceptedRatePpm = Math.round((nextRate - 1) * 1000000);
-          const modelOffsets = modelSamples
-            .map((item) => item.serverTime - (nextRate * item.perfTime))
-            .sort((a, b) => a - b);
-          const modelOffset = median(modelOffsets);
-          nextServerNow = modelOffset + (nextRate * localNow);
-          const residuals = modelSamples
-            .map((item) => item.serverTime - (modelOffset + (nextRate * item.perfTime)))
-            .sort((a, b) => a - b);
-          jitter = residuals.length > 1
-            ? percentile(residuals, 0.9) - percentile(residuals, 0.1)
-            : 0;
+          if (confirmedRateCandidate) {
+            const modelOffsets = modelSamples
+              .map((item) => item.serverTime - (nextRate * item.perfTime))
+              .sort((a, b) => a - b);
+            const modelOffset = median(modelOffsets);
+            nextServerNow = modelOffset + (nextRate * localNow);
+            const residuals = modelSamples
+              .map((item) => item.serverTime - (modelOffset + (nextRate * item.perfTime)))
+              .sort((a, b) => a - b);
+            jitter = residuals.length > 1
+              ? percentile(residuals, 0.9) - percentile(residuals, 0.1)
+              : 0;
+          }
           qualitySamples = modelSamples.length;
         }
 
@@ -2542,7 +2618,7 @@
       const residualJitter = residuals.length > 1
         ? percentile(residuals, 0.9) - percentile(residuals, 0.1)
         : 0;
-      const outlierLimit = Math.max(syncRateLargeMaxResidualMs * 2, residualJitter * 3, 250);
+      const outlierLimit = Math.max(syncRateStableMaxResidualMs * 2, residualJitter * 3, 250);
       const outliers = residuals.filter((value) => Math.abs(value) > outlierLimit).length;
       return {
         rate,
@@ -3487,15 +3563,24 @@
 
     function drawSchedule(segment) {
       const cycleNumber = segment?.cycle || 1;
-      const html = state.timeline.map((item, index) => {
+      const showCycle = state.activePreset === "classic" || state.activePreset === "festival";
+      const hasBreak = state.timeline.some((item) => item.type === "break");
+      const chips = [];
+      state.timeline.forEach((item) => {
         const classes = ["chip"];
         if (segment && item.type === segment.type) classes.push("current");
         if (item.type === "break") classes.push("resting");
-        const name = item.type === "rotation" ? t("rotation") : t("break");
-        const cycle = item.type === "break" ? `<span class="chip-cycle">${t("cycle")} ${cycleNumber}</span>` : "";
-        return `<div class="${classes.join(" ")}"><span>${name}</span>${cycle}<span>${formatTime(item.duration)}</span></div>`;
-      }).join("");
-      els.schedule.innerHTML = html;
+        const name = item.type === "rotation"
+          ? (state.activePreset === "festival" ? t("round") : t("rotation"))
+          : t("break");
+        chips.push(`<div class="${classes.join(" ")}"><span>${name}</span><span>${formatTime(item.duration)}</span></div>`);
+        if (item.type === "rotation" && showCycle) {
+          chips.push(`<div class="chip cycle-chip"><span>${t("cycle")} ${cycleNumber}</span></div>`);
+        }
+      });
+      els.schedule.classList.toggle("with-cycle", showCycle);
+      els.schedule.classList.toggle("with-break", showCycle && hasBreak);
+      els.schedule.innerHTML = chips.join("");
     }
 
     function escapeHtml(value) {
@@ -3613,6 +3698,11 @@
     function renderBrowserList(clients) {
       if (!els.browserList) return;
       lastKnownClients = clients;
+      const activeAudioSlider = els.browserList.querySelector("[data-audio-offset-slider]");
+      const preserveAudioEditor = editingAudioClientId
+        && activeAudioSlider?.dataset.audioOffsetSlider === editingAudioClientId
+        && clients.some((client) => client.id === editingAudioClientId);
+      if (preserveAudioEditor) return;
       if (!clients.length) {
         els.browserList.innerHTML = `<div class="browser-item">${t("noData")}</div>`;
         return;
@@ -3658,20 +3748,31 @@
           : Number.isFinite(latency) ? latency / 2 : NaN;
         const syncCandidatePpm = Number(client.syncRateCandidatePpm);
         const syncAcceptedPpm = Number(client.syncRateAcceptedPpm);
+        const hasSyncCandidatePpm = client.syncRateCandidatePpm !== null
+          && client.syncRateCandidatePpm !== undefined
+          && client.syncRateCandidatePpm !== "";
+        const hasSyncAcceptedPpm = client.syncRateAcceptedPpm !== null
+          && client.syncRateAcceptedPpm !== undefined
+          && client.syncRateAcceptedPpm !== "";
         const syncGateReason = client.syncRateGateReason || client.syncRateConfidence || "";
         const syncResidual = Number(client.syncRateResidualJitter);
         const syncHalfDiff = Number(client.syncRateHalfDiffPpm);
         const syncOutlierShare = Number(client.syncRateOutlierShare);
+        const syncCandidateState = syncGateReason === "normal" || syncGateReason === "accepted-large"
+          ? (language === "ru" ? "принята" : "accepted")
+          : syncGateReason === "confirming-rate"
+            ? (language === "ru" ? "ожидает подтверждения" : "awaiting confirmation")
+            : (language === "ru" ? "отклонена" : "rejected");
         const syncRateDetails = [
-          Number.isFinite(syncCandidatePpm) && Math.abs(syncCandidatePpm) >= 100
+          hasSyncCandidatePpm && Number.isFinite(syncCandidatePpm)
             ? language === "ru"
-              ? `кандидат хода ${syncCandidatePpm > 0 ? "+" : ""}${syncCandidatePpm} ppm`
-              : `rate candidate ${syncCandidatePpm > 0 ? "+" : ""}${syncCandidatePpm} ppm`
+              ? `сырая оценка хода ${syncCandidatePpm > 0 ? "+" : ""}${syncCandidatePpm} ppm (${syncCandidateState})`
+              : `raw rate estimate ${syncCandidatePpm > 0 ? "+" : ""}${syncCandidatePpm} ppm (${syncCandidateState})`
             : "",
-          Number.isFinite(syncAcceptedPpm) && Math.abs(syncAcceptedPpm) >= 100
+          hasSyncAcceptedPpm && Number.isFinite(syncAcceptedPpm)
             ? language === "ru"
-              ? `принято ${syncAcceptedPpm > 0 ? "+" : ""}${syncAcceptedPpm} ppm`
-              : `accepted ${syncAcceptedPpm > 0 ? "+" : ""}${syncAcceptedPpm} ppm`
+              ? `применено ${syncAcceptedPpm > 0 ? "+" : ""}${syncAcceptedPpm} ppm`
+              : `applied ${syncAcceptedPpm > 0 ? "+" : ""}${syncAcceptedPpm} ppm`
             : "",
           syncGateReason
             ? language === "ru" ? `статус rate ${syncGateReason}` : `rate status ${syncGateReason}`
@@ -3779,13 +3880,17 @@
         const audioEditor = audioEditing ? `
           <div class="audio-offset-editor">
             <div class="audio-offset-value">${t("audioOffsetUser")}: <strong data-audio-offset-value>${pendingAudioOffset > 0 ? "+" : ""}${pendingAudioOffset} ${t("ms")}</strong></div>
-            <input type="range" min="-500" max="500" step="1" value="${pendingAudioOffset}" data-audio-offset-slider="${escapeHtml(client.id)}" aria-label="${escapeHtml(t("audioOffsetUser"))}">
+            <input type="range" min="${audioOffsetMinMs}" max="${audioOffsetMaxMs}" step="${audioOffsetStepMs}" value="${pendingAudioOffset}" data-audio-offset-slider="${escapeHtml(client.id)}" aria-label="${escapeHtml(t("audioOffsetUser"))}">
             <div class="audio-offset-scale">
+              <button type="button" data-audio-offset-mark="-750">-750</button>
               <button type="button" data-audio-offset-mark="-500">-500</button>
               <button type="button" data-audio-offset-mark="-250">-250</button>
               <button type="button" data-audio-offset-mark="0">0</button>
               <button type="button" data-audio-offset-mark="250">+250</button>
-              <button type="button" data-audio-offset-mark="500">+500</button>
+            </div>
+            <div class="audio-offset-nudge">
+              <button type="button" data-audio-offset-nudge="-${audioOffsetNudgeMs}">−${audioOffsetNudgeMs} ${t("ms")}</button>
+              <button type="button" data-audio-offset-nudge="${audioOffsetNudgeMs}">+${audioOffsetNudgeMs} ${t("ms")}</button>
             </div>
             <div class="audio-test-controls">
               ${testEverywhereControl}
@@ -4516,6 +4621,8 @@
         els.rotationMeta.textContent = `${t("start")} ${new Date(state.serverStartedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
         els.nextMeta.textContent = untilStart > 0 ? t("nextManual") : t("pressStart");
         els.progressBar.style.width = "0%";
+        els.schedule.classList.remove("with-cycle");
+        els.schedule.classList.remove("with-break");
         els.schedule.innerHTML = `<div class="chip current"><span>${untilStart > 0 ? t("untilStart") : t("waitingManual")}</span></div>`;
         syncButtons();
         return;
@@ -5259,6 +5366,20 @@
         return;
       }
 
+      const nudge = event.target.closest("[data-audio-offset-nudge]");
+      if (nudge) {
+        const editor = nudge.closest(".audio-offset-editor");
+        const slider = editor?.querySelector("[data-audio-offset-slider]");
+        const value = editor?.querySelector("[data-audio-offset-value]");
+        pendingAudioOffset = Math.max(audioOffsetMinMs, Math.min(
+          audioOffsetMaxMs,
+          pendingAudioOffset + Number(nudge.dataset.audioOffsetNudge)
+        ));
+        if (slider) slider.value = String(pendingAudioOffset);
+        if (value) value.textContent = `${pendingAudioOffset > 0 ? "+" : ""}${pendingAudioOffset} ${t("ms")}`;
+        return;
+      }
+
       const chip = event.target.closest("[data-audio-client]");
       if (!chip) return;
       const targetClientId = chip.dataset.audioClient;
@@ -5266,7 +5387,10 @@
       const currentOffset = Number(client?.audioUserOffset || 0);
       if (editingAudioClientId !== targetClientId) {
         editingAudioClientId = targetClientId;
-        pendingAudioOffset = Math.max(-500, Math.min(500, Math.round(currentOffset)));
+        pendingAudioOffset = Math.max(audioOffsetMinMs, Math.min(
+          audioOffsetMaxMs,
+          Math.round(currentOffset / audioOffsetStepMs) * audioOffsetStepMs
+        ));
         testAudioEverywhere = false;
         renderBrowserList(lastKnownClients);
         return;

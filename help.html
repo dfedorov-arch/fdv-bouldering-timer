@@ -723,7 +723,7 @@
       <div class="toc-files">
         <a href="index.html">Открыть таймер</a>
         <a href="ReadMe.txt">Краткий ReadMe</a>
-        <a href="compare-btimer-and-fdv-bouldering-timer.html">Сравнение btimer и fdv-bouldering-timer</a>
+        <a href="help-assets/compare-btimer-and-fdv-bouldering-timer.html">Сравнение btimer и fdv-bouldering-timer</a>
       </div>
     </aside>
 
@@ -1078,7 +1078,7 @@
           </tbody>
         </table>
         <p>Регистр букв не важен. Если в профиле есть одноимённые WAV и MP3, используется WAV. При отсутствии START, MINUTE или WARNING для соответствующего события включается синтетический сигнал.</p>
-        <p><code>offline-audio.js</code> содержит автономную копию всех звуковых профилей и основных параметров. Файл автоматически пересоздаётся при каждом запуске сервера. Поэтому после замены файлов в <code>beeps</code> достаточно один раз запустить таймер, а затем <code>index.html</code> можно открывать напрямую без сервера с полноценными звуками.</p>
+        <p><code>lib/offline-audio.js</code> содержит автономную копию всех звуковых профилей и основных параметров. Файл автоматически пересоздаётся при каждом запуске сервера. Поэтому после замены файлов в <code>beeps</code> достаточно один раз запустить таймер, а затем <code>index.html</code> можно открывать напрямую без сервера с полноценными звуками.</p>
         <p>Фестивальные файлы необязательны. При включённых объявлениях используется файл профиля; если его нет — системный голос; если подходящий голос недоступен — сигнал MINUTE. Выключение чекбокса отменяет все четыре объявления независимо от содержимого профиля.</p>
         <p class="note"><strong>Нулевой перерыв:</strong> в «Классике» и «Фестивале» END не звучит, потому что сразу начинается следующая ротация и используется START. В «Финале» при завершении всегда звучит END или заменяющий его START.</p>
         <p class="note">Мобильные браузеры запрещают автоматический звук до первого пользовательского действия. Коснитесь страницы и убедитесь, что AUDIO стал зелёным.</p>
@@ -1096,7 +1096,7 @@
         <ul class="file-list">
           <li><code>index.html</code></li>
           <li><code>legacy.html</code></li>
-          <li><code>offline-audio.js</code> для звуков при прямом автономном открытии</li>
+          <li><code>lib/offline-audio.js</code> для звуков при прямом автономном открытии</li>
           <li><code>serve-bouldering-timer.js</code></li>
           <li><code>params.txt</code></li>
           <li>папка <code>beeps</code> со звуковыми профилями</li>
@@ -1521,7 +1521,7 @@ xattr -dr com.apple.quarantine "/полный/путь/к/fdv-bouldering-timer-v
           </tbody>
         </table>
         <p>Names are case-insensitive and WAV takes priority over MP3. Missing Festival files fall back to system speech and then MINUTE. A zero break in Classic or Festival goes directly to START instead of END.</p>
-        <p><code>offline-audio.js</code> contains a standalone copy of every sound profile and the main startup settings. It is regenerated automatically whenever the server starts. After replacing files in <code>beeps</code>, start the timer once; <code>index.html</code> can then be opened directly without the server and retain full sound support.</p>
+        <p><code>lib/offline-audio.js</code> contains a standalone copy of every sound profile and the main startup settings. It is regenerated automatically whenever the server starts. After replacing files in <code>beeps</code>, start the timer once; <code>index.html</code> can then be opened directly without the server and retain full sound support.</p>
         <p class="note">Mobile browsers require one user interaction before automatic sound. Tap the page and confirm that AUDIO is green.</p>
         <a class="back-to-toc" href="#en-contents">↑ Back to contents</a>
       </section>
@@ -1532,7 +1532,7 @@ xattr -dr com.apple.quarantine "/полный/путь/к/fdv-bouldering-timer-v
         <p class="lead">Copy the entire project folder, prepare Node.js, connect the network, and recreate the certificate if required.</p>
         <p class="success">Ready-to-use packages with portable Node.js for Windows, macOS, and Linux are published in <a href="https://github.com/dfedorov-arch/fdv-bouldering-timer/releases">GitHub Releases</a>. Choose the asset matching your operating system and CPU architecture.</p>
         <h3>8.1. Files to copy</h3>
-        <p>Keep <code>index.html</code>, <code>legacy.html</code>, <code>offline-audio.js</code>, <code>serve-bouldering-timer.js</code>, <code>params.txt</code>, <code>beeps</code>, <code>help.html</code>, <code>help-assets</code>, OS launcher scripts, and portable Node.js if used.</p>
+        <p>Keep <code>index.html</code>, <code>legacy.html</code>, <code>lib</code>, <code>serve-bouldering-timer.js</code>, <code>params.txt</code>, <code>beeps</code>, <code>help.html</code>, <code>help-assets</code>, OS launcher scripts, and portable Node.js if used.</p>
         <h3>8.2. Node.js</h3>
         <p>Use a current Node.js LTS from <a href="https://nodejs.org/en/download">nodejs.org</a>. Install it system-wide or download a Standalone Binary. Default portable paths are <code>runtime\win\node.exe</code>, <code>runtime/mac/bin/node</code>, and <code>runtime/linux/bin/node</code>; change them in <code>params.txt</code> when needed.</p>
         <figure><img src="help-assets/server-launcher-linux.png" alt="FDV Bouldering Timer server launcher window"><figcaption>The server app has the same purpose on Windows, macOS, and Linux: timer addresses, server status, opening, copying, restarting, and stopping.</figcaption></figure>
