@@ -563,7 +563,15 @@
 
     .start { background: var(--green); color: #07130d; }
     .pause { background: var(--yellow); color: #1a1402; }
-    .reset { background: transparent; border-color: var(--line); color: var(--muted); }
+    .reset {
+      background: rgba(240, 90, 89, .22);
+      border-color: rgba(240, 90, 89, .5);
+      color: #ffd0cf;
+    }
+    .reset:not(:disabled):hover {
+      background: rgba(240, 90, 89, .3);
+      border-color: rgba(240, 90, 89, .68);
+    }
     .full { background: var(--blue); color: #071225; }
 
     .connections {
@@ -1537,7 +1545,7 @@
       timeline: []
     };
 
-    const pageBuildNumber = 207;
+    const pageBuildNumber = 208;
     const offlineSnapshotKey = "fdvBoulderingTimerOfflineSnapshot";
     const primarySoundPreferenceKey = "fdvBoulderingTimerPrimarySound";
     const offlineSnapshotMaxAgeMs = 12 * 60 * 60 * 1000;
