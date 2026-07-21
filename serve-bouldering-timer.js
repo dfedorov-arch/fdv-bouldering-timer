@@ -15,7 +15,7 @@ const runtimeStatePath = path.join(runtimeStateDir, "timer-state.json");
 const beepsPath = path.join(root, "beeps");
 const fontsPath = path.join(root, "fonts");
 const offlineAudioPath = path.join(root, "lib", "offline-audio.js");
-const BUILD_NUMBER = 205;
+const BUILD_NUMBER = 206;
 const serverInstanceId = crypto.randomUUID();
 const SNAPSHOT_SCHEMA_VERSION = 1;
 const SNAPSHOT_MAX_AGE_MS = 12 * 60 * 60 * 1000;
@@ -297,6 +297,7 @@ const timerState = {
   elapsedBeforePause: 0,
   startedAt: 0,
   activePreset: "classic",
+  runtimePreset: "classic",
   activeSettings: {
     rotationSeconds: config.classicRotationMinutes * 60,
     breakSeconds: config.classicBreakSeconds,
@@ -564,6 +565,7 @@ function assignTimerState(source = {}) {
     "elapsedBeforePause",
     "startedAt",
     "activePreset",
+    "runtimePreset",
     "activeSettings",
     "draftSettings",
     "primaryClientId",
@@ -602,6 +604,9 @@ function restoreTimerSnapshot() {
       breakSeconds: config.classicBreakSeconds,
       oneShot: false
     });
+    timerState.runtimePreset = Object.prototype.hasOwnProperty.call(snapshot.timerState, "runtimePreset")
+      ? snapshot.timerState.runtimePreset || ""
+      : timerState.activeSettings.oneShot ? "final" : timerState.activePreset || "classic";
     timerState.draftSettings = normalizeDraftSettings(timerState.draftSettings, timerState.activePreset);
     clientAudioOffsets.clear();
     if (Array.isArray(snapshot.audioOffsets)) {

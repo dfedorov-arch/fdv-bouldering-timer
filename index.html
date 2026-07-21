@@ -1522,6 +1522,7 @@
       manualStartLeadMs: 0,
       manualStartDisplayHold: false,
       activePreset: "classic",
+      runtimePreset: "classic",
       activeSettings: null,
       soundProfile: "",
       festivalAnnouncements: true,
@@ -1532,7 +1533,7 @@
       timeline: []
     };
 
-    const pageBuildNumber = 205;
+    const pageBuildNumber = 206;
     const offlineSnapshotKey = "fdvBoulderingTimerOfflineSnapshot";
     const primarySoundPreferenceKey = "fdvBoulderingTimerPrimarySound";
     const offlineSnapshotMaxAgeMs = 12 * 60 * 60 * 1000;
@@ -2020,6 +2021,7 @@
       if (config && typeof config === "object") {
         applyStartupConfig(config);
         state.activePreset = "classic";
+        state.runtimePreset = "classic";
         state.festivalAnnouncements = config.festivalAnnouncements !== false;
         els.festivalAnnouncementsToggle.checked = state.festivalAnnouncements;
         globalSoundEnabled = config.sound !== false;
@@ -2065,6 +2067,7 @@
             serverStartedAt: state.serverStartedAt,
             elapsedBeforePause: state.elapsedBeforePause,
             activePreset: state.activePreset,
+            runtimePreset: state.runtimePreset,
             activeSettings: state.activeSettings,
             soundProfile: state.soundProfile,
             festivalAnnouncements: state.festivalAnnouncements,
@@ -2111,6 +2114,9 @@
           serverStartedAt: Number(snapshot.state.serverStartedAt || 0),
           elapsedBeforePause: Number(snapshot.state.elapsedBeforePause || 0),
           activePreset: snapshot.state.activePreset || "",
+          runtimePreset: Object.prototype.hasOwnProperty.call(snapshot.state, "runtimePreset")
+            ? snapshot.state.runtimePreset || ""
+            : snapshot.state.activeSettings?.oneShot ? "final" : snapshot.state.activePreset || "classic",
           activeSettings: snapshot.state.activeSettings || activeSettingsFromDraft(),
           festivalAnnouncements: snapshot.state.festivalAnnouncements !== false,
           primaryClientId: restoredPrimaryClientId,
@@ -3084,6 +3090,9 @@
       state.elapsedBeforePause = Number(remote.elapsedBeforePause || 0);
       state.activePreset = remote.activePreset || "";
       state.activeSettings = remote.activeSettings || activeSettingsFromDraft();
+      state.runtimePreset = Object.prototype.hasOwnProperty.call(remote, "runtimePreset")
+        ? remote.runtimePreset || ""
+        : state.activeSettings.oneShot ? "final" : state.activePreset || "classic";
       const festivalAnnouncementsChanged = (remote.festivalAnnouncements !== false) !== state.festivalAnnouncements;
       state.festivalAnnouncements = remote.festivalAnnouncements !== false;
       applySoundProfile(String(remote.soundProfile || ""));
@@ -3174,6 +3183,9 @@
       state.elapsedBeforePause = Number(remote.elapsedBeforePause || 0);
       state.activePreset = remote.activePreset || state.activePreset || "";
       state.activeSettings = nextActiveSettings || activeSettingsFromDraft();
+      state.runtimePreset = Object.prototype.hasOwnProperty.call(remote, "runtimePreset")
+        ? remote.runtimePreset || ""
+        : state.activeSettings.oneShot ? "final" : state.activePreset || "classic";
       if (settingsChanged) buildTimeline(state.activeSettings);
       lastRemoteRunning = state.running;
       syncButtons();
@@ -3563,7 +3575,7 @@
 
     function drawSchedule(segment) {
       const cycleNumber = segment?.cycle || 1;
-      const showCycle = state.activePreset === "classic" || state.activePreset === "festival";
+      const showCycle = state.runtimePreset === "classic" || state.runtimePreset === "festival";
       const hasBreak = state.timeline.some((item) => item.type === "break");
       const chips = [];
       state.timeline.forEach((item) => {
@@ -3571,7 +3583,7 @@
         if (segment && item.type === segment.type) classes.push("current");
         if (item.type === "break") classes.push("resting");
         const name = item.type === "rotation"
-          ? (state.activePreset === "festival" ? t("round") : t("rotation"))
+          ? (state.runtimePreset === "festival" ? t("round") : t("rotation"))
           : t("break");
         chips.push(`<div class="${classes.join(" ")}"><span>${name}</span><span>${formatTime(item.duration)}</span></div>`);
         if (item.type === "rotation" && showCycle) {
@@ -4469,7 +4481,7 @@
     }
 
     function scheduleFestivalAnnouncements(segment, remaining) {
-      if (!state.festivalAnnouncements || state.activePreset !== "festival" || segment.type !== "rotation") return;
+      if (!state.festivalAnnouncements || state.runtimePreset !== "festival" || segment.type !== "rotation") return;
       festivalAnnouncements.forEach((announcement) => {
         if (remaining <= announcement.remaining) return;
         const targetServerTime = serverTimeForElapsed(segment.end - announcement.remaining);
@@ -4872,10 +4884,12 @@
     }
 
     function startStandaloneTimer() {
+      const waitingForManualStart = state.waitingForManualStart;
       const isFreshStart = state.elapsedBeforePause === 0 || state.completed || state.waitingForManualStart;
       const elapsed = isFreshStart ? 0 : state.elapsedBeforePause;
       clearSignalTimers();
       if (isFreshStart) {
+        if (!waitingForManualStart) state.runtimePreset = state.activePreset;
         state.activeSettings = activeSettingsFromDraft();
         state.completed = false;
         lastPhaseSignalKey = "1:rotation";
@@ -4915,6 +4929,7 @@
       state.pausedAt = 0;
       state.accumulatedPause = 0;
       state.elapsedBeforePause = 0;
+      state.runtimePreset = state.activePreset;
       state.activeSettings = activeSettingsFromDraft();
       lastSegmentIndex = -1;
       lastPhaseSignalKey = "";
@@ -4943,6 +4958,7 @@
       }
       await pendingSeekAction;
       const sent = await sendServerAction("start", {
+        activePreset: state.activePreset,
         settings: isFreshStart ? activeSettingsFromDraft() : activeSettings(),
         elapsedBeforePause: state.elapsedBeforePause,
         startHours: "",
@@ -4999,6 +5015,7 @@
         const target = new Date(now);
         target.setHours(Number(els.startHours.value || 0), Number(els.startMinutes.value || 0), 0, 0);
         state.activeSettings = activeSettingsFromDraft();
+        state.runtimePreset = state.activePreset;
         if (target.getTime() <= now && state.activeSettings.oneShot) {
           target.setDate(target.getDate() + 1);
         }
@@ -5016,6 +5033,7 @@
         return;
       }
       await sendServerAction("start", {
+        activePreset: state.activePreset,
         settings: activeSettingsFromDraft(),
         startMode: "scheduled",
         startHours: els.startHours.value,
@@ -5079,6 +5097,7 @@
         return;
       }
       const sent = await sendServerAction("reset", {
+        activePreset: state.activePreset,
         settings: activeSettingsFromDraft()
       });
       if (sent === true) {

@@ -22,6 +22,7 @@ function baseState(overrides = {}) {
     elapsedBeforePause: 0,
     startedAt: 0,
     activePreset: "classic",
+    runtimePreset: "classic",
     activeSettings: { rotationSeconds: 240, breakSeconds: 15, oneShot: false },
     draftSettings: {
       rotationMinutes: 4,
@@ -197,10 +198,52 @@ test("settings update the draft and idle zero-position active settings", () => {
   }, { now: 100000, actionNow: 100000, elapsedAtAction: 0 });
 
   assert.equal(result.state.activePreset, "festival");
+  assert.equal(result.state.runtimePreset, "festival");
   assert.deepEqual(result.state.activeSettings, {
     rotationSeconds: 7200,
     breakSeconds: 1800,
     oneShot: true
   });
   assert.equal(result.state.version, 11);
+});
+
+test("changing the draft preset does not change the running timer preset", () => {
+  const state = baseState({
+    running: true,
+    startedAt: 90000,
+    activePreset: "final",
+    runtimePreset: "final",
+    activeSettings: { rotationSeconds: 240, breakSeconds: 0, oneShot: true }
+  });
+  const result = transitions.applyTimerAction(state, {
+    type: "settings",
+    activePreset: "classic",
+    settings: {
+      rotationMinutes: 4,
+      breakSeconds: 15,
+      oneShot: false,
+      startHours: "",
+      startMinutes: ""
+    }
+  }, { now: 100000, actionNow: 100000, elapsedAtAction: 10 });
+
+  assert.equal(result.state.activePreset, "classic");
+  assert.equal(result.state.runtimePreset, "final");
+  assert.deepEqual(result.state.activeSettings, state.activeSettings);
+});
+
+test("resuming a paused timer preserves its runtime preset", () => {
+  const state = baseState({
+    elapsedBeforePause: 12,
+    activePreset: "classic",
+    runtimePreset: "final",
+    activeSettings: { rotationSeconds: 240, breakSeconds: 0, oneShot: true }
+  });
+  const result = transitions.applyTimerAction(state, {
+    type: "start",
+    activePreset: "classic",
+    startMode: "manual"
+  }, { now: 100000, actionNow: 100000, elapsedAtAction: 12 });
+
+  assert.equal(result.state.runtimePreset, "final");
 });

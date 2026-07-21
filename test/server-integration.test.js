@@ -241,6 +241,7 @@ test("production server validates settings, rejects stale commands, and deduplic
 
   const startBody = {
     type: "start",
+    activePreset: "final",
     commandId: "deduplicated-start",
     baseVersion: changed.body.version,
     settings: { rotationSeconds: 60, breakSeconds: 0, oneShot: true },
@@ -261,12 +262,28 @@ test("production server validates settings, rejects stale commands, and deduplic
   assert.equal(duplicate.body.commandDuplicate, true);
   assert.equal(duplicate.body.version, started.body.version);
 
+  const selectClassicWhileFinalRuns = await postAction(baseUrl, {
+    type: "settings",
+    activePreset: "classic",
+    settings: { rotationMinutes: 5, breakSeconds: 15, oneShot: false }
+  });
+  assert.equal(selectClassicWhileFinalRuns.status, 200);
+  assert.equal(selectClassicWhileFinalRuns.body.activePreset, "classic");
+  assert.equal(selectClassicWhileFinalRuns.body.runtimePreset, "final");
+  assert.deepEqual(selectClassicWhileFinalRuns.body.activeSettings, {
+    rotationSeconds: 60,
+    breakSeconds: 0,
+    oneShot: true
+  });
+
   await stopServer(child);
   child = spawnServer();
   const restored = await waitForServer(baseUrl, child, output);
   assert.equal(restored.running, true);
   assert.equal(restored.manualStartLeadMs, 600);
   assert.equal(restored.manualStartDisplayHold, true);
+  assert.equal(restored.activePreset, "classic");
+  assert.equal(restored.runtimePreset, "final");
   assert.ok(restored.version > started.body.version);
   assert.notEqual(restored.serverInstanceId, started.body.serverInstanceId);
 
