@@ -156,7 +156,7 @@ copy_common_files() {
   mkdir -p "$target"
   cp "$ROOT_DIR/LICENSE" "$ROOT_DIR/help.html" \
     "$ROOT_DIR/index.html" "$ROOT_DIR/legacy.html" "$ROOT_DIR/manifest.webmanifest" \
-    "$ROOT_DIR/app-icon.svg" "$ROOT_DIR/params.txt" "$ROOT_DIR/sw.js" \
+    "$ROOT_DIR/app-icon.svg" "$ROOT_DIR/favicon.ico" "$ROOT_DIR/params.txt" "$ROOT_DIR/sw.js" \
     "$ROOT_DIR/serve-bouldering-timer.js" "$target/"
   cp "$STANDALONE_HTML" "$target/fdv-bouldering-timer-standalone.html"
   cp -R "$ROOT_DIR/beeps" "$ROOT_DIR/fonts" "$ROOT_DIR/help-assets" "$target/"
