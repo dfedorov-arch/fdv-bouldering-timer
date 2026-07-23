@@ -1618,7 +1618,7 @@
       timeline: []
     };
 
-    const pageBuildNumber = 235;
+    const pageBuildNumber = 236;
     const offlineSnapshotKey = "fdvBoulderingTimerOfflineSnapshot";
     const primarySoundPreferenceKey = "fdvBoulderingTimerPrimarySound";
     const offlineSnapshotMaxAgeMs = 12 * 60 * 60 * 1000;
@@ -2487,7 +2487,7 @@
       }
     }
 
-    async function unlockAudio() {
+    async function unlockAudio(refreshDiagnostics = true) {
       const shouldPrime = !audioUnlocked;
       audioUnlocked = true;
       try {
@@ -2509,7 +2509,9 @@
         }
         loadAudioBuffers()?.catch(() => {});
       } catch (error) {}
-      refreshStandaloneBrowserList();
+      if (refreshDiagnostics) {
+        refreshStandaloneBrowserList();
+      }
     }
 
     async function loadAudioBuffers() {
@@ -6185,7 +6187,7 @@
       document.addEventListener(eventName, (event) => {
         if (event.target.closest(".action")) return;
         if (!event.target.closest(".exit-fullscreen-button")) revealExitFullscreenButton();
-        unlockAudio();
+        unlockAudio(eventName === "click");
         if (pendingViewerFullscreen && isViewerClient && instancesFullscreenEnabled) {
           applyViewerFullscreenPreference(true);
         }

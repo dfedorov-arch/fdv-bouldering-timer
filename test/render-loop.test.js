@@ -44,6 +44,11 @@ test("desktop audio calibration scrolls its editor into view", () => {
   assert.match(index, /renderBrowserList\(lastKnownClients\);\s*revealAudioOffsetEditor\(\);/);
 });
 
+test("audio unlock does not replace a diagnostic button during pointerdown", () => {
+  assert.match(index, /async function unlockAudio\(refreshDiagnostics = true\)/);
+  assert.match(index, /unlockAudio\(eventName === "click"\);/);
+});
+
 test("timer fitting avoids a resize feedback loop and repeated binary-search layouts", () => {
   assert.doesNotMatch(index, /for \(let i = 0; i < 13; i \+= 1\)/);
   assert.match(index, /const scale = Math\.min\(maxWidth \/ timeRect\.width, maxHeight \/ timeRect\.height\);/);
