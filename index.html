@@ -1612,7 +1612,7 @@
       timeline: []
     };
 
-    const pageBuildNumber = 232;
+    const pageBuildNumber = 233;
     const offlineSnapshotKey = "fdvBoulderingTimerOfflineSnapshot";
     const primarySoundPreferenceKey = "fdvBoulderingTimerPrimarySound";
     const offlineSnapshotMaxAgeMs = 12 * 60 * 60 * 1000;
@@ -3787,9 +3787,7 @@
 
     function markResumeDisplayStale() {
       if (!mobileResumeSyncEnabled || standaloneMode || !shouldKeepDisplayFresh()) return;
-      resumeSnapPending = true;
-      resumeSnapStartedAt = performance.now();
-      document.body.classList.add("resume-sync-pending");
+      beginResumeSnapPending();
     }
 
     function holdClockRateForResume() {
@@ -3811,7 +3809,10 @@
     async function resumeClientSync(options = {}) {
       const now = Date.now();
       const resetStaleSignals = Boolean(options.resetStaleSignals);
-      if (!resetStaleSignals && (resumeSyncInProgress || resumeSnapPending)) return;
+      if (!resetStaleSignals && resumeSnapPending) clearResumeSnapPending(false);
+      if (!resetStaleSignals) pageHiddenAt = 0;
+      requestScreenWakeLock();
+      if (!resetStaleSignals && resumeSyncInProgress) return;
       if (!resetStaleSignals && now - lastResumeSyncAt < 1200) return;
       const resumeSnap = resetStaleSignals && beginResumeSnapPending();
       syncRequestGeneration += 1;
@@ -3828,7 +3829,6 @@
       }
       lastResumeSyncAt = now;
       pageHiddenAt = 0;
-      requestScreenWakeLock();
       restartEventStream();
       syncDiagnosticsStream();
       let synchronized = false;
