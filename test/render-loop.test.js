@@ -69,9 +69,13 @@ test("timer time remains derived from the synchronized server clock", () => {
 });
 
 test("a suspended performance clock is repaired without replacing the server clock", () => {
-  assert.match(index, /const rawMismatch = wallDelta - perfDelta;/);
-  assert.match(index, /const missingServerTime = wallDelta - \(perfDelta \* serverClockRate\);/);
-  assert.match(index, /applyServerClockModel\(serverNow\(\) \+ missingServerTime, serverClockRate, true\);/);
+  assert.match(index, /const clockContinuityMismatchMs = 100;/);
+  assert.match(index, /const trustedClockAnchorIntervalMs = 60000;/);
+  assert.match(index, /perfNow - trustedServerClockAnchor\.perfAt/);
+  assert.match(index, /trustedServerClockAnchor\.serverAt \+ trustedWallDelta/);
+  assert.match(index, /applyServerClockModel\(estimatedServerTime, serverClockRate, true\);/);
+  assert.match(index, /\(Number\.isFinite\(savedServerNow\) \? savedServerNow : savedAtWall\)\s*\+ age;/);
+  assert.doesNotMatch(index, /age \* restoredRate/);
   assert.match(index, /syncSamples = \[\];\s*resetServerClockRateConfirmation\(\);/);
   assert.match(index, /if \(resetStaleSignals && !synchronized && state\.running && !state\.countdownOnly\)/);
 });

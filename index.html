@@ -1618,7 +1618,7 @@
       timeline: []
     };
 
-    const pageBuildNumber = 236;
+    const pageBuildNumber = 237;
     const offlineSnapshotKey = "fdvBoulderingTimerOfflineSnapshot";
     const primarySoundPreferenceKey = "fdvBoulderingTimerPrimarySound";
     const offlineSnapshotMaxAgeMs = 12 * 60 * 60 * 1000;
@@ -1916,6 +1916,8 @@
     let resumeSyncInProgress = false;
     let clockContinuityWallAt = Date.now();
     let clockContinuityPerfAt = performance.now();
+    let trustedServerClockAnchor = null;
+    let lastTrustedClockAnchorAt = 0;
     let syncRequestInFlight = false;
     let syncRequestGeneration = 0;
     let syncQuality = { latency: null, offset: null, error: null, jitter: null, samples: 0 };
@@ -1987,7 +1989,8 @@
     const staleResumeAfterMs = 3000;
     const resumeSnapMaxWaitMs = 2600;
     const clockContinuityGapMs = 3000;
-    const clockContinuityMismatchMs = 1000;
+    const clockContinuityMismatchMs = 100;
+    const trustedClockAnchorIntervalMs = 60000;
     const staleSignalGraceMs = 500;
     const signalLateGraceMs = {
       rotationBoundary: 1500,
@@ -2342,7 +2345,7 @@
         const restoredRate = clampFloat(snapshot.serverClockRate, syncRateLargeMin, syncRateLargeMax, 1);
         const savedServerNow = Number(snapshot.serverNow);
         const restoredServerNow = (Number.isFinite(savedServerNow) ? savedServerNow : savedAtWall)
-          + (age * restoredRate);
+          + age;
         const localNow = performance.now();
         serverClockRate = restoredRate;
         serverClockRateConfidence = "offline-reload";
@@ -2544,6 +2547,20 @@
       return serverTimeAnchor + ((localNow - serverPerfAnchor) * serverClockRate);
     }
 
+    function refreshTrustedClockAnchor(force = false) {
+      if (standaloneMode || !serverAvailable) return;
+      const wallNow = Date.now();
+      if (!force && trustedServerClockAnchor
+        && wallNow - lastTrustedClockAnchorAt < trustedClockAnchorIntervalMs) return;
+      trustedServerClockAnchor = {
+        wallAt: wallNow,
+        perfAt: performance.now(),
+        serverAt: serverNow(),
+        serverInstanceId: lastServerInstanceId
+      };
+      lastTrustedClockAnchorAt = wallNow;
+    }
+
     function applyServerClockModel(nextServerNow, nextRate, direct = false) {
       const localNow = performance.now();
       const currentServerNow = serverNow();
@@ -2604,18 +2621,34 @@
       clockContinuityWallAt = wallNow;
       clockContinuityPerfAt = perfNow;
 
-      const rawMismatch = wallDelta - perfDelta;
-      if (wallDelta < clockContinuityGapMs || rawMismatch < clockContinuityMismatchMs) return false;
+      if (wallDelta < clockContinuityGapMs) return false;
 
-      const missingServerTime = wallDelta - (perfDelta * serverClockRate);
-      if (missingServerTime <= 0) return false;
+      const currentServerTime = serverNow();
+      const fallbackCorrection = wallDelta - (perfDelta * serverClockRate);
+      const trustedWallDelta = trustedServerClockAnchor
+        ? wallNow - trustedServerClockAnchor.wallAt
+        : NaN;
+      const trustedPerfDelta = trustedServerClockAnchor
+        ? perfNow - trustedServerClockAnchor.perfAt
+        : NaN;
+      const trustedAnchorUsable = trustedServerClockAnchor
+        && Number.isFinite(trustedWallDelta)
+        && Number.isFinite(trustedPerfDelta)
+        && trustedWallDelta >= 0
+        && trustedWallDelta <= offlineSnapshotMaxAgeMs;
+      const estimatedServerTime = trustedAnchorUsable
+        ? trustedServerClockAnchor.serverAt + trustedWallDelta
+        : currentServerTime + fallbackCorrection;
+      const correction = estimatedServerTime - currentServerTime;
+      if (Math.abs(correction) < clockContinuityMismatchMs) return false;
 
-      applyServerClockModel(serverNow() + missingServerTime, serverClockRate, true);
+      applyServerClockModel(estimatedServerTime, serverClockRate, true);
       syncSamples = [];
       resetServerClockRateConfirmation();
       serverClockRateHighConfidence = false;
-      serverClockRateConfidence = "wake-estimate";
-      serverClockRateGateReason = "wake-estimate";
+      const wakeConfidence = trustedAnchorUsable ? "wake-wall-anchor" : "wake-estimate";
+      serverClockRateConfidence = wakeConfidence;
+      serverClockRateGateReason = wakeConfidence;
       syncQuality = {
         latency: null,
         offset: null,
@@ -2839,6 +2872,7 @@
           rateHalfDiffPpm,
           rateOutlierShare
         };
+        refreshTrustedClockAnchor();
         return;
       }
       if (Number.isFinite(remoteNow) && (syncSamples.length === 0 || options.forceClockCorrection)) {
@@ -2850,6 +2884,7 @@
           rate: serverClockRate,
           rateConfidence: serverClockRateConfidence
         };
+        refreshTrustedClockAnchor();
       }
     }
 
@@ -2862,6 +2897,8 @@
       if (identity.instanceChanged) {
         lastServerInstanceId = identity.instanceId;
         lastServerVersion = 0;
+        trustedServerClockAnchor = null;
+        lastTrustedClockAnchorAt = 0;
         if (identity.serverRestarted) lastRemoteRunning = false;
       }
       return identity;
@@ -6260,6 +6297,7 @@
 
     document.addEventListener("visibilitychange", () => {
       if (document.visibilityState !== "visible") {
+        refreshTrustedClockAnchor(true);
         pageHiddenAt = Date.now();
         clockContinuityWallAt = pageHiddenAt;
         clockContinuityPerfAt = performance.now();
