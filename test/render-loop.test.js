@@ -41,6 +41,13 @@ test("schedule markup is replaced only when its content changes", () => {
   assert.match(index, /lastScheduleMarkup = markup;\s*els\.schedule\.innerHTML = markup;/);
 });
 
+test("mobile controls keep compact multi-column grids", () => {
+  assert.match(index, /\.preset-grid \{\s*display: grid;\s*grid-template-columns: repeat\(3, minmax\(0, 1fr\)\);/);
+  assert.match(index, /\.field-grid \{\s*display: grid;\s*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);/);
+  assert.match(index, /\.actions \{\s*display: grid;\s*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);/);
+  assert.doesNotMatch(index, /@media \(max-width: 560px\) \{\s*\.(?:field-grid|preset-grid|actions)/);
+});
+
 test("progress animation stays on the compositor and is updated at a lower rate", () => {
   assert.match(index, /const progressUpdateIntervalMs = 250;/);
   assert.match(index, /transform: scaleX\(0\);/);
