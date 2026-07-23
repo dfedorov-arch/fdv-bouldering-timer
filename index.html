@@ -1612,7 +1612,7 @@
       timeline: []
     };
 
-    const pageBuildNumber = 231;
+    const pageBuildNumber = 232;
     const offlineSnapshotKey = "fdvBoulderingTimerOfflineSnapshot";
     const primarySoundPreferenceKey = "fdvBoulderingTimerPrimarySound";
     const offlineSnapshotMaxAgeMs = 12 * 60 * 60 * 1000;
@@ -4330,7 +4330,7 @@
       const source = soundSource(kind);
       if (!source || !canPlaySound()) return false;
       try {
-        if (!immediateGestureAudio || immediateGestureAudioSource !== source) {
+        if (!immediateGestureAudio) {
           immediateGestureAudio = new Audio(source);
           immediateGestureAudio.preload = "auto";
           immediateGestureAudioSource = source;
@@ -4341,6 +4341,11 @@
         } else {
           immediateGestureAudio.pause();
           immediateGestureAudio.currentTime = 0;
+          if (immediateGestureAudioSource !== source) {
+            immediateGestureAudio.src = source;
+            immediateGestureAudioSource = source;
+            immediateGestureAudio.load();
+          }
         }
         if (!activeHtmlAudio.includes(immediateGestureAudio)) activeHtmlAudio.push(immediateGestureAudio);
         immediateGestureAudio.play().catch(() => {
@@ -4384,6 +4389,12 @@
     }
 
     function scheduleDiagnosticSound(kind, targetServerTime) {
+      if (standaloneMode && iosAudioWorkaroundEnabled && audioKinds.includes(kind)) {
+        scheduleServerTimeoutAt(targetServerTime, () => beep(kind), {
+          lateGraceMs: lateGraceForSignal(kind)
+        });
+        return;
+      }
       const delaySeconds = Math.max(0, (targetServerTime - serverNow()) / 1000);
       const buffer = soundBuffer(kind);
       if (audioContext && buffer) {
@@ -4428,6 +4439,12 @@
 
     function beep(kind, delaySeconds = 0, scheduled = false, signalKey = "", preserveOnTransition = false, onStarted = null) {
       if (!canPlaySound()) return false;
+      if (standaloneMode && iosAudioWorkaroundEnabled && audioKinds.includes(kind) && delaySeconds === 0) {
+        const played = playImmediateGestureAudio(kind);
+        if (played && signalKey) markSignalPlayed(signalKey);
+        if (played) onStarted?.();
+        return played;
+      }
       if (audioKinds.includes(kind) && playBuffer(kind, delaySeconds, preserveOnTransition, signalKey, onStarted)) {
         return true;
       }
@@ -4646,6 +4663,7 @@
       }
 
       const tryScheduleBuffer = () => {
+        if (standaloneMode && iosAudioWorkaroundEnabled) return false;
         if (scheduledByBuffer || !soundBuffer(kind)) return false;
         const current = getCurrentSegment(elapsedSeconds());
         if (!state.running || !current) return false;

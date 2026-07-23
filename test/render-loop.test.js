@@ -59,3 +59,10 @@ test("standalone iOS reuses gesture-authorized HTML audio for every manual start
   assert.match(index, /standaloneMode && iosAudioWorkaroundEnabled && playImmediateGestureAudio\("start"\)/);
   assert.match(index, /unlockSource\.buffer = audioContext\.createBuffer\(1, 1, 22050\);/);
 });
+
+test("all standalone iOS signals keep the authorized media element and server scheduler", () => {
+  assert.match(index, /immediateGestureAudio\.src = source;\s*immediateGestureAudioSource = source;/);
+  assert.match(index, /standaloneMode && iosAudioWorkaroundEnabled && audioKinds\.includes\(kind\) && delaySeconds === 0/);
+  assert.match(index, /if \(standaloneMode && iosAudioWorkaroundEnabled\) return false;\s*if \(scheduledByBuffer/);
+  assert.match(index, /scheduleServerTimeoutAt\(targetServerTime, \(\) => beep\(kind\)/);
+});
