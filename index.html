@@ -1612,7 +1612,7 @@
       timeline: []
     };
 
-    const pageBuildNumber = 228;
+    const pageBuildNumber = 230;
     const offlineSnapshotKey = "fdvBoulderingTimerOfflineSnapshot";
     const primarySoundPreferenceKey = "fdvBoulderingTimerPrimarySound";
     const offlineSnapshotMaxAgeMs = 12 * 60 * 60 * 1000;
@@ -1904,6 +1904,8 @@
     let resumeSnapStartedAt = 0;
     let resumeSnapTimer = null;
     let resumeSyncInProgress = false;
+    let clockContinuityWallAt = Date.now();
+    let clockContinuityPerfAt = performance.now();
     let syncRequestInFlight = false;
     let syncRequestGeneration = 0;
     let syncQuality = { latency: null, offset: null, error: null, jitter: null, samples: 0 };
@@ -1968,6 +1970,8 @@
     const serverTimerLookaheadSeconds = 1.25;
     const staleResumeAfterMs = 3000;
     const resumeSnapMaxWaitMs = 2600;
+    const clockContinuityGapMs = 3000;
+    const clockContinuityMismatchMs = 1000;
     const staleSignalGraceMs = 500;
     const signalLateGraceMs = {
       rotationBoundary: 1500,
@@ -2467,18 +2471,22 @@
     }
 
     async function unlockAudio() {
-      if (audioUnlocked) return;
+      const shouldPrime = !audioUnlocked;
       audioUnlocked = true;
       try {
         audioContext ||= new (window.AudioContext || window.webkitAudioContext)();
-        if (audioContext.state === "suspended") await audioContext.resume();
-        const gain = audioContext.createGain();
-        const osc = audioContext.createOscillator();
-        gain.gain.setValueAtTime(0.0001, audioContext.currentTime);
-        osc.connect(gain).connect(audioContext.destination);
-        osc.start();
-        osc.stop(audioContext.currentTime + 0.03);
-        await loadAudioBuffers();
+        if (audioContext.state !== "running" && audioContext.state !== "closed") {
+          await audioContext.resume();
+        }
+        if (shouldPrime) {
+          const gain = audioContext.createGain();
+          const osc = audioContext.createOscillator();
+          gain.gain.setValueAtTime(0.0001, audioContext.currentTime);
+          osc.connect(gain).connect(audioContext.destination);
+          osc.start();
+          osc.stop(audioContext.currentTime + 0.03);
+        }
+        loadAudioBuffers()?.catch(() => {});
       } catch (error) {}
       refreshStandaloneBrowserList();
     }
@@ -2563,6 +2571,46 @@
       serverTimeAnchor = dateNow;
       serverPerfOffset = dateNow - localNow;
       syncQuality = { latency: null, offset: null, error: null, jitter: null, samples: 0, rate: 1 };
+    }
+
+    function repairServerClockAfterSuspension() {
+      const wallNow = Date.now();
+      const perfNow = performance.now();
+      const wallDelta = Math.max(0, wallNow - clockContinuityWallAt);
+      const perfDelta = Math.max(0, perfNow - clockContinuityPerfAt);
+      clockContinuityWallAt = wallNow;
+      clockContinuityPerfAt = perfNow;
+
+      const rawMismatch = wallDelta - perfDelta;
+      if (wallDelta < clockContinuityGapMs || rawMismatch < clockContinuityMismatchMs) return false;
+
+      const missingServerTime = wallDelta - (perfDelta * serverClockRate);
+      if (missingServerTime <= 0) return false;
+
+      applyServerClockModel(serverNow() + missingServerTime, serverClockRate, true);
+      syncSamples = [];
+      resetServerClockRateConfirmation();
+      serverClockRateHighConfidence = false;
+      serverClockRateConfidence = "wake-estimate";
+      serverClockRateGateReason = "wake-estimate";
+      syncQuality = {
+        latency: null,
+        offset: null,
+        error: null,
+        jitter: null,
+        samples: 0,
+        rate: serverClockRate,
+        rateConfidence: serverClockRateConfidence,
+        rateGateReason: serverClockRateGateReason,
+        rateAcceptedPpm: Math.round((serverClockRate - 1) * 1000000)
+      };
+
+      clearSignalTimers(false, true);
+      lastSegmentIndex = -1;
+      suppressPhaseSignalsUntil = wallNow + 2500;
+      if (state.running && !state.countdownOnly) rescheduleStandaloneSignals();
+      lastDisplayTimeLabel = "";
+      return true;
     }
 
     function updateServerTiming(remote, timing = {}, options = {}) {
@@ -3775,8 +3823,9 @@
       requestScreenWakeLock();
       restartEventStream();
       syncDiagnosticsStream();
+      let synchronized = false;
       try {
-        await syncFromServer({
+        synchronized = await syncFromServer({
           forceApply: true,
           forceClockCorrection: true,
           resetClockSamples: true,
@@ -3786,7 +3835,18 @@
       } finally {
         if (resetStaleSignals) resumeSyncInProgress = false;
       }
+      if (resetStaleSignals && !synchronized && state.running && !state.countdownOnly) {
+        rescheduleStandaloneSignals();
+      }
       window.setTimeout(() => syncFromServer({ forceApply: true, preserveClockRate: resetStaleSignals }), 600);
+    }
+
+    function checkClockContinuity() {
+      const repaired = repairServerClockAfterSuspension();
+      if (repaired && !standaloneMode && window.location.protocol !== "file:") {
+        resumeClientSync({ resetStaleSignals: true });
+      }
+      return repaired;
     }
 
     function setElementText(element, value) {
@@ -4259,7 +4319,7 @@
     }
 
     function playBuffer(kind, delaySeconds = 0, preserveOnTransition = false, signalKey = "", onStarted = null) {
-      if (!canPlaySound() || !audioContext) return false;
+      if (!canPlaySound() || !audioContext || audioContext.state !== "running") return false;
       const buffer = soundBuffer(kind);
       if (!buffer) return false;
       const source = audioContext.createBufferSource();
@@ -5036,6 +5096,7 @@
     }
 
     function tick() {
+      checkClockContinuity();
       render();
       const interval = renderIntervalMs();
       if (interval === renderCriticalIntervalMs) {
@@ -5047,6 +5108,7 @@
     }
 
     function criticalTick(frameTime) {
+      checkClockContinuity();
       const interval = renderIntervalMs();
       if (interval !== renderCriticalIntervalMs) {
         render();
@@ -5062,6 +5124,7 @@
 
     function renderWatchdog() {
       if (!shouldKeepDisplayFresh()) return;
+      checkClockContinuity();
       if (performance.now() - lastRenderAt < 3000) return;
       lastDisplayTimeLabel = "";
       render();
@@ -6070,20 +6133,26 @@
     document.addEventListener("visibilitychange", () => {
       if (document.visibilityState !== "visible") {
         pageHiddenAt = Date.now();
+        clockContinuityWallAt = pageHiddenAt;
+        clockContinuityPerfAt = performance.now();
         markResumeDisplayStale();
         refreshStandaloneBrowserList();
         return;
       }
       if (window.location.protocol === "file:") {
+        repairServerClockAfterSuspension();
         requestScreenWakeLock();
         refreshStandaloneBrowserList();
         return;
       }
-      resumeClientSync({ resetStaleSignals: shouldResetSignalsOnResume() });
+      const clockRepaired = repairServerClockAfterSuspension();
+      resumeClientSync({ resetStaleSignals: clockRepaired || shouldResetSignalsOnResume() });
     });
 
     window.addEventListener("pagehide", () => {
       pageHiddenAt = Date.now();
+      clockContinuityWallAt = pageHiddenAt;
+      clockContinuityPerfAt = performance.now();
       markResumeDisplayStale();
       saveOfflineSnapshot();
     });
@@ -6103,10 +6172,12 @@
     ["pageshow", "focus", "online"].forEach((eventName) => {
       window.addEventListener(eventName, (event) => {
         if (isLocalStandalonePage()) {
+          repairServerClockAfterSuspension();
           refreshStandaloneBrowserList();
           return;
         }
-        resumeClientSync({ resetStaleSignals: shouldResetSignalsOnResume(event) });
+        const clockRepaired = repairServerClockAfterSuspension();
+        resumeClientSync({ resetStaleSignals: clockRepaired || shouldResetSignalsOnResume(event) });
       });
     });
 

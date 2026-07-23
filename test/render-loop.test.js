@@ -38,3 +38,17 @@ test("timer time remains derived from the synchronized server clock", () => {
   assert.match(index, /return Math\.max\(0, \(serverNow\(\) - state\.serverStartedAt\) \/ 1000\);/);
   assert.match(index, /source\.start\(start\);/);
 });
+
+test("a suspended performance clock is repaired without replacing the server clock", () => {
+  assert.match(index, /const rawMismatch = wallDelta - perfDelta;/);
+  assert.match(index, /const missingServerTime = wallDelta - \(perfDelta \* serverClockRate\);/);
+  assert.match(index, /applyServerClockModel\(serverNow\(\) \+ missingServerTime, serverClockRate, true\);/);
+  assert.match(index, /syncSamples = \[\];\s*resetServerClockRateConfirmation\(\);/);
+  assert.match(index, /if \(resetStaleSignals && !synchronized && state\.running && !state\.countdownOnly\)/);
+});
+
+test("iOS audio falls back when its decoded-buffer context is not running", () => {
+  assert.match(index, /if \(audioContext\.state !== "running" && audioContext\.state !== "closed"\)/);
+  assert.match(index, /if \(!canPlaySound\(\) \|\| !audioContext \|\| audioContext\.state !== "running"\) return false;/);
+  assert.doesNotMatch(index, /if \(audioUnlocked\) return;/);
+});
