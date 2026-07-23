@@ -57,7 +57,8 @@ test("build number uses a guarded two-click GitHub link", () => {
   assert.match(index, /if \(!buildLinkArmed\) \{\s*event\.preventDefault\(\);/);
   assert.doesNotMatch(index, /window\.open\(projectUrl/);
   assert.match(index, /\.build-info\.armed \{[\s\S]*?border-color: var\(--line\);/);
-  assert.match(index, /\.build-info\.armed:active,[\s\S]*?border-color: var\(--cyan\);/);
+  assert.match(index, /\.build-info\.armed:hover,[\s\S]*?border-color: var\(--cyan\);[\s\S]*?font-weight: 850;/);
+  assert.match(index, /if \(event\.target\.closest\("#buildInfo"\)\) return;\s*deactivateBuildProjectLink\(\);/);
 });
 
 test("progress animation stays on the compositor and is updated at a lower rate", () => {

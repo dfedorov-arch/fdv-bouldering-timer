@@ -311,10 +311,11 @@
     .build-info {
       display: inline-flex;
       align-items: center;
-      min-height: 22px;
-      padding: 1px 5px;
+      min-height: 28px;
+      margin-left: 3px;
+      padding: 3px 9px;
       border: 1px solid transparent;
-      border-radius: 6px;
+      border-radius: 7px;
       color: inherit;
       background: transparent;
       font: inherit;
@@ -323,21 +324,19 @@
       cursor: pointer;
     }
 
-    .build-info:hover,
-    .build-info:focus-visible {
-      color: var(--text);
-      outline: none;
-    }
-
     .build-info.armed {
       border-color: var(--line);
       background: rgba(255, 255, 255, .03);
     }
 
+    .build-info.armed:hover,
+    .build-info.armed:focus-visible,
     .build-info.armed:active,
     .build-info.opening {
       border-color: var(--cyan);
       color: var(--text);
+      font-weight: 850;
+      outline: none;
     }
 
     .build-project-hint {
@@ -1654,7 +1653,7 @@
       timeline: []
     };
 
-    const pageBuildNumber = 240;
+    const pageBuildNumber = 241;
     const projectUrl = "https://github.com/dfedorov-arch/fdv-bouldering-timer";
     const buildLinkConfirmDelayMs = 550;
     const offlineSnapshotKey = "fdvBoulderingTimerOfflineSnapshot";
@@ -3105,6 +3104,14 @@
         els.buildInfo.classList.remove("opening");
         renderBuildInfo();
       }, 250);
+    }
+
+    function deactivateBuildProjectLink() {
+      if (!buildLinkArmed) return;
+      buildLinkArmed = false;
+      buildLinkArmedAt = 0;
+      els.buildInfo.classList.remove("opening");
+      renderBuildInfo();
     }
 
     function applyLanguage(nextLanguage) {
@@ -6295,6 +6302,10 @@
 
     els.scheduledStartBtn.addEventListener("click", toggleScheduledCountdown);
     els.buildInfo.addEventListener("click", activateBuildProjectLink);
+    document.addEventListener("click", (event) => {
+      if (event.target.closest("#buildInfo")) return;
+      deactivateBuildProjectLink();
+    });
     [els.startBtn, els.compactStart].forEach((button) => button.addEventListener("click", startTimer));
     [els.pauseBtn, els.compactPause].forEach((button) => button.addEventListener("click", pauseTimer));
     [els.resetBtn, els.compactReset].forEach((button) => button.addEventListener("click", () => hardReset(false)));
