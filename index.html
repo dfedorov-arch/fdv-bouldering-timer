@@ -308,11 +308,15 @@
       opacity: .82;
     }
 
+    .build-separator {
+      margin-left: 10px;
+    }
+
     .build-info {
       display: inline-flex;
       align-items: center;
       min-height: 28px;
-      margin-left: 3px;
+      margin-left: 0;
       padding: 3px 9px;
       border: 1px solid transparent;
       border-radius: 7px;
@@ -1581,7 +1585,7 @@
       </section>
       <div class="control-footer">
         <a id="helpLink" class="help-link" href="help.html?lang=ru" target="_blank" rel="noopener">Руководство</a>
-        <div class="credits">2026 <span id="authorName" title="Говорил, что делать">Фёдоров Денис</span> + <span id="codexCredit" title="Делал">Codex</span><span id="buildSeparator" hidden> | </span><a id="buildInfo" class="build-info" href="https://github.com/dfedorov-arch/fdv-bouldering-timer" target="_blank" rel="noopener" aria-describedby="buildProjectHint" aria-expanded="false" hidden></a></div>
+        <div class="credits">2026 <span id="authorName" title="Говорил, что делать">Фёдоров Денис</span> + <span id="codexCredit" title="Делал">Codex</span><span id="buildSeparator" class="build-separator" hidden> | </span><a id="buildInfo" class="build-info" href="https://github.com/dfedorov-arch/fdv-bouldering-timer" target="_blank" rel="noopener" aria-describedby="buildProjectHint" aria-expanded="false" hidden></a></div>
         <div id="buildProjectHint" class="build-project-hint" role="status" hidden></div>
       </div>
     </aside>
@@ -1656,7 +1660,7 @@
       timeline: []
     };
 
-    const pageBuildNumber = 242;
+    const pageBuildNumber = 243;
     const projectUrl = "https://github.com/dfedorov-arch/fdv-bouldering-timer";
     const buildLinkConfirmDelayMs = 550;
     const offlineSnapshotKey = "fdvBoulderingTimerOfflineSnapshot";
