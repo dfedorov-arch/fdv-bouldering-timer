@@ -4,15 +4,35 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
+const vm = require("node:vm");
 
 const index = fs.readFileSync(path.resolve(__dirname, "..", "index.html"), "utf8");
 
-test("display rendering uses an adaptive timer instead of every animation frame", () => {
+function inlineFunction(name) {
+  const match = index.match(new RegExp(`function ${name}\\([^)]*\\) \\{[\\s\\S]*?\\n    \\}`));
+  assert.ok(match, `${name} must exist in index.html`);
+  return vm.runInNewContext(`(${match[0]})`);
+}
+
+test("display rendering targets synchronized second boundaries without an animation-frame loop", () => {
   assert.doesNotMatch(index, /requestAnimationFrame\(tick\)/);
+  assert.doesNotMatch(index, /requestAnimationFrame\(criticalTick\)/);
   assert.match(index, /const renderIdleIntervalMs = 1000;/);
-  assert.match(index, /const renderRunningIntervalMs = 100;/);
-  assert.match(index, /const renderCriticalIntervalMs = 50;/);
+  assert.match(index, /const renderRunningIntervalMs = 250;/);
+  assert.match(index, /const displayBoundaryGuardMs = 8;/);
+  assert.match(index, /function nextSecondBoundaryServerTime\(currentServerTime, endServerTime\)/);
+  assert.match(index, /const displayedSeconds = Math\.ceil\(remainingMs \/ 1000\);/);
+  assert.match(index, /\(targetServerTime - serverNow\(\)\) \/ clockRate/);
+  assert.match(index, /scheduleDisplayBoundary\(true\);/);
   assert.match(index, /window\.setTimeout\(tick, interval\);/);
+});
+
+test("second-boundary calculation targets the exact next displayed value", () => {
+  const nextBoundary = inlineFunction("nextSecondBoundaryServerTime");
+  assert.equal(nextBoundary(100000, 153742), 100742);
+  assert.equal(nextBoundary(100000, 153000), 101000);
+  assert.equal(nextBoundary(152999.5, 153000), 153000);
+  assert.equal(nextBoundary(153001, 153000), null);
 });
 
 test("schedule markup is replaced only when its content changes", () => {
@@ -57,10 +77,10 @@ test("timer fitting avoids a resize feedback loop and repeated binary-search lay
   assert.match(index, /window\.addEventListener\("orientationchange", scheduleOrientationFits\);/);
 });
 
-test("critical visual updates use animation frames without rendering every display frame", () => {
-  assert.match(index, /requestAnimationFrame\(criticalTick\);/);
-  assert.match(index, /frameTime - lastCriticalRenderAt >= renderCriticalIntervalMs - 1/);
-  assert.match(index, /if \(interval !== renderCriticalIntervalMs\)/);
+test("a delayed boundary callback renders current server time and rearms itself", () => {
+  assert.match(index, /displayBoundaryTimer = window\.setTimeout\(\(\) => \{/);
+  assert.match(index, /checkClockContinuity\(\);\s*render\(\);/);
+  assert.match(index, /function render\(\) \{\s*lastRenderAt = performance\.now\(\);\s*scheduleDisplayBoundary\(\);/);
 });
 
 test("timer time remains derived from the synchronized server clock", () => {

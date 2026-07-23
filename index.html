@@ -1618,7 +1618,7 @@
       timeline: []
     };
 
-    const pageBuildNumber = 237;
+    const pageBuildNumber = 238;
     const offlineSnapshotKey = "fdvBoulderingTimerOfflineSnapshot";
     const primarySoundPreferenceKey = "fdvBoulderingTimerPrimarySound";
     const offlineSnapshotMaxAgeMs = 12 * 60 * 60 * 1000;
@@ -1947,7 +1947,8 @@
     let timerFitQueued = false;
     let lastTimerFitContainerWidth = 0;
     let lastTimerFitContainerHeight = 0;
-    let lastCriticalRenderAt = 0;
+    let displayBoundaryTimer = null;
+    let displayBoundaryTargetServerTime = 0;
     let serverAvailable = true;
     let standaloneMode = false;
     let offlineReloadMode = window.__FDV_SW_OFFLINE_FALLBACK === true;
@@ -2013,9 +2014,8 @@
     const audioOffsetNudgeMs = 10;
     const sseSilentRestartMs = 25000;
     const renderIdleIntervalMs = 1000;
-    const renderRunningIntervalMs = 100;
-    const renderCriticalIntervalMs = 50;
-    const renderCriticalWindowSeconds = 8;
+    const renderRunningIntervalMs = 250;
+    const displayBoundaryGuardMs = 8;
     const progressUpdateIntervalMs = 250;
     const runtimeCommandTypes = new Set(["start", "pause", "stopCountdown", "reset", "seek"]);
 
@@ -2571,6 +2571,7 @@
       serverPerfAnchor = localNow;
       serverTimeAnchor = adjustedServerNow;
       serverPerfOffset = adjustedServerNow - localNow;
+      scheduleDisplayBoundary(true);
     }
 
     function reanchorServerClockModel(confidence = "held") {
@@ -5047,8 +5048,56 @@
         && state.serverStartedAt > serverNow();
     }
 
+    function nextSecondBoundaryServerTime(currentServerTime, endServerTime) {
+      const remainingMs = endServerTime - currentServerTime;
+      if (!Number.isFinite(remainingMs) || remainingMs <= 0) return null;
+      const displayedSeconds = Math.ceil(remainingMs / 1000);
+      return endServerTime - Math.max(0, displayedSeconds - 1) * 1000;
+    }
+
+    function nextDisplayBoundaryServerTime() {
+      if (document.hidden || resumeSnapPending || (!state.running && !state.countdownOnly)) return null;
+      const currentServerTime = serverNow();
+      if (state.countdownOnly || state.serverStartedAt > currentServerTime) {
+        return nextSecondBoundaryServerTime(currentServerTime, state.serverStartedAt);
+      }
+      const segment = getCurrentSegment(elapsedSeconds());
+      if (!segment || !state.serverStartedAt) return null;
+      return nextSecondBoundaryServerTime(
+        currentServerTime,
+        state.serverStartedAt + segment.end * 1000
+      );
+    }
+
+    function clearDisplayBoundaryTimer() {
+      if (displayBoundaryTimer) window.clearTimeout(displayBoundaryTimer);
+      displayBoundaryTimer = null;
+      displayBoundaryTargetServerTime = 0;
+    }
+
+    function scheduleDisplayBoundary(force = false) {
+      const targetServerTime = nextDisplayBoundaryServerTime();
+      if (!Number.isFinite(targetServerTime)) {
+        clearDisplayBoundaryTimer();
+        return;
+      }
+      if (!force && displayBoundaryTimer
+        && Math.abs(targetServerTime - displayBoundaryTargetServerTime) < 0.5) return;
+      clearDisplayBoundaryTimer();
+      displayBoundaryTargetServerTime = targetServerTime;
+      const clockRate = Math.max(0.01, serverClockRate);
+      const delayMs = Math.max(0, (targetServerTime - serverNow()) / clockRate) + displayBoundaryGuardMs;
+      displayBoundaryTimer = window.setTimeout(() => {
+        displayBoundaryTimer = null;
+        displayBoundaryTargetServerTime = 0;
+        checkClockContinuity();
+        render();
+      }, delayMs);
+    }
+
     function render() {
       lastRenderAt = performance.now();
+      scheduleDisplayBoundary();
       if (resumeSnapPending && shouldKeepDisplayFresh()) {
         setElementClass(document.body, "warning-active", false);
         syncAudioTestButtons();
@@ -5233,53 +5282,13 @@
       }
     }
 
-    function renderIntervalMs() {
-      if (document.hidden) return renderIdleIntervalMs;
-      if (!state.running && !state.countdownOnly) return renderIdleIntervalMs;
-
-      const untilScheduledStart = state.serverStartedAt > serverNow()
-        ? (state.serverStartedAt - serverNow()) / 1000
-        : 0;
-      if (state.countdownOnly || untilScheduledStart > 0) {
-        return untilScheduledStart > 0 && untilScheduledStart <= renderCriticalWindowSeconds
-          ? renderCriticalIntervalMs
-          : renderRunningIntervalMs;
-      }
-
-      const elapsed = elapsedSeconds();
-      const segment = getCurrentSegment(elapsed);
-      if (!segment) return renderIdleIntervalMs;
-      const remaining = segment.end - elapsed;
-      const sinceSegmentStart = elapsed - segment.start;
-      const critical = remaining <= renderCriticalWindowSeconds || sinceSegmentStart < 1;
-      return critical ? renderCriticalIntervalMs : renderRunningIntervalMs;
-    }
-
     function tick() {
       checkClockContinuity();
       render();
-      const interval = renderIntervalMs();
-      if (interval === renderCriticalIntervalMs) {
-        lastCriticalRenderAt = performance.now();
-        requestAnimationFrame(criticalTick);
-        return;
-      }
+      const interval = document.hidden || (!state.running && !state.countdownOnly)
+        ? renderIdleIntervalMs
+        : renderRunningIntervalMs;
       window.setTimeout(tick, interval);
-    }
-
-    function criticalTick(frameTime) {
-      checkClockContinuity();
-      const interval = renderIntervalMs();
-      if (interval !== renderCriticalIntervalMs) {
-        render();
-        window.setTimeout(tick, interval);
-        return;
-      }
-      if (frameTime - lastCriticalRenderAt >= renderCriticalIntervalMs - 1) {
-        lastCriticalRenderAt = frameTime;
-        render();
-      }
-      requestAnimationFrame(criticalTick);
     }
 
     function renderWatchdog() {
@@ -5288,6 +5297,7 @@
       if (performance.now() - lastRenderAt < 3000) return;
       lastDisplayTimeLabel = "";
       render();
+      scheduleDisplayBoundary(true);
     }
 
     function isBeforeScheduledStart() {
