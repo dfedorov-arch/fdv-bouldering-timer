@@ -151,6 +151,7 @@ jobs:
             "The Windows package includes fdv-bouldering-timer.exe and keeps start-timer-win.bat as a fallback launcher." \
             "The macOS packages include FDV Bouldering Timer.app, fdv-bouldering-timer, and keep start-timer-mac.command as a fallback launcher." \
             "The Linux packages include fdv-bouldering-timer and keep start-timer-linux.sh as a fallback launcher." \
+            "The release also includes a single-file standalone timer for all operating systems; no Node.js is required to run that HTML file." \
             "" \
             "Choose the archive matching your operating system and CPU architecture." \
             "Linux packages target glibc distributions and do not support Alpine Linux/musl." \

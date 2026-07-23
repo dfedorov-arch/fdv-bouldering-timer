@@ -34,9 +34,14 @@ sound_profile=FSR_2026
 # BarlowCondensed-Bold.ttf, CourierPrime-Bold.ttf, SyneMono-Regular.ttf.
 timer_font_file=Roboto-Variable.ttf
 timer_font=Arial, sans-serif
+
+countdown_text_color=#f4f7fb
+countdown_background_color=#28630f
+
 rotation_text_color=#f4f7fb
 rotation_last_five_text_color=#f4f7fb
-break_text_color=#f4f7fb
 rotation_background_color=#0e1116
 rotation_last_five_background_color=#0e1116
+
+break_text_color=#f4f7fb
 break_background_color=#f05a59

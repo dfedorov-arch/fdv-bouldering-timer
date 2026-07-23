@@ -15,7 +15,7 @@ const runtimeStatePath = path.join(runtimeStateDir, "timer-state.json");
 const beepsPath = path.join(root, "beeps");
 const fontsPath = path.join(root, "fonts");
 const offlineAudioPath = path.join(root, "lib", "offline-audio.js");
-const BUILD_NUMBER = 208;
+const BUILD_NUMBER = 228;
 const serverInstanceId = crypto.randomUUID();
 const SNAPSHOT_SCHEMA_VERSION = 1;
 const SNAPSHOT_MAX_AGE_MS = 12 * 60 * 60 * 1000;
@@ -43,6 +43,8 @@ const defaultConfig = {
   soundProfile: "FSR_2026",
   timerFontFile: "Roboto-Variable.ttf",
   timerFont: "Arial, sans-serif",
+  countdownTextColor: "#f4f7fb",
+  countdownBackgroundColor: "#0e1116",
   rotationTextColor: "#f4f7fb",
   rotationLastFiveTextColor: "#f4f7fb",
   breakTextColor: "#f4f7fb",
@@ -240,6 +242,8 @@ const config = {
   timerFontFile: initialTimerFontFile,
   timerFontUrl: fontFileUrl(initialTimerFontFile),
   timerFont: textParam(params, "timer_font", defaultConfig.timerFont),
+  countdownTextColor: textParam(params, "countdown_text_color", defaultConfig.countdownTextColor),
+  countdownBackgroundColor: textParam(params, "countdown_background_color", defaultConfig.countdownBackgroundColor),
   rotationTextColor: textParam(params, "rotation_text_color", defaultConfig.rotationTextColor),
   rotationLastFiveTextColor: textParam(params, "rotation_last_five_text_color", defaultConfig.rotationLastFiveTextColor),
   breakTextColor: textParam(params, "break_text_color", defaultConfig.breakTextColor),
@@ -277,8 +281,10 @@ const pfxPassphrase = process.env.HTTPS_PFX_PASSPHRASE || "bouldering-timer";
 
 const types = {
   ".html": "text/html; charset=utf-8",
+  ".webmanifest": "application/manifest+json; charset=utf-8",
   ".css": "text/css; charset=utf-8",
   ".js": "text/javascript; charset=utf-8",
+  ".svg": "image/svg+xml; charset=utf-8",
   ".mp3": "audio/mpeg",
   ".wav": "audio/wav",
   ".woff2": "font/woff2",
@@ -314,6 +320,7 @@ const timerState = {
   instancesSound: config.soundInOtherBrowsers,
   instancesFullscreen: false,
   globalSound: config.sound,
+  flashing: config.flashing,
   festivalAnnouncements: config.festivalAnnouncements,
   soundProfile: config.soundProfile,
   language: config.language,
@@ -572,6 +579,7 @@ function assignTimerState(source = {}) {
     "instancesSound",
     "instancesFullscreen",
     "globalSound",
+    "flashing",
     "festivalAnnouncements",
     "soundProfile",
     "language",
@@ -1315,6 +1323,11 @@ function handleRequest(req, res) {
 
       if (type === "sound") {
         timerState.globalSound = Boolean(body.enabled);
+        timerState.version += 1;
+      }
+
+      if (type === "flashing") {
+        timerState.flashing = Boolean(body.enabled);
         timerState.version += 1;
       }
 

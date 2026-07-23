@@ -104,6 +104,8 @@ node "$ROOT_DIR/scripts/verify-release-inputs.js"
 
 rm -rf "$DIST_DIR"
 mkdir -p "$DIST_DIR" "$DOWNLOAD_DIR" "$WORK_DIR/extracted"
+STANDALONE_HTML="$DIST_DIR/fdv-bouldering-timer-${APP_VERSION}-standalone.html"
+node "$ROOT_DIR/scripts/build-standalone-html.js" "$STANDALONE_HTML"
 
 curl -fsSL "$NODE_BASE_URL/SHASUMS256.txt" -o "$WORK_DIR/SHASUMS256.txt"
 
@@ -153,8 +155,10 @@ copy_common_files() {
   local target="$1"
   mkdir -p "$target"
   cp "$ROOT_DIR/LICENSE" "$ROOT_DIR/help.html" \
-    "$ROOT_DIR/index.html" "$ROOT_DIR/legacy.html" "$ROOT_DIR/params.txt" \
+    "$ROOT_DIR/index.html" "$ROOT_DIR/legacy.html" "$ROOT_DIR/manifest.webmanifest" \
+    "$ROOT_DIR/app-icon.svg" "$ROOT_DIR/params.txt" "$ROOT_DIR/sw.js" \
     "$ROOT_DIR/serve-bouldering-timer.js" "$target/"
+  cp "$STANDALONE_HTML" "$target/fdv-bouldering-timer-standalone.html"
   cp -R "$ROOT_DIR/beeps" "$ROOT_DIR/fonts" "$ROOT_DIR/help-assets" "$target/"
   cp -R "$ROOT_DIR/lib" "$target/"
 }
@@ -292,7 +296,7 @@ done
 (
   cd "$DIST_DIR"
   : > SHA256SUMS.txt
-  for file in *.zip *.tar.gz; do
+  for file in *.zip *.tar.gz *.html; do
     [[ -f "$file" ]] || continue
     printf '%s  %s\n' "$(checksum_value "$file")" "$file" >> SHA256SUMS.txt
   done

@@ -4,6 +4,11 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Таймер болдеринга</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <meta name="theme-color" content="#0e1116">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="FDV Bouldering Timer">
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23111722'/%3E%3Ccircle cx='32' cy='36' r='20' fill='%23f4f7fb'/%3E%3Ccircle cx='32' cy='36' r='15' fill='%23111722'/%3E%3Cpath d='M32 36V24M32 36l9-6' stroke='%2349c6e5' stroke-width='5' stroke-linecap='round'/%3E%3Cpath d='M25 9h14v8H25z' fill='%23f4f7fb'/%3E%3Cpath d='M43 15l6 6' stroke='%23ffc857' stroke-width='5' stroke-linecap='round'/%3E%3Ccircle cx='32' cy='36' r='3' fill='%23ffc857'/%3E%3C/svg%3E">
   <script>
     (function () {
@@ -29,8 +34,7 @@
           return;
         }
         if (!window.JSON || !window.XMLHttpRequest || !window.Promise || !window.requestAnimationFrame ||
-            !window.performance || !document.querySelector || !document.addEventListener ||
-            !window.localStorage || !window.sessionStorage) {
+            !window.performance || !document.querySelector || !document.addEventListener) {
           openLegacyViewer();
           return;
         }
@@ -56,6 +60,8 @@
       --blue: #6d9cff;
       --shadow: 0 20px 70px rgba(0, 0, 0, .34);
       --timer-font-family: Arial, sans-serif;
+      --timer-countdown-text: #f4f7fb;
+      --timer-countdown-bg: #0e1116;
       --timer-rotation-text: #f4f7fb;
       --timer-warning-text: #f4f7fb;
       --timer-break-text: #f4f7fb;
@@ -284,6 +290,13 @@
       border-color: var(--cyan);
       color: var(--text);
       outline: none;
+    }
+
+    .install-hint {
+      padding-top: 8px;
+      color: var(--text);
+      font-size: 12px;
+      line-height: 1.35;
     }
 
     .credits {
@@ -564,13 +577,13 @@
     .start { background: var(--green); color: #07130d; }
     .pause { background: var(--yellow); color: #1a1402; }
     .reset {
-      background: rgba(240, 90, 89, .22);
-      border-color: rgba(240, 90, 89, .5);
-      color: #ffd0cf;
+      background: #b84e4f;
+      border-color: var(--red);
+      color: #1a1402;
     }
     .reset:not(:disabled):hover {
-      background: rgba(240, 90, 89, .3);
-      border-color: rgba(240, 90, 89, .68);
+      background: var(--red);
+      border-color: var(--red);
     }
     .full { background: var(--blue); color: #071225; }
 
@@ -877,6 +890,7 @@
       position: relative;
       overflow: hidden;
       background: var(--timer-rotation-bg);
+      touch-action: manipulation;
     }
 
     .topbar {
@@ -959,6 +973,8 @@
       font-family: var(--timer-font-family);
       color: var(--timer-rotation-text);
       text-shadow: 0 22px 55px rgba(0, 0, 0, .38);
+      touch-action: manipulation;
+      pointer-events: auto;
     }
 
     .time-part {
@@ -1087,6 +1103,18 @@
 
     body.warning-active .time {
       color: var(--timer-warning-text);
+    }
+
+    body.countdown-active {
+      background: var(--timer-countdown-bg);
+    }
+
+    body.countdown-active .stage {
+      background: var(--timer-countdown-bg);
+    }
+
+    body.countdown-active .time {
+      color: var(--timer-countdown-text);
     }
 
     body.break-active {
@@ -1246,6 +1274,41 @@
       white-space: nowrap;
     }
 
+    .exit-fullscreen-button {
+      position: fixed;
+      top: max(10px, env(safe-area-inset-top));
+      right: max(10px, env(safe-area-inset-right));
+      z-index: 30;
+      width: 34px;
+      height: 34px;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      border: 1px solid rgba(244, 247, 251, .22);
+      border-radius: 50%;
+      color: rgba(244, 247, 251, .66);
+      background: rgba(14, 17, 22, .28);
+      font-size: 18px;
+      line-height: 1;
+      opacity: 0;
+      transition: opacity .18s ease, background .18s ease, color .18s ease;
+    }
+
+    body.fullscreen .exit-fullscreen-button {
+      display: flex;
+    }
+
+    body.fullscreen.exit-fullscreen-visible .exit-fullscreen-button {
+      opacity: .68;
+    }
+
+    body.fullscreen.exit-fullscreen-visible .exit-fullscreen-button:hover,
+    body.fullscreen.exit-fullscreen-visible .exit-fullscreen-button:focus-visible {
+      color: var(--text);
+      background: rgba(14, 17, 22, .55);
+      outline: none;
+    }
+
     body.viewer-mode .controls,
     body.viewer-mode footer,
     body.viewer-mode .phase,
@@ -1368,7 +1431,9 @@
         <div class="server-connection-actions">
           <button id="enterStandaloneBtn" class="server-connection-action" type="button">Автономный режим</button>
           <button id="returnToServerBtn" class="server-connection-action" type="button" hidden>Вернуться к серверу</button>
+          <button id="installAppBtn" class="server-connection-action" type="button" hidden>На рабочий стол</button>
         </div>
+        <div id="installHint" class="install-hint" hidden></div>
       </div>
 
       <section class="section">
@@ -1478,6 +1543,7 @@
     </aside>
 
     <section class="stage" aria-label="Экран таймера">
+      <button id="exitFullscreenBtn" class="exit-fullscreen-button" type="button" title="Выйти из режима Экран" aria-label="Выйти из режима Экран">×</button>
       <header class="topbar">
         <div id="status" class="status-pill">Готов</div>
       </header>
@@ -1537,6 +1603,7 @@
       runtimePreset: "classic",
       activeSettings: null,
       soundProfile: "",
+      flashing: true,
       festivalAnnouncements: true,
       primaryClientId: null,
       primaryPinSet: false,
@@ -1545,7 +1612,7 @@
       timeline: []
     };
 
-    const pageBuildNumber = 208;
+    const pageBuildNumber = 228;
     const offlineSnapshotKey = "fdvBoulderingTimerOfflineSnapshot";
     const primarySoundPreferenceKey = "fdvBoulderingTimerPrimarySound";
     const offlineSnapshotMaxAgeMs = 12 * 60 * 60 * 1000;
@@ -1568,7 +1635,7 @@
         otherFullscreen: "Полный экран в других браузерах", flashing: "Мигание",
         controls: "Управление", start: "Старт", pause: "Пауза", reset: "Стоп",
         presetLockedHint: "Чтобы выбрать другой формат, сначала остановите таймер кнопкой «Стоп»",
-        screen: "Экран", browsers: "Браузеры", ready: "Готов", readiness: "Готовность",
+        screen: "Экран", exitScreen: "Выйти из режима Экран", browsers: "Браузеры", ready: "Готов", readiness: "Готовность",
         waitingStart: "Ожидание старта", untilStart: "До начала старта",
         waitingManual: "Ожидание ручного старта", readyStart: "Готов к старту",
         pressStart: "Нажмите Старт", nextManual: "Далее: ручной старт",
@@ -1595,6 +1662,11 @@
         copyManually: "Скопируйте ссылку",
         helpManual: "Руководство",
         helpManualTitle: "Открыть руководство в новой вкладке",
+        installApp: "На рабочий стол",
+        installAppTitle: "Добавить таймер на рабочий стол телефона",
+        installIosHint: "iOS: нажмите «Поделиться» и выберите «На экран Домой».",
+        installAndroidHint: "Android: откройте меню браузера ⋮ и выберите «Добавить на главный экран» или «Установить приложение». Для системной установки откройте таймер по HTTP/HTTPS.",
+        installUnsupportedHint: "Если браузер не показал установку, используйте меню браузера и пункт добавления на главный экран.",
         serverOfflineTitle: "Нет связи с сервером",
         serverOfflineText: "Табло продолжает последний полученный отсчёт. Продолжить автономно в этом браузере? Другие браузеры синхронизироваться не будут.",
         enterStandalone: "Автономный режим",
@@ -1629,7 +1701,7 @@
         otherFullscreen: "Fullscreen in other browsers", flashing: "Flashing",
         controls: "Controls", start: "Start", pause: "Pause", reset: "Stop",
         presetLockedHint: "To select another format, first stop the timer with the Stop button",
-        screen: "Screen", browsers: "Browsers", ready: "Ready", readiness: "Ready",
+        screen: "Screen", exitScreen: "Exit screen mode", browsers: "Browsers", ready: "Ready", readiness: "Ready",
         waitingStart: "Waiting for start", untilStart: "Until start",
         waitingManual: "Waiting for manual start", readyStart: "Ready to start",
         pressStart: "Press Start", nextManual: "Next: manual start",
@@ -1655,6 +1727,11 @@
         copyManually: "Copy the link",
         helpManual: "Help",
         helpManualTitle: "Open help in a new tab",
+        installApp: "Add to home screen",
+        installAppTitle: "Add the timer to this phone's home screen",
+        installIosHint: "iOS: tap Share and choose Add to Home Screen.",
+        installAndroidHint: "Android: open the browser menu ⋮ and choose Add to Home screen or Install app. For system installation, open the timer over HTTP/HTTPS.",
+        installUnsupportedHint: "If the browser does not show an install prompt, use the browser menu and choose the home-screen shortcut option.",
         serverOfflineTitle: "Server connection lost",
         serverOfflineText: "The display continues the last received countdown. Continue independently in this browser? Other browsers will not be synchronized.",
         enterStandalone: "Standalone mode",
@@ -1689,6 +1766,8 @@
       serverConnectionWarningText: document.getElementById("serverConnectionWarningText"),
       enterStandaloneBtn: document.getElementById("enterStandaloneBtn"),
       returnToServerBtn: document.getElementById("returnToServerBtn"),
+      installAppBtn: document.getElementById("installAppBtn"),
+      installHint: document.getElementById("installHint"),
       formatTitle: document.getElementById("formatTitle"),
       startTimeTitle: document.getElementById("startTimeTitle"),
       hoursUnit: document.getElementById("hoursUnit"),
@@ -1709,6 +1788,8 @@
       controlsTitle: document.getElementById("controlsTitle"),
       browsersTitle: document.getElementById("browsersTitle"),
       helpLink: document.getElementById("helpLink"),
+      exitFullscreenBtn: document.getElementById("exitFullscreenBtn"),
+      stage: document.querySelector(".stage"),
       buildInfo: document.getElementById("buildInfo"),
       authorName: document.getElementById("authorName"),
       codexCredit: document.getElementById("codexCredit"),
@@ -1829,6 +1910,9 @@
     let syncSamples = [];
     let lastBurstSyncAt = 0;
     let lastDisplayTimeLabel = "";
+    let lastDisplayMinuteDigits = 0;
+    let lastScheduleMarkup = "";
+    let lastProgressWidth = "";
     let lastPhaseSignalKey = "";
     let lastBeforeScheduledStart = null;
     let scheduledPhaseSignalKeys = new Set();
@@ -1841,11 +1925,24 @@
     let audioTestCooldownUntil = 0;
     let audioTestButtonsDisabledReason = null;
     let timerFitQueued = false;
+    let lastTimerFitContainerWidth = 0;
+    let lastTimerFitContainerHeight = 0;
+    let lastCriticalRenderAt = 0;
     let serverAvailable = true;
     let standaloneMode = false;
     let offlineReloadMode = window.__FDV_SW_OFFLINE_FALLBACK === true;
     let pendingServerState = null;
     let returnToServerPromise = null;
+    let deferredInstallPrompt = null;
+    let exitFullscreenHideTimer = null;
+    let lastTimerTapAt = 0;
+    let lastTimerTapX = 0;
+    let lastTimerTapY = 0;
+    let lastTimerScreenToggleAt = 0;
+    let screenModeRequested = false;
+    let nativeScreenModeActive = false;
+    let screenModeScrollY = 0;
+    let suppressGestureClicksUntil = 0;
     let lastStartupConfig = null;
     let lastServerContactAt = performance.now();
     let consecutiveServerFailures = 0;
@@ -1892,6 +1989,10 @@
     const audioOffsetStepMs = 5;
     const audioOffsetNudgeMs = 10;
     const sseSilentRestartMs = 25000;
+    const renderIdleIntervalMs = 1000;
+    const renderRunningIntervalMs = 100;
+    const renderCriticalIntervalMs = 50;
+    const renderCriticalWindowSeconds = 8;
     const runtimeCommandTypes = new Set(["start", "pause", "stopCountdown", "reset", "seek"]);
 
     function scheduleFitTimer() {
@@ -1920,9 +2021,14 @@
       return serverAvailable || standaloneMode;
     }
 
+    function isLocalStandalonePage() {
+      return window.location.protocol === "file:" || window.FDV_SINGLE_FILE_STANDALONE === true;
+    }
+
     function updateConnectionWarning() {
       if (!standaloneMode && serverAvailable) {
         els.serverConnectionWarning.hidden = true;
+        updateInstallButton();
         return;
       }
 
@@ -1933,6 +2039,7 @@
         els.serverConnectionWarningText.textContent = t("serverOfflineText");
         els.enterStandaloneBtn.hidden = false;
         els.returnToServerBtn.hidden = true;
+        updateInstallButton();
         return;
       }
 
@@ -1942,6 +2049,61 @@
       els.serverConnectionWarningText.textContent = t(recovered ? "serverRecoveredText" : "standaloneText");
       els.enterStandaloneBtn.hidden = true;
       els.returnToServerBtn.hidden = !recovered;
+      updateInstallButton();
+    }
+
+    function isIosDevice() {
+      return /iPad|iPhone|iPod/i.test(navigator.userAgent)
+        || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+    }
+
+    function isAndroidDevice() {
+      return /Android/i.test(navigator.userAgent);
+    }
+
+    function isInstalledAppDisplay() {
+      return window.matchMedia?.("(display-mode: standalone)")?.matches
+        || window.navigator.standalone === true;
+    }
+
+    function updateInstallButton() {
+      if (!els.installAppBtn) return;
+      const mobileTarget = isAndroidDevice() || isIosDevice();
+      const canOfferInstall = !isInstalledAppDisplay()
+        && isLocalStandalonePage()
+        && standaloneMode
+        && (mobileTarget || Boolean(deferredInstallPrompt));
+      els.installAppBtn.hidden = !canOfferInstall;
+      if (!canOfferInstall && els.installHint) els.installHint.hidden = true;
+    }
+
+    function showInstallHint(message) {
+      if (!els.installHint) return;
+      els.installHint.textContent = message;
+      els.installHint.hidden = false;
+    }
+
+    async function installAppToHomeScreen() {
+      if (deferredInstallPrompt) {
+        const promptEvent = deferredInstallPrompt;
+        deferredInstallPrompt = null;
+        try {
+          promptEvent.prompt();
+          await promptEvent.userChoice;
+        } catch (error) {}
+        updateInstallButton();
+        return;
+      }
+
+      if (isIosDevice()) {
+        showInstallHint(t("installIosHint"));
+        return;
+      }
+      if (isAndroidDevice()) {
+        showInstallHint(t("installAndroidHint"));
+        return;
+      }
+      showInstallHint(t("installUnsupportedHint"));
     }
 
     function setServerAvailable(available) {
@@ -2053,12 +2215,15 @@
     }
 
     function saveOfflineSnapshot() {
-      if (window.location.protocol === "file:" || !window.localStorage) return;
-      if (offlineReloadMode && !standaloneMode) return;
-      if (!serverAvailable && !standaloneMode) return;
+      const localStandalone = isLocalStandalonePage();
+      if (!localStandalone) {
+        if (offlineReloadMode && !standaloneMode) return;
+        if (!serverAvailable && !standaloneMode) return;
+      }
       try {
         const snapshot = {
           schemaVersion: 1,
+          localStandalone,
           clientId,
           standaloneMode,
           pageBuildNumber,
@@ -2084,27 +2249,35 @@
             runtimePreset: state.runtimePreset,
             activeSettings: state.activeSettings,
             soundProfile: state.soundProfile,
+            flashing: state.flashing,
             festivalAnnouncements: state.festivalAnnouncements,
             primaryClientId: state.primaryClientId,
             primaryPinSet: state.primaryPinSet
           }
         };
-        localStorage.setItem(offlineSnapshotKey, JSON.stringify(snapshot));
+        safeStorageSet("localStorage", offlineSnapshotKey, JSON.stringify(snapshot));
       } catch (error) {}
     }
 
-    function restoreOfflineReloadSnapshot() {
-      if (!offlineReloadMode || window.location.protocol === "file:" || !window.localStorage) return false;
+    function restoreOfflineReloadSnapshot(options = {}) {
+      const localStandalone = options.localStandalone === true;
+      if (!localStandalone && (!offlineReloadMode || window.location.protocol === "file:")) return false;
       try {
-        const snapshot = JSON.parse(localStorage.getItem(offlineSnapshotKey) || "null");
+        const snapshot = JSON.parse(safeStorageGet("localStorage", offlineSnapshotKey) || "null");
         if (!snapshot || snapshot.schemaVersion !== 1 || !snapshot.state) return false;
+        if (localStandalone && snapshot.localStandalone !== true) return false;
         const savedAtWall = Number(snapshot.savedAtWall);
         const age = Date.now() - savedAtWall;
         if (!Number.isFinite(savedAtWall) || age < 0 || age > offlineSnapshotMaxAgeMs) return false;
 
         if (snapshot.config && typeof snapshot.config === "object") applyStartupConfig(snapshot.config);
+        const currentStandaloneConfig = localStandalone ? window.FDV_OFFLINE_BUNDLE?.config : null;
+        if (currentStandaloneConfig && typeof currentStandaloneConfig === "object") {
+          applyStartupConfig(currentStandaloneConfig);
+        }
         if (snapshot.language) applyLanguage(snapshot.language);
-        standaloneMode = Boolean(snapshot.standaloneMode);
+        standaloneMode = localStandalone ? true : Boolean(snapshot.standaloneMode);
+        document.body.classList.toggle("file-mode", localStandalone);
         pendingServerState = null;
         if (standaloneMode) offlineReloadMode = false;
         primarySoundEnabled = snapshot.primarySoundEnabled !== false;
@@ -2132,6 +2305,7 @@
             ? snapshot.state.runtimePreset || ""
             : snapshot.state.activeSettings?.oneShot ? "final" : snapshot.state.activePreset || "classic",
           activeSettings: snapshot.state.activeSettings || activeSettingsFromDraft(),
+          flashing: snapshot.state.flashing !== false,
           festivalAnnouncements: snapshot.state.festivalAnnouncements !== false,
           primaryClientId: restoredPrimaryClientId,
           primaryPinSet: Boolean(snapshot.state.primaryPinSet)
@@ -2169,6 +2343,7 @@
         els.soundToggle.checked = primarySoundEnabled;
         els.instancesSoundToggle.checked = instancesSoundEnabled;
         els.instancesFullscreenToggle.checked = instancesFullscreenEnabled;
+        els.flashToggle.checked = state.flashing;
         els.festivalAnnouncementsToggle.checked = state.festivalAnnouncements;
         setServerAvailable(false);
         revealControlsIfAllowed();
@@ -2226,25 +2401,28 @@
 
       const rect = wrap.getBoundingClientRect();
       if (rect.width < 1 || rect.height < 1) return;
+      lastTimerFitContainerWidth = rect.width;
+      lastTimerFitContainerHeight = rect.height;
 
       const isLargeScreenMode = document.fullscreenElement || document.body.classList.contains("viewer-mode");
       const maxWidth = Math.max(60, rect.width * (isLargeScreenMode ? 0.99 : 0.985));
       const maxHeight = Math.max(60, rect.height * (isLargeScreenMode ? 0.98 : 0.96));
-      let low = 48;
-      let high = Math.min(1800, Math.max(220, rect.width, rect.height * 1.45));
+      const currentSize = Math.max(48, parseFloat(window.getComputedStyle(els.time).fontSize) || 220);
+      const timeRect = els.time.getBoundingClientRect();
+      if (timeRect.width < 1 || timeRect.height < 1) return;
 
-      for (let i = 0; i < 13; i += 1) {
-        const mid = (low + high) / 2;
-        els.time.style.setProperty("--timer-font-size", `${mid}px`);
-        const timeRect = els.time.getBoundingClientRect();
-        if (timeRect.width <= maxWidth && timeRect.height <= maxHeight) {
-          low = mid;
-        } else {
-          high = mid;
-        }
+      const scale = Math.min(maxWidth / timeRect.width, maxHeight / timeRect.height);
+      let targetSize = Math.max(48, Math.min(1800, Math.floor(currentSize * scale)));
+      if (Math.abs(targetSize - currentSize) >= 1) {
+        els.time.style.setProperty("--timer-font-size", `${targetSize}px`);
       }
 
-      els.time.style.setProperty("--timer-font-size", `${Math.floor(low)}px`);
+      const fittedRect = els.time.getBoundingClientRect();
+      if (fittedRect.width > maxWidth || fittedRect.height > maxHeight) {
+        const correction = Math.min(maxWidth / fittedRect.width, maxHeight / fittedRect.height);
+        targetSize = Math.max(48, Math.floor(targetSize * correction) - 1);
+        els.time.style.setProperty("--timer-font-size", `${targetSize}px`);
+      }
     }
 
     function createClientId() {
@@ -2252,8 +2430,25 @@
       return `client-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
     }
 
-    const clientId = sessionStorage.getItem("boulderingTimerClientId") || createClientId();
-    sessionStorage.setItem("boulderingTimerClientId", clientId);
+    function safeStorageGet(storageName, key) {
+      try {
+        return window[storageName]?.getItem(key) || "";
+      } catch (error) {
+        return "";
+      }
+    }
+
+    function safeStorageSet(storageName, key, value) {
+      try {
+        window[storageName]?.setItem(key, value);
+        return true;
+      } catch (error) {
+        return false;
+      }
+    }
+
+    const clientId = safeStorageGet("sessionStorage", "boulderingTimerClientId") || createClientId();
+    safeStorageSet("sessionStorage", "boulderingTimerClientId", clientId);
     const commandSessionId = createClientId();
 
     async function requestScreenWakeLock() {
@@ -2752,6 +2947,7 @@
       els.primaryPinButton.title = state.primaryPinSet ? t("primaryPinSet") : t("primaryPinUnset");
       els.primaryPinInput.setAttribute("aria-label", t("primaryPinTitle"));
       els.primaryPinClear.textContent = t("clear");
+      els.soundLabel.textContent = state.primaryClientId === clientId ? t("primarySound") : t("sound");
       els.instancesSoundLabel.textContent = t("otherSound");
       els.instancesFullscreenLabel.textContent = t("otherFullscreen");
       els.primaryRow.title = t("primaryHint");
@@ -2769,6 +2965,8 @@
       els.resetBtn.textContent = t("reset");
       els.compactReset.textContent = t("reset");
       els.fullBtn.textContent = t("screen");
+      els.exitFullscreenBtn.title = t("exitScreen");
+      els.exitFullscreenBtn.setAttribute("aria-label", t("exitScreen"));
       els.languageToggle.textContent = language === "ru" ? "EN" : "RU";
       els.languageToggle.title = t("switchLanguage");
       els.startBtn.title = language === "ru" ? `${t("start")}: Z / Я` : `${t("start")}: Z`;
@@ -2782,6 +2980,8 @@
       els.helpLink.textContent = t("helpManual");
       els.helpLink.title = t("helpManualTitle");
       els.helpLink.href = `help.html?lang=${language}`;
+      els.installAppBtn.textContent = t("installApp");
+      els.installAppBtn.title = t("installAppTitle");
       renderBuildInfo();
       els.authorName.textContent = t("author");
       els.authorName.title = t("authorHint");
@@ -2820,6 +3020,8 @@
         fontFaceStyle?.remove();
         setSupported("--timer-font-family", "font-family", fallbackFont);
       }
+      setSupported("--timer-countdown-text", "color", config.countdownTextColor);
+      setSupported("--timer-countdown-bg", "background-color", config.countdownBackgroundColor);
       setSupported("--timer-rotation-text", "color", config.rotationTextColor);
       setSupported("--timer-warning-text", "color", config.rotationLastFiveTextColor);
       setSupported("--timer-break-text", "color", config.breakTextColor);
@@ -2830,7 +3032,7 @@
 
     function maybeReloadForNewerServerBuild(nextBuildNumber) {
       if (!Number.isFinite(nextBuildNumber) || nextBuildNumber <= pageBuildNumber) return false;
-      if (window.location.protocol === "file:" || standaloneMode || offlineReloadMode || state.running) return false;
+      if (isLocalStandalonePage() || standaloneMode || offlineReloadMode || state.running) return false;
       const url = new URL(window.location.href);
       url.searchParams.set("build", String(Math.round(nextBuildNumber)));
       url.searchParams.set("reload", String(Date.now()));
@@ -2859,7 +3061,8 @@
       presets.final.rotationMinutes = finiteNumber(config.finalRotationMinutes, presets.final.rotationMinutes);
       if (startupConfigApplied) return;
       startupConfigApplied = true;
-      els.flashToggle.checked = config.flashing !== false;
+      state.flashing = config.flashing !== false;
+      els.flashToggle.checked = state.flashing;
       globalSoundEnabled = config.sound !== false;
       primarySoundEnabled = readPrimarySoundPreference(globalSoundEnabled);
       if (config.primaryBrowser && !state.running && !state.elapsedBeforePause) {
@@ -2970,11 +3173,13 @@
       const parts = timeParts(seconds);
       const label = `${parts.minutes}:${parts.seconds}`;
       if (label === lastDisplayTimeLabel) return;
+      const minuteDigitsChanged = parts.minutes.length !== lastDisplayMinuteDigits;
       lastDisplayTimeLabel = label;
+      lastDisplayMinuteDigits = parts.minutes.length;
       els.timeMinutes.textContent = parts.minutes;
       els.timeSeconds.textContent = parts.seconds;
       els.time.setAttribute("aria-label", label);
-      scheduleFitTimer();
+      if (minuteDigitsChanged) scheduleFitTimer();
     }
 
     function elapsedSeconds() {
@@ -3102,6 +3307,7 @@
       state.runtimePreset = Object.prototype.hasOwnProperty.call(remote, "runtimePreset")
         ? remote.runtimePreset || ""
         : state.activeSettings.oneShot ? "final" : state.activePreset || "classic";
+      state.flashing = remote.flashing !== false;
       const festivalAnnouncementsChanged = (remote.festivalAnnouncements !== false) !== state.festivalAnnouncements;
       state.festivalAnnouncements = remote.festivalAnnouncements !== false;
       applySoundProfile(String(remote.soundProfile || ""));
@@ -3138,6 +3344,7 @@
       els.primaryToggle.checked = isPrimary;
       els.instancesSoundToggle.checked = instancesSoundEnabled;
       els.instancesFullscreenToggle.checked = instancesFullscreenEnabled;
+      els.flashToggle.checked = state.flashing;
       els.festivalAnnouncementsToggle.checked = state.festivalAnnouncements;
       els.soundLabel.textContent = isPrimary ? t("primarySound") : t("sound");
       els.soundToggle.checked = isPrimary ? primarySoundEnabled : globalSoundEnabled;
@@ -3582,6 +3789,37 @@
       window.setTimeout(() => syncFromServer({ forceApply: true, preserveClockRate: resetStaleSignals }), 600);
     }
 
+    function setElementText(element, value) {
+      const nextValue = String(value ?? "");
+      if (element.textContent !== nextValue) element.textContent = nextValue;
+    }
+
+    function setElementClassName(element, value) {
+      if (element.className !== value) element.className = value;
+    }
+
+    function setElementClass(element, className, enabled) {
+      if (element.classList.contains(className) !== enabled) {
+        element.classList.toggle(className, enabled);
+      }
+    }
+
+    function setProgressWidth(percent) {
+      const width = `${Math.max(0, Math.min(100, percent))}%`;
+      if (width === lastProgressWidth) return;
+      lastProgressWidth = width;
+      els.progressBar.style.width = width;
+    }
+
+    function setScheduleMarkup(markup, showCycle = false, showBreak = false) {
+      setElementClass(els.schedule, "with-cycle", showCycle);
+      setElementClass(els.schedule, "with-break", showBreak);
+      if (markup === lastScheduleMarkup) return;
+      lastScheduleMarkup = markup;
+      els.schedule.innerHTML = markup;
+      scheduleFitTimer();
+    }
+
     function drawSchedule(segment) {
       const cycleNumber = segment?.cycle || 1;
       const showCycle = state.runtimePreset === "classic" || state.runtimePreset === "festival";
@@ -3599,9 +3837,7 @@
           chips.push(`<div class="chip cycle-chip"><span>${t("cycle")} ${cycleNumber}</span></div>`);
         }
       });
-      els.schedule.classList.toggle("with-cycle", showCycle);
-      els.schedule.classList.toggle("with-break", showCycle && hasBreak);
-      els.schedule.innerHTML = chips.join("");
+      setScheduleMarkup(chips.join(""), showCycle, showCycle && hasBreak);
     }
 
     function escapeHtml(value) {
@@ -4172,7 +4408,7 @@
     }
 
     function flash() {
-      if (!els.flashToggle.checked) return;
+      if (!state.flashing) return;
       document.body.classList.remove("flash");
       void document.body.offsetWidth;
       document.body.classList.add("flash");
@@ -4614,7 +4850,7 @@
     function render() {
       lastRenderAt = performance.now();
       if (resumeSnapPending && shouldKeepDisplayFresh()) {
-        document.body.classList.remove("warning-active");
+        setElementClass(document.body, "warning-active", false);
         syncAudioTestButtons();
         syncButtonsWhenScheduledStartStateChanges();
         syncButtons();
@@ -4628,23 +4864,22 @@
       const isReady = !state.running && !state.completed && state.elapsedBeforePause === 0;
       syncAudioTestButtons();
       syncButtonsWhenScheduledStartStateChanges();
-      document.body.classList.remove("warning-active");
-      document.body.classList.toggle("scrub-ready", !state.running && !isViewerClient && !isReady);
+      setElementClass(document.body, "warning-active", false);
+      setElementClass(document.body, "countdown-active", state.countdownOnly || (state.running && state.serverStartedAt > serverNow()));
+      setElementClass(document.body, "scrub-ready", !state.running && !isViewerClient && !isReady);
 
       if (state.countdownOnly) {
         const untilStart = Math.max(0, (state.serverStartedAt - serverNow()) / 1000);
-        document.body.classList.remove("break-active");
-        els.phase.textContent = untilStart > 0 ? t("untilStart") : t("waitingManual");
-        els.phase.className = "phase ready";
+        setElementClass(document.body, "break-active", false);
+        setElementText(els.phase, untilStart > 0 ? t("untilStart") : t("waitingManual"));
+        setElementClassName(els.phase, "phase ready");
         setDisplayTime(untilStart);
-        els.status.textContent = untilStart > 0 ? t("waitingStart") : t("readyStart");
-        els.cycleMeta.textContent = t("final");
-        els.rotationMeta.textContent = `${t("start")} ${new Date(state.serverStartedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
-        els.nextMeta.textContent = untilStart > 0 ? t("nextManual") : t("pressStart");
-        els.progressBar.style.width = "0%";
-        els.schedule.classList.remove("with-cycle");
-        els.schedule.classList.remove("with-break");
-        els.schedule.innerHTML = `<div class="chip current"><span>${untilStart > 0 ? t("untilStart") : t("waitingManual")}</span></div>`;
+        setElementText(els.status, untilStart > 0 ? t("waitingStart") : t("readyStart"));
+        setElementText(els.cycleMeta, t("final"));
+        setElementText(els.rotationMeta, `${t("start")} ${new Date(state.serverStartedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`);
+        setElementText(els.nextMeta, untilStart > 0 ? t("nextManual") : t("pressStart"));
+        setProgressWidth(0);
+        setScheduleMarkup(`<div class="chip current"><span>${untilStart > 0 ? t("untilStart") : t("waitingManual")}</span></div>`);
         syncButtons();
         return;
       }
@@ -4652,23 +4887,25 @@
       if (isManualStartHoldPending()) {
         const initialSegment = getCurrentSegment(0);
         if (initialSegment) {
+          setElementClass(document.body, "countdown-active", false);
           const initialDuration = initialSegment.end - initialSegment.start;
-          document.body.classList.toggle("break-active", initialSegment.type === "break");
-          els.phase.textContent = initialSegment.label;
-          els.phase.className = `phase ${initialSegment.type}`;
+          setElementClass(document.body, "break-active", initialSegment.type === "break");
+          setElementText(els.phase, initialSegment.label);
+          setElementClassName(els.phase, `phase ${initialSegment.type}`);
           setDisplayTime(initialDuration);
-          els.status.textContent = t("roundRunning");
-          els.cycleMeta.textContent = `${t("cycle")} ${initialSegment.cycle}`;
-          els.rotationMeta.textContent = initialSegment.type === "break"
+          setElementText(els.status, t("roundRunning"));
+          setElementText(els.cycleMeta, `${t("cycle")} ${initialSegment.cycle}`);
+          setElementText(els.rotationMeta, initialSegment.type === "break"
             ? `${t("break")} ${formatTime(settings.breakSeconds)}`
-            : `${t("rotation")} ${formatTime(settings.rotationSeconds)}`;
-          els.nextMeta.textContent = initialSegment.type === "break"
+            : `${t("rotation")} ${formatTime(settings.rotationSeconds)}`);
+          let nextMeta = initialSegment.type === "break"
             ? settings.oneShot ? t("nextComplete") : t("nextRotation")
             : settings.oneShot ? t("nextComplete") : settings.breakSeconds > 0 ? t("nextBreak") : t("nextRotation");
           if (settings.oneShot && initialSegment.type === "rotation" && settings.breakSeconds > 0) {
-            els.nextMeta.textContent = t("nextBreak");
+            nextMeta = t("nextBreak");
           }
-          els.progressBar.style.width = "0%";
+          setElementText(els.nextMeta, nextMeta);
+          setProgressWidth(0);
           drawSchedule(initialSegment);
           syncButtons();
           return;
@@ -4677,30 +4914,31 @@
 
       if (state.running && state.serverStartedAt > serverNow()) {
         const untilStart = (state.serverStartedAt - serverNow()) / 1000;
-        document.body.classList.remove("break-active");
-        els.phase.textContent = t("waitingStart");
-        els.phase.className = "phase ready";
+        setElementClass(document.body, "break-active", false);
+        setElementText(els.phase, t("waitingStart"));
+        setElementClassName(els.phase, "phase ready");
         setDisplayTime(untilStart);
-        els.status.textContent = t("waitingStart");
-        els.cycleMeta.textContent = `${t("cycle")} 1`;
-        els.rotationMeta.textContent = `${t("start")} ${new Date(state.serverStartedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
-        els.nextMeta.textContent = t("nextStart");
-        els.progressBar.style.width = "0%";
+        setElementText(els.status, t("waitingStart"));
+        setElementText(els.cycleMeta, `${t("cycle")} 1`);
+        setElementText(els.rotationMeta, `${t("start")} ${new Date(state.serverStartedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`);
+        setElementText(els.nextMeta, t("nextStart"));
+        setProgressWidth(0);
         drawSchedule(null);
         syncButtons();
         return;
       }
 
       if (state.waitingForManualStart) {
-        document.body.classList.remove("break-active");
-        els.phase.textContent = t("waitingManual");
-        els.phase.className = "phase ready";
+        setElementClass(document.body, "break-active", false);
+        setElementClass(document.body, "countdown-active", false);
+        setElementText(els.phase, t("waitingManual"));
+        setElementClassName(els.phase, "phase ready");
         setDisplayTime(0);
-        els.status.textContent = t("readyStart");
-        els.cycleMeta.textContent = t("final");
-        els.rotationMeta.textContent = `${t("rotation")} ${formatTime(settings.rotationSeconds)}`;
-        els.nextMeta.textContent = t("nextManual");
-        els.progressBar.style.width = "0%";
+        setElementText(els.status, t("readyStart"));
+        setElementText(els.cycleMeta, t("final"));
+        setElementText(els.rotationMeta, `${t("rotation")} ${formatTime(settings.rotationSeconds)}`);
+        setElementText(els.nextMeta, t("nextManual"));
+        setProgressWidth(0);
         drawSchedule(null);
         syncButtons();
         return;
@@ -4708,30 +4946,32 @@
 
       const oneShotDuration = settings.rotationSeconds + settings.breakSeconds;
       if (state.completed || (settings.oneShot && elapsed >= oneShotDuration)) {
-        document.body.classList.remove("break-active");
-        els.phase.textContent = t("completed");
-        els.phase.className = "phase ready";
+        setElementClass(document.body, "break-active", false);
+        setElementClass(document.body, "countdown-active", false);
+        setElementText(els.phase, t("completed"));
+        setElementClassName(els.phase, "phase ready");
         setDisplayTime(0);
-        els.status.textContent = t("completed");
-        els.cycleMeta.textContent = t("final");
-        els.rotationMeta.textContent = `${t("rotation")} ${formatTime(settings.rotationSeconds)}`;
-        els.nextMeta.textContent = "";
-        els.progressBar.style.width = "100%";
+        setElementText(els.status, t("completed"));
+        setElementText(els.cycleMeta, t("final"));
+        setElementText(els.rotationMeta, `${t("rotation")} ${formatTime(settings.rotationSeconds)}`);
+        setElementText(els.nextMeta, "");
+        setProgressWidth(100);
         drawSchedule(null);
         syncButtons();
         return;
       }
 
       if (isReady || !segment) {
-        document.body.classList.remove("break-active");
-        els.phase.textContent = t("readiness");
-        els.phase.className = "phase ready";
+        setElementClass(document.body, "break-active", false);
+        setElementClass(document.body, "countdown-active", false);
+        setElementText(els.phase, t("readiness"));
+        setElementClassName(els.phase, "phase ready");
         setDisplayTime(settings.rotationSeconds);
-        els.status.textContent = t("ready");
-        els.cycleMeta.textContent = `${t("cycle")} 1`;
-        els.rotationMeta.textContent = `${t("rotation")} ${formatTime(settings.rotationSeconds)}`;
-        els.nextMeta.textContent = t("nextStart");
-        els.progressBar.style.width = "0%";
+        setElementText(els.status, t("ready"));
+        setElementText(els.cycleMeta, `${t("cycle")} 1`);
+        setElementText(els.rotationMeta, `${t("rotation")} ${formatTime(settings.rotationSeconds)}`);
+        setElementText(els.nextMeta, t("nextStart"));
+        setProgressWidth(0);
         drawSchedule(null);
         syncButtons();
         return;
@@ -4742,23 +4982,25 @@
       const donePercent = ((duration - remaining) / duration) * 100;
       const segmentKey = `${segment.cycle}:${segment.type}`;
 
-      document.body.classList.toggle("break-active", segment.type === "break");
-      document.body.classList.toggle("warning-active", segment.type === "rotation" && remaining > 0 && remaining <= 5);
-      els.phase.textContent = segment.label;
-      els.phase.className = `phase ${segment.type}`;
+      setElementClass(document.body, "countdown-active", false);
+      setElementClass(document.body, "break-active", segment.type === "break");
+      setElementClass(document.body, "warning-active", segment.type === "rotation" && remaining > 0 && remaining <= 5);
+      setElementText(els.phase, segment.label);
+      setElementClassName(els.phase, `phase ${segment.type}`);
       setDisplayTime(remaining);
-      els.status.textContent = state.running ? t("roundRunning") : t("pause");
-      els.cycleMeta.textContent = `${t("cycle")} ${segment.cycle}`;
-      els.rotationMeta.textContent = segment.type === "break"
+      setElementText(els.status, state.running ? t("roundRunning") : t("pause"));
+      setElementText(els.cycleMeta, `${t("cycle")} ${segment.cycle}`);
+      setElementText(els.rotationMeta, segment.type === "break"
         ? `${t("break")} ${formatTime(settings.breakSeconds)}`
-        : `${t("rotation")} ${formatTime(settings.rotationSeconds)}`;
-      els.nextMeta.textContent = segment.type === "break"
+        : `${t("rotation")} ${formatTime(settings.rotationSeconds)}`);
+      let nextMeta = segment.type === "break"
         ? settings.oneShot ? t("nextComplete") : t("nextRotation")
         : settings.oneShot ? t("nextComplete") : settings.breakSeconds > 0 ? t("nextBreak") : t("nextRotation");
       if (settings.oneShot && segment.type === "rotation" && settings.breakSeconds > 0) {
-        els.nextMeta.textContent = t("nextBreak");
+        nextMeta = t("nextBreak");
       }
-      els.progressBar.style.width = `${Math.max(0, Math.min(100, donePercent))}%`;
+      setElementText(els.nextMeta, nextMeta);
+      setProgressWidth(donePercent);
       drawSchedule(segment);
 
       if (state.running && segmentKey !== lastSegmentIndex) {
@@ -4771,9 +5013,51 @@
       }
     }
 
+    function renderIntervalMs() {
+      if (document.hidden) return renderIdleIntervalMs;
+      if (!state.running && !state.countdownOnly) return renderIdleIntervalMs;
+
+      const untilScheduledStart = state.serverStartedAt > serverNow()
+        ? (state.serverStartedAt - serverNow()) / 1000
+        : 0;
+      if (state.countdownOnly || untilScheduledStart > 0) {
+        return untilScheduledStart > 0 && untilScheduledStart <= renderCriticalWindowSeconds
+          ? renderCriticalIntervalMs
+          : renderRunningIntervalMs;
+      }
+
+      const elapsed = elapsedSeconds();
+      const segment = getCurrentSegment(elapsed);
+      if (!segment) return renderIdleIntervalMs;
+      const remaining = segment.end - elapsed;
+      const sinceSegmentStart = elapsed - segment.start;
+      const critical = remaining <= renderCriticalWindowSeconds || sinceSegmentStart < 1;
+      return critical ? renderCriticalIntervalMs : renderRunningIntervalMs;
+    }
+
     function tick() {
       render();
-      requestAnimationFrame(tick);
+      const interval = renderIntervalMs();
+      if (interval === renderCriticalIntervalMs) {
+        lastCriticalRenderAt = performance.now();
+        requestAnimationFrame(criticalTick);
+        return;
+      }
+      window.setTimeout(tick, interval);
+    }
+
+    function criticalTick(frameTime) {
+      const interval = renderIntervalMs();
+      if (interval !== renderCriticalIntervalMs) {
+        render();
+        window.setTimeout(tick, interval);
+        return;
+      }
+      if (frameTime - lastCriticalRenderAt >= renderCriticalIntervalMs - 1) {
+        lastCriticalRenderAt = frameTime;
+        render();
+      }
+      requestAnimationFrame(criticalTick);
     }
 
     function renderWatchdog() {
@@ -4856,6 +5140,7 @@
       els.primaryToggle.disabled = !serverControls;
       els.instancesSoundToggle.disabled = !serverControls;
       els.instancesFullscreenToggle.disabled = !serverControls;
+      els.flashToggle.disabled = !available;
       els.festivalAnnouncementsToggle.disabled = !available;
       updatePresetControlState(available);
       [els.climbMinutes, els.breakSeconds, els.startHours, els.startMinutes]
@@ -5300,13 +5585,83 @@
 
     async function toggleFullscreen() {
       requestScreenWakeLock();
-      if (!document.fullscreenElement) {
-        document.body.classList.add("fullscreen");
-        await document.documentElement.requestFullscreen();
-      } else {
-        document.body.classList.remove("fullscreen");
-        await document.exitFullscreen();
+      if (document.body.classList.contains("fullscreen") || document.fullscreenElement) {
+        await exitScreenMode();
+        return;
       }
+
+      screenModeScrollY = window.scrollY;
+      screenModeRequested = true;
+      document.body.classList.add("fullscreen");
+      revealExitFullscreenButton();
+      if (document.documentElement.requestFullscreen) {
+        try {
+          await document.documentElement.requestFullscreen();
+        } catch (error) {
+          document.body.classList.add("fullscreen");
+        }
+      }
+      scheduleFitTimer();
+    }
+
+    function revealExitFullscreenButton() {
+      if (!document.body.classList.contains("fullscreen")) return;
+      document.body.classList.add("exit-fullscreen-visible");
+      clearTimeout(exitFullscreenHideTimer);
+      exitFullscreenHideTimer = window.setTimeout(() => {
+        document.body.classList.remove("exit-fullscreen-visible");
+      }, 2400);
+    }
+
+    async function exitScreenMode() {
+      const restoreScrollY = screenModeScrollY;
+      screenModeRequested = false;
+      clearTimeout(exitFullscreenHideTimer);
+      document.body.classList.remove("exit-fullscreen-visible");
+      document.body.classList.remove("fullscreen");
+      if (document.fullscreenElement) {
+        try {
+          await document.exitFullscreen();
+        } catch (error) {}
+      }
+      window.scrollTo(0, restoreScrollY);
+      window.requestAnimationFrame(() => {
+        window.scrollTo(0, restoreScrollY);
+        scheduleFitTimer();
+      });
+      scheduleFitTimer();
+    }
+
+    function toggleScreenFromTimerGesture(event) {
+      const now = performance.now();
+      if (now - lastTimerScreenToggleAt < 700) return;
+      event.preventDefault();
+      lastTimerTapAt = 0;
+      lastTimerScreenToggleAt = now;
+      suppressGestureClicksUntil = now + 700;
+      toggleFullscreen();
+    }
+
+    function registerTimerTap(event, clientX, clientY) {
+      const touchDevice = isAndroidDevice() || isIosDevice() || navigator.maxTouchPoints > 0;
+      if (!touchDevice) return;
+
+      const now = performance.now();
+      const elapsed = now - lastTimerTapAt;
+      const distance = Math.hypot(clientX - lastTimerTapX, clientY - lastTimerTapY);
+      const isDoubleTap = elapsed > 0 && elapsed <= 550 && distance <= 80;
+
+      lastTimerTapAt = now;
+      lastTimerTapX = clientX;
+      lastTimerTapY = clientY;
+      if (!isDoubleTap) return;
+
+      toggleScreenFromTimerGesture(event);
+    }
+
+    function handleStageClick(event) {
+      if (event.target.closest("button, a, input, select, textarea, label, footer, .progress")) return;
+      registerTimerTap(event, event.clientX, event.clientY);
     }
 
     async function applyViewerFullscreenPreference(fromUserGesture = false) {
@@ -5355,6 +5710,11 @@
     });
     els.enterStandaloneBtn.addEventListener("click", enterStandaloneMode);
     els.returnToServerBtn.addEventListener("click", returnToServerMode);
+    els.installAppBtn.addEventListener("click", installAppToHomeScreen);
+    els.exitFullscreenBtn.addEventListener("click", (event) => {
+      event.stopPropagation();
+      exitScreenMode();
+    });
     els.browserList.addEventListener("click", async (event) => {
       const copyButton = event.target.closest("[data-copy-browser-url]");
       if (copyButton) {
@@ -5514,6 +5874,17 @@
       });
     });
 
+    els.flashToggle.addEventListener("change", () => {
+      state.flashing = els.flashToggle.checked;
+      if (standaloneMode) {
+        saveOfflineSnapshot();
+        return;
+      }
+      sendServerAction("flashing", {
+        enabled: state.flashing
+      });
+    });
+
     els.festivalAnnouncementsToggle.addEventListener("change", () => {
       if (standaloneMode) {
         state.festivalAnnouncements = els.festivalAnnouncementsToggle.checked;
@@ -5611,6 +5982,12 @@
     [els.pauseBtn, els.compactPause].forEach((button) => button.addEventListener("click", pauseTimer));
     [els.resetBtn, els.compactReset].forEach((button) => button.addEventListener("click", () => hardReset(false)));
     els.fullBtn.addEventListener("click", toggleFullscreen);
+    els.stage.addEventListener("click", handleStageClick);
+    document.addEventListener("click", (event) => {
+      if (performance.now() >= suppressGestureClicksUntil) return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+    }, true);
     els.progressTrack.addEventListener("pointerdown", startScrub);
     els.progressTrack.addEventListener("pointermove", moveScrub);
     els.progressTrack.addEventListener("pointerup", stopScrub);
@@ -5618,6 +5995,7 @@
     ["pointerdown", "touchstart", "click"].forEach((eventName) => {
       document.addEventListener(eventName, (event) => {
         if (event.target.closest(".action")) return;
+        if (!event.target.closest(".exit-fullscreen-button")) revealExitFullscreenButton();
         unlockAudio();
         if (pendingViewerFullscreen && isViewerClient && instancesFullscreenEnabled) {
           applyViewerFullscreenPreference(true);
@@ -5669,7 +6047,20 @@
     });
 
     document.addEventListener("fullscreenchange", () => {
-      document.body.classList.toggle("fullscreen", Boolean(document.fullscreenElement));
+      const nativeFullscreen = Boolean(document.fullscreenElement);
+      if (nativeFullscreen) {
+        nativeScreenModeActive = true;
+        document.body.classList.add("fullscreen");
+        revealExitFullscreenButton();
+      } else if (nativeScreenModeActive) {
+        nativeScreenModeActive = false;
+        screenModeRequested = false;
+        document.body.classList.remove("fullscreen", "exit-fullscreen-visible");
+      } else if (screenModeRequested) {
+        document.body.classList.add("fullscreen");
+      } else {
+        document.body.classList.remove("fullscreen", "exit-fullscreen-visible");
+      }
       if (isViewerClient && instancesFullscreenEnabled && !document.fullscreenElement) {
         pendingViewerFullscreen = true;
       }
@@ -5697,9 +6088,21 @@
       saveOfflineSnapshot();
     });
 
+    window.addEventListener("beforeinstallprompt", (event) => {
+      event.preventDefault();
+      deferredInstallPrompt = event;
+      updateInstallButton();
+    });
+
+    window.addEventListener("appinstalled", () => {
+      deferredInstallPrompt = null;
+      if (els.installHint) els.installHint.hidden = true;
+      updateInstallButton();
+    });
+
     ["pageshow", "focus", "online"].forEach((eventName) => {
       window.addEventListener(eventName, (event) => {
-        if (window.location.protocol === "file:") {
+        if (isLocalStandalonePage()) {
           refreshStandaloneBrowserList();
           return;
         }
@@ -5711,22 +6114,40 @@
       syncControlsScrollbarPadding();
       scheduleFitTimer();
     });
-    if ("ResizeObserver" in window) {
-      const timerResizeObserver = new ResizeObserver(scheduleFitTimer);
-      timerResizeObserver.observe(document.querySelector(".stage"));
-      timerResizeObserver.observe(document.querySelector(".timer-wrap"));
+
+    function scheduleOrientationFits() {
+      scheduleFitTimer();
+      [120, 360, 800].forEach((delay) => window.setTimeout(scheduleFitTimer, delay));
     }
 
-    const fileMode = window.location.protocol === "file:";
-    if (fileMode) initializeFileMode();
+    window.addEventListener("orientationchange", scheduleOrientationFits);
+    window.screen?.orientation?.addEventListener?.("change", scheduleOrientationFits);
+
+    if ("ResizeObserver" in window) {
+      const timerWrap = document.querySelector(".timer-wrap");
+      const timerResizeObserver = new ResizeObserver((entries) => {
+        const containerChanged = entries.some((entry) => {
+          if (entry.target !== timerWrap) return true;
+          return Math.abs(entry.contentRect.width - lastTimerFitContainerWidth) > 2
+            || Math.abs(entry.contentRect.height - lastTimerFitContainerHeight) > 2;
+        });
+        if (containerChanged) scheduleFitTimer();
+      });
+      timerResizeObserver.observe(document.querySelector(".stage"));
+      timerResizeObserver.observe(timerWrap);
+    }
+
+    const fileMode = isLocalStandalonePage();
+    if (fileMode) {
+      if (!restoreOfflineReloadSnapshot({ localStandalone: true })) initializeFileMode();
+    }
     else if (!restoreOfflineReloadSnapshot()) {
       buildTimeline();
       if (offlineReloadMode) setServerAvailable(false);
     }
     syncControlsScrollbarPadding();
-    render();
-    scheduleFitTimer();
     tick();
+    scheduleFitTimer();
     if (renderWatchdogEnabled) window.setInterval(renderWatchdog, 1000);
     if (!fileMode) {
       registerOfflineServiceWorker();

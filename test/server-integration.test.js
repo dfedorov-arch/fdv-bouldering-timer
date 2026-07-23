@@ -208,6 +208,13 @@ test("production server validates settings, rejects stale commands, and deduplic
   assert.equal(festival.body.draftSettings.rotationMinutes, 240);
   assert.equal(festival.body.draftSettings.breakSeconds, 14400);
 
+  const flashing = await postAction(baseUrl, {
+    type: "flashing",
+    enabled: false
+  });
+  assert.equal(flashing.status, 200);
+  assert.equal(flashing.body.flashing, false);
+
   const reset = await postAction(baseUrl, {
     type: "reset",
     commandId: "normalize-reset",
@@ -284,6 +291,7 @@ test("production server validates settings, rejects stale commands, and deduplic
   assert.equal(restored.manualStartDisplayHold, true);
   assert.equal(restored.activePreset, "classic");
   assert.equal(restored.runtimePreset, "final");
+  assert.equal(restored.flashing, false);
   assert.ok(restored.version > started.body.version);
   assert.notEqual(restored.serverInstanceId, started.body.serverInstanceId);
 
