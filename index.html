@@ -665,9 +665,12 @@
 
     .diag-chip {
       flex: 0 0 auto;
+      appearance: none;
+      border: 0;
       padding: 2px 5px;
       border-radius: 999px;
       font-size: 10px;
+      font-family: inherit;
       line-height: 1.35;
       font-weight: 900;
       letter-spacing: .02em;
@@ -1615,7 +1618,7 @@
       timeline: []
     };
 
-    const pageBuildNumber = 234;
+    const pageBuildNumber = 235;
     const offlineSnapshotKey = "fdvBoulderingTimerOfflineSnapshot";
     const primarySoundPreferenceKey = "fdvBoulderingTimerPrimarySound";
     const offlineSnapshotMaxAgeMs = 12 * 60 * 60 * 1000;
@@ -1933,6 +1936,8 @@
     const standaloneClientFirstSeen = Date.now();
     let editingAudioClientId = "";
     let pendingAudioOffset = 0;
+    let lastAudioChipToggleAt = 0;
+    let lastAudioChipToggleClientId = "";
     let testAudioEverywhere = false;
     let lastAudioTestId = "";
     let audioTestCooldownUntil = 0;
@@ -4008,7 +4013,10 @@
 
     function diagChip(label, status, title, attributes = "") {
       const className = `diag-chip${status && status !== "good" ? ` ${status}` : ""}`;
-      return `<span class="${className}" title="${escapeHtml(title)}"${attributes}>${escapeHtml(label)}</span>`;
+      const interactive = /\sdata-(?:audio-client|legacy-mode-client)=/.test(attributes);
+      const tagName = interactive ? "button" : "span";
+      const type = interactive ? ' type="button"' : "";
+      return `<${tagName}${type} class="${className}" title="${escapeHtml(title)}"${attributes}>${escapeHtml(label)}</${tagName}>`;
     }
 
     function thresholdStatus(value, warnLimit, badLimit, missingIsBad = true) {
@@ -4264,6 +4272,18 @@
           ${audioEditor}
         </div>`;
       }).join("");
+    }
+
+    function revealAudioOffsetEditor() {
+      requestAnimationFrame(() => {
+        const editor = els.browserList?.querySelector(".audio-offset-editor");
+        if (!editor) return;
+        const editorRect = editor.getBoundingClientRect();
+        const controlsRect = els.controls.getBoundingClientRect();
+        if (editorRect.top < controlsRect.top || editorRect.bottom > controlsRect.bottom) {
+          editor.scrollIntoView({ block: "nearest", inline: "nearest" });
+        }
+      });
     }
 
     function canPlaySound() {
@@ -5961,6 +5981,10 @@
       const chip = event.target.closest("[data-audio-client]");
       if (!chip) return;
       const targetClientId = chip.dataset.audioClient;
+      const toggleNow = performance.now();
+      if (targetClientId === lastAudioChipToggleClientId && toggleNow - lastAudioChipToggleAt < 300) return;
+      lastAudioChipToggleClientId = targetClientId;
+      lastAudioChipToggleAt = toggleNow;
       const client = lastKnownClients.find((item) => item.id === targetClientId);
       const currentOffset = Number(client?.audioUserOffset || 0);
       if (editingAudioClientId !== targetClientId) {
@@ -5971,6 +5995,7 @@
         ));
         testAudioEverywhere = false;
         renderBrowserList(lastKnownClients);
+        revealAudioOffsetEditor();
         return;
       }
 

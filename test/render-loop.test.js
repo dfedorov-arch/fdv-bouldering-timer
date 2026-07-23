@@ -35,6 +35,15 @@ test("static runtime metadata is cached separately from timer digits", () => {
   assert.match(index, /setProgressWidth\(donePercent, progressSegmentChanged \|\| isScrubbing\);/);
 });
 
+test("desktop audio calibration scrolls its editor into view", () => {
+  assert.match(index, /const interactive = \/\\sdata-\(\?:audio-client\|legacy-mode-client\)=\//);
+  assert.match(index, /const tagName = interactive \? "button" : "span";/);
+  assert.match(index, /toggleNow - lastAudioChipToggleAt < 300/);
+  assert.match(index, /function revealAudioOffsetEditor\(\)/);
+  assert.match(index, /editor\.scrollIntoView\(\{ block: "nearest", inline: "nearest" \}\);/);
+  assert.match(index, /renderBrowserList\(lastKnownClients\);\s*revealAudioOffsetEditor\(\);/);
+});
+
 test("timer fitting avoids a resize feedback loop and repeated binary-search layouts", () => {
   assert.doesNotMatch(index, /for \(let i = 0; i < 13; i \+= 1\)/);
   assert.match(index, /const scale = Math\.min\(maxWidth \/ timeRect\.width, maxHeight \/ timeRect\.height\);/);
