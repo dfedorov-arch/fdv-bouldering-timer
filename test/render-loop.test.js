@@ -48,6 +48,18 @@ test("mobile controls keep compact multi-column grids", () => {
   assert.doesNotMatch(index, /@media \(max-width: 560px\) \{\s*\.(?:field-grid|preset-grid|actions)/);
 });
 
+test("build number uses a guarded two-click GitHub link", () => {
+  assert.match(index, /const projectUrl = "https:\/\/github\.com\/dfedorov-arch\/fdv-bouldering-timer";/);
+  assert.match(index, /const buildLinkConfirmDelayMs = 550;/);
+  assert.match(index, /if \(!buildLinkArmed\) \{[\s\S]*?buildLinkArmed = true;[\s\S]*?renderBuildInfo\(\);/);
+  assert.match(index, /if \(now - buildLinkArmedAt < buildLinkConfirmDelayMs\) \{\s*event\.preventDefault\(\);\s*return;\s*\}/);
+  assert.match(index, /id="buildInfo"[\s\S]*?target="_blank" rel="noopener"/);
+  assert.match(index, /if \(!buildLinkArmed\) \{\s*event\.preventDefault\(\);/);
+  assert.doesNotMatch(index, /window\.open\(projectUrl/);
+  assert.match(index, /\.build-info\.armed \{[\s\S]*?border-color: var\(--line\);/);
+  assert.match(index, /\.build-info\.armed:active,[\s\S]*?border-color: var\(--cyan\);/);
+});
+
 test("progress animation stays on the compositor and is updated at a lower rate", () => {
   assert.match(index, /const progressUpdateIntervalMs = 250;/);
   assert.match(index, /transform: scaleX\(0\);/);

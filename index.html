@@ -308,6 +308,47 @@
       opacity: .82;
     }
 
+    .build-info {
+      display: inline-flex;
+      align-items: center;
+      min-height: 22px;
+      padding: 1px 5px;
+      border: 1px solid transparent;
+      border-radius: 6px;
+      color: inherit;
+      background: transparent;
+      font: inherit;
+      line-height: inherit;
+      text-decoration: none;
+      cursor: pointer;
+    }
+
+    .build-info:hover,
+    .build-info:focus-visible {
+      color: var(--text);
+      outline: none;
+    }
+
+    .build-info.armed {
+      border-color: var(--line);
+      background: rgba(255, 255, 255, .03);
+    }
+
+    .build-info.armed:active,
+    .build-info.opening {
+      border-color: var(--cyan);
+      color: var(--text);
+    }
+
+    .build-project-hint {
+      max-width: 360px;
+      margin: 6px auto 0;
+      color: var(--muted);
+      font-size: 11px;
+      line-height: 1.35;
+      text-align: center;
+    }
+
     .preset-grid {
       display: grid;
       grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -1538,7 +1579,8 @@
       </section>
       <div class="control-footer">
         <a id="helpLink" class="help-link" href="help.html?lang=ru" target="_blank" rel="noopener">Руководство</a>
-        <div class="credits">2026 <span id="authorName" title="Говорил, что делать">Фёдоров Денис</span> + <span id="codexCredit" title="Делал">Codex</span><span id="buildInfo" hidden></span></div>
+        <div class="credits">2026 <span id="authorName" title="Говорил, что делать">Фёдоров Денис</span> + <span id="codexCredit" title="Делал">Codex</span><span id="buildSeparator" hidden> | </span><a id="buildInfo" class="build-info" href="https://github.com/dfedorov-arch/fdv-bouldering-timer" target="_blank" rel="noopener" aria-describedby="buildProjectHint" aria-expanded="false" hidden></a></div>
+        <div id="buildProjectHint" class="build-project-hint" role="status" hidden></div>
       </div>
     </aside>
 
@@ -1612,7 +1654,9 @@
       timeline: []
     };
 
-    const pageBuildNumber = 239;
+    const pageBuildNumber = 240;
+    const projectUrl = "https://github.com/dfedorov-arch/fdv-bouldering-timer";
+    const buildLinkConfirmDelayMs = 550;
     const offlineSnapshotKey = "fdvBoulderingTimerOfflineSnapshot";
     const primarySoundPreferenceKey = "fdvBoulderingTimerPrimarySound";
     const offlineSnapshotMaxAgeMs = 12 * 60 * 60 * 1000;
@@ -1687,7 +1731,8 @@
         primaryPinWrong: "Неверный PIN",
         primaryPinBlocked: "Слишком много попыток",
         clear: "Очистить",
-        buildLabel: "сборка"
+        buildLabel: "сборка",
+        buildProjectHint: "Для перехода на страницу проекта в GitHub нажмите на номер сборки ещё раз"
       },
       en: {
         brandTimer: "Bouldering", brandBouldering: "Timer", format: "Format",
@@ -1752,7 +1797,8 @@
         primaryPinWrong: "Wrong PIN",
         primaryPinBlocked: "Too many attempts",
         clear: "Clear",
-        buildLabel: "Build"
+        buildLabel: "Build",
+        buildProjectHint: "Click the build number again to open the project page on GitHub"
       }
     };
     const t = (key) => translations[language][key] || key;
@@ -1793,6 +1839,8 @@
       exitFullscreenBtn: document.getElementById("exitFullscreenBtn"),
       stage: document.querySelector(".stage"),
       buildInfo: document.getElementById("buildInfo"),
+      buildSeparator: document.getElementById("buildSeparator"),
+      buildProjectHint: document.getElementById("buildProjectHint"),
       authorName: document.getElementById("authorName"),
       codexCredit: document.getElementById("codexCredit"),
       startTimeFields: document.getElementById("startTimeFields"),
@@ -1959,6 +2007,8 @@
     let screenModeScrollY = 0;
     let suppressGestureClicksUntil = 0;
     let lastStartupConfig = null;
+    let buildLinkArmed = false;
+    let buildLinkArmedAt = 0;
     let lastServerContactAt = performance.now();
     let consecutiveServerFailures = 0;
     let serverPorts = { http: 8008, https: 8443 };
@@ -3016,11 +3066,45 @@
       if (!els.buildInfo) return;
       if (!buildNumber) {
         els.buildInfo.hidden = true;
+        els.buildSeparator.hidden = true;
+        els.buildProjectHint.hidden = true;
         els.buildInfo.textContent = "";
         return;
       }
       els.buildInfo.hidden = false;
-      els.buildInfo.textContent = ` | ${t("buildLabel")} ${buildNumber}`;
+      els.buildSeparator.hidden = false;
+      els.buildInfo.textContent = `${t("buildLabel")} ${buildNumber}`;
+      els.buildInfo.title = projectUrl;
+      els.buildInfo.classList.toggle("armed", buildLinkArmed);
+      els.buildInfo.setAttribute("aria-expanded", String(buildLinkArmed));
+      els.buildProjectHint.textContent = t("buildProjectHint");
+      els.buildProjectHint.hidden = !buildLinkArmed;
+    }
+
+    function activateBuildProjectLink(event) {
+      if (!buildNumber) {
+        event.preventDefault();
+        return;
+      }
+      const now = performance.now();
+      if (!buildLinkArmed) {
+        event.preventDefault();
+        buildLinkArmed = true;
+        buildLinkArmedAt = now;
+        renderBuildInfo();
+        return;
+      }
+      if (now - buildLinkArmedAt < buildLinkConfirmDelayMs) {
+        event.preventDefault();
+        return;
+      }
+      els.buildInfo.classList.add("opening");
+      window.setTimeout(() => {
+        buildLinkArmed = false;
+        buildLinkArmedAt = 0;
+        els.buildInfo.classList.remove("opening");
+        renderBuildInfo();
+      }, 250);
     }
 
     function applyLanguage(nextLanguage) {
@@ -6210,6 +6294,7 @@
     });
 
     els.scheduledStartBtn.addEventListener("click", toggleScheduledCountdown);
+    els.buildInfo.addEventListener("click", activateBuildProjectLink);
     [els.startBtn, els.compactStart].forEach((button) => button.addEventListener("click", startTimer));
     [els.pauseBtn, els.compactPause].forEach((button) => button.addEventListener("click", pauseTimer));
     [els.resetBtn, els.compactReset].forEach((button) => button.addEventListener("click", () => hardReset(false)));
