@@ -57,7 +57,10 @@ test("build number uses a guarded two-click GitHub link", () => {
   assert.match(index, /if \(!buildLinkArmed\) \{\s*event\.preventDefault\(\);/);
   assert.doesNotMatch(index, /window\.open\(projectUrl/);
   assert.match(index, /\.build-info\.armed \{[\s\S]*?border-color: var\(--line\);/);
-  assert.match(index, /\.build-info\.armed:hover,[\s\S]*?border-color: var\(--cyan\);[\s\S]*?font-weight: 850;/);
+  assert.match(index, /\.build-info:not\(\.armed\):hover \{\s*color: var\(--text\);\s*\}/);
+  assert.match(index, /\.build-info\.armed:hover,[\s\S]*?border-color: var\(--cyan\);[\s\S]*?color: var\(--text\);/);
+  const buildHoverRule = index.match(/\.build-info\.armed:hover,[\s\S]*?\n    \}/)?.[0] || "";
+  assert.doesNotMatch(buildHoverRule, /font-weight:/);
   assert.match(index, /if \(event\.target\.closest\("#buildInfo"\)\) return;\s*deactivateBuildProjectLink\(\);/);
 });
 

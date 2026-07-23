@@ -329,13 +329,16 @@
       background: rgba(255, 255, 255, .03);
     }
 
+    .build-info:not(.armed):hover {
+      color: var(--text);
+    }
+
     .build-info.armed:hover,
     .build-info.armed:focus-visible,
     .build-info.armed:active,
     .build-info.opening {
       border-color: var(--cyan);
       color: var(--text);
-      font-weight: 850;
       outline: none;
     }
 
@@ -1653,7 +1656,7 @@
       timeline: []
     };
 
-    const pageBuildNumber = 241;
+    const pageBuildNumber = 242;
     const projectUrl = "https://github.com/dfedorov-arch/fdv-bouldering-timer";
     const buildLinkConfirmDelayMs = 550;
     const offlineSnapshotKey = "fdvBoulderingTimerOfflineSnapshot";
