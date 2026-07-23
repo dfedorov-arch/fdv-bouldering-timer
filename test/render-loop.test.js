@@ -16,8 +16,23 @@ test("display rendering uses an adaptive timer instead of every animation frame"
 });
 
 test("schedule markup is replaced only when its content changes", () => {
+  assert.match(index, /if \(scheduleStateKey === lastScheduleStateKey\) return;/);
   assert.match(index, /if \(markup === lastScheduleMarkup\) return;/);
   assert.match(index, /lastScheduleMarkup = markup;\s*els\.schedule\.innerHTML = markup;/);
+});
+
+test("progress animation stays on the compositor and is updated at a lower rate", () => {
+  assert.match(index, /const progressUpdateIntervalMs = 250;/);
+  assert.match(index, /transform: scaleX\(0\);/);
+  assert.match(index, /transition: transform \.25s linear;/);
+  assert.match(index, /els\.progressBar\.style\.transform = `scaleX\(\$\{scale\}\)`;/);
+  assert.doesNotMatch(index, /els\.progressBar\.style\.width =/);
+});
+
+test("static runtime metadata is cached separately from timer digits", () => {
+  assert.match(index, /if \(runtimeMetaKey !== lastRuntimeMetaKey\)/);
+  assert.match(index, /setDisplayTime\(remaining\);\s*const runtimeMetaKey/);
+  assert.match(index, /setProgressWidth\(donePercent, progressSegmentChanged \|\| isScrubbing\);/);
 });
 
 test("timer fitting avoids a resize feedback loop and repeated binary-search layouts", () => {

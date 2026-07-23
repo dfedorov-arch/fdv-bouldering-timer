@@ -1037,9 +1037,12 @@
     .progress span {
       display: block;
       height: 100%;
-      width: 0%;
+      width: 100%;
       background: linear-gradient(90deg, var(--cyan), var(--green), var(--yellow));
-      transition: width .18s linear;
+      transform: scaleX(0);
+      transform-origin: left center;
+      transition: transform .25s linear;
+      will-change: transform;
     }
 
     .schedule {
@@ -1612,7 +1615,7 @@
       timeline: []
     };
 
-    const pageBuildNumber = 233;
+    const pageBuildNumber = 234;
     const offlineSnapshotKey = "fdvBoulderingTimerOfflineSnapshot";
     const primarySoundPreferenceKey = "fdvBoulderingTimerPrimarySound";
     const offlineSnapshotMaxAgeMs = 12 * 60 * 60 * 1000;
@@ -1918,7 +1921,11 @@
     let lastDisplayTimeLabel = "";
     let lastDisplayMinuteDigits = 0;
     let lastScheduleMarkup = "";
-    let lastProgressWidth = "";
+    let lastScheduleStateKey = "";
+    let lastProgressScale = "";
+    let lastProgressUpdateAt = 0;
+    let lastProgressSegmentKey = "";
+    let lastRuntimeMetaKey = "";
     let lastPhaseSignalKey = "";
     let lastBeforeScheduledStart = null;
     let scheduledPhaseSignalKeys = new Set();
@@ -2001,6 +2008,7 @@
     const renderRunningIntervalMs = 100;
     const renderCriticalIntervalMs = 50;
     const renderCriticalWindowSeconds = 8;
+    const progressUpdateIntervalMs = 250;
     const runtimeCommandTypes = new Set(["start", "pause", "stopCountdown", "reset", "seek"]);
 
     function scheduleFitTimer() {
@@ -3872,16 +3880,25 @@
       }
     }
 
-    function setProgressWidth(percent) {
-      const width = `${Math.max(0, Math.min(100, percent))}%`;
-      if (width === lastProgressWidth) return;
-      lastProgressWidth = width;
-      els.progressBar.style.width = width;
+    function setProgressWidth(percent, force = false) {
+      const now = performance.now();
+      if (!force && now - lastProgressUpdateAt < progressUpdateIntervalMs) return;
+      const scale = Math.max(0, Math.min(1, percent / 100)).toFixed(4);
+      lastProgressUpdateAt = now;
+      if (scale === lastProgressScale) return;
+      lastProgressScale = scale;
+      els.progressBar.style.transform = `scaleX(${scale})`;
     }
 
-    function setScheduleMarkup(markup, showCycle = false, showBreak = false) {
+    function invalidateRuntimeUiCache() {
+      lastRuntimeMetaKey = "";
+      lastProgressSegmentKey = "";
+    }
+
+    function setScheduleMarkup(markup, showCycle = false, showBreak = false, stateKey = "") {
       setElementClass(els.schedule, "with-cycle", showCycle);
       setElementClass(els.schedule, "with-break", showBreak);
+      lastScheduleStateKey = stateKey;
       if (markup === lastScheduleMarkup) return;
       lastScheduleMarkup = markup;
       els.schedule.innerHTML = markup;
@@ -3892,6 +3909,16 @@
       const cycleNumber = segment?.cycle || 1;
       const showCycle = state.runtimePreset === "classic" || state.runtimePreset === "festival";
       const hasBreak = state.timeline.some((item) => item.type === "break");
+      const scheduleStateKey = [
+        language,
+        state.runtimePreset,
+        segment?.type || "ready",
+        cycleNumber,
+        showCycle,
+        hasBreak,
+        state.timeline.map((item) => `${item.type}:${item.duration}`).join("|")
+      ].join(":");
+      if (scheduleStateKey === lastScheduleStateKey) return;
       const chips = [];
       state.timeline.forEach((item) => {
         const classes = ["chip"];
@@ -3905,7 +3932,7 @@
           chips.push(`<div class="chip cycle-chip"><span>${t("cycle")} ${cycleNumber}</span></div>`);
         }
       });
-      setScheduleMarkup(chips.join(""), showCycle, showCycle && hasBreak);
+      setScheduleMarkup(chips.join(""), showCycle, showCycle && hasBreak, scheduleStateKey);
     }
 
     function escapeHtml(value) {
@@ -4992,8 +5019,9 @@
         setElementText(els.cycleMeta, t("final"));
         setElementText(els.rotationMeta, `${t("start")} ${new Date(state.serverStartedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`);
         setElementText(els.nextMeta, untilStart > 0 ? t("nextManual") : t("pressStart"));
-        setProgressWidth(0);
+        setProgressWidth(0, true);
         setScheduleMarkup(`<div class="chip current"><span>${untilStart > 0 ? t("untilStart") : t("waitingManual")}</span></div>`);
+        invalidateRuntimeUiCache();
         syncButtons();
         return;
       }
@@ -5019,8 +5047,9 @@
             nextMeta = t("nextBreak");
           }
           setElementText(els.nextMeta, nextMeta);
-          setProgressWidth(0);
+          setProgressWidth(0, true);
           drawSchedule(initialSegment);
+          invalidateRuntimeUiCache();
           syncButtons();
           return;
         }
@@ -5036,8 +5065,9 @@
         setElementText(els.cycleMeta, `${t("cycle")} 1`);
         setElementText(els.rotationMeta, `${t("start")} ${new Date(state.serverStartedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`);
         setElementText(els.nextMeta, t("nextStart"));
-        setProgressWidth(0);
+        setProgressWidth(0, true);
         drawSchedule(null);
+        invalidateRuntimeUiCache();
         syncButtons();
         return;
       }
@@ -5052,8 +5082,9 @@
         setElementText(els.cycleMeta, t("final"));
         setElementText(els.rotationMeta, `${t("rotation")} ${formatTime(settings.rotationSeconds)}`);
         setElementText(els.nextMeta, t("nextManual"));
-        setProgressWidth(0);
+        setProgressWidth(0, true);
         drawSchedule(null);
+        invalidateRuntimeUiCache();
         syncButtons();
         return;
       }
@@ -5069,8 +5100,9 @@
         setElementText(els.cycleMeta, t("final"));
         setElementText(els.rotationMeta, `${t("rotation")} ${formatTime(settings.rotationSeconds)}`);
         setElementText(els.nextMeta, "");
-        setProgressWidth(100);
+        setProgressWidth(100, true);
         drawSchedule(null);
+        invalidateRuntimeUiCache();
         syncButtons();
         return;
       }
@@ -5085,8 +5117,9 @@
         setElementText(els.cycleMeta, `${t("cycle")} 1`);
         setElementText(els.rotationMeta, `${t("rotation")} ${formatTime(settings.rotationSeconds)}`);
         setElementText(els.nextMeta, t("nextStart"));
-        setProgressWidth(0);
+        setProgressWidth(0, true);
         drawSchedule(null);
+        invalidateRuntimeUiCache();
         syncButtons();
         return;
       }
@@ -5099,23 +5132,37 @@
       setElementClass(document.body, "countdown-active", false);
       setElementClass(document.body, "break-active", segment.type === "break");
       setElementClass(document.body, "warning-active", segment.type === "rotation" && remaining > 0 && remaining <= 5);
-      setElementText(els.phase, segment.label);
-      setElementClassName(els.phase, `phase ${segment.type}`);
       setDisplayTime(remaining);
-      setElementText(els.status, state.running ? t("roundRunning") : t("pause"));
-      setElementText(els.cycleMeta, `${t("cycle")} ${segment.cycle}`);
-      setElementText(els.rotationMeta, segment.type === "break"
-        ? `${t("break")} ${formatTime(settings.breakSeconds)}`
-        : `${t("rotation")} ${formatTime(settings.rotationSeconds)}`);
-      let nextMeta = segment.type === "break"
-        ? settings.oneShot ? t("nextComplete") : t("nextRotation")
-        : settings.oneShot ? t("nextComplete") : settings.breakSeconds > 0 ? t("nextBreak") : t("nextRotation");
-      if (settings.oneShot && segment.type === "rotation" && settings.breakSeconds > 0) {
-        nextMeta = t("nextBreak");
+      const runtimeMetaKey = [
+        language,
+        state.runtimePreset,
+        segmentKey,
+        state.running,
+        settings.rotationSeconds,
+        settings.breakSeconds,
+        settings.oneShot
+      ].join(":");
+      if (runtimeMetaKey !== lastRuntimeMetaKey) {
+        lastRuntimeMetaKey = runtimeMetaKey;
+        setElementText(els.phase, segment.label);
+        setElementClassName(els.phase, `phase ${segment.type}`);
+        setElementText(els.status, state.running ? t("roundRunning") : t("pause"));
+        setElementText(els.cycleMeta, `${t("cycle")} ${segment.cycle}`);
+        setElementText(els.rotationMeta, segment.type === "break"
+          ? `${t("break")} ${formatTime(settings.breakSeconds)}`
+          : `${t("rotation")} ${formatTime(settings.rotationSeconds)}`);
+        let nextMeta = segment.type === "break"
+          ? settings.oneShot ? t("nextComplete") : t("nextRotation")
+          : settings.oneShot ? t("nextComplete") : settings.breakSeconds > 0 ? t("nextBreak") : t("nextRotation");
+        if (settings.oneShot && segment.type === "rotation" && settings.breakSeconds > 0) {
+          nextMeta = t("nextBreak");
+        }
+        setElementText(els.nextMeta, nextMeta);
+        drawSchedule(segment);
       }
-      setElementText(els.nextMeta, nextMeta);
-      setProgressWidth(donePercent);
-      drawSchedule(segment);
+      const progressSegmentChanged = segmentKey !== lastProgressSegmentKey;
+      setProgressWidth(donePercent, progressSegmentChanged || isScrubbing);
+      lastProgressSegmentKey = segmentKey;
 
       if (state.running && segmentKey !== lastSegmentIndex) {
         lastSegmentIndex = segmentKey;
