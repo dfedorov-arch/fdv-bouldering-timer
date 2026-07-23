@@ -52,3 +52,10 @@ test("iOS audio falls back when its decoded-buffer context is not running", () =
   assert.match(index, /if \(!canPlaySound\(\) \|\| !audioContext \|\| audioContext\.state !== "running"\) return false;/);
   assert.doesNotMatch(index, /if \(audioUnlocked\) return;/);
 });
+
+test("standalone iOS reuses gesture-authorized HTML audio for every manual start", () => {
+  assert.match(index, /const iosAudioWorkaroundEnabled = \/iPad\|iPhone\|iPod\/i/);
+  assert.match(index, /function playImmediateGestureAudio\(kind\)/);
+  assert.match(index, /standaloneMode && iosAudioWorkaroundEnabled && playImmediateGestureAudio\("start"\)/);
+  assert.match(index, /unlockSource\.buffer = audioContext\.createBuffer\(1, 1, 22050\);/);
+});

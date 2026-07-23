@@ -1612,11 +1612,13 @@
       timeline: []
     };
 
-    const pageBuildNumber = 230;
+    const pageBuildNumber = 231;
     const offlineSnapshotKey = "fdvBoulderingTimerOfflineSnapshot";
     const primarySoundPreferenceKey = "fdvBoulderingTimerPrimarySound";
     const offlineSnapshotMaxAgeMs = 12 * 60 * 60 * 1000;
     const mobileResumeSyncEnabled = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+    const iosAudioWorkaroundEnabled = /iPad|iPhone|iPod/i.test(navigator.userAgent)
+      || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
 
     let language = "ru";
     let buildNumber = "";
@@ -1841,6 +1843,8 @@
     let audioBuffers = { start: null, end: null, minute: null, warn: null, festival60: null, festival30: null, festival10: null, festival5: null };
     let soundProfiles = [];
     let activeHtmlAudio = [];
+    let immediateGestureAudio = null;
+    let immediateGestureAudioSource = "";
     const festivalAnnouncements = [
       { remaining: 60 * 60, kind: "festival60", ru: "Остался один час", en: "One hour remaining" },
       { remaining: 30 * 60, kind: "festival30", ru: "Осталось 30 минут", en: "30 minutes remaining" },
@@ -2475,6 +2479,10 @@
       audioUnlocked = true;
       try {
         audioContext ||= new (window.AudioContext || window.webkitAudioContext)();
+        const unlockSource = audioContext.createBufferSource();
+        unlockSource.buffer = audioContext.createBuffer(1, 1, 22050);
+        unlockSource.connect(audioContext.destination);
+        unlockSource.start(0);
         if (audioContext.state !== "running" && audioContext.state !== "closed") {
           await audioContext.resume();
         }
@@ -4318,6 +4326,32 @@
       }
     }
 
+    function playImmediateGestureAudio(kind) {
+      const source = soundSource(kind);
+      if (!source || !canPlaySound()) return false;
+      try {
+        if (!immediateGestureAudio || immediateGestureAudioSource !== source) {
+          immediateGestureAudio = new Audio(source);
+          immediateGestureAudio.preload = "auto";
+          immediateGestureAudioSource = source;
+          const gestureAudio = immediateGestureAudio;
+          gestureAudio.addEventListener("ended", () => {
+            activeHtmlAudio = activeHtmlAudio.filter((item) => item !== gestureAudio);
+          });
+        } else {
+          immediateGestureAudio.pause();
+          immediateGestureAudio.currentTime = 0;
+        }
+        if (!activeHtmlAudio.includes(immediateGestureAudio)) activeHtmlAudio.push(immediateGestureAudio);
+        immediateGestureAudio.play().catch(() => {
+          activeHtmlAudio = activeHtmlAudio.filter((item) => item !== immediateGestureAudio);
+        });
+        return true;
+      } catch (error) {
+        return false;
+      }
+    }
+
     function playBuffer(kind, delaySeconds = 0, preserveOnTransition = false, signalKey = "", onStarted = null) {
       if (!canPlaySound() || !audioContext || audioContext.state !== "running") return false;
       const buffer = soundBuffer(kind);
@@ -4499,7 +4533,9 @@
         flash();
         return;
       }
-      beep("start");
+      if (!(standaloneMode && iosAudioWorkaroundEnabled && playImmediateGestureAudio("start"))) {
+        beep("start");
+      }
       flash();
     }
 
