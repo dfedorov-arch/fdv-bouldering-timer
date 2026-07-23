@@ -4355,7 +4355,7 @@
           : `OS: ${operatingSystem(client.userAgent)}; device: ${deviceType(client.userAgent)}; screen ${client.screen || "n/a"}; viewport ${client.viewport || "n/a"}; DPR ${client.dpr ?? "n/a"}`;
         const meta = [
           client.displayStatus,
-          client.role === "Основной" ? t("primary") : client.role === "Экран" ? t("screen") : client.role,
+          client.role || "",
           client.protocol,
           detailIp,
           `${Math.round((client.age || 0) / 1000)}${t("sec")}`

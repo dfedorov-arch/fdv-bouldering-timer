@@ -878,7 +878,7 @@ function publicClients() {
     .map((client) => ({
       ...client,
       manualLegacy: manualLegacyClients.has(client.id),
-      role: client.legacyViewer ? "Упрощённый экран" : timerState.primaryClientId ? (timerState.primaryClientId === client.id ? "Основной" : "Экран") : "",
+      role: client.legacyViewer ? "Экран" : timerState.primaryClientId ? (timerState.primaryClientId === client.id ? "Основной" : "Экран") : "",
       age: now - client.lastSeen,
       connected: now - client.lastSeen < 6000
     }));
