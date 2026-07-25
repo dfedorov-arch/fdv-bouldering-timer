@@ -1070,6 +1070,10 @@
       font-weight: 760;
     }
 
+    #rotationMeta {
+      background: rgba(23, 27, 34, .42);
+    }
+
     .progress {
       height: 14px;
       border-radius: 999px;
@@ -1660,7 +1664,7 @@
       timeline: []
     };
 
-    const pageBuildNumber = 244;
+    const pageBuildNumber = 245;
     const projectUrl = "https://github.com/dfedorov-arch/fdv-bouldering-timer";
     const buildLinkConfirmDelayMs = 550;
     const offlineSnapshotKey = "fdvBoulderingTimerOfflineSnapshot";
@@ -1681,7 +1685,7 @@
         parameters: "Параметры", rotationMinutes: "Время ротации",
         roundMinutes: "Время раунда", breakSeconds: "Перерыв",
         breakMinutes: "Перерыв", minuteUnit: "минут", secondUnit: "секунд",
-        primary: "Основной браузер", sound: "Звук", soundProfile: "Комплект звуков", festivalAnnouncements: "Объявления времени",
+        primary: "Основной браузер", diagnosticPrimary: "Основной", diagnosticScreen: "Экран", sound: "Звук", soundProfile: "Комплект звуков", festivalAnnouncements: "Объявления времени",
         festivalAnnouncementsHint: "Объявления за 60, 30, 10 и 5 минут",
         primarySound: "Звук в основном браузере", otherSound: "Звук в других браузерах",
         otherFullscreen: "Полный экран в других браузерах", flashing: "Мигание",
@@ -1748,7 +1752,7 @@
         parameters: "Parameters", rotationMinutes: "Rotation time",
         roundMinutes: "Round time", breakSeconds: "Break",
         breakMinutes: "Break", minuteUnit: "minutes", secondUnit: "seconds",
-        primary: "Primary browser", sound: "Sound", soundProfile: "Sound profile", festivalAnnouncements: "Time announcements",
+        primary: "Primary browser", diagnosticPrimary: "Primary", diagnosticScreen: "Screen", sound: "Sound", soundProfile: "Sound profile", festivalAnnouncements: "Time announcements",
         festivalAnnouncementsHint: "Announcements at 60, 30, 10 and 5 minutes remaining",
         primarySound: "Sound in primary browser", otherSound: "Sound in other browsers",
         otherFullscreen: "Fullscreen in other browsers", flashing: "Flashing",
@@ -3009,6 +3013,16 @@
       return Math.min(max, Math.max(min, number));
     }
 
+    function diagnosticDisplayStatusKey() {
+      const now = serverNow();
+      if (state.countdownOnly) return state.serverStartedAt > now ? "waitingStart" : "readyStart";
+      if (state.running && state.serverStartedAt > now) return "waitingStart";
+      if (state.waitingForManualStart) return "readyStart";
+      if (state.completed) return "completed";
+      if (!state.running && state.elapsedBeforePause === 0) return "ready";
+      return state.running ? "roundRunning" : "pause";
+    }
+
     function clientDiagnostics() {
       const audioBaseLatency = Number(audioContext?.baseLatency);
       const audioOutputLatency = Number(audioContext?.outputLatency);
@@ -3045,7 +3059,7 @@
         lastSseAge: Math.max(0, performance.now() - lastSseEventAt),
         sseRestarts,
         stateVersion: lastServerVersion || "",
-        displayStatus: els.status?.textContent || ""
+        displayStatus: diagnosticDisplayStatusKey()
       };
     }
 
@@ -3190,6 +3204,7 @@
       pickSpeechVoice();
       updateParameterLabels();
       render();
+      renderBrowserList(lastKnownClients);
       refreshStandaloneBrowserList();
     }
 
@@ -4187,6 +4202,31 @@
       return copied;
     }
 
+    function diagnosticRoleLabel(value) {
+      const role = String(value || "");
+      if (["primary", "Основной", "Основной браузер", "Primary", "Primary browser"].includes(role)) {
+        return t("diagnosticPrimary");
+      }
+      if (["screen", "Экран", "Упрощённый экран", "Screen", "Simplified screen"].includes(role)) {
+        return t("diagnosticScreen");
+      }
+      return role;
+    }
+
+    function diagnosticStatusLabel(value) {
+      const status = String(value || "");
+      const aliases = {
+        waitingStart: ["Waiting for start", "Ожидание старта"],
+        readyStart: ["Ready to start", "Готов к старту"],
+        completed: ["Completed", "Завершено"],
+        ready: ["Ready", "Готов"],
+        roundRunning: ["Round running", "Раунд идет"],
+        pause: ["Pause", "Paused", "Пауза"]
+      };
+      const key = Object.keys(aliases).find((candidate) => candidate === status || aliases[candidate].includes(status));
+      return key ? t(key) : status;
+    }
+
     function renderBrowserList(clients) {
       if (!els.browserList) return;
       lastKnownClients = clients;
@@ -4354,8 +4394,8 @@
           ? `ОС: ${operatingSystem(client.userAgent)}; устройство: ${deviceType(client.userAgent)}; экран ${client.screen || "n/a"}; окно ${client.viewport || "n/a"}; DPR ${client.dpr ?? "n/a"}`
           : `OS: ${operatingSystem(client.userAgent)}; device: ${deviceType(client.userAgent)}; screen ${client.screen || "n/a"}; viewport ${client.viewport || "n/a"}; DPR ${client.dpr ?? "n/a"}`;
         const meta = [
-          client.displayStatus,
-          client.role || "",
+          diagnosticStatusLabel(client.displayStatus),
+          diagnosticRoleLabel(client.role),
           client.protocol,
           detailIp,
           `${Math.round((client.age || 0) / 1000)}${t("sec")}`

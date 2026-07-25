@@ -7,6 +7,7 @@ const path = require("node:path");
 const vm = require("node:vm");
 
 const index = fs.readFileSync(path.resolve(__dirname, "..", "index.html"), "utf8");
+const server = fs.readFileSync(path.resolve(__dirname, "..", "serve-bouldering-timer.js"), "utf8");
 
 function inlineFunction(name) {
   const match = index.match(new RegExp(`function ${name}\\([^)]*\\) \\{[\\s\\S]*?\\n    \\}`));
@@ -46,6 +47,22 @@ test("mobile controls keep compact multi-column grids", () => {
   assert.match(index, /\.field-grid \{\s*display: grid;\s*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);/);
   assert.match(index, /\.actions \{\s*display: grid;\s*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);/);
   assert.doesNotMatch(index, /@media \(max-width: 560px\) \{\s*\.(?:field-grid|preset-grid|actions)/);
+});
+
+test("diagnostic roles and statuses are translated from stable keys", () => {
+  assert.match(index, /diagnosticPrimary: "Основной", diagnosticScreen: "Экран"/);
+  assert.match(index, /diagnosticPrimary: "Primary", diagnosticScreen: "Screen"/);
+  assert.match(index, /displayStatus: diagnosticDisplayStatusKey\(\)/);
+  assert.match(index, /diagnosticStatusLabel\(client\.displayStatus\)/);
+  assert.match(index, /diagnosticRoleLabel\(client\.role\)/);
+  assert.match(index, /render\(\);\s*renderBrowserList\(lastKnownClients\);\s*refreshStandaloneBrowserList\(\);/);
+  assert.match(server, /return running \? "roundRunning" : "pause";/);
+  assert.match(server, /role: client\.legacyViewer \? "screen"[\s\S]*?\? "primary" : "screen"/);
+  assert.doesNotMatch(server, /role: client\.legacyViewer \? "Экран"/);
+});
+
+test("rotation metadata is visually quieter than the other metadata panels", () => {
+  assert.match(index, /#rotationMeta \{\s*background: rgba\(23, 27, 34, \.42\);\s*\}/);
 });
 
 test("build number uses a guarded two-click GitHub link", () => {

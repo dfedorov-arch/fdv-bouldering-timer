@@ -15,7 +15,7 @@ const runtimeStatePath = path.join(runtimeStateDir, "timer-state.json");
 const beepsPath = path.join(root, "beeps");
 const fontsPath = path.join(root, "fonts");
 const offlineAudioPath = path.join(root, "lib", "offline-audio.js");
-const BUILD_NUMBER = 244;
+const BUILD_NUMBER = 245;
 const serverInstanceId = crypto.randomUUID();
 const SNAPSHOT_SCHEMA_VERSION = 1;
 const SNAPSHOT_MAX_AGE_MS = 12 * 60 * 60 * 1000;
@@ -767,28 +767,23 @@ function consumeAudioTestRateLimit(now = wallNow()) {
   return { allowed: true, retryAfterMs: 0 };
 }
 
-function timerDisplayStatusLabel(language = timerState.language) {
-  const text = (ru, en) => language === "en" ? en : ru;
+function timerDisplayStatusLabel() {
   const now = wallNow();
   const startedAt = Number(timerState.startedAt || 0);
   const running = Boolean(timerState.running);
 
-  if (timerState.countdownOnly) {
-    return startedAt > now ? text("Ожидание старта", "Waiting for start") : text("Готов к старту", "Ready to start");
-  }
-  if (running && startedAt > now) return text("Ожидание старта", "Waiting for start");
-  if (timerState.waitingForManualStart) return text("Готов к старту", "Ready to start");
+  if (timerState.countdownOnly) return startedAt > now ? "waitingStart" : "readyStart";
+  if (running && startedAt > now) return "waitingStart";
+  if (timerState.waitingForManualStart) return "readyStart";
 
   const activeSettings = timerState.activeSettings || {};
   const oneShotDuration = Math.max(0,
     numberOrDefault(activeSettings.rotationSeconds, 0)
     + numberOrDefault(activeSettings.breakSeconds, 0));
   const elapsed = elapsedSeconds();
-  if (timerState.completed || (activeSettings.oneShot && elapsed >= oneShotDuration)) {
-    return text("Завершено", "Completed");
-  }
-  if (!running && !timerState.completed && timerState.elapsedBeforePause === 0) return text("Готов", "Ready");
-  return running ? text("Раунд идет", "Round running") : text("Пауза", "Paused");
+  if (timerState.completed || (activeSettings.oneShot && elapsed >= oneShotDuration)) return "completed";
+  if (!running && !timerState.completed && timerState.elapsedBeforePause === 0) return "ready";
+  return running ? "roundRunning" : "pause";
 }
 
 function registerClient(req, source = {}) {
@@ -851,7 +846,7 @@ function registerClient(req, source = {}) {
     lastSseAge: optionalNumber(sourceValue(source, "lastSseAge"), existing.lastSseAge ?? null),
     sseRestarts: optionalNumber(sourceValue(source, "sseRestarts"), existing.sseRestarts ?? null),
     stateVersion: legacyViewer ? timerState.version : optionalNumber(sourceValue(source, "stateVersion"), existing.stateVersion ?? null),
-    displayStatus: legacyViewer ? timerDisplayStatusLabel(timerState.language) : sourceValue(source, "displayStatus") || existing.displayStatus || ""
+    displayStatus: legacyViewer ? timerDisplayStatusLabel() : sourceValue(source, "displayStatus") || existing.displayStatus || ""
   });
   if (optionalBool(sourceValue(source, "oldBrowser"), false)) {
     oldBrowserClients.add(id);
@@ -878,7 +873,7 @@ function publicClients() {
     .map((client) => ({
       ...client,
       manualLegacy: manualLegacyClients.has(client.id),
-      role: client.legacyViewer ? "Экран" : timerState.primaryClientId ? (timerState.primaryClientId === client.id ? "Основной" : "Экран") : "",
+      role: client.legacyViewer ? "screen" : timerState.primaryClientId ? (timerState.primaryClientId === client.id ? "primary" : "screen") : "",
       age: now - client.lastSeen,
       connected: now - client.lastSeen < 6000
     }));
