@@ -4,6 +4,11 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Таймер болдеринга</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <meta name="theme-color" content="#0e1116">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="FDV Bouldering Timer">
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23111722'/%3E%3Ccircle cx='32' cy='36' r='20' fill='%23f4f7fb'/%3E%3Ccircle cx='32' cy='36' r='15' fill='%23111722'/%3E%3Cpath d='M32 36V24M32 36l9-6' stroke='%2349c6e5' stroke-width='5' stroke-linecap='round'/%3E%3Cpath d='M25 9h14v8H25z' fill='%23f4f7fb'/%3E%3Cpath d='M43 15l6 6' stroke='%23ffc857' stroke-width='5' stroke-linecap='round'/%3E%3Ccircle cx='32' cy='36' r='3' fill='%23ffc857'/%3E%3C/svg%3E">
   <script>
     (function () {
@@ -29,8 +34,7 @@
           return;
         }
         if (!window.JSON || !window.XMLHttpRequest || !window.Promise || !window.requestAnimationFrame ||
-            !window.performance || !document.querySelector || !document.addEventListener ||
-            !window.localStorage || !window.sessionStorage) {
+            !window.performance || !document.querySelector || !document.addEventListener) {
           openLegacyViewer();
           return;
         }
@@ -56,6 +60,8 @@
       --blue: #6d9cff;
       --shadow: 0 20px 70px rgba(0, 0, 0, .34);
       --timer-font-family: Arial, sans-serif;
+      --timer-countdown-text: #f4f7fb;
+      --timer-countdown-bg: #0e1116;
       --timer-rotation-text: #f4f7fb;
       --timer-warning-text: #f4f7fb;
       --timer-break-text: #f4f7fb;
@@ -286,6 +292,13 @@
       outline: none;
     }
 
+    .install-hint {
+      padding-top: 8px;
+      color: var(--text);
+      font-size: 12px;
+      line-height: 1.35;
+    }
+
     .credits {
       padding-top: 10px;
       color: var(--muted);
@@ -293,6 +306,53 @@
       line-height: 1.35;
       text-align: center;
       opacity: .82;
+    }
+
+    .build-separator {
+      margin-left: 10px;
+    }
+
+    .build-info {
+      display: inline-flex;
+      align-items: center;
+      min-height: 28px;
+      margin-left: 0;
+      padding: 3px 9px;
+      border: 1px solid transparent;
+      border-radius: 7px;
+      color: inherit;
+      background: transparent;
+      font: inherit;
+      line-height: inherit;
+      text-decoration: none;
+      cursor: pointer;
+    }
+
+    .build-info.armed {
+      border-color: var(--line);
+      background: rgba(255, 255, 255, .03);
+    }
+
+    .build-info:not(.armed):hover {
+      color: var(--text);
+    }
+
+    .build-info.armed:hover,
+    .build-info.armed:focus-visible,
+    .build-info.armed:active,
+    .build-info.opening {
+      border-color: var(--cyan);
+      color: var(--text);
+      outline: none;
+    }
+
+    .build-project-hint {
+      max-width: 360px;
+      margin: 6px auto 0;
+      color: var(--muted);
+      font-size: 11px;
+      line-height: 1.35;
+      text-align: center;
     }
 
     .preset-grid {
@@ -411,6 +471,10 @@
       color: #101318;
       background: var(--yellow);
       border-color: var(--yellow);
+    }
+
+    .preset.format-locked {
+      cursor: not-allowed;
     }
 
     .field-grid {
@@ -559,7 +623,15 @@
 
     .start { background: var(--green); color: #07130d; }
     .pause { background: var(--yellow); color: #1a1402; }
-    .reset { background: transparent; border-color: var(--line); color: var(--muted); }
+    .reset {
+      background: #b84e4f;
+      border-color: var(--red);
+      color: #1a1402;
+    }
+    .reset:not(:disabled):hover {
+      background: var(--red);
+      border-color: var(--red);
+    }
     .full { background: var(--blue); color: #071225; }
 
     .connections {
@@ -640,9 +712,12 @@
 
     .diag-chip {
       flex: 0 0 auto;
+      appearance: none;
+      border: 0;
       padding: 2px 5px;
       border-radius: 999px;
       font-size: 10px;
+      font-family: inherit;
       line-height: 1.35;
       font-weight: 900;
       letter-spacing: .02em;
@@ -709,21 +784,26 @@
     .audio-offset-editor input[type="range"] {
       width: 100%;
       min-height: 20px;
+      margin: 0;
       padding: 0;
       accent-color: #ff9f43;
       cursor: ew-resize;
+      touch-action: pan-y;
     }
 
     .audio-offset-scale {
-      display: grid;
-      grid-template-columns: repeat(5, 1fr);
-      margin-top: 2px;
+      position: relative;
+      height: 20px;
+      margin: 2px 8px 0;
       color: var(--muted);
       font-size: 9px;
       font-variant-numeric: tabular-nums;
     }
 
     .audio-offset-scale button {
+      position: absolute;
+      top: 0;
+      width: 42px;
       min-width: 0;
       min-height: 20px;
       padding: 0;
@@ -733,6 +813,7 @@
       background: transparent;
       font: inherit;
       text-align: center;
+      transform: translateX(-50%);
       cursor: pointer;
     }
 
@@ -743,12 +824,55 @@
       outline: none;
     }
 
-    .audio-offset-scale button:first-child {
+    .audio-offset-scale button:nth-child(1) {
+      left: 0;
       text-align: left;
+      transform: none;
     }
 
-    .audio-offset-scale button:last-child {
+    .audio-offset-scale button:nth-child(2) {
+      left: 25%;
+    }
+
+    .audio-offset-scale button:nth-child(3) {
+      left: 50%;
+    }
+
+    .audio-offset-scale button:nth-child(4) {
+      left: 75%;
+    }
+
+    .audio-offset-scale button:nth-child(5) {
+      left: 100%;
       text-align: right;
+      transform: translateX(-100%);
+    }
+
+    .audio-offset-nudge {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 5px;
+      margin-top: 5px;
+    }
+
+    .audio-offset-nudge button {
+      min-height: 26px;
+      padding: 3px 8px;
+      border: 1px solid var(--line);
+      border-radius: 5px;
+      color: var(--text);
+      background: rgba(255, 255, 255, .04);
+      font: inherit;
+      font-size: 10px;
+      font-weight: 800;
+      cursor: pointer;
+    }
+
+    .audio-offset-nudge button:hover,
+    .audio-offset-nudge button:focus-visible {
+      border-color: #ff9f43;
+      background: rgba(255, 159, 67, .12);
+      outline: none;
     }
 
     .audio-test-controls {
@@ -816,6 +940,7 @@
       position: relative;
       overflow: hidden;
       background: var(--timer-rotation-bg);
+      touch-action: manipulation;
     }
 
     .topbar {
@@ -830,25 +955,6 @@
     .phase,
     .meta {
       display: none;
-    }
-
-    .competition {
-      min-width: 0;
-    }
-
-    .competition input {
-      max-width: 520px;
-      height: 52px;
-      font-size: clamp(18px, 2vw, 28px);
-      font-weight: 850;
-      background: transparent;
-      border-color: transparent;
-      padding-left: 0;
-    }
-
-    .competition input:focus {
-      border-color: var(--line);
-      padding-left: 12px;
     }
 
     .status-pill {
@@ -917,6 +1023,8 @@
       font-family: var(--timer-font-family);
       color: var(--timer-rotation-text);
       text-shadow: 0 22px 55px rgba(0, 0, 0, .38);
+      touch-action: manipulation;
+      pointer-events: auto;
     }
 
     .time-part {
@@ -962,6 +1070,10 @@
       font-weight: 760;
     }
 
+    #rotationMeta {
+      background: rgba(23, 27, 34, .42);
+    }
+
     .progress {
       height: 14px;
       border-radius: 999px;
@@ -979,9 +1091,12 @@
     .progress span {
       display: block;
       height: 100%;
-      width: 0%;
+      width: 100%;
       background: linear-gradient(90deg, var(--cyan), var(--green), var(--yellow));
-      transition: width .18s linear;
+      transform: scaleX(0);
+      transform-origin: left center;
+      transition: transform .25s linear;
+      will-change: transform;
     }
 
     .schedule {
@@ -989,6 +1104,14 @@
       grid-template-columns: repeat(auto-fit, minmax(88px, 1fr));
       gap: 8px;
       margin-top: 18px;
+    }
+
+    .schedule.with-cycle {
+      grid-template-columns: minmax(88px, 1fr) auto;
+    }
+
+    .schedule.with-cycle.with-break {
+      grid-template-columns: minmax(88px, 1fr) auto minmax(88px, 1fr);
     }
 
     .chip {
@@ -1005,10 +1128,12 @@
       font-weight: 780;
     }
 
-    .chip-cycle {
+    .chip.cycle-chip {
+      min-width: 82px;
+      padding: 0 12px;
       color: var(--text);
-      padding-left: 8px;
-      border-left: 1px solid rgba(255, 255, 255, .22);
+      background: rgba(23, 27, 34, .72);
+      white-space: nowrap;
     }
 
     .phase,
@@ -1035,6 +1160,18 @@
 
     body.warning-active .time {
       color: var(--timer-warning-text);
+    }
+
+    body.countdown-active {
+      background: var(--timer-countdown-bg);
+    }
+
+    body.countdown-active .stage {
+      background: var(--timer-countdown-bg);
+    }
+
+    body.countdown-active .time {
+      color: var(--timer-countdown-text);
     }
 
     body.break-active {
@@ -1132,12 +1269,6 @@
     }
 
     @media (max-width: 560px) {
-      .field-grid,
-      .preset-grid,
-      .actions {
-        grid-template-columns: 1fr;
-      }
-
       .topbar {
         align-items: flex-start;
         flex-direction: column;
@@ -1192,6 +1323,41 @@
       width: auto;
       text-align: center;
       white-space: nowrap;
+    }
+
+    .exit-fullscreen-button {
+      position: fixed;
+      top: max(10px, env(safe-area-inset-top));
+      right: max(10px, env(safe-area-inset-right));
+      z-index: 30;
+      width: 34px;
+      height: 34px;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      border: 1px solid rgba(244, 247, 251, .22);
+      border-radius: 50%;
+      color: rgba(244, 247, 251, .66);
+      background: rgba(14, 17, 22, .28);
+      font-size: 18px;
+      line-height: 1;
+      opacity: 0;
+      transition: opacity .18s ease, background .18s ease, color .18s ease;
+    }
+
+    body.fullscreen .exit-fullscreen-button {
+      display: flex;
+    }
+
+    body.fullscreen.exit-fullscreen-visible .exit-fullscreen-button {
+      opacity: .68;
+    }
+
+    body.fullscreen.exit-fullscreen-visible .exit-fullscreen-button:hover,
+    body.fullscreen.exit-fullscreen-visible .exit-fullscreen-button:focus-visible {
+      color: var(--text);
+      background: rgba(14, 17, 22, .55);
+      outline: none;
     }
 
     body.viewer-mode .controls,
@@ -1316,7 +1482,9 @@
         <div class="server-connection-actions">
           <button id="enterStandaloneBtn" class="server-connection-action" type="button">Автономный режим</button>
           <button id="returnToServerBtn" class="server-connection-action" type="button" hidden>Вернуться к серверу</button>
+          <button id="installAppBtn" class="server-connection-action" type="button" hidden>На рабочий стол</button>
         </div>
+        <div id="installHint" class="install-hint" hidden></div>
       </div>
 
       <section class="section">
@@ -1411,7 +1579,7 @@
         <div class="actions">
           <button id="startBtn" class="action start" title="Старт: Z / Я">Старт</button>
           <button id="pauseBtn" class="action pause" title="Пауза: Ctrl+Q / Ctrl+Й" disabled>Пауза</button>
-          <button id="resetBtn" class="action reset" title="Сброс: P / З">Сброс</button>
+          <button id="resetBtn" class="action reset" title="Стоп: P / З">Стоп</button>
           <button id="fullBtn" class="action full" title="Экран: Ctrl+F / Ctrl+А">Экран</button>
         </div>
         <div class="connections">
@@ -1421,15 +1589,14 @@
       </section>
       <div class="control-footer">
         <a id="helpLink" class="help-link" href="help.html?lang=ru" target="_blank" rel="noopener">Руководство</a>
-        <div class="credits">2026 <span id="authorName" title="Говорил, что делать">Фёдоров Денис</span> + <span id="codexCredit" title="Делал">Codex</span><span id="buildInfo" hidden></span></div>
+        <div class="credits">2026 <span id="authorName" title="Говорил, что делать">Фёдоров Денис</span> + <span id="codexCredit" title="Делал">Codex</span><span id="buildSeparator" class="build-separator" hidden> | </span><a id="buildInfo" class="build-info" href="https://github.com/dfedorov-arch/fdv-bouldering-timer" target="_blank" rel="noopener" aria-describedby="buildProjectHint" aria-expanded="false" hidden></a></div>
+        <div id="buildProjectHint" class="build-project-hint" role="status" hidden></div>
       </div>
     </aside>
 
     <section class="stage" aria-label="Экран таймера">
+      <button id="exitFullscreenBtn" class="exit-fullscreen-button" type="button" title="Выйти из режима Экран" aria-label="Выйти из режима Экран">×</button>
       <header class="topbar">
-        <div class="competition">
-          <input id="eventName" aria-label="Название соревнований" value="Boulder League">
-        </div>
         <div id="status" class="status-pill">Готов</div>
       </header>
 
@@ -1453,7 +1620,7 @@
         <div class="compact-actions">
           <button id="compactStart" class="action start" title="Старт: Z / Я">Старт</button>
           <button id="compactPause" class="action pause" title="Пауза: Ctrl+Q / Ctrl+Й" disabled>Пауза</button>
-          <button id="compactReset" class="action reset" title="Сброс: P / З">Сброс</button>
+          <button id="compactReset" class="action reset" title="Стоп: P / З">Стоп</button>
         </div>
       </footer>
     </section>
@@ -1461,9 +1628,10 @@
 
   <script>
     if (window.location.protocol === "file:") {
-      document.write('<script src="offline-audio.js"><\/script>');
+      document.write('<script src="lib/offline-audio.js"><\/script>');
     }
   </script>
+  <script src="lib/client-action-transport.js"></script>
   <script>
     const presets = {
       classic: { rotationMinutes: 4, breakSeconds: 15, oneShot: false },
@@ -1484,8 +1652,10 @@
       manualStartLeadMs: 0,
       manualStartDisplayHold: false,
       activePreset: "classic",
+      runtimePreset: "classic",
       activeSettings: null,
       soundProfile: "",
+      flashing: true,
       festivalAnnouncements: true,
       primaryClientId: null,
       primaryPinSet: false,
@@ -1494,11 +1664,15 @@
       timeline: []
     };
 
-    const pageBuildNumber = 202;
+    const pageBuildNumber = 245;
+    const projectUrl = "https://github.com/dfedorov-arch/fdv-bouldering-timer";
+    const buildLinkConfirmDelayMs = 550;
     const offlineSnapshotKey = "fdvBoulderingTimerOfflineSnapshot";
     const primarySoundPreferenceKey = "fdvBoulderingTimerPrimarySound";
     const offlineSnapshotMaxAgeMs = 12 * 60 * 60 * 1000;
     const mobileResumeSyncEnabled = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+    const iosAudioWorkaroundEnabled = /iPad|iPhone|iPod/i.test(navigator.userAgent)
+      || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
 
     let language = "ru";
     let buildNumber = "";
@@ -1511,17 +1685,18 @@
         parameters: "Параметры", rotationMinutes: "Время ротации",
         roundMinutes: "Время раунда", breakSeconds: "Перерыв",
         breakMinutes: "Перерыв", minuteUnit: "минут", secondUnit: "секунд",
-        primary: "Основной браузер", sound: "Звук", soundProfile: "Комплект звуков", festivalAnnouncements: "Объявления времени",
+        primary: "Основной браузер", diagnosticPrimary: "Основной", diagnosticScreen: "Экран", sound: "Звук", soundProfile: "Комплект звуков", festivalAnnouncements: "Объявления времени",
         festivalAnnouncementsHint: "Объявления за 60, 30, 10 и 5 минут",
         primarySound: "Звук в основном браузере", otherSound: "Звук в других браузерах",
         otherFullscreen: "Полный экран в других браузерах", flashing: "Мигание",
-        controls: "Управление", start: "Старт", pause: "Пауза", reset: "Сброс",
-        screen: "Экран", browsers: "Браузеры", ready: "Готов", readiness: "Готовность",
+        controls: "Управление", start: "Старт", pause: "Пауза", reset: "Стоп",
+        presetLockedHint: "Чтобы выбрать другой формат, сначала остановите таймер кнопкой «Стоп»",
+        screen: "Экран", exitScreen: "Выйти из режима Экран", browsers: "Браузеры", ready: "Готов", readiness: "Готовность",
         waitingStart: "Ожидание старта", untilStart: "До начала старта",
         waitingManual: "Ожидание ручного старта", readyStart: "Готов к старту",
         pressStart: "Нажмите Старт", nextManual: "Далее: ручной старт",
         completed: "Завершено", roundRunning: "Раунд идет", cycle: "Цикл",
-        rotation: "Ротация", break: "Перерыв", nextStart: "Далее: старт",
+        rotation: "Ротация", round: "Раунд", break: "Перерыв", nextStart: "Далее: старт",
         nextRotation: "Далее: ротация", nextBreak: "Далее: перерыв",
         nextComplete: "Далее: завершение", noData: "Нет данных", thisBrowser: "этот",
         online: "онлайн", offline: "нет связи", yes: "да", no: "нет",
@@ -1537,11 +1712,17 @@
         testFiveSignals: "5 сек",
         testEverywhere: "Проверить везде, где разрешён звук",
         audioTestUnavailableRunning: "Проверка звука во время работы таймера невозможна",
+        audioTestCooldown: "Повторная проверка доступна через 1 секунду",
         copyLink: "Копировать ссылку",
         copied: "Скопировано",
         copyManually: "Скопируйте ссылку",
         helpManual: "Руководство",
         helpManualTitle: "Открыть руководство в новой вкладке",
+        installApp: "На рабочий стол",
+        installAppTitle: "Добавить таймер на рабочий стол телефона",
+        installIosHint: "iOS: нажмите «Поделиться» и выберите «На экран Домой».",
+        installAndroidHint: "Android: откройте меню браузера ⋮ и выберите «Добавить на главный экран» или «Установить приложение». Для системной установки откройте таймер по HTTP/HTTPS.",
+        installUnsupportedHint: "Если браузер не показал установку, используйте меню браузера и пункт добавления на главный экран.",
         serverOfflineTitle: "Нет связи с сервером",
         serverOfflineText: "Табло продолжает последний полученный отсчёт. Продолжить автономно в этом браузере? Другие браузеры синхронизироваться не будут.",
         enterStandalone: "Автономный режим",
@@ -1560,7 +1741,8 @@
         primaryPinWrong: "Неверный PIN",
         primaryPinBlocked: "Слишком много попыток",
         clear: "Очистить",
-        buildLabel: "сборка"
+        buildLabel: "сборка",
+        buildProjectHint: "Для перехода на страницу проекта в GitHub нажмите на номер сборки ещё раз"
       },
       en: {
         brandTimer: "Bouldering", brandBouldering: "Timer", format: "Format",
@@ -1570,17 +1752,18 @@
         parameters: "Parameters", rotationMinutes: "Rotation time",
         roundMinutes: "Round time", breakSeconds: "Break",
         breakMinutes: "Break", minuteUnit: "minutes", secondUnit: "seconds",
-        primary: "Primary browser", sound: "Sound", soundProfile: "Sound profile", festivalAnnouncements: "Time announcements",
+        primary: "Primary browser", diagnosticPrimary: "Primary", diagnosticScreen: "Screen", sound: "Sound", soundProfile: "Sound profile", festivalAnnouncements: "Time announcements",
         festivalAnnouncementsHint: "Announcements at 60, 30, 10 and 5 minutes remaining",
         primarySound: "Sound in primary browser", otherSound: "Sound in other browsers",
         otherFullscreen: "Fullscreen in other browsers", flashing: "Flashing",
-        controls: "Controls", start: "Start", pause: "Pause", reset: "Reset",
-        screen: "Screen", browsers: "Browsers", ready: "Ready", readiness: "Ready",
+        controls: "Controls", start: "Start", pause: "Pause", reset: "Stop",
+        presetLockedHint: "To select another format, first stop the timer with the Stop button",
+        screen: "Screen", exitScreen: "Exit screen mode", browsers: "Browsers", ready: "Ready", readiness: "Ready",
         waitingStart: "Waiting for start", untilStart: "Until start",
         waitingManual: "Waiting for manual start", readyStart: "Ready to start",
         pressStart: "Press Start", nextManual: "Next: manual start",
         completed: "Completed", roundRunning: "Round running", cycle: "Cycle",
-        rotation: "Rotation", break: "Break", nextStart: "Next: start",
+        rotation: "Rotation", round: "Round", break: "Break", nextStart: "Next: start",
         nextRotation: "Next: rotation", nextBreak: "Next: break",
         nextComplete: "Next: finish", noData: "No data", thisBrowser: "this",
         online: "online", offline: "offline", yes: "yes", no: "no",
@@ -1595,11 +1778,17 @@
         testFiveSignals: "5 sec",
         testEverywhere: "Test everywhere sound is allowed",
         audioTestUnavailableRunning: "Sound testing is unavailable while the timer is running",
+        audioTestCooldown: "Sound can be tested again in 1 second",
         copyLink: "Copy link",
         copied: "Copied",
         copyManually: "Copy the link",
         helpManual: "Help",
         helpManualTitle: "Open help in a new tab",
+        installApp: "Add to home screen",
+        installAppTitle: "Add the timer to this phone's home screen",
+        installIosHint: "iOS: tap Share and choose Add to Home Screen.",
+        installAndroidHint: "Android: open the browser menu ⋮ and choose Add to Home screen or Install app. For system installation, open the timer over HTTP/HTTPS.",
+        installUnsupportedHint: "If the browser does not show an install prompt, use the browser menu and choose the home-screen shortcut option.",
         serverOfflineTitle: "Server connection lost",
         serverOfflineText: "The display continues the last received countdown. Continue independently in this browser? Other browsers will not be synchronized.",
         enterStandalone: "Standalone mode",
@@ -1618,7 +1807,8 @@
         primaryPinWrong: "Wrong PIN",
         primaryPinBlocked: "Too many attempts",
         clear: "Clear",
-        buildLabel: "Build"
+        buildLabel: "Build",
+        buildProjectHint: "Click the build number again to open the project page on GitHub"
       }
     };
     const t = (key) => translations[language][key] || key;
@@ -1634,6 +1824,8 @@
       serverConnectionWarningText: document.getElementById("serverConnectionWarningText"),
       enterStandaloneBtn: document.getElementById("enterStandaloneBtn"),
       returnToServerBtn: document.getElementById("returnToServerBtn"),
+      installAppBtn: document.getElementById("installAppBtn"),
+      installHint: document.getElementById("installHint"),
       formatTitle: document.getElementById("formatTitle"),
       startTimeTitle: document.getElementById("startTimeTitle"),
       hoursUnit: document.getElementById("hoursUnit"),
@@ -1654,7 +1846,11 @@
       controlsTitle: document.getElementById("controlsTitle"),
       browsersTitle: document.getElementById("browsersTitle"),
       helpLink: document.getElementById("helpLink"),
+      exitFullscreenBtn: document.getElementById("exitFullscreenBtn"),
+      stage: document.querySelector(".stage"),
       buildInfo: document.getElementById("buildInfo"),
+      buildSeparator: document.getElementById("buildSeparator"),
+      buildProjectHint: document.getElementById("buildProjectHint"),
       authorName: document.getElementById("authorName"),
       codexCredit: document.getElementById("codexCredit"),
       startTimeFields: document.getElementById("startTimeFields"),
@@ -1705,6 +1901,8 @@
     let audioBuffers = { start: null, end: null, minute: null, warn: null, festival60: null, festival30: null, festival10: null, festival5: null };
     let soundProfiles = [];
     let activeHtmlAudio = [];
+    let immediateGestureAudio = null;
+    let immediateGestureAudioSource = "";
     const festivalAnnouncements = [
       { remaining: 60 * 60, kind: "festival60", ru: "Остался один час", en: "One hour remaining" },
       { remaining: 30 * 60, kind: "festival30", ru: "Осталось 30 минут", en: "30 minutes remaining" },
@@ -1728,6 +1926,9 @@
     let serverPerfAnchor = performance.now();
     let serverTimeAnchor = serverPerfAnchor + serverPerfOffset;
     let serverClockRate = 1;
+    let pendingServerClockRatePpm = null;
+    let pendingServerClockRateCount = 0;
+    let lastServerInstanceId = "";
     let lastServerVersion = 0;
     let syncTimer = null;
     let isPrimaryClient = false;
@@ -1765,12 +1966,23 @@
     let resumeSnapStartedAt = 0;
     let resumeSnapTimer = null;
     let resumeSyncInProgress = false;
+    let clockContinuityWallAt = Date.now();
+    let clockContinuityPerfAt = performance.now();
+    let trustedServerClockAnchor = null;
+    let lastTrustedClockAnchorAt = 0;
     let syncRequestInFlight = false;
     let syncRequestGeneration = 0;
     let syncQuality = { latency: null, offset: null, error: null, jitter: null, samples: 0 };
     let syncSamples = [];
     let lastBurstSyncAt = 0;
     let lastDisplayTimeLabel = "";
+    let lastDisplayMinuteDigits = 0;
+    let lastScheduleMarkup = "";
+    let lastScheduleStateKey = "";
+    let lastProgressScale = "";
+    let lastProgressUpdateAt = 0;
+    let lastProgressSegmentKey = "";
+    let lastRuntimeMetaKey = "";
     let lastPhaseSignalKey = "";
     let lastBeforeScheduledStart = null;
     let scheduledPhaseSignalKeys = new Set();
@@ -1778,39 +1990,62 @@
     const standaloneClientFirstSeen = Date.now();
     let editingAudioClientId = "";
     let pendingAudioOffset = 0;
+    let lastAudioChipToggleAt = 0;
+    let lastAudioChipToggleClientId = "";
     let testAudioEverywhere = false;
     let lastAudioTestId = "";
-    let audioTestButtonsDisabled = null;
+    let audioTestCooldownUntil = 0;
+    let audioTestButtonsDisabledReason = null;
     let timerFitQueued = false;
+    let lastTimerFitContainerWidth = 0;
+    let lastTimerFitContainerHeight = 0;
+    let displayBoundaryTimer = null;
+    let displayBoundaryTargetServerTime = 0;
     let serverAvailable = true;
     let standaloneMode = false;
     let offlineReloadMode = window.__FDV_SW_OFFLINE_FALLBACK === true;
     let pendingServerState = null;
     let returnToServerPromise = null;
+    let deferredInstallPrompt = null;
+    let exitFullscreenHideTimer = null;
+    let lastTimerTapAt = 0;
+    let lastTimerTapX = 0;
+    let lastTimerTapY = 0;
+    let lastTimerScreenToggleAt = 0;
+    let screenModeRequested = false;
+    let nativeScreenModeActive = false;
+    let screenModeScrollY = 0;
+    let suppressGestureClicksUntil = 0;
     let lastStartupConfig = null;
+    let buildLinkArmed = false;
+    let buildLinkArmedAt = 0;
     let lastServerContactAt = performance.now();
     let consecutiveServerFailures = 0;
     let serverPorts = { http: 8008, https: 8443 };
     const syncRequestTimeoutMs = 2000;
     const syncSampleWindowMs = 60000;
     const syncMaxSamples = 48;
-    const syncRateMinSpanMs = 8000;
-    const syncRateNormalMin = 0.999;
-    const syncRateNormalMax = 1.001;
+    const syncRateMinSpanMs = 30000;
+    const syncRateNormalMin = 0.9998;
+    const syncRateNormalMax = 1.0002;
     const syncRateLargeMin = 0.90;
     const syncRateLargeMax = 1.10;
-    const syncRateLargeThresholdPpm = 1000;
-    const syncRateLargeMinSpanMs = 30000;
-    const syncRateLargeMinSamples = 12;
-    const syncRateLargeMaxResidualMs = 120;
-    const syncRateLargeMaxHalfDiffPpm = 2000;
-    const syncRateLargeMaxOutlierShare = 0.2;
+    const syncRateLargeThresholdPpm = 200;
+    const syncRateStableMinSamples = 12;
+    const syncRateStableMaxResidualMs = 120;
+    const syncRateStableMaxHalfDiffPpm = 50;
+    const syncRateStableMaxOutlierShare = 0.2;
+    const syncRateConfirmationWindows = 3;
+    const syncRateConfirmationTolerancePpm = 50;
     const syncRateDeadband = 0.0001;
     const syncRateSmoothing = 0.25;
     const serverOfflineAfterMs = 4500;
     const serverTimerLookaheadSeconds = 1.25;
     const staleResumeAfterMs = 3000;
     const resumeSnapMaxWaitMs = 2600;
+    const clockContinuityGapMs = 3000;
+    const clockContinuityMismatchMs = 100;
+    const trustedClockAnchorIntervalMs = 60000;
     const staleSignalGraceMs = 500;
     const signalLateGraceMs = {
       rotationBoundary: 1500,
@@ -1826,7 +2061,16 @@
     const audioPrewarmSeconds = 2;
     const seekEndGuardSeconds = 0.9;
     const manualStartWatchdogDelayMs = 250;
+    const audioTestCooldownMs = 1000;
+    const audioOffsetMinMs = -750;
+    const audioOffsetMaxMs = 250;
+    const audioOffsetStepMs = 5;
+    const audioOffsetNudgeMs = 10;
     const sseSilentRestartMs = 25000;
+    const renderIdleIntervalMs = 1000;
+    const renderRunningIntervalMs = 250;
+    const displayBoundaryGuardMs = 8;
+    const progressUpdateIntervalMs = 250;
     const runtimeCommandTypes = new Set(["start", "pause", "stopCountdown", "reset", "seek"]);
 
     function scheduleFitTimer() {
@@ -1855,9 +2099,14 @@
       return serverAvailable || standaloneMode;
     }
 
+    function isLocalStandalonePage() {
+      return window.location.protocol === "file:" || window.FDV_SINGLE_FILE_STANDALONE === true;
+    }
+
     function updateConnectionWarning() {
       if (!standaloneMode && serverAvailable) {
         els.serverConnectionWarning.hidden = true;
+        updateInstallButton();
         return;
       }
 
@@ -1868,6 +2117,7 @@
         els.serverConnectionWarningText.textContent = t("serverOfflineText");
         els.enterStandaloneBtn.hidden = false;
         els.returnToServerBtn.hidden = true;
+        updateInstallButton();
         return;
       }
 
@@ -1877,6 +2127,61 @@
       els.serverConnectionWarningText.textContent = t(recovered ? "serverRecoveredText" : "standaloneText");
       els.enterStandaloneBtn.hidden = true;
       els.returnToServerBtn.hidden = !recovered;
+      updateInstallButton();
+    }
+
+    function isIosDevice() {
+      return /iPad|iPhone|iPod/i.test(navigator.userAgent)
+        || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+    }
+
+    function isAndroidDevice() {
+      return /Android/i.test(navigator.userAgent);
+    }
+
+    function isInstalledAppDisplay() {
+      return window.matchMedia?.("(display-mode: standalone)")?.matches
+        || window.navigator.standalone === true;
+    }
+
+    function updateInstallButton() {
+      if (!els.installAppBtn) return;
+      const mobileTarget = isAndroidDevice() || isIosDevice();
+      const canOfferInstall = !isInstalledAppDisplay()
+        && isLocalStandalonePage()
+        && standaloneMode
+        && (mobileTarget || Boolean(deferredInstallPrompt));
+      els.installAppBtn.hidden = !canOfferInstall;
+      if (!canOfferInstall && els.installHint) els.installHint.hidden = true;
+    }
+
+    function showInstallHint(message) {
+      if (!els.installHint) return;
+      els.installHint.textContent = message;
+      els.installHint.hidden = false;
+    }
+
+    async function installAppToHomeScreen() {
+      if (deferredInstallPrompt) {
+        const promptEvent = deferredInstallPrompt;
+        deferredInstallPrompt = null;
+        try {
+          promptEvent.prompt();
+          await promptEvent.userChoice;
+        } catch (error) {}
+        updateInstallButton();
+        return;
+      }
+
+      if (isIosDevice()) {
+        showInstallHint(t("installIosHint"));
+        return;
+      }
+      if (isAndroidDevice()) {
+        showInstallHint(t("installAndroidHint"));
+        return;
+      }
+      showInstallHint(t("installUnsupportedHint"));
     }
 
     function setServerAvailable(available) {
@@ -1970,6 +2275,7 @@
       if (config && typeof config === "object") {
         applyStartupConfig(config);
         state.activePreset = "classic";
+        state.runtimePreset = "classic";
         state.festivalAnnouncements = config.festivalAnnouncements !== false;
         els.festivalAnnouncementsToggle.checked = state.festivalAnnouncements;
         globalSoundEnabled = config.sound !== false;
@@ -1987,12 +2293,15 @@
     }
 
     function saveOfflineSnapshot() {
-      if (window.location.protocol === "file:" || !window.localStorage) return;
-      if (offlineReloadMode && !standaloneMode) return;
-      if (!serverAvailable && !standaloneMode) return;
+      const localStandalone = isLocalStandalonePage();
+      if (!localStandalone) {
+        if (offlineReloadMode && !standaloneMode) return;
+        if (!serverAvailable && !standaloneMode) return;
+      }
       try {
         const snapshot = {
           schemaVersion: 1,
+          localStandalone,
           clientId,
           standaloneMode,
           pageBuildNumber,
@@ -2015,29 +2324,38 @@
             serverStartedAt: state.serverStartedAt,
             elapsedBeforePause: state.elapsedBeforePause,
             activePreset: state.activePreset,
+            runtimePreset: state.runtimePreset,
             activeSettings: state.activeSettings,
             soundProfile: state.soundProfile,
+            flashing: state.flashing,
             festivalAnnouncements: state.festivalAnnouncements,
             primaryClientId: state.primaryClientId,
             primaryPinSet: state.primaryPinSet
           }
         };
-        localStorage.setItem(offlineSnapshotKey, JSON.stringify(snapshot));
+        safeStorageSet("localStorage", offlineSnapshotKey, JSON.stringify(snapshot));
       } catch (error) {}
     }
 
-    function restoreOfflineReloadSnapshot() {
-      if (!offlineReloadMode || window.location.protocol === "file:" || !window.localStorage) return false;
+    function restoreOfflineReloadSnapshot(options = {}) {
+      const localStandalone = options.localStandalone === true;
+      if (!localStandalone && (!offlineReloadMode || window.location.protocol === "file:")) return false;
       try {
-        const snapshot = JSON.parse(localStorage.getItem(offlineSnapshotKey) || "null");
+        const snapshot = JSON.parse(safeStorageGet("localStorage", offlineSnapshotKey) || "null");
         if (!snapshot || snapshot.schemaVersion !== 1 || !snapshot.state) return false;
+        if (localStandalone && snapshot.localStandalone !== true) return false;
         const savedAtWall = Number(snapshot.savedAtWall);
         const age = Date.now() - savedAtWall;
         if (!Number.isFinite(savedAtWall) || age < 0 || age > offlineSnapshotMaxAgeMs) return false;
 
         if (snapshot.config && typeof snapshot.config === "object") applyStartupConfig(snapshot.config);
+        const currentStandaloneConfig = localStandalone ? window.FDV_OFFLINE_BUNDLE?.config : null;
+        if (currentStandaloneConfig && typeof currentStandaloneConfig === "object") {
+          applyStartupConfig(currentStandaloneConfig);
+        }
         if (snapshot.language) applyLanguage(snapshot.language);
-        standaloneMode = Boolean(snapshot.standaloneMode);
+        standaloneMode = localStandalone ? true : Boolean(snapshot.standaloneMode);
+        document.body.classList.toggle("file-mode", localStandalone);
         pendingServerState = null;
         if (standaloneMode) offlineReloadMode = false;
         primarySoundEnabled = snapshot.primarySoundEnabled !== false;
@@ -2061,7 +2379,11 @@
           serverStartedAt: Number(snapshot.state.serverStartedAt || 0),
           elapsedBeforePause: Number(snapshot.state.elapsedBeforePause || 0),
           activePreset: snapshot.state.activePreset || "",
+          runtimePreset: Object.prototype.hasOwnProperty.call(snapshot.state, "runtimePreset")
+            ? snapshot.state.runtimePreset || ""
+            : snapshot.state.activeSettings?.oneShot ? "final" : snapshot.state.activePreset || "classic",
           activeSettings: snapshot.state.activeSettings || activeSettingsFromDraft(),
+          flashing: snapshot.state.flashing !== false,
           festivalAnnouncements: snapshot.state.festivalAnnouncements !== false,
           primaryClientId: restoredPrimaryClientId,
           primaryPinSet: Boolean(snapshot.state.primaryPinSet)
@@ -2077,7 +2399,7 @@
         const restoredRate = clampFloat(snapshot.serverClockRate, syncRateLargeMin, syncRateLargeMax, 1);
         const savedServerNow = Number(snapshot.serverNow);
         const restoredServerNow = (Number.isFinite(savedServerNow) ? savedServerNow : savedAtWall)
-          + (age * restoredRate);
+          + age;
         const localNow = performance.now();
         serverClockRate = restoredRate;
         serverClockRateConfidence = "offline-reload";
@@ -2099,6 +2421,7 @@
         els.soundToggle.checked = primarySoundEnabled;
         els.instancesSoundToggle.checked = instancesSoundEnabled;
         els.instancesFullscreenToggle.checked = instancesFullscreenEnabled;
+        els.flashToggle.checked = state.flashing;
         els.festivalAnnouncementsToggle.checked = state.festivalAnnouncements;
         setServerAvailable(false);
         revealControlsIfAllowed();
@@ -2156,25 +2479,28 @@
 
       const rect = wrap.getBoundingClientRect();
       if (rect.width < 1 || rect.height < 1) return;
+      lastTimerFitContainerWidth = rect.width;
+      lastTimerFitContainerHeight = rect.height;
 
       const isLargeScreenMode = document.fullscreenElement || document.body.classList.contains("viewer-mode");
       const maxWidth = Math.max(60, rect.width * (isLargeScreenMode ? 0.99 : 0.985));
       const maxHeight = Math.max(60, rect.height * (isLargeScreenMode ? 0.98 : 0.96));
-      let low = 48;
-      let high = Math.min(1800, Math.max(220, rect.width, rect.height * 1.45));
+      const currentSize = Math.max(48, parseFloat(window.getComputedStyle(els.time).fontSize) || 220);
+      const timeRect = els.time.getBoundingClientRect();
+      if (timeRect.width < 1 || timeRect.height < 1) return;
 
-      for (let i = 0; i < 13; i += 1) {
-        const mid = (low + high) / 2;
-        els.time.style.setProperty("--timer-font-size", `${mid}px`);
-        const timeRect = els.time.getBoundingClientRect();
-        if (timeRect.width <= maxWidth && timeRect.height <= maxHeight) {
-          low = mid;
-        } else {
-          high = mid;
-        }
+      const scale = Math.min(maxWidth / timeRect.width, maxHeight / timeRect.height);
+      let targetSize = Math.max(48, Math.min(1800, Math.floor(currentSize * scale)));
+      if (Math.abs(targetSize - currentSize) >= 1) {
+        els.time.style.setProperty("--timer-font-size", `${targetSize}px`);
       }
 
-      els.time.style.setProperty("--timer-font-size", `${Math.floor(low)}px`);
+      const fittedRect = els.time.getBoundingClientRect();
+      if (fittedRect.width > maxWidth || fittedRect.height > maxHeight) {
+        const correction = Math.min(maxWidth / fittedRect.width, maxHeight / fittedRect.height);
+        targetSize = Math.max(48, Math.floor(targetSize * correction) - 1);
+        els.time.style.setProperty("--timer-font-size", `${targetSize}px`);
+      }
     }
 
     function createClientId() {
@@ -2182,8 +2508,25 @@
       return `client-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
     }
 
-    const clientId = sessionStorage.getItem("boulderingTimerClientId") || createClientId();
-    sessionStorage.setItem("boulderingTimerClientId", clientId);
+    function safeStorageGet(storageName, key) {
+      try {
+        return window[storageName]?.getItem(key) || "";
+      } catch (error) {
+        return "";
+      }
+    }
+
+    function safeStorageSet(storageName, key, value) {
+      try {
+        window[storageName]?.setItem(key, value);
+        return true;
+      } catch (error) {
+        return false;
+      }
+    }
+
+    const clientId = safeStorageGet("sessionStorage", "boulderingTimerClientId") || createClientId();
+    safeStorageSet("sessionStorage", "boulderingTimerClientId", clientId);
     const commandSessionId = createClientId();
 
     async function requestScreenWakeLock() {
@@ -2201,21 +2544,31 @@
       }
     }
 
-    async function unlockAudio() {
-      if (audioUnlocked) return;
+    async function unlockAudio(refreshDiagnostics = true) {
+      const shouldPrime = !audioUnlocked;
       audioUnlocked = true;
       try {
         audioContext ||= new (window.AudioContext || window.webkitAudioContext)();
-        if (audioContext.state === "suspended") await audioContext.resume();
-        const gain = audioContext.createGain();
-        const osc = audioContext.createOscillator();
-        gain.gain.setValueAtTime(0.0001, audioContext.currentTime);
-        osc.connect(gain).connect(audioContext.destination);
-        osc.start();
-        osc.stop(audioContext.currentTime + 0.03);
-        await loadAudioBuffers();
+        const unlockSource = audioContext.createBufferSource();
+        unlockSource.buffer = audioContext.createBuffer(1, 1, 22050);
+        unlockSource.connect(audioContext.destination);
+        unlockSource.start(0);
+        if (audioContext.state !== "running" && audioContext.state !== "closed") {
+          await audioContext.resume();
+        }
+        if (shouldPrime) {
+          const gain = audioContext.createGain();
+          const osc = audioContext.createOscillator();
+          gain.gain.setValueAtTime(0.0001, audioContext.currentTime);
+          osc.connect(gain).connect(audioContext.destination);
+          osc.start();
+          osc.stop(audioContext.currentTime + 0.03);
+        }
+        loadAudioBuffers()?.catch(() => {});
       } catch (error) {}
-      refreshStandaloneBrowserList();
+      if (refreshDiagnostics) {
+        refreshStandaloneBrowserList();
+      }
     }
 
     async function loadAudioBuffers() {
@@ -2248,6 +2601,20 @@
       return serverTimeAnchor + ((localNow - serverPerfAnchor) * serverClockRate);
     }
 
+    function refreshTrustedClockAnchor(force = false) {
+      if (standaloneMode || !serverAvailable) return;
+      const wallNow = Date.now();
+      if (!force && trustedServerClockAnchor
+        && wallNow - lastTrustedClockAnchorAt < trustedClockAnchorIntervalMs) return;
+      trustedServerClockAnchor = {
+        wallAt: wallNow,
+        perfAt: performance.now(),
+        serverAt: serverNow(),
+        serverInstanceId: lastServerInstanceId
+      };
+      lastTrustedClockAnchorAt = wallNow;
+    }
+
     function applyServerClockModel(nextServerNow, nextRate, direct = false) {
       const localNow = performance.now();
       const currentServerNow = serverNow();
@@ -2258,6 +2625,7 @@
       serverPerfAnchor = localNow;
       serverTimeAnchor = adjustedServerNow;
       serverPerfOffset = adjustedServerNow - localNow;
+      scheduleDisplayBoundary(true);
     }
 
     function reanchorServerClockModel(confidence = "held") {
@@ -2281,10 +2649,16 @@
       reanchorServerClockModel("offline-held");
     }
 
+    function resetServerClockRateConfirmation() {
+      pendingServerClockRatePpm = null;
+      pendingServerClockRateCount = 0;
+    }
+
     function resetServerClockModel() {
       const localNow = performance.now();
       const dateNow = Date.now();
       syncSamples = [];
+      resetServerClockRateConfirmation();
       serverClockRate = 1;
       serverClockRateHighConfidence = false;
       serverClockRateConfidence = "reset";
@@ -2292,6 +2666,62 @@
       serverTimeAnchor = dateNow;
       serverPerfOffset = dateNow - localNow;
       syncQuality = { latency: null, offset: null, error: null, jitter: null, samples: 0, rate: 1 };
+    }
+
+    function repairServerClockAfterSuspension() {
+      const wallNow = Date.now();
+      const perfNow = performance.now();
+      const wallDelta = Math.max(0, wallNow - clockContinuityWallAt);
+      const perfDelta = Math.max(0, perfNow - clockContinuityPerfAt);
+      clockContinuityWallAt = wallNow;
+      clockContinuityPerfAt = perfNow;
+
+      if (wallDelta < clockContinuityGapMs) return false;
+
+      const currentServerTime = serverNow();
+      const fallbackCorrection = wallDelta - (perfDelta * serverClockRate);
+      const trustedWallDelta = trustedServerClockAnchor
+        ? wallNow - trustedServerClockAnchor.wallAt
+        : NaN;
+      const trustedPerfDelta = trustedServerClockAnchor
+        ? perfNow - trustedServerClockAnchor.perfAt
+        : NaN;
+      const trustedAnchorUsable = trustedServerClockAnchor
+        && Number.isFinite(trustedWallDelta)
+        && Number.isFinite(trustedPerfDelta)
+        && trustedWallDelta >= 0
+        && trustedWallDelta <= offlineSnapshotMaxAgeMs;
+      const estimatedServerTime = trustedAnchorUsable
+        ? trustedServerClockAnchor.serverAt + trustedWallDelta
+        : currentServerTime + fallbackCorrection;
+      const correction = estimatedServerTime - currentServerTime;
+      if (Math.abs(correction) < clockContinuityMismatchMs) return false;
+
+      applyServerClockModel(estimatedServerTime, serverClockRate, true);
+      syncSamples = [];
+      resetServerClockRateConfirmation();
+      serverClockRateHighConfidence = false;
+      const wakeConfidence = trustedAnchorUsable ? "wake-wall-anchor" : "wake-estimate";
+      serverClockRateConfidence = wakeConfidence;
+      serverClockRateGateReason = wakeConfidence;
+      syncQuality = {
+        latency: null,
+        offset: null,
+        error: null,
+        jitter: null,
+        samples: 0,
+        rate: serverClockRate,
+        rateConfidence: serverClockRateConfidence,
+        rateGateReason: serverClockRateGateReason,
+        rateAcceptedPpm: Math.round((serverClockRate - 1) * 1000000)
+      };
+
+      clearSignalTimers(false, true);
+      lastSegmentIndex = -1;
+      suppressPhaseSignalsUntil = wallNow + 2500;
+      if (state.running && !state.countdownOnly) rescheduleStandaloneSignals();
+      lastDisplayTimeLabel = "";
+      return true;
     }
 
     function updateServerTiming(remote, timing = {}, options = {}) {
@@ -2317,7 +2747,10 @@
           };
         }
       }
-      if (options.resetClockSamples) syncSamples = [];
+      if (options.resetClockSamples) {
+        syncSamples = [];
+        resetServerClockRateConfirmation();
+      }
       const rawServerReceivedAt = remote.serverReceivedAt;
       const rawServerSentAt = remote.serverSentAt;
       const serverReceivedAt = rawServerReceivedAt === null || rawServerReceivedAt === undefined || rawServerReceivedAt === "" ? NaN : Number(rawServerReceivedAt);
@@ -2379,7 +2812,14 @@
         let residualMinMax = jitter;
         let rateHalfDiffPpm = 0;
         let rateOutlierShare = 0;
-        serverClockRateGateReason = "insufficient-window";
+        serverClockRateGateReason = modelSpan < syncRateMinSpanMs ? "short-window" : "few-samples";
+        if (modelSpan < syncRateMinSpanMs || modelSamples.length < 4) {
+          resetServerClockRateConfirmation();
+          serverClockRateHighConfidence = false;
+          serverClockRateConfidence = holdExistingClockRate
+            ? serverClockRateConfidence || "resume-held"
+            : "gated";
+        }
 
         if (modelSamples.length >= 4 && modelSpan >= syncRateMinSpanMs) {
           const fit = fitClockRate(modelSamples);
@@ -2389,67 +2829,83 @@
           residualJitter = fit?.residualJitter ?? jitter;
           residualMinMax = fit?.residualMinMax ?? residualJitter;
           rateOutlierShare = fit?.outlierShare ?? 0;
-          const fittedRatePpm = Math.abs(candidateRatePpm);
-          const largeRateCandidate = fittedRatePpm > syncRateLargeThresholdPpm;
-          let stableHalfRates = true;
-          if (largeRateCandidate) {
-            const middleTime = firstModelSample.perfTime + (modelSpan / 2);
-            const firstHalf = modelSamples.filter((item) => item.perfTime <= middleTime);
-            const secondHalf = modelSamples.filter((item) => item.perfTime > middleTime);
-            const firstHalfFit = firstHalf.length >= 4 ? fitClockRate(firstHalf) : null;
-            const secondHalfFit = secondHalf.length >= 4 ? fitClockRate(secondHalf) : null;
-            if (firstHalfFit && secondHalfFit) {
-              rateHalfDiffPpm = Math.abs(Math.round((firstHalfFit.rate - secondHalfFit.rate) * 1000000));
-              stableHalfRates = rateHalfDiffPpm <= syncRateLargeMaxHalfDiffPpm;
-            } else {
-              stableHalfRates = false;
-              rateHalfDiffPpm = NaN;
-            }
-          }
-          const highConfidenceLargeRate = largeRateCandidate
-            && modelSpan >= syncRateLargeMinSpanMs
-            && modelSamples.length >= syncRateLargeMinSamples
-            && residualJitter <= syncRateLargeMaxResidualMs
+          const middleTime = firstModelSample.perfTime + (modelSpan / 2);
+          const firstHalf = modelSamples.filter((item) => item.perfTime <= middleTime);
+          const secondHalf = modelSamples.filter((item) => item.perfTime > middleTime);
+          const firstHalfFit = firstHalf.length >= 4 ? fitClockRate(firstHalf) : null;
+          const secondHalfFit = secondHalf.length >= 4 ? fitClockRate(secondHalf) : null;
+          const stableHalfRates = Boolean(firstHalfFit && secondHalfFit)
+            && Math.abs((firstHalfFit.rate - secondHalfFit.rate) * 1000000) <= syncRateStableMaxHalfDiffPpm;
+          rateHalfDiffPpm = firstHalfFit && secondHalfFit
+            ? Math.abs(Math.round((firstHalfFit.rate - secondHalfFit.rate) * 1000000))
+            : NaN;
+          const stableRateWindow = modelSamples.length >= syncRateStableMinSamples
+            && residualJitter <= syncRateStableMaxResidualMs
             && stableHalfRates
-            && rateOutlierShare <= syncRateLargeMaxOutlierShare;
-          if (largeRateCandidate && !highConfidenceLargeRate) {
-            if (modelSpan < syncRateLargeMinSpanMs) serverClockRateGateReason = "short-window";
-            else if (modelSamples.length < syncRateLargeMinSamples) serverClockRateGateReason = "few-samples";
-            else if (residualJitter > syncRateLargeMaxResidualMs) serverClockRateGateReason = "unstable-residuals";
+            && rateOutlierShare <= syncRateStableMaxOutlierShare;
+          let confirmedRateCandidate = false;
+          if (!stableRateWindow) {
+            resetServerClockRateConfirmation();
+            if (modelSamples.length < syncRateStableMinSamples) serverClockRateGateReason = "few-samples";
+            else if (residualJitter > syncRateStableMaxResidualMs) serverClockRateGateReason = "unstable-residuals";
             else if (!stableHalfRates) serverClockRateGateReason = "unstable-rate";
-            else if (rateOutlierShare > syncRateLargeMaxOutlierShare) serverClockRateGateReason = "outliers";
+            else if (rateOutlierShare > syncRateStableMaxOutlierShare) serverClockRateGateReason = "outliers";
             else serverClockRateGateReason = "gated";
-            if (holdExistingClockRate) {
-              fittedRate = serverClockRate;
-              serverClockRateConfidence = serverClockRateConfidence || "resume-held";
-            } else {
-              fittedRate = 1;
-              serverClockRateHighConfidence = false;
-              serverClockRateConfidence = "gated";
-            }
+            fittedRate = serverClockRate;
+            serverClockRateHighConfidence = false;
+            serverClockRateConfidence = holdExistingClockRate
+              ? serverClockRateConfidence || "resume-held"
+              : "gated";
           } else {
-            fittedRate = largeRateCandidate
-              ? fittedRate
-              : clampFloat(fittedRate, syncRateNormalMin, syncRateNormalMax, 1);
-            serverClockRateHighConfidence = highConfidenceLargeRate;
-            serverClockRateConfidence = highConfidenceLargeRate ? "high" : "normal";
-            serverClockRateGateReason = largeRateCandidate ? "accepted-large" : "normal";
+            if (Number.isFinite(pendingServerClockRatePpm)
+              && Math.abs(candidateRatePpm - pendingServerClockRatePpm) <= syncRateConfirmationTolerancePpm) {
+              const confirmationWeight = Math.min(pendingServerClockRateCount, syncRateConfirmationWindows - 1);
+              pendingServerClockRatePpm = ((pendingServerClockRatePpm * confirmationWeight) + candidateRatePpm)
+                / (confirmationWeight + 1);
+              pendingServerClockRateCount = Math.min(syncRateConfirmationWindows, pendingServerClockRateCount + 1);
+            } else {
+              pendingServerClockRatePpm = candidateRatePpm;
+              pendingServerClockRateCount = 1;
+            }
+            confirmedRateCandidate = pendingServerClockRateCount >= syncRateConfirmationWindows;
+            if (!confirmedRateCandidate) {
+              fittedRate = serverClockRate;
+              serverClockRateHighConfidence = false;
+              serverClockRateConfidence = holdExistingClockRate
+                ? serverClockRateConfidence || "resume-held"
+                : "gated";
+              serverClockRateGateReason = "confirming-rate";
+            } else {
+              fittedRate = 1 + (pendingServerClockRatePpm / 1000000);
+              const confirmedLargeRateCandidate = Math.abs(pendingServerClockRatePpm) > syncRateLargeThresholdPpm;
+              fittedRate = confirmedLargeRateCandidate
+                ? fittedRate
+                : clampFloat(fittedRate, syncRateNormalMin, syncRateNormalMax, 1);
+              serverClockRateHighConfidence = confirmedLargeRateCandidate;
+              serverClockRateConfidence = confirmedLargeRateCandidate ? "high" : "normal";
+              serverClockRateGateReason = confirmedLargeRateCandidate ? "accepted-large" : "normal";
+            }
           }
-          if (Math.abs(fittedRate - 1) < syncRateDeadband) fittedRate = 1;
-          const smoothing = syncSamples.length < 8 ? 0.45 : syncRateSmoothing;
-          nextRate = serverClockRate + ((fittedRate - serverClockRate) * smoothing);
+          if (confirmedRateCandidate) {
+            if (Math.abs(fittedRate - 1) < syncRateDeadband) fittedRate = 1;
+            nextRate = serverClockRate + ((fittedRate - serverClockRate) * syncRateSmoothing);
+          } else {
+            nextRate = serverClockRate;
+          }
           acceptedRatePpm = Math.round((nextRate - 1) * 1000000);
-          const modelOffsets = modelSamples
-            .map((item) => item.serverTime - (nextRate * item.perfTime))
-            .sort((a, b) => a - b);
-          const modelOffset = median(modelOffsets);
-          nextServerNow = modelOffset + (nextRate * localNow);
-          const residuals = modelSamples
-            .map((item) => item.serverTime - (modelOffset + (nextRate * item.perfTime)))
-            .sort((a, b) => a - b);
-          jitter = residuals.length > 1
-            ? percentile(residuals, 0.9) - percentile(residuals, 0.1)
-            : 0;
+          if (confirmedRateCandidate) {
+            const modelOffsets = modelSamples
+              .map((item) => item.serverTime - (nextRate * item.perfTime))
+              .sort((a, b) => a - b);
+            const modelOffset = median(modelOffsets);
+            nextServerNow = modelOffset + (nextRate * localNow);
+            const residuals = modelSamples
+              .map((item) => item.serverTime - (modelOffset + (nextRate * item.perfTime)))
+              .sort((a, b) => a - b);
+            jitter = residuals.length > 1
+              ? percentile(residuals, 0.9) - percentile(residuals, 0.1)
+              : 0;
+          }
           qualitySamples = modelSamples.length;
         }
 
@@ -2471,6 +2927,7 @@
           rateHalfDiffPpm,
           rateOutlierShare
         };
+        refreshTrustedClockAnchor();
         return;
       }
       if (Number.isFinite(remoteNow) && (syncSamples.length === 0 || options.forceClockCorrection)) {
@@ -2482,7 +2939,24 @@
           rate: serverClockRate,
           rateConfidence: serverClockRateConfidence
         };
+        refreshTrustedClockAnchor();
       }
+    }
+
+    function reconcileServerStateIdentity(remote) {
+      const identity = window.FDVClientActionTransport.reconcileServerStateIdentity(
+        lastServerInstanceId,
+        lastServerVersion,
+        remote
+      );
+      if (identity.instanceChanged) {
+        lastServerInstanceId = identity.instanceId;
+        lastServerVersion = 0;
+        trustedServerClockAnchor = null;
+        lastTrustedClockAnchorAt = 0;
+        if (identity.serverRestarted) lastRemoteRunning = false;
+      }
+      return identity;
     }
 
     function median(values) {
@@ -2522,7 +2996,7 @@
       const residualJitter = residuals.length > 1
         ? percentile(residuals, 0.9) - percentile(residuals, 0.1)
         : 0;
-      const outlierLimit = Math.max(syncRateLargeMaxResidualMs * 2, residualJitter * 3, 250);
+      const outlierLimit = Math.max(syncRateStableMaxResidualMs * 2, residualJitter * 3, 250);
       const outliers = residuals.filter((value) => Math.abs(value) > outlierLimit).length;
       return {
         rate,
@@ -2537,6 +3011,16 @@
       const number = Number(value);
       if (!Number.isFinite(number)) return fallback;
       return Math.min(max, Math.max(min, number));
+    }
+
+    function diagnosticDisplayStatusKey() {
+      const now = serverNow();
+      if (state.countdownOnly) return state.serverStartedAt > now ? "waitingStart" : "readyStart";
+      if (state.running && state.serverStartedAt > now) return "waitingStart";
+      if (state.waitingForManualStart) return "readyStart";
+      if (state.completed) return "completed";
+      if (!state.running && state.elapsedBeforePause === 0) return "ready";
+      return state.running ? "roundRunning" : "pause";
     }
 
     function clientDiagnostics() {
@@ -2575,7 +3059,7 @@
         lastSseAge: Math.max(0, performance.now() - lastSseEventAt),
         sseRestarts,
         stateVersion: lastServerVersion || "",
-        displayStatus: els.status?.textContent || ""
+        displayStatus: diagnosticDisplayStatusKey()
       };
     }
 
@@ -2602,11 +3086,53 @@
       if (!els.buildInfo) return;
       if (!buildNumber) {
         els.buildInfo.hidden = true;
+        els.buildSeparator.hidden = true;
+        els.buildProjectHint.hidden = true;
         els.buildInfo.textContent = "";
         return;
       }
       els.buildInfo.hidden = false;
-      els.buildInfo.textContent = ` | ${t("buildLabel")} ${buildNumber}`;
+      els.buildSeparator.hidden = false;
+      els.buildInfo.textContent = `${t("buildLabel")} ${buildNumber}`;
+      els.buildInfo.title = projectUrl;
+      els.buildInfo.classList.toggle("armed", buildLinkArmed);
+      els.buildInfo.setAttribute("aria-expanded", String(buildLinkArmed));
+      els.buildProjectHint.textContent = t("buildProjectHint");
+      els.buildProjectHint.hidden = !buildLinkArmed;
+    }
+
+    function activateBuildProjectLink(event) {
+      if (!buildNumber) {
+        event.preventDefault();
+        return;
+      }
+      const now = performance.now();
+      if (!buildLinkArmed) {
+        event.preventDefault();
+        buildLinkArmed = true;
+        buildLinkArmedAt = now;
+        renderBuildInfo();
+        return;
+      }
+      if (now - buildLinkArmedAt < buildLinkConfirmDelayMs) {
+        event.preventDefault();
+        return;
+      }
+      els.buildInfo.classList.add("opening");
+      window.setTimeout(() => {
+        buildLinkArmed = false;
+        buildLinkArmedAt = 0;
+        els.buildInfo.classList.remove("opening");
+        renderBuildInfo();
+      }, 250);
+    }
+
+    function deactivateBuildProjectLink() {
+      if (!buildLinkArmed) return;
+      buildLinkArmed = false;
+      buildLinkArmedAt = 0;
+      els.buildInfo.classList.remove("opening");
+      renderBuildInfo();
     }
 
     function applyLanguage(nextLanguage) {
@@ -2636,6 +3162,7 @@
       els.primaryPinButton.title = state.primaryPinSet ? t("primaryPinSet") : t("primaryPinUnset");
       els.primaryPinInput.setAttribute("aria-label", t("primaryPinTitle"));
       els.primaryPinClear.textContent = t("clear");
+      els.soundLabel.textContent = state.primaryClientId === clientId ? t("primarySound") : t("sound");
       els.instancesSoundLabel.textContent = t("otherSound");
       els.instancesFullscreenLabel.textContent = t("otherFullscreen");
       els.primaryRow.title = t("primaryHint");
@@ -2645,13 +3172,6 @@
       els.browsersTitle.textContent = t("browsers");
       els.presets.forEach((button) => {
         button.textContent = t(button.dataset.preset);
-        button.title = language === "ru"
-          ? {
-              classic: "Классический формат (французская система)",
-              festival: "Фестивальный формат",
-              final: "Международный формат"
-            }[button.dataset.preset] || ""
-          : "";
       });
       els.startBtn.textContent = t("start");
       els.compactStart.textContent = t("start");
@@ -2660,6 +3180,8 @@
       els.resetBtn.textContent = t("reset");
       els.compactReset.textContent = t("reset");
       els.fullBtn.textContent = t("screen");
+      els.exitFullscreenBtn.title = t("exitScreen");
+      els.exitFullscreenBtn.setAttribute("aria-label", t("exitScreen"));
       els.languageToggle.textContent = language === "ru" ? "EN" : "RU";
       els.languageToggle.title = t("switchLanguage");
       els.startBtn.title = language === "ru" ? `${t("start")}: Z / Я` : `${t("start")}: Z`;
@@ -2669,9 +3191,12 @@
       els.compactStart.title = els.startBtn.title;
       els.compactPause.title = els.pauseBtn.title;
       els.compactReset.title = els.resetBtn.title;
+      updatePresetControlState();
       els.helpLink.textContent = t("helpManual");
       els.helpLink.title = t("helpManualTitle");
       els.helpLink.href = `help.html?lang=${language}`;
+      els.installAppBtn.textContent = t("installApp");
+      els.installAppBtn.title = t("installAppTitle");
       renderBuildInfo();
       els.authorName.textContent = t("author");
       els.authorName.title = t("authorHint");
@@ -2679,6 +3204,7 @@
       pickSpeechVoice();
       updateParameterLabels();
       render();
+      renderBrowserList(lastKnownClients);
       refreshStandaloneBrowserList();
     }
 
@@ -2710,6 +3236,8 @@
         fontFaceStyle?.remove();
         setSupported("--timer-font-family", "font-family", fallbackFont);
       }
+      setSupported("--timer-countdown-text", "color", config.countdownTextColor);
+      setSupported("--timer-countdown-bg", "background-color", config.countdownBackgroundColor);
       setSupported("--timer-rotation-text", "color", config.rotationTextColor);
       setSupported("--timer-warning-text", "color", config.rotationLastFiveTextColor);
       setSupported("--timer-break-text", "color", config.breakTextColor);
@@ -2720,7 +3248,7 @@
 
     function maybeReloadForNewerServerBuild(nextBuildNumber) {
       if (!Number.isFinite(nextBuildNumber) || nextBuildNumber <= pageBuildNumber) return false;
-      if (window.location.protocol === "file:" || standaloneMode || offlineReloadMode || state.running) return false;
+      if (isLocalStandalonePage() || standaloneMode || offlineReloadMode || state.running) return false;
       const url = new URL(window.location.href);
       url.searchParams.set("build", String(Math.round(nextBuildNumber)));
       url.searchParams.set("reload", String(Date.now()));
@@ -2749,7 +3277,8 @@
       presets.final.rotationMinutes = finiteNumber(config.finalRotationMinutes, presets.final.rotationMinutes);
       if (startupConfigApplied) return;
       startupConfigApplied = true;
-      els.flashToggle.checked = config.flashing !== false;
+      state.flashing = config.flashing !== false;
+      els.flashToggle.checked = state.flashing;
       globalSoundEnabled = config.sound !== false;
       primarySoundEnabled = readPrimarySoundPreference(globalSoundEnabled);
       if (config.primaryBrowser && !state.running && !state.elapsedBeforePause) {
@@ -2860,11 +3389,13 @@
       const parts = timeParts(seconds);
       const label = `${parts.minutes}:${parts.seconds}`;
       if (label === lastDisplayTimeLabel) return;
+      const minuteDigitsChanged = parts.minutes.length !== lastDisplayMinuteDigits;
       lastDisplayTimeLabel = label;
+      lastDisplayMinuteDigits = parts.minutes.length;
       els.timeMinutes.textContent = parts.minutes;
       els.timeSeconds.textContent = parts.seconds;
       els.time.setAttribute("aria-label", label);
-      scheduleFitTimer();
+      if (minuteDigitsChanged) scheduleFitTimer();
     }
 
     function elapsedSeconds() {
@@ -2910,6 +3441,7 @@
 
     async function setPreset(name) {
       if (!controlsAvailable()) return;
+      if (formatSelectionLocked()) return;
       state.activePreset = name;
       els.presets.forEach((button) => button.classList.toggle("active", button.dataset.preset === name));
       if (presets[name]) {
@@ -2964,6 +3496,7 @@
 
     function applyServerState(remote, options = {}) {
       if (!remote || typeof remote !== "object") return;
+      reconcileServerStateIdentity(remote);
       markServerContact();
       if (standaloneMode) {
         pendingServerState = remote;
@@ -2987,6 +3520,10 @@
       state.elapsedBeforePause = Number(remote.elapsedBeforePause || 0);
       state.activePreset = remote.activePreset || "";
       state.activeSettings = remote.activeSettings || activeSettingsFromDraft();
+      state.runtimePreset = Object.prototype.hasOwnProperty.call(remote, "runtimePreset")
+        ? remote.runtimePreset || ""
+        : state.activeSettings.oneShot ? "final" : state.activePreset || "classic";
+      state.flashing = remote.flashing !== false;
       const festivalAnnouncementsChanged = (remote.festivalAnnouncements !== false) !== state.festivalAnnouncements;
       state.festivalAnnouncements = remote.festivalAnnouncements !== false;
       applySoundProfile(String(remote.soundProfile || ""));
@@ -3023,6 +3560,7 @@
       els.primaryToggle.checked = isPrimary;
       els.instancesSoundToggle.checked = instancesSoundEnabled;
       els.instancesFullscreenToggle.checked = instancesFullscreenEnabled;
+      els.flashToggle.checked = state.flashing;
       els.festivalAnnouncementsToggle.checked = state.festivalAnnouncements;
       els.soundLabel.textContent = isPrimary ? t("primarySound") : t("sound");
       els.soundToggle.checked = isPrimary ? primarySoundEnabled : globalSoundEnabled;
@@ -3077,6 +3615,9 @@
       state.elapsedBeforePause = Number(remote.elapsedBeforePause || 0);
       state.activePreset = remote.activePreset || state.activePreset || "";
       state.activeSettings = nextActiveSettings || activeSettingsFromDraft();
+      state.runtimePreset = Object.prototype.hasOwnProperty.call(remote, "runtimePreset")
+        ? remote.runtimePreset || ""
+        : state.activeSettings.oneShot ? "final" : state.activePreset || "classic";
       if (settingsChanged) buildTimeline(state.activeSettings);
       lastRemoteRunning = state.running;
       syncButtons();
@@ -3084,68 +3625,28 @@
       saveOfflineSnapshot();
     }
 
-    async function sendServerAction(type, payload = {}, options = {}) {
-      if (!serverAvailable || standaloneMode) return false;
-      const isRuntimeCommand = runtimeCommandTypes.has(type);
-      const commandId = isRuntimeCommand ? `${clientId}:${commandSessionId}:${++commandSeq}` : "";
-      const baseVersion = isRuntimeCommand && lastServerVersion ? lastServerVersion : undefined;
-      const intendedServerTime = isRuntimeCommand ? serverNow() : undefined;
-      const attempts = isRuntimeCommand ? 3 : 1;
+    const clientActionTransport = window.FDVClientActionTransport.createActionTransport({
+      applyRemote: (remote, options) => applyServerState(remote, options),
+      clientDiagnostics,
+      fetch: (...args) => fetch(...args),
+      getBaseVersion: () => lastServerVersion || undefined,
+      getServerInstanceId: () => lastServerInstanceId || undefined,
+      isAvailable: () => serverAvailable,
+      isRuntimeCommand: (type) => runtimeCommandTypes.has(type),
+      isStandalone: () => standaloneMode,
+      markFailure: (immediate) => markServerFailure(immediate),
+      nextCommandId: () => `${clientId}:${commandSessionId}:${++commandSeq}`,
+      requestTimeoutMs: syncRequestTimeoutMs,
+      serverNow,
+      updateTiming: (remote, timing) => updateServerTiming(remote, timing),
+      setTimeout: (...args) => window.setTimeout(...args),
+      clearTimeout: (timeout) => window.clearTimeout(timeout),
+      now: () => Date.now(),
+      perfNow: () => performance.now()
+    });
 
-      for (let attempt = 0; attempt < attempts; attempt += 1) {
-        const controller = new AbortController();
-        const timeout = window.setTimeout(() => controller.abort(), syncRequestTimeoutMs);
-        try {
-          const timing = {
-            date0: Date.now(),
-            perf0: performance.now()
-          };
-          const response = await fetch("/api/action", {
-            method: "POST",
-            headers: { "content-type": "application/json" },
-            signal: controller.signal,
-            body: JSON.stringify({
-              type,
-              commandId,
-              baseVersion,
-              intendedServerTime,
-              ...clientDiagnostics(),
-              ...payload
-            })
-          });
-          timing.date1 = Date.now();
-          timing.perf1 = performance.now();
-          const remote = await response.json().catch(() => null);
-          if (response.status === 409 && remote) {
-            applyServerState(remote, { ...options, timing, includePhaseSignal: false });
-            if (isRuntimeCommand && !options.conflictRetried && serverAvailable && !standaloneMode) {
-              return sendServerAction(type, payload, { ...options, conflictRetried: true });
-            }
-            return "conflict";
-          }
-          if ((response.status === 400 || response.status === 403 || response.status === 429) && remote) {
-            applyServerState(remote, { ...options, timing, includePhaseSignal: false });
-            if (remote.primaryPinBlockedUntil) return "pin-blocked";
-            if (remote.primaryPinRequired) return "pin-required";
-            if (remote.primaryPinInvalidFormat) return "pin-invalid";
-            if (remote.primaryPinDenied) return "pin-denied";
-            return false;
-          }
-          if (!response.ok || !remote) throw new Error("Server action failed");
-          if (options.applyResponse !== false) applyServerState(remote, { ...options, timing });
-          else updateServerTiming(remote, timing);
-          return true;
-        } catch (error) {
-          if (attempt >= attempts - 1) {
-            markServerFailure(true);
-            return false;
-          }
-          await new Promise((resolve) => window.setTimeout(resolve, 160 * (attempt + 1)));
-        } finally {
-          window.clearTimeout(timeout);
-        }
-      }
-      return false;
+    function sendServerAction(type, payload = {}, options = {}) {
+      return clientActionTransport.send(type, payload, options);
     }
 
     async function syncFromServer(options = {}) {
@@ -3185,14 +3686,15 @@
           maybeBurstSync(options);
           return true;
         }
-        const version = Number(remote.version || 0);
-        if (version && version < lastServerVersion) {
+        const identity = reconcileServerStateIdentity(remote);
+        if (identity.stale) {
           updateServerTiming(remote, timing, options);
           if (options.resumeSnap || resumeSnapPending) clearResumeSnapPending(true);
           return true;
         }
-        if (version !== lastServerVersion) {
+        if (identity.versionChanged) {
           const isRemoteStart = Date.now() >= suppressPhaseSignalsUntil
+            && !identity.instanceChanged
             && lastServerVersion !== 0
             && !lastRemoteRunning
             && Boolean(remote.running)
@@ -3288,17 +3790,18 @@
             applyServerState(remote, { rescheduleSignals: true, includePhaseSignal: false });
             return;
           }
-          const version = Number(remote.version || 0);
-          if (version && version < lastServerVersion) return;
+          const identity = reconcileServerStateIdentity(remote);
+          if (identity.stale) return;
           const isRemoteStart = Date.now() >= suppressPhaseSignalsUntil
-            && version !== lastServerVersion
+            && identity.versionChanged
+            && !identity.instanceChanged
             && lastServerVersion !== 0
             && !lastRemoteRunning
             && Boolean(remote.running)
             && Number(remote.elapsedBeforePause || 0) === 0
             && Number(remote.elapsed || 0) < 2;
           applyServerState(remote, {
-            rescheduleSignals: version !== lastServerVersion,
+            rescheduleSignals: identity.versionChanged,
             includePhaseSignal: isRemoteStart
           });
         } catch (error) {}
@@ -3444,9 +3947,7 @@
 
     function markResumeDisplayStale() {
       if (!mobileResumeSyncEnabled || standaloneMode || !shouldKeepDisplayFresh()) return;
-      resumeSnapPending = true;
-      resumeSnapStartedAt = performance.now();
-      document.body.classList.add("resume-sync-pending");
+      beginResumeSnapPending();
     }
 
     function holdClockRateForResume() {
@@ -3468,7 +3969,10 @@
     async function resumeClientSync(options = {}) {
       const now = Date.now();
       const resetStaleSignals = Boolean(options.resetStaleSignals);
-      if (!resetStaleSignals && (resumeSyncInProgress || resumeSnapPending)) return;
+      if (!resetStaleSignals && resumeSnapPending) clearResumeSnapPending(false);
+      if (!resetStaleSignals) pageHiddenAt = 0;
+      requestScreenWakeLock();
+      if (!resetStaleSignals && resumeSyncInProgress) return;
       if (!resetStaleSignals && now - lastResumeSyncAt < 1200) return;
       const resumeSnap = resetStaleSignals && beginResumeSnapPending();
       syncRequestGeneration += 1;
@@ -3485,11 +3989,11 @@
       }
       lastResumeSyncAt = now;
       pageHiddenAt = 0;
-      requestScreenWakeLock();
       restartEventStream();
       syncDiagnosticsStream();
+      let synchronized = false;
       try {
-        await syncFromServer({
+        synchronized = await syncFromServer({
           forceApply: true,
           forceClockCorrection: true,
           resetClockSamples: true,
@@ -3499,20 +4003,88 @@
       } finally {
         if (resetStaleSignals) resumeSyncInProgress = false;
       }
+      if (resetStaleSignals && !synchronized && state.running && !state.countdownOnly) {
+        rescheduleStandaloneSignals();
+      }
       window.setTimeout(() => syncFromServer({ forceApply: true, preserveClockRate: resetStaleSignals }), 600);
+    }
+
+    function checkClockContinuity() {
+      const repaired = repairServerClockAfterSuspension();
+      if (repaired && !standaloneMode && window.location.protocol !== "file:") {
+        resumeClientSync({ resetStaleSignals: true });
+      }
+      return repaired;
+    }
+
+    function setElementText(element, value) {
+      const nextValue = String(value ?? "");
+      if (element.textContent !== nextValue) element.textContent = nextValue;
+    }
+
+    function setElementClassName(element, value) {
+      if (element.className !== value) element.className = value;
+    }
+
+    function setElementClass(element, className, enabled) {
+      if (element.classList.contains(className) !== enabled) {
+        element.classList.toggle(className, enabled);
+      }
+    }
+
+    function setProgressWidth(percent, force = false) {
+      const now = performance.now();
+      if (!force && now - lastProgressUpdateAt < progressUpdateIntervalMs) return;
+      const scale = Math.max(0, Math.min(1, percent / 100)).toFixed(4);
+      lastProgressUpdateAt = now;
+      if (scale === lastProgressScale) return;
+      lastProgressScale = scale;
+      els.progressBar.style.transform = `scaleX(${scale})`;
+    }
+
+    function invalidateRuntimeUiCache() {
+      lastRuntimeMetaKey = "";
+      lastProgressSegmentKey = "";
+    }
+
+    function setScheduleMarkup(markup, showCycle = false, showBreak = false, stateKey = "") {
+      setElementClass(els.schedule, "with-cycle", showCycle);
+      setElementClass(els.schedule, "with-break", showBreak);
+      lastScheduleStateKey = stateKey;
+      if (markup === lastScheduleMarkup) return;
+      lastScheduleMarkup = markup;
+      els.schedule.innerHTML = markup;
+      scheduleFitTimer();
     }
 
     function drawSchedule(segment) {
       const cycleNumber = segment?.cycle || 1;
-      const html = state.timeline.map((item, index) => {
+      const showCycle = state.runtimePreset === "classic" || state.runtimePreset === "festival";
+      const hasBreak = state.timeline.some((item) => item.type === "break");
+      const scheduleStateKey = [
+        language,
+        state.runtimePreset,
+        segment?.type || "ready",
+        cycleNumber,
+        showCycle,
+        hasBreak,
+        state.timeline.map((item) => `${item.type}:${item.duration}`).join("|")
+      ].join(":");
+      if (scheduleStateKey === lastScheduleStateKey) return;
+      const chips = [];
+      state.timeline.forEach((item) => {
         const classes = ["chip"];
         if (segment && item.type === segment.type) classes.push("current");
         if (item.type === "break") classes.push("resting");
-        const name = item.type === "rotation" ? t("rotation") : t("break");
-        const cycle = item.type === "break" ? `<span class="chip-cycle">${t("cycle")} ${cycleNumber}</span>` : "";
-        return `<div class="${classes.join(" ")}"><span>${name}</span>${cycle}<span>${formatTime(item.duration)}</span></div>`;
-      }).join("");
-      els.schedule.innerHTML = html;
+        const name = item.type === "rotation"
+          ? (state.runtimePreset === "festival" ? t("round") : t("rotation"))
+          : t("break");
+        chips.push(`<div class="${classes.join(" ")}"><span>${name}</span><span>${formatTime(item.duration)}</span></div>`);
+        if (item.type === "rotation" && showCycle) {
+          chips.push(`<div class="chip cycle-chip"><span>${t("cycle")} ${cycleNumber}</span></div>`);
+        }
+      });
+      setScheduleMarkup(chips.join(""), showCycle, showCycle && hasBreak, scheduleStateKey);
     }
 
     function escapeHtml(value) {
@@ -3588,7 +4160,10 @@
 
     function diagChip(label, status, title, attributes = "") {
       const className = `diag-chip${status && status !== "good" ? ` ${status}` : ""}`;
-      return `<span class="${className}" title="${escapeHtml(title)}"${attributes}>${escapeHtml(label)}</span>`;
+      const interactive = /\sdata-(?:audio-client|legacy-mode-client)=/.test(attributes);
+      const tagName = interactive ? "button" : "span";
+      const type = interactive ? ' type="button"' : "";
+      return `<${tagName}${type} class="${className}" title="${escapeHtml(title)}"${attributes}>${escapeHtml(label)}</${tagName}>`;
     }
 
     function thresholdStatus(value, warnLimit, badLimit, missingIsBad = true) {
@@ -3627,9 +4202,39 @@
       return copied;
     }
 
+    function diagnosticRoleLabel(value) {
+      const role = String(value || "");
+      if (["primary", "Основной", "Основной браузер", "Primary", "Primary browser"].includes(role)) {
+        return t("diagnosticPrimary");
+      }
+      if (["screen", "Экран", "Упрощённый экран", "Screen", "Simplified screen"].includes(role)) {
+        return t("diagnosticScreen");
+      }
+      return role;
+    }
+
+    function diagnosticStatusLabel(value) {
+      const status = String(value || "");
+      const aliases = {
+        waitingStart: ["Waiting for start", "Ожидание старта"],
+        readyStart: ["Ready to start", "Готов к старту"],
+        completed: ["Completed", "Завершено"],
+        ready: ["Ready", "Готов"],
+        roundRunning: ["Round running", "Раунд идет"],
+        pause: ["Pause", "Paused", "Пауза"]
+      };
+      const key = Object.keys(aliases).find((candidate) => candidate === status || aliases[candidate].includes(status));
+      return key ? t(key) : status;
+    }
+
     function renderBrowserList(clients) {
       if (!els.browserList) return;
       lastKnownClients = clients;
+      const activeAudioSlider = els.browserList.querySelector("[data-audio-offset-slider]");
+      const preserveAudioEditor = editingAudioClientId
+        && activeAudioSlider?.dataset.audioOffsetSlider === editingAudioClientId
+        && clients.some((client) => client.id === editingAudioClientId);
+      if (preserveAudioEditor) return;
       if (!clients.length) {
         els.browserList.innerHTML = `<div class="browser-item">${t("noData")}</div>`;
         return;
@@ -3645,8 +4250,8 @@
         }
         return 0;
       });
-      const audioTestDisabled = shouldDisableAudioTestButtons();
-      const audioTestDisabledAttributes = audioTestDisabled ? ` disabled title="${escapeHtml(t("audioTestUnavailableRunning"))}"` : "";
+      const audioTestReason = audioTestDisabledReason();
+      const audioTestDisabledAttributes = audioTestReason ? ` disabled title="${escapeHtml(audioTestDisabledTitle(audioTestReason))}"` : "";
       els.browserList.innerHTML = visibleClients.map((client) => {
         const isPrimary = client.id === state.primaryClientId;
         const isLegacyViewer = client.legacyViewer === true;
@@ -3675,20 +4280,31 @@
           : Number.isFinite(latency) ? latency / 2 : NaN;
         const syncCandidatePpm = Number(client.syncRateCandidatePpm);
         const syncAcceptedPpm = Number(client.syncRateAcceptedPpm);
+        const hasSyncCandidatePpm = client.syncRateCandidatePpm !== null
+          && client.syncRateCandidatePpm !== undefined
+          && client.syncRateCandidatePpm !== "";
+        const hasSyncAcceptedPpm = client.syncRateAcceptedPpm !== null
+          && client.syncRateAcceptedPpm !== undefined
+          && client.syncRateAcceptedPpm !== "";
         const syncGateReason = client.syncRateGateReason || client.syncRateConfidence || "";
         const syncResidual = Number(client.syncRateResidualJitter);
         const syncHalfDiff = Number(client.syncRateHalfDiffPpm);
         const syncOutlierShare = Number(client.syncRateOutlierShare);
+        const syncCandidateState = syncGateReason === "normal" || syncGateReason === "accepted-large"
+          ? (language === "ru" ? "принята" : "accepted")
+          : syncGateReason === "confirming-rate"
+            ? (language === "ru" ? "ожидает подтверждения" : "awaiting confirmation")
+            : (language === "ru" ? "отклонена" : "rejected");
         const syncRateDetails = [
-          Number.isFinite(syncCandidatePpm) && Math.abs(syncCandidatePpm) >= 100
+          hasSyncCandidatePpm && Number.isFinite(syncCandidatePpm)
             ? language === "ru"
-              ? `кандидат хода ${syncCandidatePpm > 0 ? "+" : ""}${syncCandidatePpm} ppm`
-              : `rate candidate ${syncCandidatePpm > 0 ? "+" : ""}${syncCandidatePpm} ppm`
+              ? `сырая оценка хода ${syncCandidatePpm > 0 ? "+" : ""}${syncCandidatePpm} ppm (${syncCandidateState})`
+              : `raw rate estimate ${syncCandidatePpm > 0 ? "+" : ""}${syncCandidatePpm} ppm (${syncCandidateState})`
             : "",
-          Number.isFinite(syncAcceptedPpm) && Math.abs(syncAcceptedPpm) >= 100
+          hasSyncAcceptedPpm && Number.isFinite(syncAcceptedPpm)
             ? language === "ru"
-              ? `принято ${syncAcceptedPpm > 0 ? "+" : ""}${syncAcceptedPpm} ppm`
-              : `accepted ${syncAcceptedPpm > 0 ? "+" : ""}${syncAcceptedPpm} ppm`
+              ? `применено ${syncAcceptedPpm > 0 ? "+" : ""}${syncAcceptedPpm} ppm`
+              : `applied ${syncAcceptedPpm > 0 ? "+" : ""}${syncAcceptedPpm} ppm`
             : "",
           syncGateReason
             ? language === "ru" ? `статус rate ${syncGateReason}` : `rate status ${syncGateReason}`
@@ -3778,8 +4394,8 @@
           ? `ОС: ${operatingSystem(client.userAgent)}; устройство: ${deviceType(client.userAgent)}; экран ${client.screen || "n/a"}; окно ${client.viewport || "n/a"}; DPR ${client.dpr ?? "n/a"}`
           : `OS: ${operatingSystem(client.userAgent)}; device: ${deviceType(client.userAgent)}; screen ${client.screen || "n/a"}; viewport ${client.viewport || "n/a"}; DPR ${client.dpr ?? "n/a"}`;
         const meta = [
-          client.displayStatus,
-          client.role === "Основной" ? t("primary") : client.role === "Экран" ? t("screen") : client.role,
+          diagnosticStatusLabel(client.displayStatus),
+          diagnosticRoleLabel(client.role),
           client.protocol,
           detailIp,
           `${Math.round((client.age || 0) / 1000)}${t("sec")}`
@@ -3796,13 +4412,17 @@
         const audioEditor = audioEditing ? `
           <div class="audio-offset-editor">
             <div class="audio-offset-value">${t("audioOffsetUser")}: <strong data-audio-offset-value>${pendingAudioOffset > 0 ? "+" : ""}${pendingAudioOffset} ${t("ms")}</strong></div>
-            <input type="range" min="-500" max="500" step="1" value="${pendingAudioOffset}" data-audio-offset-slider="${escapeHtml(client.id)}" aria-label="${escapeHtml(t("audioOffsetUser"))}">
+            <input type="range" min="${audioOffsetMinMs}" max="${audioOffsetMaxMs}" step="${audioOffsetStepMs}" value="${pendingAudioOffset}" data-audio-offset-slider="${escapeHtml(client.id)}" aria-label="${escapeHtml(t("audioOffsetUser"))}">
             <div class="audio-offset-scale">
+              <button type="button" data-audio-offset-mark="-750">-750</button>
               <button type="button" data-audio-offset-mark="-500">-500</button>
               <button type="button" data-audio-offset-mark="-250">-250</button>
               <button type="button" data-audio-offset-mark="0">0</button>
               <button type="button" data-audio-offset-mark="250">+250</button>
-              <button type="button" data-audio-offset-mark="500">+500</button>
+            </div>
+            <div class="audio-offset-nudge">
+              <button type="button" data-audio-offset-nudge="-${audioOffsetNudgeMs}">−${audioOffsetNudgeMs} ${t("ms")}</button>
+              <button type="button" data-audio-offset-nudge="${audioOffsetNudgeMs}">+${audioOffsetNudgeMs} ${t("ms")}</button>
             </div>
             <div class="audio-test-controls">
               ${testEverywhereControl}
@@ -3824,6 +4444,18 @@
           ${audioEditor}
         </div>`;
       }).join("");
+    }
+
+    function revealAudioOffsetEditor() {
+      requestAnimationFrame(() => {
+        const editor = els.browserList?.querySelector(".audio-offset-editor");
+        if (!editor) return;
+        const editorRect = editor.getBoundingClientRect();
+        const controlsRect = els.controls.getBoundingClientRect();
+        if (editorRect.top < controlsRect.top || editorRect.bottom > controlsRect.bottom) {
+          editor.scrollIntoView({ block: "nearest", inline: "nearest" });
+        }
+      });
     }
 
     function canPlaySound() {
@@ -3913,8 +4545,39 @@
       }
     }
 
+    function playImmediateGestureAudio(kind) {
+      const source = soundSource(kind);
+      if (!source || !canPlaySound()) return false;
+      try {
+        if (!immediateGestureAudio) {
+          immediateGestureAudio = new Audio(source);
+          immediateGestureAudio.preload = "auto";
+          immediateGestureAudioSource = source;
+          const gestureAudio = immediateGestureAudio;
+          gestureAudio.addEventListener("ended", () => {
+            activeHtmlAudio = activeHtmlAudio.filter((item) => item !== gestureAudio);
+          });
+        } else {
+          immediateGestureAudio.pause();
+          immediateGestureAudio.currentTime = 0;
+          if (immediateGestureAudioSource !== source) {
+            immediateGestureAudio.src = source;
+            immediateGestureAudioSource = source;
+            immediateGestureAudio.load();
+          }
+        }
+        if (!activeHtmlAudio.includes(immediateGestureAudio)) activeHtmlAudio.push(immediateGestureAudio);
+        immediateGestureAudio.play().catch(() => {
+          activeHtmlAudio = activeHtmlAudio.filter((item) => item !== immediateGestureAudio);
+        });
+        return true;
+      } catch (error) {
+        return false;
+      }
+    }
+
     function playBuffer(kind, delaySeconds = 0, preserveOnTransition = false, signalKey = "", onStarted = null) {
-      if (!canPlaySound() || !audioContext) return false;
+      if (!canPlaySound() || !audioContext || audioContext.state !== "running") return false;
       const buffer = soundBuffer(kind);
       if (!buffer) return false;
       const source = audioContext.createBufferSource();
@@ -3945,6 +4608,12 @@
     }
 
     function scheduleDiagnosticSound(kind, targetServerTime) {
+      if (standaloneMode && iosAudioWorkaroundEnabled && audioKinds.includes(kind)) {
+        scheduleServerTimeoutAt(targetServerTime, () => beep(kind), {
+          lateGraceMs: lateGraceForSignal(kind)
+        });
+        return;
+      }
       const delaySeconds = Math.max(0, (targetServerTime - serverNow()) / 1000);
       const buffer = soundBuffer(kind);
       if (audioContext && buffer) {
@@ -3979,7 +4648,8 @@
         await loadAudioBuffers();
       } catch (error) {}
 
-      const baseServerTime = Number(command.serverTime) + audioUserOffsetMs;
+      const testAudioOffset = window.FDVClientActionTransport.resolveAudioTestOffset(command, clientId, audioUserOffsetMs);
+      const baseServerTime = Number(command.serverTime) + testAudioOffset;
       if (!Number.isFinite(baseServerTime)) return;
       const kind = ["start", "end", "minute", "warn"].includes(command.kind) ? command.kind : "start";
       const offsets = kind === "warn" ? [0, 1000, 2000, 3000, 4000] : [0];
@@ -3988,6 +4658,12 @@
 
     function beep(kind, delaySeconds = 0, scheduled = false, signalKey = "", preserveOnTransition = false, onStarted = null) {
       if (!canPlaySound()) return false;
+      if (standaloneMode && iosAudioWorkaroundEnabled && audioKinds.includes(kind) && delaySeconds === 0) {
+        const played = playImmediateGestureAudio(kind);
+        if (played && signalKey) markSignalPlayed(signalKey);
+        if (played) onStarted?.();
+        return played;
+      }
       if (audioKinds.includes(kind) && playBuffer(kind, delaySeconds, preserveOnTransition, signalKey, onStarted)) {
         return true;
       }
@@ -4062,7 +4738,7 @@
     }
 
     function flash() {
-      if (!els.flashToggle.checked) return;
+      if (!state.flashing) return;
       document.body.classList.remove("flash");
       void document.body.offsetWidth;
       document.body.classList.add("flash");
@@ -4093,7 +4769,9 @@
         flash();
         return;
       }
-      beep("start");
+      if (!(standaloneMode && iosAudioWorkaroundEnabled && playImmediateGestureAudio("start"))) {
+        beep("start");
+      }
       flash();
     }
 
@@ -4204,6 +4882,7 @@
       }
 
       const tryScheduleBuffer = () => {
+        if (standaloneMode && iosAudioWorkaroundEnabled) return false;
         if (scheduledByBuffer || !soundBuffer(kind)) return false;
         const current = getCurrentSegment(elapsedSeconds());
         if (!state.running || !current) return false;
@@ -4380,7 +5059,7 @@
     }
 
     function scheduleFestivalAnnouncements(segment, remaining) {
-      if (!state.festivalAnnouncements || state.activePreset !== "festival" || segment.type !== "rotation") return;
+      if (!state.festivalAnnouncements || state.runtimePreset !== "festival" || segment.type !== "rotation") return;
       festivalAnnouncements.forEach((announcement) => {
         if (remaining <= announcement.remaining) return;
         const targetServerTime = serverTimeForElapsed(segment.end - announcement.remaining);
@@ -4501,10 +5180,58 @@
         && state.serverStartedAt > serverNow();
     }
 
+    function nextSecondBoundaryServerTime(currentServerTime, endServerTime) {
+      const remainingMs = endServerTime - currentServerTime;
+      if (!Number.isFinite(remainingMs) || remainingMs <= 0) return null;
+      const displayedSeconds = Math.ceil(remainingMs / 1000);
+      return endServerTime - Math.max(0, displayedSeconds - 1) * 1000;
+    }
+
+    function nextDisplayBoundaryServerTime() {
+      if (document.hidden || resumeSnapPending || (!state.running && !state.countdownOnly)) return null;
+      const currentServerTime = serverNow();
+      if (state.countdownOnly || state.serverStartedAt > currentServerTime) {
+        return nextSecondBoundaryServerTime(currentServerTime, state.serverStartedAt);
+      }
+      const segment = getCurrentSegment(elapsedSeconds());
+      if (!segment || !state.serverStartedAt) return null;
+      return nextSecondBoundaryServerTime(
+        currentServerTime,
+        state.serverStartedAt + segment.end * 1000
+      );
+    }
+
+    function clearDisplayBoundaryTimer() {
+      if (displayBoundaryTimer) window.clearTimeout(displayBoundaryTimer);
+      displayBoundaryTimer = null;
+      displayBoundaryTargetServerTime = 0;
+    }
+
+    function scheduleDisplayBoundary(force = false) {
+      const targetServerTime = nextDisplayBoundaryServerTime();
+      if (!Number.isFinite(targetServerTime)) {
+        clearDisplayBoundaryTimer();
+        return;
+      }
+      if (!force && displayBoundaryTimer
+        && Math.abs(targetServerTime - displayBoundaryTargetServerTime) < 0.5) return;
+      clearDisplayBoundaryTimer();
+      displayBoundaryTargetServerTime = targetServerTime;
+      const clockRate = Math.max(0.01, serverClockRate);
+      const delayMs = Math.max(0, (targetServerTime - serverNow()) / clockRate) + displayBoundaryGuardMs;
+      displayBoundaryTimer = window.setTimeout(() => {
+        displayBoundaryTimer = null;
+        displayBoundaryTargetServerTime = 0;
+        checkClockContinuity();
+        render();
+      }, delayMs);
+    }
+
     function render() {
       lastRenderAt = performance.now();
+      scheduleDisplayBoundary();
       if (resumeSnapPending && shouldKeepDisplayFresh()) {
-        document.body.classList.remove("warning-active");
+        setElementClass(document.body, "warning-active", false);
         syncAudioTestButtons();
         syncButtonsWhenScheduledStartStateChanges();
         syncButtons();
@@ -4518,21 +5245,23 @@
       const isReady = !state.running && !state.completed && state.elapsedBeforePause === 0;
       syncAudioTestButtons();
       syncButtonsWhenScheduledStartStateChanges();
-      document.body.classList.remove("warning-active");
-      document.body.classList.toggle("scrub-ready", !state.running && !isViewerClient && !isReady);
+      setElementClass(document.body, "warning-active", false);
+      setElementClass(document.body, "countdown-active", state.countdownOnly || (state.running && state.serverStartedAt > serverNow()));
+      setElementClass(document.body, "scrub-ready", !state.running && !isViewerClient && !isReady);
 
       if (state.countdownOnly) {
         const untilStart = Math.max(0, (state.serverStartedAt - serverNow()) / 1000);
-        document.body.classList.remove("break-active");
-        els.phase.textContent = untilStart > 0 ? t("untilStart") : t("waitingManual");
-        els.phase.className = "phase ready";
+        setElementClass(document.body, "break-active", false);
+        setElementText(els.phase, untilStart > 0 ? t("untilStart") : t("waitingManual"));
+        setElementClassName(els.phase, "phase ready");
         setDisplayTime(untilStart);
-        els.status.textContent = untilStart > 0 ? t("waitingStart") : t("readyStart");
-        els.cycleMeta.textContent = t("final");
-        els.rotationMeta.textContent = `${t("start")} ${new Date(state.serverStartedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
-        els.nextMeta.textContent = untilStart > 0 ? t("nextManual") : t("pressStart");
-        els.progressBar.style.width = "0%";
-        els.schedule.innerHTML = `<div class="chip current"><span>${untilStart > 0 ? t("untilStart") : t("waitingManual")}</span></div>`;
+        setElementText(els.status, untilStart > 0 ? t("waitingStart") : t("readyStart"));
+        setElementText(els.cycleMeta, t("final"));
+        setElementText(els.rotationMeta, `${t("start")} ${new Date(state.serverStartedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`);
+        setElementText(els.nextMeta, untilStart > 0 ? t("nextManual") : t("pressStart"));
+        setProgressWidth(0, true);
+        setScheduleMarkup(`<div class="chip current"><span>${untilStart > 0 ? t("untilStart") : t("waitingManual")}</span></div>`);
+        invalidateRuntimeUiCache();
         syncButtons();
         return;
       }
@@ -4540,24 +5269,27 @@
       if (isManualStartHoldPending()) {
         const initialSegment = getCurrentSegment(0);
         if (initialSegment) {
+          setElementClass(document.body, "countdown-active", false);
           const initialDuration = initialSegment.end - initialSegment.start;
-          document.body.classList.toggle("break-active", initialSegment.type === "break");
-          els.phase.textContent = initialSegment.label;
-          els.phase.className = `phase ${initialSegment.type}`;
+          setElementClass(document.body, "break-active", initialSegment.type === "break");
+          setElementText(els.phase, initialSegment.label);
+          setElementClassName(els.phase, `phase ${initialSegment.type}`);
           setDisplayTime(initialDuration);
-          els.status.textContent = t("roundRunning");
-          els.cycleMeta.textContent = `${t("cycle")} ${initialSegment.cycle}`;
-          els.rotationMeta.textContent = initialSegment.type === "break"
+          setElementText(els.status, t("roundRunning"));
+          setElementText(els.cycleMeta, `${t("cycle")} ${initialSegment.cycle}`);
+          setElementText(els.rotationMeta, initialSegment.type === "break"
             ? `${t("break")} ${formatTime(settings.breakSeconds)}`
-            : `${t("rotation")} ${formatTime(settings.rotationSeconds)}`;
-          els.nextMeta.textContent = initialSegment.type === "break"
+            : `${t("rotation")} ${formatTime(settings.rotationSeconds)}`);
+          let nextMeta = initialSegment.type === "break"
             ? settings.oneShot ? t("nextComplete") : t("nextRotation")
             : settings.oneShot ? t("nextComplete") : settings.breakSeconds > 0 ? t("nextBreak") : t("nextRotation");
           if (settings.oneShot && initialSegment.type === "rotation" && settings.breakSeconds > 0) {
-            els.nextMeta.textContent = t("nextBreak");
+            nextMeta = t("nextBreak");
           }
-          els.progressBar.style.width = "0%";
+          setElementText(els.nextMeta, nextMeta);
+          setProgressWidth(0, true);
           drawSchedule(initialSegment);
+          invalidateRuntimeUiCache();
           syncButtons();
           return;
         }
@@ -4565,62 +5297,69 @@
 
       if (state.running && state.serverStartedAt > serverNow()) {
         const untilStart = (state.serverStartedAt - serverNow()) / 1000;
-        document.body.classList.remove("break-active");
-        els.phase.textContent = t("waitingStart");
-        els.phase.className = "phase ready";
+        setElementClass(document.body, "break-active", false);
+        setElementText(els.phase, t("waitingStart"));
+        setElementClassName(els.phase, "phase ready");
         setDisplayTime(untilStart);
-        els.status.textContent = t("waitingStart");
-        els.cycleMeta.textContent = `${t("cycle")} 1`;
-        els.rotationMeta.textContent = `${t("start")} ${new Date(state.serverStartedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
-        els.nextMeta.textContent = t("nextStart");
-        els.progressBar.style.width = "0%";
+        setElementText(els.status, t("waitingStart"));
+        setElementText(els.cycleMeta, `${t("cycle")} 1`);
+        setElementText(els.rotationMeta, `${t("start")} ${new Date(state.serverStartedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`);
+        setElementText(els.nextMeta, t("nextStart"));
+        setProgressWidth(0, true);
         drawSchedule(null);
+        invalidateRuntimeUiCache();
         syncButtons();
         return;
       }
 
       if (state.waitingForManualStart) {
-        document.body.classList.remove("break-active");
-        els.phase.textContent = t("waitingManual");
-        els.phase.className = "phase ready";
+        setElementClass(document.body, "break-active", false);
+        setElementClass(document.body, "countdown-active", false);
+        setElementText(els.phase, t("waitingManual"));
+        setElementClassName(els.phase, "phase ready");
         setDisplayTime(0);
-        els.status.textContent = t("readyStart");
-        els.cycleMeta.textContent = t("final");
-        els.rotationMeta.textContent = `${t("rotation")} ${formatTime(settings.rotationSeconds)}`;
-        els.nextMeta.textContent = t("nextManual");
-        els.progressBar.style.width = "0%";
+        setElementText(els.status, t("readyStart"));
+        setElementText(els.cycleMeta, t("final"));
+        setElementText(els.rotationMeta, `${t("rotation")} ${formatTime(settings.rotationSeconds)}`);
+        setElementText(els.nextMeta, t("nextManual"));
+        setProgressWidth(0, true);
         drawSchedule(null);
+        invalidateRuntimeUiCache();
         syncButtons();
         return;
       }
 
       const oneShotDuration = settings.rotationSeconds + settings.breakSeconds;
       if (state.completed || (settings.oneShot && elapsed >= oneShotDuration)) {
-        document.body.classList.remove("break-active");
-        els.phase.textContent = t("completed");
-        els.phase.className = "phase ready";
+        setElementClass(document.body, "break-active", false);
+        setElementClass(document.body, "countdown-active", false);
+        setElementText(els.phase, t("completed"));
+        setElementClassName(els.phase, "phase ready");
         setDisplayTime(0);
-        els.status.textContent = t("completed");
-        els.cycleMeta.textContent = t("final");
-        els.rotationMeta.textContent = `${t("rotation")} ${formatTime(settings.rotationSeconds)}`;
-        els.nextMeta.textContent = "";
-        els.progressBar.style.width = "100%";
+        setElementText(els.status, t("completed"));
+        setElementText(els.cycleMeta, t("final"));
+        setElementText(els.rotationMeta, `${t("rotation")} ${formatTime(settings.rotationSeconds)}`);
+        setElementText(els.nextMeta, "");
+        setProgressWidth(100, true);
         drawSchedule(null);
+        invalidateRuntimeUiCache();
         syncButtons();
         return;
       }
 
       if (isReady || !segment) {
-        document.body.classList.remove("break-active");
-        els.phase.textContent = t("readiness");
-        els.phase.className = "phase ready";
+        setElementClass(document.body, "break-active", false);
+        setElementClass(document.body, "countdown-active", false);
+        setElementText(els.phase, t("readiness"));
+        setElementClassName(els.phase, "phase ready");
         setDisplayTime(settings.rotationSeconds);
-        els.status.textContent = t("ready");
-        els.cycleMeta.textContent = `${t("cycle")} 1`;
-        els.rotationMeta.textContent = `${t("rotation")} ${formatTime(settings.rotationSeconds)}`;
-        els.nextMeta.textContent = t("nextStart");
-        els.progressBar.style.width = "0%";
+        setElementText(els.status, t("ready"));
+        setElementText(els.cycleMeta, `${t("cycle")} 1`);
+        setElementText(els.rotationMeta, `${t("rotation")} ${formatTime(settings.rotationSeconds)}`);
+        setElementText(els.nextMeta, t("nextStart"));
+        setProgressWidth(0, true);
         drawSchedule(null);
+        invalidateRuntimeUiCache();
         syncButtons();
         return;
       }
@@ -4630,24 +5369,40 @@
       const donePercent = ((duration - remaining) / duration) * 100;
       const segmentKey = `${segment.cycle}:${segment.type}`;
 
-      document.body.classList.toggle("break-active", segment.type === "break");
-      document.body.classList.toggle("warning-active", segment.type === "rotation" && remaining > 0 && remaining <= 5);
-      els.phase.textContent = segment.label;
-      els.phase.className = `phase ${segment.type}`;
+      setElementClass(document.body, "countdown-active", false);
+      setElementClass(document.body, "break-active", segment.type === "break");
+      setElementClass(document.body, "warning-active", segment.type === "rotation" && remaining > 0 && remaining <= 5);
       setDisplayTime(remaining);
-      els.status.textContent = state.running ? t("roundRunning") : t("pause");
-      els.cycleMeta.textContent = `${t("cycle")} ${segment.cycle}`;
-      els.rotationMeta.textContent = segment.type === "break"
-        ? `${t("break")} ${formatTime(settings.breakSeconds)}`
-        : `${t("rotation")} ${formatTime(settings.rotationSeconds)}`;
-      els.nextMeta.textContent = segment.type === "break"
-        ? settings.oneShot ? t("nextComplete") : t("nextRotation")
-        : settings.oneShot ? t("nextComplete") : settings.breakSeconds > 0 ? t("nextBreak") : t("nextRotation");
-      if (settings.oneShot && segment.type === "rotation" && settings.breakSeconds > 0) {
-        els.nextMeta.textContent = t("nextBreak");
+      const runtimeMetaKey = [
+        language,
+        state.runtimePreset,
+        segmentKey,
+        state.running,
+        settings.rotationSeconds,
+        settings.breakSeconds,
+        settings.oneShot
+      ].join(":");
+      if (runtimeMetaKey !== lastRuntimeMetaKey) {
+        lastRuntimeMetaKey = runtimeMetaKey;
+        setElementText(els.phase, segment.label);
+        setElementClassName(els.phase, `phase ${segment.type}`);
+        setElementText(els.status, state.running ? t("roundRunning") : t("pause"));
+        setElementText(els.cycleMeta, `${t("cycle")} ${segment.cycle}`);
+        setElementText(els.rotationMeta, segment.type === "break"
+          ? `${t("break")} ${formatTime(settings.breakSeconds)}`
+          : `${t("rotation")} ${formatTime(settings.rotationSeconds)}`);
+        let nextMeta = segment.type === "break"
+          ? settings.oneShot ? t("nextComplete") : t("nextRotation")
+          : settings.oneShot ? t("nextComplete") : settings.breakSeconds > 0 ? t("nextBreak") : t("nextRotation");
+        if (settings.oneShot && segment.type === "rotation" && settings.breakSeconds > 0) {
+          nextMeta = t("nextBreak");
+        }
+        setElementText(els.nextMeta, nextMeta);
+        drawSchedule(segment);
       }
-      els.progressBar.style.width = `${Math.max(0, Math.min(100, donePercent))}%`;
-      drawSchedule(segment);
+      const progressSegmentChanged = segmentKey !== lastProgressSegmentKey;
+      setProgressWidth(donePercent, progressSegmentChanged || isScrubbing);
+      lastProgressSegmentKey = segmentKey;
 
       if (state.running && segmentKey !== lastSegmentIndex) {
         lastSegmentIndex = segmentKey;
@@ -4660,15 +5415,21 @@
     }
 
     function tick() {
+      checkClockContinuity();
       render();
-      requestAnimationFrame(tick);
+      const interval = document.hidden || (!state.running && !state.countdownOnly)
+        ? renderIdleIntervalMs
+        : renderRunningIntervalMs;
+      window.setTimeout(tick, interval);
     }
 
     function renderWatchdog() {
       if (!shouldKeepDisplayFresh()) return;
+      checkClockContinuity();
       if (performance.now() - lastRenderAt < 3000) return;
       lastDisplayTimeLabel = "";
       render();
+      scheduleDisplayBoundary(true);
     }
 
     function isBeforeScheduledStart() {
@@ -4678,8 +5439,18 @@
         && !isManualStartHoldPending();
     }
 
+    function audioTestDisabledReason() {
+      if (!controlsAvailable() || (state.running && !isBeforeScheduledStart())) return "running";
+      if (Date.now() < audioTestCooldownUntil) return "cooldown";
+      return "";
+    }
+
+    function audioTestDisabledTitle(reason) {
+      return reason === "cooldown" ? t("audioTestCooldown") : t("audioTestUnavailableRunning");
+    }
+
     function shouldDisableAudioTestButtons() {
-      return !controlsAvailable() || (state.running && !isBeforeScheduledStart());
+      return Boolean(audioTestDisabledReason());
     }
 
     function syncButtonsWhenScheduledStartStateChanges() {
@@ -4690,10 +5461,11 @@
     }
 
     function syncAudioTestButtons() {
-      const disabled = shouldDisableAudioTestButtons();
-      if (disabled === audioTestButtonsDisabled) return;
-      audioTestButtonsDisabled = disabled;
-      const disabledTitle = disabled ? t("audioTestUnavailableRunning") : "";
+      const reason = audioTestDisabledReason();
+      if (reason === audioTestButtonsDisabledReason) return;
+      audioTestButtonsDisabledReason = reason;
+      const disabled = Boolean(reason);
+      const disabledTitle = disabled ? audioTestDisabledTitle(reason) : "";
       els.browserList?.querySelectorAll("[data-audio-test-kind]").forEach((button) => {
         button.disabled = disabled;
         if (disabledTitle) {
@@ -4733,14 +5505,41 @@
       els.primaryToggle.disabled = !serverControls;
       els.instancesSoundToggle.disabled = !serverControls;
       els.instancesFullscreenToggle.disabled = !serverControls;
+      els.flashToggle.disabled = !available;
       els.festivalAnnouncementsToggle.disabled = !available;
-      els.presets.forEach((button) => { button.disabled = !available; });
+      updatePresetControlState(available);
       [els.climbMinutes, els.breakSeconds, els.startHours, els.startMinutes]
         .forEach((input) => { input.disabled = !available; });
       els.soundProfileSelect.disabled = !available || (state.running && !beforeScheduledStart)
         || state.elapsedBeforePause > 0
         || state.completed;
       updatePrimaryPinUi();
+    }
+
+    function formatSelectionLocked() {
+      return state.running
+        || state.elapsedBeforePause > 0
+        || state.completed
+        || state.waitingForManualStart;
+    }
+
+    function presetDefaultTitle(name) {
+      if (language !== "ru") return "";
+      return {
+        classic: "Классический формат (французская система)",
+        festival: "Фестивальный формат",
+        final: "Международный формат"
+      }[name] || "";
+    }
+
+    function updatePresetControlState(available = controlsAvailable()) {
+      const locked = available && formatSelectionLocked();
+      els.presets.forEach((button) => {
+        button.disabled = !available;
+        button.classList.toggle("format-locked", locked);
+        button.setAttribute("aria-disabled", String(locked));
+        button.title = locked ? t("presetLockedHint") : presetDefaultTitle(button.dataset.preset);
+      });
     }
 
     function finalizeStandaloneState() {
@@ -4770,10 +5569,12 @@
     }
 
     function startStandaloneTimer() {
+      const waitingForManualStart = state.waitingForManualStart;
       const isFreshStart = state.elapsedBeforePause === 0 || state.completed || state.waitingForManualStart;
       const elapsed = isFreshStart ? 0 : state.elapsedBeforePause;
       clearSignalTimers();
       if (isFreshStart) {
+        if (!waitingForManualStart) state.runtimePreset = state.activePreset;
         state.activeSettings = activeSettingsFromDraft();
         state.completed = false;
         lastPhaseSignalKey = "1:rotation";
@@ -4813,6 +5614,7 @@
       state.pausedAt = 0;
       state.accumulatedPause = 0;
       state.elapsedBeforePause = 0;
+      state.runtimePreset = state.activePreset;
       state.activeSettings = activeSettingsFromDraft();
       lastSegmentIndex = -1;
       lastPhaseSignalKey = "";
@@ -4841,6 +5643,7 @@
       }
       await pendingSeekAction;
       const sent = await sendServerAction("start", {
+        activePreset: state.activePreset,
         settings: isFreshStart ? activeSettingsFromDraft() : activeSettings(),
         elapsedBeforePause: state.elapsedBeforePause,
         startHours: "",
@@ -4897,6 +5700,7 @@
         const target = new Date(now);
         target.setHours(Number(els.startHours.value || 0), Number(els.startMinutes.value || 0), 0, 0);
         state.activeSettings = activeSettingsFromDraft();
+        state.runtimePreset = state.activePreset;
         if (target.getTime() <= now && state.activeSettings.oneShot) {
           target.setDate(target.getDate() + 1);
         }
@@ -4914,6 +5718,7 @@
         return;
       }
       await sendServerAction("start", {
+        activePreset: state.activePreset,
         settings: activeSettingsFromDraft(),
         startMode: "scheduled",
         startHours: els.startHours.value,
@@ -4977,6 +5782,7 @@
         return;
       }
       const sent = await sendServerAction("reset", {
+        activePreset: state.activePreset,
         settings: activeSettingsFromDraft()
       });
       if (sent === true) {
@@ -5144,13 +5950,83 @@
 
     async function toggleFullscreen() {
       requestScreenWakeLock();
-      if (!document.fullscreenElement) {
-        document.body.classList.add("fullscreen");
-        await document.documentElement.requestFullscreen();
-      } else {
-        document.body.classList.remove("fullscreen");
-        await document.exitFullscreen();
+      if (document.body.classList.contains("fullscreen") || document.fullscreenElement) {
+        await exitScreenMode();
+        return;
       }
+
+      screenModeScrollY = window.scrollY;
+      screenModeRequested = true;
+      document.body.classList.add("fullscreen");
+      revealExitFullscreenButton();
+      if (document.documentElement.requestFullscreen) {
+        try {
+          await document.documentElement.requestFullscreen();
+        } catch (error) {
+          document.body.classList.add("fullscreen");
+        }
+      }
+      scheduleFitTimer();
+    }
+
+    function revealExitFullscreenButton() {
+      if (!document.body.classList.contains("fullscreen")) return;
+      document.body.classList.add("exit-fullscreen-visible");
+      clearTimeout(exitFullscreenHideTimer);
+      exitFullscreenHideTimer = window.setTimeout(() => {
+        document.body.classList.remove("exit-fullscreen-visible");
+      }, 2400);
+    }
+
+    async function exitScreenMode() {
+      const restoreScrollY = screenModeScrollY;
+      screenModeRequested = false;
+      clearTimeout(exitFullscreenHideTimer);
+      document.body.classList.remove("exit-fullscreen-visible");
+      document.body.classList.remove("fullscreen");
+      if (document.fullscreenElement) {
+        try {
+          await document.exitFullscreen();
+        } catch (error) {}
+      }
+      window.scrollTo(0, restoreScrollY);
+      window.requestAnimationFrame(() => {
+        window.scrollTo(0, restoreScrollY);
+        scheduleFitTimer();
+      });
+      scheduleFitTimer();
+    }
+
+    function toggleScreenFromTimerGesture(event) {
+      const now = performance.now();
+      if (now - lastTimerScreenToggleAt < 700) return;
+      event.preventDefault();
+      lastTimerTapAt = 0;
+      lastTimerScreenToggleAt = now;
+      suppressGestureClicksUntil = now + 700;
+      toggleFullscreen();
+    }
+
+    function registerTimerTap(event, clientX, clientY) {
+      const touchDevice = isAndroidDevice() || isIosDevice() || navigator.maxTouchPoints > 0;
+      if (!touchDevice) return;
+
+      const now = performance.now();
+      const elapsed = now - lastTimerTapAt;
+      const distance = Math.hypot(clientX - lastTimerTapX, clientY - lastTimerTapY);
+      const isDoubleTap = elapsed > 0 && elapsed <= 550 && distance <= 80;
+
+      lastTimerTapAt = now;
+      lastTimerTapX = clientX;
+      lastTimerTapY = clientY;
+      if (!isDoubleTap) return;
+
+      toggleScreenFromTimerGesture(event);
+    }
+
+    function handleStageClick(event) {
+      if (event.target.closest("button, a, input, select, textarea, label, footer, .progress")) return;
+      registerTimerTap(event, event.clientX, event.clientY);
     }
 
     async function applyViewerFullscreenPreference(fromUserGesture = false) {
@@ -5199,6 +6075,11 @@
     });
     els.enterStandaloneBtn.addEventListener("click", enterStandaloneMode);
     els.returnToServerBtn.addEventListener("click", returnToServerMode);
+    els.installAppBtn.addEventListener("click", installAppToHomeScreen);
+    els.exitFullscreenBtn.addEventListener("click", (event) => {
+      event.stopPropagation();
+      exitScreenMode();
+    });
     els.browserList.addEventListener("click", async (event) => {
       const copyButton = event.target.closest("[data-copy-browser-url]");
       if (copyButton) {
@@ -5232,11 +6113,14 @@
         if (testButton.disabled || shouldDisableAudioTestButtons()) return;
         const targetClientId = testButton.dataset.audioTestClient;
         const everywhere = testAudioEverywhere && targetClientId === state.primaryClientId;
+        audioTestCooldownUntil = Date.now() + audioTestCooldownMs;
+        audioTestButtonsDisabledReason = null;
+        syncAudioTestButtons();
         unlockAudio();
         if (standaloneMode) {
           if (targetClientId !== clientId) return;
           const kind = testButton.dataset.audioTestKind;
-          const baseTime = serverNow() + 1800 + audioUserOffsetMs;
+          const baseTime = serverNow() + 1800 + pendingAudioOffset;
           const offsets = kind === "warn" ? [0, 1000, 2000, 3000, 4000] : [0];
           offsets.forEach((offset) => scheduleDiagnosticSound(kind, baseTime + offset));
           return;
@@ -5244,7 +6128,8 @@
         sendServerAction("audioTest", {
           kind: testButton.dataset.audioTestKind,
           targetClientId,
-          everywhere
+          everywhere,
+          previewAudioOffset: pendingAudioOffset
         });
         return;
       }
@@ -5260,16 +6145,38 @@
         return;
       }
 
+      const nudge = event.target.closest("[data-audio-offset-nudge]");
+      if (nudge) {
+        const editor = nudge.closest(".audio-offset-editor");
+        const slider = editor?.querySelector("[data-audio-offset-slider]");
+        const value = editor?.querySelector("[data-audio-offset-value]");
+        pendingAudioOffset = Math.max(audioOffsetMinMs, Math.min(
+          audioOffsetMaxMs,
+          pendingAudioOffset + Number(nudge.dataset.audioOffsetNudge)
+        ));
+        if (slider) slider.value = String(pendingAudioOffset);
+        if (value) value.textContent = `${pendingAudioOffset > 0 ? "+" : ""}${pendingAudioOffset} ${t("ms")}`;
+        return;
+      }
+
       const chip = event.target.closest("[data-audio-client]");
       if (!chip) return;
       const targetClientId = chip.dataset.audioClient;
+      const toggleNow = performance.now();
+      if (targetClientId === lastAudioChipToggleClientId && toggleNow - lastAudioChipToggleAt < 300) return;
+      lastAudioChipToggleClientId = targetClientId;
+      lastAudioChipToggleAt = toggleNow;
       const client = lastKnownClients.find((item) => item.id === targetClientId);
       const currentOffset = Number(client?.audioUserOffset || 0);
       if (editingAudioClientId !== targetClientId) {
         editingAudioClientId = targetClientId;
-        pendingAudioOffset = Math.max(-500, Math.min(500, Math.round(currentOffset)));
+        pendingAudioOffset = Math.max(audioOffsetMinMs, Math.min(
+          audioOffsetMaxMs,
+          Math.round(currentOffset / audioOffsetStepMs) * audioOffsetStepMs
+        ));
         testAudioEverywhere = false;
         renderBrowserList(lastKnownClients);
+        revealAudioOffsetEditor();
         return;
       }
 
@@ -5334,6 +6241,17 @@
     els.instancesFullscreenToggle.addEventListener("change", () => {
       sendServerAction("instancesFullscreen", {
         enabled: els.instancesFullscreenToggle.checked
+      });
+    });
+
+    els.flashToggle.addEventListener("change", () => {
+      state.flashing = els.flashToggle.checked;
+      if (standaloneMode) {
+        saveOfflineSnapshot();
+        return;
+      }
+      sendServerAction("flashing", {
+        enabled: state.flashing
       });
     });
 
@@ -5430,10 +6348,21 @@
     });
 
     els.scheduledStartBtn.addEventListener("click", toggleScheduledCountdown);
+    els.buildInfo.addEventListener("click", activateBuildProjectLink);
+    document.addEventListener("click", (event) => {
+      if (event.target.closest("#buildInfo")) return;
+      deactivateBuildProjectLink();
+    });
     [els.startBtn, els.compactStart].forEach((button) => button.addEventListener("click", startTimer));
     [els.pauseBtn, els.compactPause].forEach((button) => button.addEventListener("click", pauseTimer));
     [els.resetBtn, els.compactReset].forEach((button) => button.addEventListener("click", () => hardReset(false)));
     els.fullBtn.addEventListener("click", toggleFullscreen);
+    els.stage.addEventListener("click", handleStageClick);
+    document.addEventListener("click", (event) => {
+      if (performance.now() >= suppressGestureClicksUntil) return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+    }, true);
     els.progressTrack.addEventListener("pointerdown", startScrub);
     els.progressTrack.addEventListener("pointermove", moveScrub);
     els.progressTrack.addEventListener("pointerup", stopScrub);
@@ -5441,7 +6370,8 @@
     ["pointerdown", "touchstart", "click"].forEach((eventName) => {
       document.addEventListener(eventName, (event) => {
         if (event.target.closest(".action")) return;
-        unlockAudio();
+        if (!event.target.closest(".exit-fullscreen-button")) revealExitFullscreenButton();
+        unlockAudio(eventName === "click");
         if (pendingViewerFullscreen && isViewerClient && instancesFullscreenEnabled) {
           applyViewerFullscreenPreference(true);
         }
@@ -5492,7 +6422,20 @@
     });
 
     document.addEventListener("fullscreenchange", () => {
-      document.body.classList.toggle("fullscreen", Boolean(document.fullscreenElement));
+      const nativeFullscreen = Boolean(document.fullscreenElement);
+      if (nativeFullscreen) {
+        nativeScreenModeActive = true;
+        document.body.classList.add("fullscreen");
+        revealExitFullscreenButton();
+      } else if (nativeScreenModeActive) {
+        nativeScreenModeActive = false;
+        screenModeRequested = false;
+        document.body.classList.remove("fullscreen", "exit-fullscreen-visible");
+      } else if (screenModeRequested) {
+        document.body.classList.add("fullscreen");
+      } else {
+        document.body.classList.remove("fullscreen", "exit-fullscreen-visible");
+      }
       if (isViewerClient && instancesFullscreenEnabled && !document.fullscreenElement) {
         pendingViewerFullscreen = true;
       }
@@ -5501,32 +6444,53 @@
 
     document.addEventListener("visibilitychange", () => {
       if (document.visibilityState !== "visible") {
+        refreshTrustedClockAnchor(true);
         pageHiddenAt = Date.now();
+        clockContinuityWallAt = pageHiddenAt;
+        clockContinuityPerfAt = performance.now();
         markResumeDisplayStale();
         refreshStandaloneBrowserList();
         return;
       }
       if (window.location.protocol === "file:") {
+        repairServerClockAfterSuspension();
         requestScreenWakeLock();
         refreshStandaloneBrowserList();
         return;
       }
-      resumeClientSync({ resetStaleSignals: shouldResetSignalsOnResume() });
+      const clockRepaired = repairServerClockAfterSuspension();
+      resumeClientSync({ resetStaleSignals: clockRepaired || shouldResetSignalsOnResume() });
     });
 
     window.addEventListener("pagehide", () => {
       pageHiddenAt = Date.now();
+      clockContinuityWallAt = pageHiddenAt;
+      clockContinuityPerfAt = performance.now();
       markResumeDisplayStale();
       saveOfflineSnapshot();
     });
 
+    window.addEventListener("beforeinstallprompt", (event) => {
+      event.preventDefault();
+      deferredInstallPrompt = event;
+      updateInstallButton();
+    });
+
+    window.addEventListener("appinstalled", () => {
+      deferredInstallPrompt = null;
+      if (els.installHint) els.installHint.hidden = true;
+      updateInstallButton();
+    });
+
     ["pageshow", "focus", "online"].forEach((eventName) => {
       window.addEventListener(eventName, (event) => {
-        if (window.location.protocol === "file:") {
+        if (isLocalStandalonePage()) {
+          repairServerClockAfterSuspension();
           refreshStandaloneBrowserList();
           return;
         }
-        resumeClientSync({ resetStaleSignals: shouldResetSignalsOnResume(event) });
+        const clockRepaired = repairServerClockAfterSuspension();
+        resumeClientSync({ resetStaleSignals: clockRepaired || shouldResetSignalsOnResume(event) });
       });
     });
 
@@ -5534,22 +6498,40 @@
       syncControlsScrollbarPadding();
       scheduleFitTimer();
     });
-    if ("ResizeObserver" in window) {
-      const timerResizeObserver = new ResizeObserver(scheduleFitTimer);
-      timerResizeObserver.observe(document.querySelector(".stage"));
-      timerResizeObserver.observe(document.querySelector(".timer-wrap"));
+
+    function scheduleOrientationFits() {
+      scheduleFitTimer();
+      [120, 360, 800].forEach((delay) => window.setTimeout(scheduleFitTimer, delay));
     }
 
-    const fileMode = window.location.protocol === "file:";
-    if (fileMode) initializeFileMode();
+    window.addEventListener("orientationchange", scheduleOrientationFits);
+    window.screen?.orientation?.addEventListener?.("change", scheduleOrientationFits);
+
+    if ("ResizeObserver" in window) {
+      const timerWrap = document.querySelector(".timer-wrap");
+      const timerResizeObserver = new ResizeObserver((entries) => {
+        const containerChanged = entries.some((entry) => {
+          if (entry.target !== timerWrap) return true;
+          return Math.abs(entry.contentRect.width - lastTimerFitContainerWidth) > 2
+            || Math.abs(entry.contentRect.height - lastTimerFitContainerHeight) > 2;
+        });
+        if (containerChanged) scheduleFitTimer();
+      });
+      timerResizeObserver.observe(document.querySelector(".stage"));
+      timerResizeObserver.observe(timerWrap);
+    }
+
+    const fileMode = isLocalStandalonePage();
+    if (fileMode) {
+      if (!restoreOfflineReloadSnapshot({ localStandalone: true })) initializeFileMode();
+    }
     else if (!restoreOfflineReloadSnapshot()) {
       buildTimeline();
       if (offlineReloadMode) setServerAvailable(false);
     }
     syncControlsScrollbarPadding();
-    render();
-    scheduleFitTimer();
     tick();
+    scheduleFitTimer();
     if (renderWatchdogEnabled) window.setInterval(renderWatchdog, 1000);
     if (!fileMode) {
       registerOfflineServiceWorker();

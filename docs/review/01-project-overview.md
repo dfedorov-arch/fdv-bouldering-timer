@@ -50,7 +50,7 @@ fdv-bouldering-timer/
 └── .github/workflows/          # release.yml, pages.yml
 ```
 
-`offline-audio.js` генерируется сервером при старте (base64-звук для режима `file://`) и не хранится в git.
+`lib/offline-audio.js` генерируется сервером при старте (base64-звук для режима `file://`).
 
 ## 1.4. Архитектура и потоки данных
 

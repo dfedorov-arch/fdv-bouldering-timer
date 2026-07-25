@@ -27,6 +27,7 @@ function copyFixture(target) {
   for (const name of ["beeps", "fonts"]) {
     fs.cpSync(path.join(projectRoot, name), path.join(target, name), { recursive: true });
   }
+  fs.cpSync(path.join(projectRoot, "lib"), path.join(target, "lib"), { recursive: true });
 }
 
 async function waitForServer(baseUrl, child, output) {
@@ -52,6 +53,53 @@ async function postAction(baseUrl, body) {
   return { status: response.status, body: await response.json() };
 }
 
+async function openEventStream(baseUrl, clientId) {
+  const controller = new AbortController();
+  const response = await fetch(`${baseUrl}/api/events?clientId=${encodeURIComponent(clientId)}`, {
+    signal: controller.signal
+  });
+  assert.equal(response.status, 200);
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+
+  async function next(eventName, timeoutMs = 3000) {
+    const readNext = async () => {
+      while (true) {
+        const boundary = buffer.indexOf("\n\n");
+        if (boundary !== -1) {
+          const block = buffer.slice(0, boundary);
+          buffer = buffer.slice(boundary + 2);
+          const lines = block.split("\n");
+          const name = lines.find((line) => line.startsWith("event:"))?.slice(6).trim() || "message";
+          const data = lines.filter((line) => line.startsWith("data:")).map((line) => line.slice(5).trim()).join("\n");
+          if (name === eventName && data) return JSON.parse(data);
+          continue;
+        }
+        const chunk = await reader.read();
+        if (chunk.done) throw new Error(`Event stream ended before ${eventName}`);
+        buffer += decoder.decode(chunk.value, { stream: true });
+      }
+    };
+    let timeout;
+    try {
+      return await Promise.race([
+        readNext(),
+        new Promise((_, reject) => {
+          timeout = setTimeout(() => reject(new Error(`Timed out waiting for ${eventName}`)), timeoutMs);
+        })
+      ]);
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+
+  return {
+    next,
+    close: () => controller.abort()
+  };
+}
+
 async function stopServer(child) {
   if (child.exitCode !== null) return;
   await new Promise((resolve) => {
@@ -73,6 +121,7 @@ test("production server validates settings, rejects stale commands, and deduplic
   const port = await freePort();
   const httpsPort = await freePort();
   const output = [];
+  const eventStreams = [];
   const spawnServer = () => {
     const server = spawn(process.execPath, [path.join(fixture, "serve-bouldering-timer.js")], {
       cwd: fixture,
@@ -85,12 +134,44 @@ test("production server validates settings, rejects stale commands, and deduplic
   };
   let child = spawnServer();
   t.after(async () => {
+    eventStreams.forEach((stream) => stream.close());
     await stopServer(child);
     fs.rmSync(fixture, { recursive: true, force: true });
   });
 
   const baseUrl = `http://127.0.0.1:${port}`;
   await waitForServer(baseUrl, child, output);
+
+  const audioScreenA = await openEventStream(baseUrl, "audio-screen-a");
+  const audioScreenB = await openEventStream(baseUrl, "audio-screen-b");
+  eventStreams.push(audioScreenA, audioScreenB);
+  await Promise.all([audioScreenA.next("state"), audioScreenB.next("state")]);
+
+  const audioOffset = await postAction(baseUrl, {
+    type: "audioOffset",
+    targetClientId: "audio-screen-b",
+    offset: -750
+  });
+  assert.equal(audioOffset.status, 200);
+  const [audioStateA, audioStateB] = await Promise.all([
+    audioScreenA.next("state"),
+    audioScreenB.next("state")
+  ]);
+  assert.equal(audioStateA.audioUserOffset, 0);
+  assert.equal(audioStateB.audioUserOffset, -750);
+
+  const audioPreview = await postAction(baseUrl, {
+    type: "audioTest",
+    kind: "start",
+    targetClientId: "audio-screen-b",
+    previewAudioOffset: -750
+  });
+  assert.equal(audioPreview.status, 200);
+  const audioTestEvent = await audioScreenB.next("audio-test");
+  assert.equal(audioTestEvent.previewTargetClientId, "audio-screen-b");
+  assert.equal(audioTestEvent.previewAudioOffset, -750);
+  audioScreenA.close();
+  audioScreenB.close();
 
   const classic = await postAction(baseUrl, {
     type: "settings",
@@ -127,6 +208,13 @@ test("production server validates settings, rejects stale commands, and deduplic
   assert.equal(festival.body.draftSettings.rotationMinutes, 240);
   assert.equal(festival.body.draftSettings.breakSeconds, 14400);
 
+  const flashing = await postAction(baseUrl, {
+    type: "flashing",
+    enabled: false
+  });
+  assert.equal(flashing.status, 200);
+  assert.equal(flashing.body.flashing, false);
+
   const reset = await postAction(baseUrl, {
     type: "reset",
     commandId: "normalize-reset",
@@ -160,6 +248,7 @@ test("production server validates settings, rejects stale commands, and deduplic
 
   const startBody = {
     type: "start",
+    activePreset: "final",
     commandId: "deduplicated-start",
     baseVersion: changed.body.version,
     settings: { rotationSeconds: 60, breakSeconds: 0, oneShot: true },
@@ -171,19 +260,95 @@ test("production server validates settings, rejects stale commands, and deduplic
   const started = await postAction(baseUrl, startBody);
   assert.equal(started.status, 200);
   assert.equal(started.body.running, true);
-  assert.equal(started.body.manualStartLeadMs, 300);
+  assert.equal(started.body.manualStartLeadMs, 600);
   assert.equal(started.body.manualStartDisplayHold, true);
+  assert.match(started.body.serverInstanceId, /^[0-9a-f-]{36}$/i);
 
   const duplicate = await postAction(baseUrl, startBody);
   assert.equal(duplicate.status, 200);
   assert.equal(duplicate.body.commandDuplicate, true);
   assert.equal(duplicate.body.version, started.body.version);
 
+  const selectClassicWhileFinalRuns = await postAction(baseUrl, {
+    type: "settings",
+    activePreset: "classic",
+    settings: { rotationMinutes: 5, breakSeconds: 15, oneShot: false }
+  });
+  assert.equal(selectClassicWhileFinalRuns.status, 200);
+  assert.equal(selectClassicWhileFinalRuns.body.activePreset, "classic");
+  assert.equal(selectClassicWhileFinalRuns.body.runtimePreset, "final");
+  assert.deepEqual(selectClassicWhileFinalRuns.body.activeSettings, {
+    rotationSeconds: 60,
+    breakSeconds: 0,
+    oneShot: true
+  });
+
   await stopServer(child);
   child = spawnServer();
   const restored = await waitForServer(baseUrl, child, output);
   assert.equal(restored.running, true);
-  assert.equal(restored.manualStartLeadMs, 300);
+  assert.equal(restored.manualStartLeadMs, 600);
   assert.equal(restored.manualStartDisplayHold, true);
+  assert.equal(restored.activePreset, "classic");
+  assert.equal(restored.runtimePreset, "final");
+  assert.equal(restored.flashing, false);
   assert.ok(restored.version > started.body.version);
+  assert.notEqual(restored.serverInstanceId, started.body.serverInstanceId);
+
+  const oldInstanceConflict = await postAction(baseUrl, {
+    type: "pause",
+    commandId: "pause-from-old-server-instance",
+    baseVersion: restored.version,
+    baseServerInstanceId: started.body.serverInstanceId
+  });
+  assert.equal(oldInstanceConflict.status, 409);
+  assert.equal(oldInstanceConflict.body.commandConflict, true);
+  assert.equal(oldInstanceConflict.body.instanceConflict, true);
+  assert.equal(oldInstanceConflict.body.expectedServerInstanceId, restored.serverInstanceId);
+
+  const untilStartedMs = Math.max(0, Number(restored.startedAt || 0) - Date.now());
+  await new Promise((resolve) => setTimeout(resolve, untilStartedMs + 25));
+  const paused = await postAction(baseUrl, {
+    type: "pause",
+    commandId: "pause-after-restore",
+    baseVersion: restored.version,
+    baseServerInstanceId: restored.serverInstanceId
+  });
+  assert.equal(paused.status, 200);
+  assert.equal(paused.body.running, false);
+  assert.ok(paused.body.elapsedBeforePause >= 0);
+
+  await stopServer(child);
+  child = spawnServer();
+  const restoredPause = await waitForServer(baseUrl, child, output);
+  assert.equal(restoredPause.running, false);
+  assert.ok(restoredPause.elapsedBeforePause >= paused.body.elapsedBeforePause);
+  assert.ok(restoredPause.version > paused.body.version);
+
+  const competingBaseVersion = restoredPause.version;
+  const competingActions = [
+    {
+      type: "start",
+      commandId: "competing-start",
+      baseVersion: competingBaseVersion,
+      startMode: "manual",
+      startHours: "",
+      startMinutes: "",
+      settings: { rotationSeconds: 60, breakSeconds: 0, oneShot: true }
+    },
+    {
+      type: "reset",
+      commandId: "competing-reset",
+      baseVersion: competingBaseVersion,
+      settings: { rotationSeconds: 90, breakSeconds: 0, oneShot: true }
+    }
+  ];
+  const competingResults = await Promise.all(competingActions.map((action) => postAction(baseUrl, action)));
+  assert.deepEqual(competingResults.map((result) => result.status).sort(), [200, 409]);
+  const rejectedIndex = competingResults.findIndex((result) => result.status === 409);
+  const rejectedAction = competingActions[rejectedIndex];
+  const rejectedReplay = await postAction(baseUrl, rejectedAction);
+  assert.equal(rejectedReplay.status, 409);
+  assert.equal(rejectedReplay.body.commandDuplicate, true);
+  assert.equal(rejectedReplay.body.commandConflict, true);
 });

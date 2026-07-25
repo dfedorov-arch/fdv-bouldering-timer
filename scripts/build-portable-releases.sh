@@ -2,13 +2,45 @@
 set -euo pipefail
 
 ROOT_DIR=$(cd "$(dirname "$0")/.." && pwd)
-APP_VERSION=${1:-local}
+APP_VERSION=local
+APP_VERSION_SET=false
+ALLOW_MISSING_LAUNCHERS=false
+PREFLIGHT_ONLY=false
+BUILD_TARGET=all
+
+for argument in "$@"; do
+  case "$argument" in
+    --without-launchers) ALLOW_MISSING_LAUNCHERS=true ;;
+    --preflight-only) PREFLIGHT_ONLY=true ;;
+    --target=*) BUILD_TARGET="${argument#--target=}" ;;
+    --*)
+      echo "Unknown option: $argument" >&2
+      exit 2
+      ;;
+    *)
+      if [[ "$APP_VERSION_SET" == true ]]; then
+        echo "Only one application version may be specified." >&2
+        exit 2
+      fi
+      APP_VERSION="$argument"
+      APP_VERSION_SET=true
+      ;;
+  esac
+done
+
+case "$BUILD_TARGET" in
+  all|windows-x64|macos-arm64|macos-x64|linux-arm64|linux-x64) ;;
+  *)
+    echo "Unknown build target: $BUILD_TARGET" >&2
+    exit 2
+    ;;
+esac
+
 NODE_VERSION=${NODE_VERSION:-24.17.0}
 DIST_DIR=${DIST_DIR:-"$ROOT_DIR/dist"}
 WORK_DIR=$(mktemp -d)
+DOWNLOAD_DIR=${NODE_DOWNLOAD_CACHE:-"$WORK_DIR/downloads"}
 NODE_BASE_URL="https://nodejs.org/dist/v${NODE_VERSION}"
-
-node "$ROOT_DIR/serve-bouldering-timer.js" --generate-offline-audio
 
 cleanup() {
   rm -rf "$WORK_DIR"
@@ -22,8 +54,58 @@ for command in curl tar unzip zip; do
   fi
 done
 
+require_launcher() {
+  local variable_name="$1"
+  local launcher_path="$2"
+  local expected_kind="$3"
+  if [[ -z "$launcher_path" ]]; then
+    echo "Required launcher variable is not set: $variable_name" >&2
+    return 1
+  fi
+  if [[ "$expected_kind" == "file" && ! -f "$launcher_path" ]]; then
+    echo "Required launcher file was not found: $variable_name=$launcher_path" >&2
+    return 1
+  fi
+  if [[ "$expected_kind" == "path" && ! -e "$launcher_path" ]]; then
+    echo "Required launcher path was not found: $variable_name=$launcher_path" >&2
+    return 1
+  fi
+}
+
+target_enabled() {
+  [[ "$BUILD_TARGET" == "all" || "$BUILD_TARGET" == "$1" ]]
+}
+
+validate_launchers() {
+  if [[ "$ALLOW_MISSING_LAUNCHERS" == true ]]; then
+    echo "Launcher check skipped by explicit --without-launchers mode." >&2
+    return
+  fi
+  local failed=false
+  if target_enabled "windows-x64"; then require_launcher "WINDOWS_LAUNCHER_EXE" "${WINDOWS_LAUNCHER_EXE:-}" "file" || failed=true; fi
+  if target_enabled "macos-arm64"; then require_launcher "MACOS_LAUNCHER_ARM64" "${MACOS_LAUNCHER_ARM64:-}" "path" || failed=true; fi
+  if target_enabled "macos-x64"; then require_launcher "MACOS_LAUNCHER_X64" "${MACOS_LAUNCHER_X64:-}" "path" || failed=true; fi
+  if target_enabled "linux-arm64"; then require_launcher "LINUX_LAUNCHER_ARM64" "${LINUX_LAUNCHER_ARM64:-}" "file" || failed=true; fi
+  if target_enabled "linux-x64"; then require_launcher "LINUX_LAUNCHER_X64" "${LINUX_LAUNCHER_X64:-}" "file" || failed=true; fi
+  if [[ "$failed" == true ]]; then
+    echo "Release packaging requires the GUI launcher for every selected target. Use --without-launchers only for an explicitly incomplete local package." >&2
+    exit 1
+  fi
+}
+
+validate_launchers
+if [[ "$PREFLIGHT_ONLY" == true ]]; then
+  echo "Portable release preflight passed."
+  exit 0
+fi
+
+node "$ROOT_DIR/serve-bouldering-timer.js" --generate-offline-audio
+node "$ROOT_DIR/scripts/verify-release-inputs.js"
+
 rm -rf "$DIST_DIR"
-mkdir -p "$DIST_DIR" "$WORK_DIR/downloads" "$WORK_DIR/extracted"
+mkdir -p "$DIST_DIR" "$DOWNLOAD_DIR" "$WORK_DIR/extracted"
+STANDALONE_HTML="$DIST_DIR/fdv-bouldering-timer-${APP_VERSION}-standalone.html"
+node "$ROOT_DIR/scripts/build-standalone-html.js" "$STANDALONE_HTML"
 
 curl -fsSL "$NODE_BASE_URL/SHASUMS256.txt" -o "$WORK_DIR/SHASUMS256.txt"
 
@@ -38,7 +120,8 @@ checksum_value() {
 
 download_node() {
   local archive="$1"
-  local target="$WORK_DIR/downloads/$archive"
+  local target="$DOWNLOAD_DIR/$archive"
+  local partial="$target.partial"
   local expected
   local actual
 
@@ -48,7 +131,18 @@ download_node() {
     exit 1
   fi
 
-  curl -fsSL "$NODE_BASE_URL/$archive" -o "$target"
+  if [[ -f "$target" ]]; then
+    actual=$(checksum_value "$target")
+    if [[ "$actual" == "$expected" ]]; then
+      echo "Using cached $archive" >&2
+      echo "$target"
+      return
+    fi
+    rm -f "$target"
+  fi
+  echo "Downloading $archive" >&2
+  curl -fL -C - "$NODE_BASE_URL/$archive" -o "$partial"
+  mv "$partial" "$target"
   actual=$(checksum_value "$target")
   if [[ "$actual" != "$expected" ]]; then
     echo "Checksum mismatch for $archive" >&2
@@ -61,12 +155,12 @@ copy_common_files() {
   local target="$1"
   mkdir -p "$target"
   cp "$ROOT_DIR/LICENSE" "$ROOT_DIR/help.html" \
-    "$ROOT_DIR/index.html" "$ROOT_DIR/legacy.html" "$ROOT_DIR/offline-audio.js" "$ROOT_DIR/params.txt" \
+    "$ROOT_DIR/index.html" "$ROOT_DIR/legacy.html" "$ROOT_DIR/manifest.webmanifest" \
+    "$ROOT_DIR/app-icon.svg" "$ROOT_DIR/favicon.ico" "$ROOT_DIR/params.txt" "$ROOT_DIR/sw.js" \
     "$ROOT_DIR/serve-bouldering-timer.js" "$target/"
+  cp "$STANDALONE_HTML" "$target/fdv-bouldering-timer-standalone.html"
   cp -R "$ROOT_DIR/beeps" "$ROOT_DIR/fonts" "$ROOT_DIR/help-assets" "$target/"
-  if [[ -f "$ROOT_DIR/compare-btimer-and-fdv-bouldering-timer.html" ]]; then
-    cp "$ROOT_DIR/compare-btimer-and-fdv-bouldering-timer.html" "$target/"
-  fi
+  cp -R "$ROOT_DIR/lib" "$target/"
 }
 
 extract_tar_node() {
@@ -170,16 +264,39 @@ SH
   tar -czf "$DIST_DIR/$package_name.tar.gz" -C "$WORK_DIR" "$package_name"
 }
 
-build_windows
-build_unix "macos" "arm64" "darwin" "start-timer-mac.command" "create-https-certificate-mac.command" "mac"
-build_unix "macos" "x64" "darwin" "start-timer-mac.command" "create-https-certificate-mac.command" "mac"
-build_unix "linux" "x64" "linux" "start-timer-linux.sh" "create-https-certificate-linux.sh" "linux"
-build_unix "linux" "arm64" "linux" "start-timer-linux.sh" "create-https-certificate-linux.sh" "linux"
+EXPECTED_PACKAGES=()
+if target_enabled "windows-x64"; then
+  build_windows
+  EXPECTED_PACKAGES+=("$DIST_DIR/fdv-bouldering-timer-${APP_VERSION}-windows-x64.zip")
+fi
+if target_enabled "macos-arm64"; then
+  build_unix "macos" "arm64" "darwin" "start-timer-mac.command" "create-https-certificate-mac.command" "mac"
+  EXPECTED_PACKAGES+=("$DIST_DIR/fdv-bouldering-timer-${APP_VERSION}-macos-arm64.tar.gz")
+fi
+if target_enabled "macos-x64"; then
+  build_unix "macos" "x64" "darwin" "start-timer-mac.command" "create-https-certificate-mac.command" "mac"
+  EXPECTED_PACKAGES+=("$DIST_DIR/fdv-bouldering-timer-${APP_VERSION}-macos-x64.tar.gz")
+fi
+if target_enabled "linux-x64"; then
+  build_unix "linux" "x64" "linux" "start-timer-linux.sh" "create-https-certificate-linux.sh" "linux"
+  EXPECTED_PACKAGES+=("$DIST_DIR/fdv-bouldering-timer-${APP_VERSION}-linux-x64.tar.gz")
+fi
+if target_enabled "linux-arm64"; then
+  build_unix "linux" "arm64" "linux" "start-timer-linux.sh" "create-https-certificate-linux.sh" "linux"
+  EXPECTED_PACKAGES+=("$DIST_DIR/fdv-bouldering-timer-${APP_VERSION}-linux-arm64.tar.gz")
+fi
+
+for expected in "${EXPECTED_PACKAGES[@]}"; do
+  if [[ ! -s "$expected" ]]; then
+    echo "Expected portable package was not created: $expected" >&2
+    exit 1
+  fi
+done
 
 (
   cd "$DIST_DIR"
   : > SHA256SUMS.txt
-  for file in *.zip *.tar.gz; do
+  for file in *.zip *.tar.gz *.html; do
     [[ -f "$file" ]] || continue
     printf '%s  %s\n' "$(checksum_value "$file")" "$file" >> SHA256SUMS.txt
   done

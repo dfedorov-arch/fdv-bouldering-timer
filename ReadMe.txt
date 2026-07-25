@@ -111,11 +111,16 @@ Linux:
 
   timer_font_file=Roboto-Variable.ttf
   timer_font=Arial, sans-serif
+
+  countdown_text_color=#f4f7fb
+  countdown_background_color=#0e1116
+
   rotation_text_color=#f4f7fb
   rotation_last_five_text_color=#f4f7fb
-  break_text_color=#f4f7fb
   rotation_background_color=#0e1116
   rotation_last_five_background_color=#0e1116
+
+  break_text_color=#f4f7fb
   break_background_color=#f05a59
 
 Каждый подкаталог в beeps является звуковым профилем. Используются файлы START,
@@ -123,11 +128,15 @@ END, MINUTE и WARNING в WAV или MP3. Для фестивальных объ
 FESTIVAL_60, FESTIVAL_30, FESTIVAL_10 и FESTIVAL_5. Если END отсутствует,
 используется START. Подробности находятся в help.html и beeps\README.txt.
 
-При каждом запуске сервера автоматически обновляется offline-audio.js. Он содержит
+При каждом запуске сервера автоматически обновляется lib/offline-audio.js. Он содержит
 автономную копию профилей и позволяет открыть index.html напрямую без сервера со
 звуком. После замены файлов в beeps один раз запустите таймер для обновления копии.
 В автономном режиме плитка текущего браузера позволяет открыть AUDIO, настроить
 поправку звука и проверить четыре типа сигналов.
+
+В релизах также есть один самодостаточный файл fdv-bouldering-timer-standalone.html.
+Он подходит для любой ОС и запускается без Node.js, но работает как одиночный
+автономный таймер без синхронизации с другими браузерами.
 
 Файл шрифта берётся из каталога fonts и загружается всеми экранами с локального
 сервера. timer_font задаёт резервные системные шрифты. Поддерживаются WOFF2,
@@ -302,11 +311,16 @@ Edit params.txt if required, then restart the server. Main parameters:
 
   timer_font_file=Roboto-Variable.ttf
   timer_font=Arial, sans-serif
+
+  countdown_text_color=#f4f7fb
+  countdown_background_color=#0e1116
+
   rotation_text_color=#f4f7fb
   rotation_last_five_text_color=#f4f7fb
-  break_text_color=#f4f7fb
   rotation_background_color=#0e1116
   rotation_last_five_background_color=#0e1116
+
+  break_text_color=#f4f7fb
   break_background_color=#f05a59
 
 Each subfolder in beeps is a sound profile. Profiles use START, END, MINUTE and
@@ -314,11 +328,15 @@ WARNING files in WAV or MP3 format. Festival announcements may use FESTIVAL_60,
 FESTIVAL_30, FESTIVAL_10 and FESTIVAL_5. START is used when END is missing. See
 help.html and beeps\README.txt for details.
 
-Every server start automatically refreshes offline-audio.js. It contains a standalone
+Every server start automatically refreshes lib/offline-audio.js. It contains a standalone
 copy of the profiles, allowing index.html to be opened directly without the server
 and retain sound. After replacing files in beeps, start the timer once to refresh it.
 In standalone mode, the current-browser card provides AUDIO offset adjustment and
 local tests for all four signal types.
+
+Releases also include a single-file standalone timer: fdv-bouldering-timer-standalone.html.
+It works on any operating system and does not require Node.js, but it runs as a
+single-browser offline timer without synchronization with other browsers.
 
 The font file is loaded from the fonts folder by every display through the
 local server. timer_font defines system fallbacks. WOFF2, WOFF, TTF and OTF are

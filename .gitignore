@@ -30,4 +30,5 @@ runtime-state/
 
 # MiMoCode and workspace
 .mimocode/
+.continue/
 fdv-bouldering-timer.code-workspace

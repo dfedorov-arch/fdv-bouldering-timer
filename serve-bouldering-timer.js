@@ -5,6 +5,8 @@ const os = require("os");
 const path = require("path");
 const crypto = require("crypto");
 const { performance } = require("perf_hooks");
+const { createTimerDomain } = require("./lib/timer-domain");
+const { createTimerTransitions } = require("./lib/timer-transitions");
 
 const root = __dirname;
 const paramsPath = path.join(root, "params.txt");
@@ -12,21 +14,18 @@ const runtimeStateDir = path.join(root, "runtime-state");
 const runtimeStatePath = path.join(runtimeStateDir, "timer-state.json");
 const beepsPath = path.join(root, "beeps");
 const fontsPath = path.join(root, "fonts");
-const offlineAudioPath = path.join(root, "offline-audio.js");
-const BUILD_NUMBER = 202;
+const offlineAudioPath = path.join(root, "lib", "offline-audio.js");
+const BUILD_NUMBER = 245;
+const serverInstanceId = crypto.randomUUID();
 const SNAPSHOT_SCHEMA_VERSION = 1;
 const SNAPSHOT_MAX_AGE_MS = 12 * 60 * 60 * 1000;
 const PRIMARY_RESTORE_GRACE_MS = 10000;
-const MANUAL_START_AUDIO_LEAD_MS = 300;
+const MANUAL_START_AUDIO_LEAD_MS = 600;
 const COMMAND_CACHE_MAX = 256;
 const DIAGNOSTICS_BROADCAST_MS = 2500;
 const PRIMARY_PIN_MAX_FAILURES = 5;
 const PRIMARY_PIN_BLOCK_STEPS_MS = [5000, 30000, 300000];
-const AUDIO_TEST_RATE_LIMIT_MS = 3000;
-const MAX_ROTATION_MINUTES = 240;
-const MAX_ROTATION_SECONDS = MAX_ROTATION_MINUTES * 60;
-const MAX_CLASSIC_BREAK_SECONDS = 3600;
-const MAX_FESTIVAL_BREAK_SECONDS = 240 * 60;
+const AUDIO_TEST_RATE_LIMIT_MS = 1000;
 const defaultConfig = {
   httpPort: 8008,
   httpsPort: 8443,
@@ -44,6 +43,8 @@ const defaultConfig = {
   soundProfile: "FSR_2026",
   timerFontFile: "Roboto-Variable.ttf",
   timerFont: "Arial, sans-serif",
+  countdownTextColor: "#f4f7fb",
+  countdownBackgroundColor: "#0e1116",
   rotationTextColor: "#f4f7fb",
   rotationLastFiveTextColor: "#f4f7fb",
   breakTextColor: "#f4f7fb",
@@ -190,7 +191,10 @@ function generateOfflineAudioBundle(config) {
     .replace(/\u2029/g, "\\u2029");
   const contents = `/* Generated automatically from params.txt and beeps. */\nwindow.FDV_OFFLINE_BUNDLE = ${json};\n`;
   const current = fs.existsSync(offlineAudioPath) ? fs.readFileSync(offlineAudioPath, "utf8") : "";
-  if (current !== contents) fs.writeFileSync(offlineAudioPath, contents, "utf8");
+  if (current !== contents) {
+    fs.mkdirSync(path.dirname(offlineAudioPath), { recursive: true });
+    fs.writeFileSync(offlineAudioPath, contents, "utf8");
+  }
 }
 
 function numberOrDefault(value, fallback) {
@@ -238,6 +242,8 @@ const config = {
   timerFontFile: initialTimerFontFile,
   timerFontUrl: fontFileUrl(initialTimerFontFile),
   timerFont: textParam(params, "timer_font", defaultConfig.timerFont),
+  countdownTextColor: textParam(params, "countdown_text_color", defaultConfig.countdownTextColor),
+  countdownBackgroundColor: textParam(params, "countdown_background_color", defaultConfig.countdownBackgroundColor),
   rotationTextColor: textParam(params, "rotation_text_color", defaultConfig.rotationTextColor),
   rotationLastFiveTextColor: textParam(params, "rotation_last_five_text_color", defaultConfig.rotationLastFiveTextColor),
   breakTextColor: textParam(params, "break_text_color", defaultConfig.breakTextColor),
@@ -248,68 +254,11 @@ const config = {
   soundProfiles
 };
 
-function boundedInteger(value, min, max, fallback) {
-  const fallbackNumber = Number(fallback);
-  const safeFallback = Number.isFinite(fallbackNumber)
-    ? Math.min(max, Math.max(min, Math.round(fallbackNumber)))
-    : min;
-  if (value === null || value === undefined || value === "") return safeFallback;
-  const number = Number(value);
-  if (!Number.isFinite(number)) return safeFallback;
-  return Math.min(max, Math.max(min, Math.round(number)));
-}
-
-function normalizeActiveSettings(source = {}, fallback = {}) {
-  if (!source || typeof source !== "object") source = {};
-  if (!fallback || typeof fallback !== "object") fallback = {};
-  const oneShot = Boolean(source.oneShot);
-  const fallbackRotation = boundedInteger(
-    fallback.rotationSeconds,
-    1,
-    MAX_ROTATION_SECONDS,
-    config.classicRotationMinutes * 60
-  );
-  const fallbackBreak = boundedInteger(
-    fallback.breakSeconds,
-    0,
-    MAX_FESTIVAL_BREAK_SECONDS,
-    config.classicBreakSeconds
-  );
-  return {
-    rotationSeconds: boundedInteger(source.rotationSeconds, 1, MAX_ROTATION_SECONDS, fallbackRotation),
-    breakSeconds: source.breakSeconds === "" && oneShot
-      ? 0
-      : boundedInteger(source.breakSeconds, 0, MAX_FESTIVAL_BREAK_SECONDS, fallbackBreak),
-    oneShot
-  };
-}
-
-function normalizeOptionalClockPart(value, max) {
-  if (value === null || value === undefined || value === "") return "";
-  return boundedInteger(value, 0, max, 0);
-}
-
-function normalizeDraftSettings(source = {}, activePreset = "") {
-  if (!source || typeof source !== "object") source = {};
-  const oneShot = Boolean(source.oneShot);
-  const maxBreakSeconds = activePreset === "festival"
-    ? MAX_FESTIVAL_BREAK_SECONDS
-    : MAX_CLASSIC_BREAK_SECONDS;
-  return {
-    rotationMinutes: boundedInteger(
-      source.rotationMinutes,
-      1,
-      MAX_ROTATION_MINUTES,
-      config.classicRotationMinutes
-    ),
-    breakSeconds: oneShot && source.breakSeconds === ""
-      ? ""
-      : boundedInteger(source.breakSeconds, 0, maxBreakSeconds, config.classicBreakSeconds),
-    oneShot,
-    startHours: normalizeOptionalClockPart(source.startHours, 23),
-    startMinutes: normalizeOptionalClockPart(source.startMinutes, 59)
-  };
-}
+const timerDomain = createTimerDomain(config);
+const { normalizeActiveSettings, normalizeDraftSettings } = timerDomain;
+const timerTransitions = createTimerTransitions(timerDomain, {
+  manualStartAudioLeadMs: MANUAL_START_AUDIO_LEAD_MS
+});
 
 try {
   generateOfflineAudioBundle({ ...config, buildNumber: BUILD_NUMBER });
@@ -332,8 +281,11 @@ const pfxPassphrase = process.env.HTTPS_PFX_PASSPHRASE || "bouldering-timer";
 
 const types = {
   ".html": "text/html; charset=utf-8",
+  ".webmanifest": "application/manifest+json; charset=utf-8",
   ".css": "text/css; charset=utf-8",
   ".js": "text/javascript; charset=utf-8",
+  ".svg": "image/svg+xml; charset=utf-8",
+  ".ico": "image/x-icon",
   ".mp3": "audio/mpeg",
   ".wav": "audio/wav",
   ".woff2": "font/woff2",
@@ -352,6 +304,7 @@ const timerState = {
   elapsedBeforePause: 0,
   startedAt: 0,
   activePreset: "classic",
+  runtimePreset: "classic",
   activeSettings: {
     rotationSeconds: config.classicRotationMinutes * 60,
     breakSeconds: config.classicBreakSeconds,
@@ -368,6 +321,7 @@ const timerState = {
   instancesSound: config.soundInOtherBrowsers,
   instancesFullscreen: false,
   globalSound: config.sound,
+  flashing: config.flashing,
   festivalAnnouncements: config.festivalAnnouncements,
   soundProfile: config.soundProfile,
   language: config.language,
@@ -619,12 +573,14 @@ function assignTimerState(source = {}) {
     "elapsedBeforePause",
     "startedAt",
     "activePreset",
+    "runtimePreset",
     "activeSettings",
     "draftSettings",
     "primaryClientId",
     "instancesSound",
     "instancesFullscreen",
     "globalSound",
+    "flashing",
     "festivalAnnouncements",
     "soundProfile",
     "language",
@@ -657,6 +613,9 @@ function restoreTimerSnapshot() {
       breakSeconds: config.classicBreakSeconds,
       oneShot: false
     });
+    timerState.runtimePreset = Object.prototype.hasOwnProperty.call(snapshot.timerState, "runtimePreset")
+      ? snapshot.timerState.runtimePreset || ""
+      : timerState.activeSettings.oneShot ? "final" : timerState.activePreset || "classic";
     timerState.draftSettings = normalizeDraftSettings(timerState.draftSettings, timerState.activePreset);
     clientAudioOffsets.clear();
     if (Array.isArray(snapshot.audioOffsets)) {
@@ -808,28 +767,23 @@ function consumeAudioTestRateLimit(now = wallNow()) {
   return { allowed: true, retryAfterMs: 0 };
 }
 
-function timerDisplayStatusLabel(language = timerState.language) {
-  const text = (ru, en) => language === "en" ? en : ru;
+function timerDisplayStatusLabel() {
   const now = wallNow();
   const startedAt = Number(timerState.startedAt || 0);
   const running = Boolean(timerState.running);
 
-  if (timerState.countdownOnly) {
-    return startedAt > now ? text("Ожидание старта", "Waiting for start") : text("Готов к старту", "Ready to start");
-  }
-  if (running && startedAt > now) return text("Ожидание старта", "Waiting for start");
-  if (timerState.waitingForManualStart) return text("Готов к старту", "Ready to start");
+  if (timerState.countdownOnly) return startedAt > now ? "waitingStart" : "readyStart";
+  if (running && startedAt > now) return "waitingStart";
+  if (timerState.waitingForManualStart) return "readyStart";
 
   const activeSettings = timerState.activeSettings || {};
   const oneShotDuration = Math.max(0,
     numberOrDefault(activeSettings.rotationSeconds, 0)
     + numberOrDefault(activeSettings.breakSeconds, 0));
   const elapsed = elapsedSeconds();
-  if (timerState.completed || (activeSettings.oneShot && elapsed >= oneShotDuration)) {
-    return text("Завершено", "Completed");
-  }
-  if (!running && !timerState.completed && timerState.elapsedBeforePause === 0) return text("Готов", "Ready");
-  return running ? text("Раунд идет", "Round running") : text("Пауза", "Paused");
+  if (timerState.completed || (activeSettings.oneShot && elapsed >= oneShotDuration)) return "completed";
+  if (!running && !timerState.completed && timerState.elapsedBeforePause === 0) return "ready";
+  return running ? "roundRunning" : "pause";
 }
 
 function registerClient(req, source = {}) {
@@ -892,7 +846,7 @@ function registerClient(req, source = {}) {
     lastSseAge: optionalNumber(sourceValue(source, "lastSseAge"), existing.lastSseAge ?? null),
     sseRestarts: optionalNumber(sourceValue(source, "sseRestarts"), existing.sseRestarts ?? null),
     stateVersion: legacyViewer ? timerState.version : optionalNumber(sourceValue(source, "stateVersion"), existing.stateVersion ?? null),
-    displayStatus: legacyViewer ? timerDisplayStatusLabel(timerState.language) : sourceValue(source, "displayStatus") || existing.displayStatus || ""
+    displayStatus: legacyViewer ? timerDisplayStatusLabel() : sourceValue(source, "displayStatus") || existing.displayStatus || ""
   });
   if (optionalBool(sourceValue(source, "oldBrowser"), false)) {
     oldBrowserClients.add(id);
@@ -919,7 +873,7 @@ function publicClients() {
     .map((client) => ({
       ...client,
       manualLegacy: manualLegacyClients.has(client.id),
-      role: client.legacyViewer ? "Упрощённый экран" : timerState.primaryClientId ? (timerState.primaryClientId === client.id ? "Основной" : "Экран") : "",
+      role: client.legacyViewer ? "screen" : timerState.primaryClientId ? (timerState.primaryClientId === client.id ? "primary" : "screen") : "",
       age: now - client.lastSeen,
       connected: now - client.lastSeen < 6000
     }));
@@ -929,19 +883,6 @@ function elapsedSeconds(now = monoNow()) {
   if (!timerState.running) return timerState.elapsedBeforePause;
   if (timerStartedAtMono) return Math.max(0, (now - timerStartedAtMono) / 1000);
   return Math.max(0, (wallNow() - timerState.startedAt) / 1000);
-}
-
-function scheduledStartTime(now, hoursValue, minutesValue, restorePast = false) {
-  const hasHours = hoursValue !== null && hoursValue !== undefined && hoursValue !== "";
-  const hasMinutes = minutesValue !== null && minutesValue !== undefined && minutesValue !== "";
-  if (!hasHours && !hasMinutes) return now;
-
-  const hours = Math.min(23, Math.max(0, Math.round(numberOrDefault(hoursValue, 0))));
-  const minutes = Math.min(59, Math.max(0, Math.round(numberOrDefault(minutesValue, 0))));
-  const target = new Date(now);
-  target.setHours(hours, minutes, 0, 0);
-  if (!restorePast && target.getTime() <= now) target.setDate(target.getDate() + 1);
-  return target.getTime();
 }
 
 function finalizeOneShot(now = wallNow()) {
@@ -1030,6 +971,7 @@ function publicState(options = {}) {
   } = timerState;
   return {
     ...publicTimerState,
+    serverInstanceId,
     startedAt: publicStartedAt(sentAt, elapsed),
     config: {
       ...config,
@@ -1059,10 +1001,10 @@ function publicState(options = {}) {
 }
 
 function broadcastState() {
-  const state = publicState({ includeClients: false });
-  const payload = `event: state\ndata: ${JSON.stringify(state)}\n\n`;
   for (const [res, eventClient] of eventClients) {
     try {
+      const state = publicState({ clientId: eventClient.clientId, includeClients: false });
+      const payload = `event: state\ndata: ${JSON.stringify(state)}\n\n`;
       res.write(payload);
     } catch (error) {
       clearInterval(eventClient.keepAlive);
@@ -1073,6 +1015,7 @@ function broadcastState() {
 
 function diagnosticsPayload() {
   return {
+    serverInstanceId,
     primaryClientId: timerState.primaryClientId,
     clients: publicClients(),
     version: timerState.version,
@@ -1268,11 +1211,15 @@ function handleRequest(req, res) {
         return;
       }
       const baseVersion = Number(body.baseVersion);
-      if (isRuntimeCommand && Number.isFinite(baseVersion) && baseVersion !== timerState.version) {
+      const baseServerInstanceId = String(body.baseServerInstanceId || "");
+      const instanceConflict = Boolean(baseServerInstanceId && baseServerInstanceId !== serverInstanceId);
+      if (isRuntimeCommand && (instanceConflict || (Number.isFinite(baseVersion) && baseVersion !== timerState.version))) {
         const conflictState = {
           ...publicState({ receivedAt: now, clientId, includeClients: shouldIncludeDiagnostics(clientId) }),
           commandConflict: true,
-          expectedVersion: timerState.version
+          instanceConflict,
+          expectedVersion: timerState.version,
+          expectedServerInstanceId: serverInstanceId
         };
         rememberCommandResult(commandId, 409, conflictState);
         sendJson(res, 409, conflictState);
@@ -1284,120 +1231,19 @@ function handleRequest(req, res) {
       let audioWakeCommand = null;
       let legacyModeCommand = null;
 
-      if (type === "start") {
-        const settings = body.settings || timerState.activeSettings;
-        const wasCompleted = timerState.completed;
-        const requestedElapsed = Number(body.elapsedBeforePause);
-        const pausedElapsed = Number.isFinite(requestedElapsed) ? Math.max(0, requestedElapsed) : timerState.elapsedBeforePause;
-        const elapsed = wasCompleted ? 0 : timerState.running ? elapsedSecondsAtWall(actionNow) : pausedElapsed;
-        const hasScheduledStartFields = body.startHours !== "" || body.startMinutes !== "";
-        const startMode = body.startMode === "scheduled" || (!body.startMode && hasScheduledStartFields)
-          ? "scheduled"
-          : "manual";
-        const scheduledStart = startMode === "scheduled";
-        const manualAfterCountdown = Boolean(body.manualStart || timerState.waitingForManualStart);
-        const freshManualStart = !scheduledStart && elapsed === 0;
-        const startAudioLeadMs = freshManualStart && body.startAudioLead === true
-          ? MANUAL_START_AUDIO_LEAD_MS
-          : 0;
-        timerState.activeSettings = normalizeActiveSettings(settings, timerState.activeSettings);
-        timerState.running = true;
-        timerState.completed = false;
-        timerState.elapsedBeforePause = 0;
-        timerState.manualStartLeadMs = startAudioLeadMs;
-        timerState.manualStartDisplayHold = freshManualStart;
-        timerState.countdownOnly = Boolean(timerState.activeSettings.oneShot && scheduledStart && !manualAfterCountdown && elapsed === 0);
-        timerState.waitingForManualStart = false;
-        const scheduledTime = scheduledStart
-          ? scheduledStartTime(
-            now,
-            body.startHours,
-            body.startMinutes,
-            !timerState.activeSettings.oneShot
-          )
-          : 0;
-        setTimerStartedAt(elapsed > 0
-          ? actionNow - Math.max(0, elapsed) * 1000
-          : scheduledStart ? scheduledTime : actionNow + startAudioLeadMs);
-        if (startAudioLeadMs > 0) {
-          audioWakeCommand = {
-            kind: "prewarm",
-            startedAt: timerState.startedAt,
-            leadMs: startAudioLeadMs
-          };
+      const timerAction = timerTransitions.applyTimerAction(timerState, body, {
+        now,
+        actionNow,
+        elapsedAtAction: elapsedSecondsAtWall(actionNow)
+      });
+      if (timerAction.changed) {
+        assignTimerState(timerAction.state);
+        if (timerAction.effects.clock === "set") setTimerStartedAt(timerAction.state.startedAt);
+        if (timerAction.effects.clock === "clear") clearTimerStartedAt();
+        if (timerAction.effects.transitionAt !== null) {
+          armStateTransition(timerAction.effects.transitionAt);
         }
-        if (manualAfterCountdown) {
-          timerState.draftSettings.startHours = "";
-          timerState.draftSettings.startMinutes = "";
-        }
-        const oneShotDuration = timerState.activeSettings.rotationSeconds + timerState.activeSettings.breakSeconds;
-        armStateTransition(timerState.countdownOnly
-          ? timerState.startedAt
-          : timerState.activeSettings.oneShot ? timerState.startedAt + oneShotDuration * 1000 : 0);
-        timerState.version += 1;
-      }
-
-      if (type === "pause" && timerState.running && timerState.startedAt <= now) {
-        timerState.elapsedBeforePause = elapsedSecondsAtWall(actionNow);
-        timerState.running = false;
-        timerState.countdownOnly = false;
-        timerState.manualStartLeadMs = 0;
-        timerState.manualStartDisplayHold = false;
-        clearTimerStartedAt();
-        armStateTransition(0);
-        timerState.version += 1;
-      }
-
-      if (type === "stopCountdown" && timerState.running && timerState.startedAt > now) {
-        timerState.running = false;
-        timerState.countdownOnly = false;
-        timerState.waitingForManualStart = false;
-        timerState.elapsedBeforePause = 0;
-        timerState.manualStartLeadMs = 0;
-        timerState.manualStartDisplayHold = false;
-        clearTimerStartedAt();
-        armStateTransition(0);
-        timerState.version += 1;
-      }
-
-      if (type === "reset") {
-        const settings = body.settings || timerState.draftSettings;
-        timerState.running = false;
-        timerState.completed = false;
-        timerState.countdownOnly = false;
-        timerState.waitingForManualStart = false;
-        timerState.elapsedBeforePause = 0;
-        timerState.manualStartLeadMs = 0;
-        timerState.manualStartDisplayHold = false;
-        clearTimerStartedAt();
-        armStateTransition(0);
-        timerState.activeSettings = normalizeActiveSettings(settings, timerState.activeSettings);
-        timerState.version += 1;
-      }
-
-      if (type === "seek" && !timerState.running) {
-        const elapsed = Number(body.elapsed);
-        if (Number.isFinite(elapsed)) {
-          timerState.elapsedBeforePause = Math.max(0, elapsed);
-          timerState.manualStartLeadMs = 0;
-          timerState.manualStartDisplayHold = false;
-          clearTimerStartedAt();
-          timerState.version += 1;
-        }
-      }
-
-      if (type === "settings") {
-        const settings = body.settings || {};
-        timerState.activePreset = body.activePreset || "";
-        timerState.draftSettings = normalizeDraftSettings(settings, timerState.activePreset);
-        if (!timerState.running && timerState.elapsedBeforePause === 0) {
-          timerState.activeSettings = normalizeActiveSettings({
-            rotationSeconds: timerState.draftSettings.rotationMinutes * 60,
-            breakSeconds: Number(timerState.draftSettings.breakSeconds) || 0,
-            oneShot: timerState.draftSettings.oneShot
-          }, timerState.activeSettings);
-        }
-        timerState.version += 1;
+        audioWakeCommand = timerAction.effects.audioWakeCommand;
       }
 
       if (type === "primary") {
@@ -1476,6 +1322,11 @@ function handleRequest(req, res) {
         timerState.version += 1;
       }
 
+      if (type === "flashing") {
+        timerState.flashing = Boolean(body.enabled);
+        timerState.version += 1;
+      }
+
       if (type === "festivalAnnouncements") {
         timerState.festivalAnnouncements = Boolean(body.enabled);
         timerState.version += 1;
@@ -1547,11 +1398,23 @@ function handleRequest(req, res) {
         const everywhere = Boolean(body.everywhere && timerState.primaryClientId);
         const timerActivelyRunning = timerState.running && timerState.startedAt <= now;
         if (!timerActivelyRunning && (everywhere || targetClientId)) {
+          const requestedPreviewAudioOffset = body.previewAudioOffset;
+          const hasPreviewAudioOffset = requestedPreviewAudioOffset !== null
+            && requestedPreviewAudioOffset !== undefined
+            && requestedPreviewAudioOffset !== ""
+            && Number.isFinite(Number(requestedPreviewAudioOffset));
+          const previewAudioOffset = hasPreviewAudioOffset
+            ? Math.max(-750, Math.min(250, Number(requestedPreviewAudioOffset)))
+            : 0;
           audioTestCommand = {
             id: `${now}-${nextAudioTestId++}`,
             kind,
             everywhere,
             targetClientId: everywhere ? "" : targetClientId,
+            ...(hasPreviewAudioOffset ? {
+              previewTargetClientId: targetClientId,
+              previewAudioOffset: Math.round(previewAudioOffset)
+            } : {}),
             serverTime: now + 1800
           };
         }
