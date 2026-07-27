@@ -44,6 +44,7 @@ function build() {
   let html = read("index.html");
   const offlineAudio = embedTimerFont(read("lib/offline-audio.js"));
   const clientActionTransport = read("lib/client-action-transport.js");
+  const startList = read("lib/start-list.js");
   const manifest = JSON.parse(read("manifest.webmanifest"));
   const appIcon = read("app-icon.svg");
   manifest.icons = [{
@@ -71,6 +72,10 @@ function build() {
     `\n  ${scriptTag(`window.FDV_SINGLE_FILE_STANDALONE = true;\n${offlineAudio}`)}`
   );
   html = html.replace(
+    /\s*<script src="lib\/start-list\.js"><\/script>/,
+    `\n  ${scriptTag(startList)}`
+  );
+  html = html.replace(
     /\s*<script src="lib\/client-action-transport\.js"><\/script>/,
     `\n  ${scriptTag(clientActionTransport)}`
   );
@@ -83,6 +88,9 @@ function build() {
   }
   if (!html.includes("window.FDVClientActionTransport")) {
     throw new Error("Standalone HTML does not contain the client action transport");
+  }
+  if (!html.includes("window.FDVStartList")) {
+    throw new Error("Standalone HTML does not contain start-list support");
   }
 
   fs.mkdirSync(path.dirname(outputPath), { recursive: true });

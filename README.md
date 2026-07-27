@@ -16,6 +16,7 @@
 - Продолжение отсчёта на экране при временной потере соединения.
 - Запуск сразу или по заданному времени.
 - Управление подключёнными браузерами и диагностика связи.
+- Импорт стартового списка и отображение продвижения участников по трассам в форматах «Классика» и «Финал».
 - Настраиваемые звуковые профили, цвета и локальные шрифты.
 - Интерфейс и руководство на русском и английском языках.
 - Работа по HTTP или HTTPS.
@@ -67,6 +68,16 @@ node --test test/*.test.js
 
 Пробел не управляет таймером.
 
+## Стартовый список
+
+Переключатель «Стартовый протокол» после настройки основного браузера открывает и скрывает справа область списков. Зелёная кнопка `+` добавляет до четырёх независимых протоколов. Первый и второй располагаются друг под другом; при добавлении третьего область расширяется вправо, где аналогично размещаются третий и четвёртый. У каждого протокола есть собственные загрузка, количество трасс, текущий цикл и компактная кнопка удаления. Крест в первой области очищает её, а во второй–четвёртой удаляет всю соответствующую область. Поддерживаются табличные документы 1С `.mxl` и текстовые таблицы `.csv`, `.tsv`, `.txt`. Первая строка должна содержать заголовки; в текстовых файлах разделителем может быть точка с запятой, запятая или табуляция. Если ни один столбец не содержит последовательность циклов `1, 2, 3…`, приложение автоматически добавляет первым столбец `#`. Excel и Google Sheets умеют экспортировать таблицы в CSV/TSV.
+
+Стартовый список всегда показывается в основном браузере. Для других подключённых браузеров его можно включить кнопкой `LIST` в панели диагностики. Таблица только визуализирует продвижение и не изменяет состояние или ход таймера.
+
+В формате «Финал» досрочное нажатие «Стоп» завершает текущую попытку в протоколе так же, как окончание времени ротации. Ширина каждой колонки протоколов подстраивается под фактическую ширину загруженных таблиц; горизонтальная прокрутка не появляется, пока таблицу можно разместить, расширив колонку не более чем до половины ширины экрана.
+
+Когда таймер остановлен или поставлен на паузу, номер в плашке «Цикл» можно изменить вручную. В «Классике» таймер переходит к началу выбранного цикла, а в «Финале» — к началу выбранной попытки. Во время работы таймера поле заблокировано.
+
 ## Лицензия
 
 Проект распространяется по лицензии [MIT](LICENSE).
@@ -89,6 +100,7 @@ FDV Bouldering Timer is a networked competition timer. One computer controls the
 - Local countdown continuity during temporary connection loss.
 - Immediate or scheduled starts.
 - Connected-browser controls and connection diagnostics.
+- Start-list import and route-progress display in Classic and Final formats.
 - Configurable sound profiles, colors, and bundled local fonts.
 - Russian and English interface and documentation.
 - HTTP and HTTPS support.
@@ -103,5 +115,11 @@ FDV Bouldering Timer is a networked competition timer. One computer controls the
 5. Open the network address printed by the launcher on other displays, for example `http://192.168.1.68:8008/`.
 
 All devices must be connected to the same local network. On macOS, the first launch may require right-clicking the app and choosing **Open**, allowing it in **System Settings → Privacy & Security**, or clearing the quarantine attribute on the extracted folder. On Linux, run `./install-linux-launcher.sh` once to add the app-menu icon. See the [quick-start guide](ReadMe.txt) and the [full user guide](help.html?lang=en) for setup, migration, HTTPS, and troubleshooting.
+
+### Start list
+
+The “Start protocol” switch below the primary-browser setting opens and hides the panel on the right. Its top row contains upload, route count, current cycle, and a compact remove button. The timer accepts 1C `.mxl` spreadsheet documents and `.csv`, `.tsv`, and `.txt` text tables. The first row contains headers; semicolon, comma, and tab delimiters are detected automatically for text files. If no column contains the cycle sequence `1, 2, 3…`, a leading `#` column is added automatically. Excel and Google Sheets can export CSV/TSV files.
+
+The list is always visible in the primary browser. Use the `LIST` diagnostic button to enable it in other connected browsers. The table is display-only and does not alter timer state or timing.
 
 The project is available under the [MIT License](LICENSE).

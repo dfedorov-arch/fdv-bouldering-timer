@@ -22,3 +22,8 @@ test("clients apply remote flashing and keep standalone flashing locally", () =>
   assert.match(index, /flashing: snapshot\.state\.flashing !== false/);
   assert.match(index, /if \(!state\.flashing\) return;/);
 });
+
+test("flash overlay is confined to the timer column and cannot cover the start list", () => {
+  assert.match(index, /body\.flash \.timer-column::after/);
+  assert.doesNotMatch(index, /body\.flash \.stage::after/);
+});

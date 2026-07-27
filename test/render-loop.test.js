@@ -42,6 +42,99 @@ test("schedule markup is replaced only when its content changes", () => {
   assert.match(index, /lastScheduleMarkup = markup;\s*els\.schedule\.innerHTML = markup;/);
 });
 
+test("start-list switch follows the primary switch and supports four dynamic protocol areas", () => {
+  assert.match(index, /id="primaryToggle"[\s\S]*?id="startListToggleRow"[\s\S]*?id="startListToggle" type="checkbox"/);
+  assert.match(index, /<section id="startListPanel"[\s\S]*?id="startListLayout"/);
+  assert.match(index, /data-start-list-add[\s\S]*?data-start-list-file[\s\S]*?data-start-list-routes[\s\S]*?data-start-list-cycle[\s\S]*?data-start-list-clear/);
+  assert.match(index, /value\.slice\(0, 4\)/);
+  assert.match(index, /entries\.length > 2 \? \[entries\.slice\(0, 2\), entries\.slice\(2, 4\)\] : \[entries\]/);
+  assert.match(index, /if \(index === 0\) \{\s*nextLists\[0\] = null;\s*startListIncidentSelections\[0\] = null;\s*\} else \{\s*nextLists\.splice\(index, 1\);\s*startListIncidentSelections\.splice\(index, 1\);/);
+  assert.match(index, /\.start-list-panel \{[\s\S]*?width: 280px;[\s\S]*?min-width: 280px;/);
+  assert.match(index, /\.start-list-add \{[^}]*color: var\(--green\); background: transparent;/);
+  assert.match(index, /function fitStartListPanelWidth\(\)[\s\S]*?intrinsicStartListTableWidth\(table\)[\s\S]*?els\.startListPanel\.style\.width/);
+  assert.match(index, /maximumContentWidth = Math\.min\(window\.innerWidth \* 0\.5, 700\)/);
+  assert.match(index, /scroll\.offsetWidth - scroll\.clientWidth/);
+  assert.match(index, /const completedFinalAttempt = state\.runtimePreset === "final"[\s\S]*?state\.running \|\| state\.completed \|\| state\.elapsedBeforePause > 0/);
+  assert.doesNotMatch(index, /class="start-list-heading"/);
+  assert.match(index, /startListEditorOpen = els\.startListToggle\.checked;[\s\S]*?safeStorageSet\("sessionStorage", startListEditorPreferenceKey[\s\S]*?updateStartListVisibility\(\);\s*renderStartList\(\);/);
+  assert.match(index, /startListEditorOpen = safeStorageGet\("sessionStorage", startListEditorPreferenceKey\) === "1";\s*els\.startListToggle\.checked = startListEditorOpen/);
+  assert.match(index, /safeStorageSet\("sessionStorage", startListEditorPreferenceKey, startListEditorOpen \? "1" : "0"\)/);
+  assert.match(index, /LIST \$\{listIndex \+ 1\}[\s\S]*?data-start-list-index="\$\{listIndex\}"/);
+  assert.match(index, /start-list-available clickable[\s\S]*?start-list-selected/);
+  assert.match(index, /function visibleStartListEntries\(\)[\s\S]*?selectedIndexes\.has\(index\)/);
+  assert.match(index, /els\.climbMinutes\.disabled = !available \|\| state\.running/);
+  assert.match(index, /els\.breakSeconds\.disabled = !available \|\| state\.running/);
+});
+
+test("cycle plaque becomes an editable synchronized cycle selector while stopped", () => {
+  assert.match(index, /function drawSchedule\(segment\)[\s\S]*?state\.runtimePreset === "final"[\s\S]*?id="cycleInput" class="cycle-input" type="number" min="1" max="9999"/);
+  assert.match(index, /\.cycle-chip\.cycle-editable[\s\S]*?border-color: #68dcff/);
+  assert.match(index, /function cycleInputEditable\(\) \{[\s\S]*?!state\.running[\s\S]*?!isViewerClient/);
+  assert.match(index, /async function seekToCycle\(value\)[\s\S]*?sendServerAction\("seekCycle", \{ cycle \}\)/);
+  assert.match(index, /setCycleMeta\(settings\.oneShot \? displayedCycleNumber\(segment\) : segment\.cycle\)/);
+  assert.doesNotMatch(index, /\.cycle-input::-(?:webkit-inner|webkit-outer)-spin-button/);
+});
+
+test("start-list width uses stable intrinsic content measurements and reserves scrollbar space", () => {
+  assert.match(index, /function browserScrollbarWidth\(\)[\s\S]*?overflow:scroll[\s\S]*?probe\.offsetWidth - probe\.clientWidth/);
+  assert.match(index, /function intrinsicStartListTableWidth\(table\)[\s\S]*?table\.style\.minWidth = "0"[\s\S]*?getBoundingClientRect\(\)\.width[\s\S]*?table\.style\.minWidth = previousMinWidth/);
+  assert.match(index, /const nativeScrollbarWidth = browserScrollbarWidth\(\)/);
+  assert.match(index, /const scrollbarRoundingAllowance = 2/);
+  assert.match(index, /const maximumContentWidth = Math\.min\(window\.innerWidth \* 0\.5, 700\)/);
+  assert.match(index, /Math\.max\(maximum, intrinsicStartListTableWidth\(table\)\)/);
+  assert.match(index, /scroll\.offsetWidth - scroll\.clientWidth\), nativeScrollbarWidth\)[\s\S]*?\+ scrollbarRoundingAllowance/);
+  assert.match(index, /const measuredContentWidth = tableWidth/);
+  assert.match(index, /contentWidth \+ scrollbarAllowance/);
+  assert.match(index, /Math\.min\(window\.innerWidth \* 0\.72, 1400\) \+ scrollbarAllowance/);
+  assert.match(index, /els\.startListPanel\.style\.maxWidth = `\$\{panelLimit\}px`/);
+  assert.match(index, /function scheduleStartListPanelWidthFit\(\)[\s\S]*?const overflow = fitStartListPanelWidth\(\)[\s\S]*?pass < 2 \|\| \(overflow > 0 && pass < 6\)[\s\S]*?requestAnimationFrame\(settleWidth\)/);
+  assert.match(index, /scroll\.scrollWidth - scroll\.clientWidth/);
+  assert.match(index, /fitStartListPanelWidth\(\);\s*scheduleStartListPanelWidthFit\(\);/);
+});
+
+test("start-list route incident controls render pause, stop, resume and cancellation states", () => {
+  assert.match(index, /class="start-list-route-button"[\s\S]*?data-start-list-route/);
+  assert.match(index, /data-start-list-incident-menu[\s\S]*?data-start-list-incident-cycle/);
+  assert.match(index, /data-start-list-incident-action="pause"[\s\S]*?data-start-list-incident-action="stop"/);
+  assert.match(index, /data-start-list-incident-action="resume"/);
+  assert.match(index, /data-start-list-incident-action="cancel-stop"/);
+  assert.match(index, /FDVStartList\.participantAtCycle[\s\S]*?kind: "pause"[\s\S]*?resumeCycle: null/);
+  assert.match(index, /kind: "stop"[\s\S]*?startCycle: cycle/);
+  assert.match(index, /route-marker\.paused::before[\s\S]*?route-marker\.stopped::before/);
+  assert.match(index, /th\.route-paused \.start-list-route-button[\s\S]*?border: 2px solid var\(--yellow\)[\s\S]*?box-shadow:/);
+  assert.match(index, /th\.route-stopped \.start-list-route-button[\s\S]*?border: 2px solid var\(--red\)[\s\S]*?box-shadow:/);
+  assert.match(index, /th\.route-paused-history \.start-list-route-button[\s\S]*?border: 2px solid rgba\(255, 200, 87, \.86\)/);
+  assert.match(index, /th\.route-stopped-history \.start-list-route-button[\s\S]*?border: 2px solid rgba\(240, 90, 89, \.9\)/);
+  assert.match(index, /function formatRoutePauseState\(incident, cycle\)[\s\S]*?routeIncidentPausedRange[\s\S]*?const routePauses = incidents\.filter[\s\S]*?title="\$\{escapeHtml\(routeTitle\)\}"/);
+  assert.match(index, /data-start-list-incident-action="clear-pause"[\s\S]*?action === "clear-pause"/);
+  assert.match(index, /\.start-list-incident-action\.resume \{ color: var\(--green\)/);
+  assert.match(index, /class="start-list-incident-remove"[\s\S]*?data-start-list-incident-action="clear-pause"/);
+  assert.match(index, /class="start-list-incident-remove"[\s\S]*?data-start-list-incident-action="cancel-stop"/);
+  assert.match(index, /const pauseNotes = routePauses\.map[\s\S]*?data-start-list-incident-index="\$\{incidentIndex\}"[\s\S]*?<span>\$\{escapeHtml\(pauseNote\)\}<\/span>/);
+  assert.match(index, /action === "clear-pause"[\s\S]*?incidents\[targetIndex\][\s\S]*?incidents\.splice\(targetIndex, 1\)/);
+  assert.match(index, /start-list-add::before,[\s\S]*?start-list-add::after[\s\S]*?width: 18px;[\s\S]*?height: 4px;/);
+  assert.match(index, /start-list-add \{ position: relative;/);
+  assert.match(index, /position: absolute;[\s\S]*?top: 50%;[\s\S]*?left: 50%;/);
+  assert.match(index, /start-list-add::after \{ transform: translate\(-50%, -50%\) rotate\(90deg\); \}/);
+  assert.match(index, /start-list-clear::before \{ transform: translate\(-50%, -50%\) rotate\(45deg\); \}[\s\S]*?start-list-clear::after \{ transform: translate\(-50%, -50%\) rotate\(-45deg\); \}/);
+  assert.match(index, /start-list-incident-close::before[\s\S]*?content: "×";[\s\S]*?transform: translateY\(1px\);/);
+  assert.match(index, /start-list-incident-remove::before,[\s\S]*?start-list-incident-remove::after[\s\S]*?width: 13px;[\s\S]*?height: 3px;/);
+  assert.match(index, /start-list-incident-remove::before \{ transform: translate\(-50%, -50%\) rotate\(45deg\); \}[\s\S]*?start-list-incident-remove::after \{ transform: translate\(-50%, -50%\) rotate\(-45deg\); \}/);
+  assert.match(index, /function rememberStartListScrollPositions\(nextLists\)[\s\S]*?querySelectorAll\("\[data-start-list-index\]"\)[\s\S]*?const pending = pendingStartListScrollRestores\[index\][\s\S]*?listKey: JSON\.stringify\(normalized\[index\]\)[\s\S]*?top: pending\?\.top \?\? scroll\.scrollTop[\s\S]*?left: pending\?\.left \?\? scroll\.scrollLeft/);
+  assert.match(index, /JSON\.stringify\(nextStartLists\) !== JSON\.stringify\(state\.startLists\)[\s\S]*?rememberStartListScrollPositions\(nextStartLists\);[\s\S]*?lastStartListRenderKey = "";/);
+  assert.match(index, /pendingScroll\?\.listKey === JSON\.stringify\(list\)[\s\S]*?pendingStartListScrollRestores\[index\] !== pendingScroll\) return;[\s\S]*?scroll\.scrollTop = pendingScroll\.top;[\s\S]*?scroll\.scrollLeft = pendingScroll\.left;/);
+  assert.match(index, /function ensureStartListStructure\(\)[\s\S]*?rememberStartListScrollPositions\(state\.startLists\);[\s\S]*?existingIndexes\.has\(index\)[\s\S]*?lastStartListScrollAnchors\[index\] = null/);
+  assert.match(index, /const previousScroll = \{ top: scroll\.scrollTop, left: scroll\.scrollLeft \};[\s\S]*?else \{[\s\S]*?scroll\.scrollTop = previousScroll\.top;[\s\S]*?scroll\.scrollLeft = previousScroll\.left;/);
+  assert.match(index, /const autoScrollKey = `\$\{position\.cycle\}:\$\{position\.phase\}:\$\{anchor\}`;[\s\S]*?autoScrollKey !== lastStartListScrollAnchors\[index\]/);
+  assert.match(index, /function formatRoutePauseState\(incident, cycle\)[\s\S]*?activeInDisplayedCycle[\s\S]*?routeIncidentPausedFrom/);
+  assert.match(index, /stoppedIncident[\s\S]*?routeIncidentStoppedFrom[\s\S]*?title="\$\{escapeHtml\(routeTitle\)\}"/);
+  assert.match(index, /function clearStartListIncidentsForNewRound\(\)[\s\S]*?incidents: _incidents[\s\S]*?lastStartListRenderKey = ""/);
+  assert.match(index, /function resetStandaloneTimer\([\s\S]*?clearStartListIncidentsForNewRound\(\)/);
+  assert.match(index, /function startTimerByTime\([\s\S]*?if \(standaloneMode\)[\s\S]*?clearStartListIncidentsForNewRound\(\)/);
+  assert.match(server, /const clearIncidentsForNewRound = type === "reset"[\s\S]*?type === "start"[\s\S]*?body\.startMode === "scheduled"[\s\S]*?clearStartListIncidents\(\)/);
+  assert.match(index, /FDVStartList\.marker\(participantIndex, routeIndex, position\.cycle, position\.phase, incidents\)/);
+});
+
 test("mobile controls keep compact multi-column grids", () => {
   assert.match(index, /\.preset-grid \{\s*display: grid;\s*grid-template-columns: repeat\(3, minmax\(0, 1fr\)\);/);
   assert.match(index, /\.field-grid \{\s*display: grid;\s*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);/);

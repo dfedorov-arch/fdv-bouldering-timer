@@ -142,6 +142,108 @@ test("production server validates settings, rejects stale commands, and deduplic
   const baseUrl = `http://127.0.0.1:${port}`;
   await waitForServer(baseUrl, child, output);
 
+  const startListLoaded = await postAction(baseUrl, {
+    type: "startLists",
+    startLists: [{
+      headers: ["№", "ФИО"],
+      rows: [["1", "Архипов Вячеслав"], ["2", "Овечкин Ярослав"]],
+      routeCount: 5,
+      incidents: [{ kind: "pause", route: 2, startCycle: 3, resumeCycle: 5, participantIndex: 0 }]
+    }]
+  });
+  assert.equal(startListLoaded.status, 200);
+  assert.equal(startListLoaded.body.startLists[0].rows.length, 2);
+  assert.deepEqual(startListLoaded.body.startLists[0].incidents, [
+    { kind: "pause", route: 2, startCycle: 3, resumeCycle: 5, participantIndex: 0 }
+  ]);
+  assert.equal(Object.prototype.hasOwnProperty.call(startListLoaded.body, "startList"), false);
+  assert.equal(startListLoaded.body.startListVisible, false);
+  assert.deepEqual(startListLoaded.body.startListIndexes, []);
+
+  await fetch(`${baseUrl}/api/state?clientId=list-screen`);
+  const startListScreenEnabled = await postAction(baseUrl, {
+    type: "startListDisplay",
+    targetClientId: "list-screen",
+    listIndex: 0,
+    enabled: true
+  });
+  assert.equal(startListScreenEnabled.status, 200);
+  const listScreenState = await fetch(`${baseUrl}/api/state?clientId=list-screen`).then((response) => response.json());
+  assert.equal(listScreenState.startListVisible, true);
+  assert.deepEqual(listScreenState.startListIndexes, [0]);
+  assert.equal(listScreenState.startLists[0].routeCount, 5);
+
+  const multipleLists = await postAction(baseUrl, {
+    type: "startLists",
+    startLists: [
+      startListLoaded.body.startLists[0],
+      null,
+      { headers: ["#", "ФИО"], rows: [["1", "Третий участник"]], routeCount: 4 }
+    ]
+  });
+  assert.equal(multipleLists.status, 200);
+  assert.equal(multipleLists.body.startLists.length, 3);
+  assert.equal(multipleLists.body.startLists[1], null);
+  assert.equal(multipleLists.body.startLists[2].routeCount, 4);
+  assert.equal(Object.prototype.hasOwnProperty.call(multipleLists.body.startLists[2], "incidents"), false);
+  const selectedScreenAfterUpdate = await fetch(`${baseUrl}/api/state?clientId=list-screen`).then((response) => response.json());
+  assert.equal(selectedScreenAfterUpdate.startListVisible, true);
+  assert.deepEqual(selectedScreenAfterUpdate.startListIndexes, [0]);
+  const thirdListEnabled = await postAction(baseUrl, {
+    type: "startListDisplay",
+    targetClientId: "list-screen",
+    listIndex: 2,
+    enabled: true
+  });
+  assert.equal(thirdListEnabled.status, 200);
+  const multiSelectionState = await fetch(`${baseUrl}/api/state?clientId=list-screen`).then((response) => response.json());
+  assert.deepEqual(multiSelectionState.startListIndexes, [0, 2]);
+  assert.equal(Object.prototype.hasOwnProperty.call(multiSelectionState, "startListDisplaySelections"), false);
+
+  const firstFinalist = await postAction(baseUrl, {
+    type: "start",
+    activePreset: "final",
+    settings: { rotationSeconds: 1, breakSeconds: 0, oneShot: true },
+    startMode: "manual",
+    startAudioLead: false
+  });
+  assert.equal(firstFinalist.status, 200);
+  assert.equal(Object.prototype.hasOwnProperty.call(firstFinalist.body.startLists[0], "incidents"), false);
+  const nextFinalist = await postAction(baseUrl, {
+    type: "reset",
+    activePreset: "final",
+    settings: { rotationSeconds: 1, breakSeconds: 0, oneShot: true }
+  });
+  assert.equal(nextFinalist.body.startListFinalCycle, 1);
+  const idleFinalReset = await postAction(baseUrl, {
+    type: "reset",
+    activePreset: "final",
+    settings: { rotationSeconds: 1, breakSeconds: 0, oneShot: true }
+  });
+  assert.equal(idleFinalReset.body.startListFinalCycle, 1);
+
+  const selectedFinalCycle = await postAction(baseUrl, {
+    type: "seekCycle",
+    cycle: 7
+  });
+  assert.equal(selectedFinalCycle.status, 200);
+  assert.equal(selectedFinalCycle.body.startListFinalCycle, 6);
+  assert.equal(selectedFinalCycle.body.elapsedBeforePause, 0.001);
+
+  const startedSelectedFinalCycle = await postAction(baseUrl, {
+    type: "start",
+    activePreset: "final",
+    settings: { rotationSeconds: 1, breakSeconds: 0, oneShot: true },
+    elapsedBeforePause: selectedFinalCycle.body.elapsedBeforePause,
+    startMode: "manual",
+    startAudioLead: false
+  });
+  assert.equal(startedSelectedFinalCycle.status, 200);
+  assert.equal(startedSelectedFinalCycle.body.startListFinalCycle, 6);
+  const pausedSelectedFinalCycle = await postAction(baseUrl, { type: "pause" });
+  assert.equal(pausedSelectedFinalCycle.status, 200);
+  assert.equal(pausedSelectedFinalCycle.body.startListFinalCycle, 6);
+
   const audioScreenA = await openEventStream(baseUrl, "audio-screen-a");
   const audioScreenB = await openEventStream(baseUrl, "audio-screen-b");
   eventStreams.push(audioScreenA, audioScreenB);
