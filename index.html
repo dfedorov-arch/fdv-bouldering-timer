@@ -1881,13 +1881,13 @@
 
       body.start-list-visible .stage-main {
         grid-template-columns: minmax(0, 1fr);
-        grid-template-rows: minmax(210px, 36dvh) auto;
+        grid-template-rows: clamp(150px, 26dvh, 190px) auto;
         overflow: visible;
       }
 
       body.start-list-visible .timer-column {
-        min-height: 210px;
-        padding: 12px;
+        min-height: 150px;
+        padding: clamp(10px, 2.5dvh, 18px) 12px;
       }
 
       body.start-list-visible .timer-wrap {
@@ -2174,7 +2174,7 @@
       timeline: []
     };
 
-    const pageBuildNumber = 302;
+    const pageBuildNumber = 303;
     const projectUrl = "https://github.com/dfedorov-arch/fdv-bouldering-timer";
     const buildLinkConfirmDelayMs = 550;
     const offlineSnapshotKey = "fdvBoulderingTimerOfflineSnapshot";

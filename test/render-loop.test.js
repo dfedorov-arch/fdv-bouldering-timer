@@ -219,7 +219,8 @@ test("enabled format buttons get a yellow hover outline", () => {
 });
 
 test("portrait phones stack the timer above compact protocol windows", () => {
-  assert.match(index, /@media \(max-width: 560px\) and \(orientation: portrait\) \{[\s\S]*?body\.start-list-visible \.stage-main \{[\s\S]*?grid-template-columns: minmax\(0, 1fr\);[\s\S]*?grid-template-rows: minmax\(210px, 36dvh\) auto;/);
+  assert.match(index, /@media \(max-width: 560px\) and \(orientation: portrait\) \{[\s\S]*?body\.start-list-visible \.stage-main \{[\s\S]*?grid-template-columns: minmax\(0, 1fr\);[\s\S]*?grid-template-rows: clamp\(150px, 26dvh, 190px\) auto;/);
+  assert.match(index, /body\.start-list-visible \.timer-column \{[\s\S]*?min-height: 150px;[\s\S]*?padding: clamp\(10px, 2\.5dvh, 18px\) 12px;/);
   assert.match(index, /body\.start-list-visible \.start-list-panel \{[\s\S]*?width: 100% !important;[\s\S]*?max-width: 100% !important;/);
   assert.match(index, /body\.start-list-visible \.timer-wrap \{\s*min-height: 0;\s*height: 100%;/);
   assert.match(index, /body\.start-list-visible \.start-list-layout \{[\s\S]*?flex-direction: column;/);
