@@ -7,7 +7,7 @@ This file is a handoff document for a new AI/chat or a new developer session. Re
 - Project: network-synchronized timer for bouldering competitions.
 - Repository: `https://github.com/dfedorov-arch/fdv-bouldering-timer`.
 - Current public release: `v1.2.0`.
-- Current application build on `develop`: `301`.
+- Current application build on `develop`: `302`.
 - Runtime: plain Node.js server plus a browser client implemented mainly in `index.html`.
 - UI languages: Russian and English.
 - Most important quality goals: identical time on all displays, deterministic phase transitions, stable and accurately timed sound, recovery after temporary network loss or device sleep.
@@ -53,7 +53,8 @@ Always run `git status --short` before editing. Never discard unrelated local ch
    - One-shot rotation with no timer break; each attempt stops and waits for the next manual Start.
    - Default rotation: 4 minutes.
    - When a start protocol is used, `Old` completes every participant on route 1 before route 2; `New` inserts a configurable number of complete rest rotations (default 3) before the participant's next route. Thus a route-1 attempt in cycle 1 is ready for route 2 in cycle 4 and active there in cycle 5.
-   - Rotation time, Final schedule choice, and Final rest-rotation count remain editable during a scheduled-start countdown, then stay disabled throughout the actually started multi-attempt Final round. Stopping the countdown returns to the beginning of cycle 1 without advancing `startListFinalCycle`. Stopping the first actual attempt leaves the fields locked because that is the end of cycle 1, not its beginning. Manually seeking back to cycle 1 resets `startListFinalCycle` to zero and unlocks the fields and competition-format buttons without a confirmation-based reset action.
+- Rotation time, Final schedule choice, and Final rest-rotation count remain editable during a scheduled-start countdown, then stay disabled throughout the actually started multi-attempt Final round. Stopping the countdown returns to the beginning of cycle 1 without advancing `startListFinalCycle`. Stopping the first actual attempt leaves the fields locked because that is the end of cycle 1, not its beginning. Manually seeking back to cycle 1 resets `startListFinalCycle` to zero and unlocks the fields and competition-format buttons without a confirmation-based reset action.
+   - Localized labels, accessibility names, and tooltips receive an unconditional initial language pass. Do not rely on a server language change to initialize attributes that are absent from the static Russian markup.
    - The timer stops after the single sequence instead of cycling.
    - A transition signal is still required exactly at the end of the final rotation/sequence.
    - Scheduled start fields can run a countdown, but after that countdown the competition rotation waits for a separate manual Start.

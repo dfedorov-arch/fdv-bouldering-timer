@@ -242,6 +242,7 @@ test("Final controls expose old and new start-list schedules without a break fie
   assert.match(index, /function formatSelectionLocked\(\)[\s\S]*?waitingForManualStart[\s\S]*?finalRoundProgressLocked\(\)/);
   assert.match(index, /finalPresetLockedHint: 'Чтобы выбрать другой формат, сначала остановите таймер кнопкой "Стоп" и перейдите на Цикл 1'/);
   assert.match(index, /finalRoundFormatField\.title = t\("finalRoundFormatHint"\)[\s\S]*?finalRestField\.title = t\("finalRestRotationsHint"\)[\s\S]*?finalRestRotations\.title/);
+  assert.match(index, /applyLanguage\(language\);\s*\n\s*const fileMode = isLocalStandalonePage\(\);/);
   assert.match(index, /\.final-round-option input:checked \{[\s\S]*?background-image: linear-gradient\(var\(--text\), var\(--text\)\)/);
   assert.match(index, /\.final-round-format-field \{\s*display: grid;\s*gap: 5px;\s*align-content: start;/);
   assert.match(index, /async function hardReset\(shouldSignal = true\) \{[\s\S]*?if \(isBeforeScheduledStart\(\)\) \{\s*await toggleScheduledCountdown\(\);\s*return;/);

@@ -2174,7 +2174,7 @@
       timeline: []
     };
 
-    const pageBuildNumber = 301;
+    const pageBuildNumber = 302;
     const projectUrl = "https://github.com/dfedorov-arch/fdv-bouldering-timer";
     const buildLinkConfirmDelayMs = 550;
     const offlineSnapshotKey = "fdvBoulderingTimerOfflineSnapshot";
@@ -2201,7 +2201,7 @@
         finalOld: "Старый",
         finalOldHint: "Все участники последовательно лезут каждую трассу",
         finalNew: "Новый",
-        finalNewHint: "Первый участник после отдыха переходит на вторую трассу",
+        finalNewHint: "Участники после отдыха переходят на следующую трассу, не дожидаясь, пока все пролезут предыдущую",
         finalRestRotations: "Количество ротаций для отдыха",
         finalRestRotationsHint: "Количество полных ротаций отдыха между попытками участника на соседних трассах",
         breakMinutes: "Перерыв", minuteUnit: "минут", secondUnit: "секунд",
@@ -2291,7 +2291,7 @@
         finalOld: "Old",
         finalOldHint: "All participants climb each route sequentially",
         finalNew: "New",
-        finalNewHint: "The first participant moves to the second route after resting",
+        finalNewHint: "After resting, participants move to the next route without waiting for everyone to finish the previous one",
         finalRestRotations: "Rest rotations",
         finalRestRotationsHint: "Number of complete rest rotations between the participant's attempts on adjacent routes",
         breakMinutes: "Break", minuteUnit: "minutes", secondUnit: "seconds",
@@ -8163,6 +8163,10 @@
       timerResizeObserver.observe(document.querySelector(".stage"));
       timerResizeObserver.observe(timerWrap);
     }
+
+    // Static Russian labels cover most of the initial markup, but translated-only
+    // attributes (including Final format tooltips) still need one initial pass.
+    applyLanguage(language);
 
     const fileMode = isLocalStandalonePage();
     if (fileMode) {
