@@ -1611,6 +1611,7 @@
       display: none;
       gap: 8px;
       justify-content: center;
+      margin-top: 12px;
     }
 
     .compact-actions .action {
@@ -1881,13 +1882,13 @@
 
       body.start-list-visible .stage-main {
         grid-template-columns: minmax(0, 1fr);
-        grid-template-rows: clamp(150px, 26dvh, 190px) auto;
+        grid-template-rows: minmax(300px, 42dvh) auto;
         overflow: visible;
       }
 
       body.start-list-visible .timer-column {
-        min-height: 150px;
-        padding: clamp(10px, 2.5dvh, 18px) 12px;
+        min-height: 300px;
+        padding: 12px;
       }
 
       body.start-list-visible .timer-wrap {
@@ -1933,6 +1934,28 @@
       body.start-list-visible .start-list-scroll {
         flex: 0 0 auto;
         max-height: calc(33px + var(--start-list-mobile-row-count, 6) * 32px);
+      }
+
+      body.start-list-visible.fullscreen .stage-main,
+      body.start-list-visible.viewer-mode .stage-main {
+        grid-template-rows: clamp(150px, 26dvh, 190px) auto;
+      }
+
+      body.start-list-visible.fullscreen .timer-column,
+      body.start-list-visible.viewer-mode .timer-column {
+        min-height: 150px;
+        padding: clamp(10px, 2.5dvh, 18px) 12px;
+      }
+    }
+
+    @media (max-width: 560px) and (orientation: portrait) and (display-mode: fullscreen) {
+      body.start-list-visible .stage-main {
+        grid-template-rows: clamp(150px, 26dvh, 190px) auto;
+      }
+
+      body.start-list-visible .timer-column {
+        min-height: 150px;
+        padding: clamp(10px, 2.5dvh, 18px) 12px;
       }
     }
   </style>
@@ -2174,7 +2197,7 @@
       timeline: []
     };
 
-    const pageBuildNumber = 303;
+    const pageBuildNumber = 304;
     const projectUrl = "https://github.com/dfedorov-arch/fdv-bouldering-timer";
     const buildLinkConfirmDelayMs = 550;
     const offlineSnapshotKey = "fdvBoulderingTimerOfflineSnapshot";

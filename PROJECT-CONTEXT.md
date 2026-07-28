@@ -7,7 +7,7 @@ This file is a handoff document for a new AI/chat or a new developer session. Re
 - Project: network-synchronized timer for bouldering competitions.
 - Repository: `https://github.com/dfedorov-arch/fdv-bouldering-timer`.
 - Current public release: `v1.2.0`.
-- Current application build on `develop`: `303`.
+- Current application build on `develop`: `304`.
 - Runtime: plain Node.js server plus a browser client implemented mainly in `index.html`.
 - UI languages: Russian and English.
 - Most important quality goals: identical time on all displays, deterministic phase transitions, stable and accurately timed sound, recovery after temporary network loss or device sleep.
@@ -315,7 +315,7 @@ Default keyboard controls:
 
 Service keys are intentionally intercepted even when an input has focus. The scheduled-countdown Start/Stop control is separate and must not be triggered by `Z`.
 
-On mobile, double-tapping the timer area enters/exits screen mode. The implementation first tries the Fullscreen API, then falls back to CSS screen mode. Button and gesture paths should share the same mechanism. A subtle exit control remains available on mobile fullscreen.
+On mobile, double-tapping the timer area enters/exits screen mode. The implementation first tries the Fullscreen API, then falls back to CSS screen mode. Button and gesture paths should share the same mechanism. A subtle exit control remains available on mobile fullscreen. In portrait orientation the timer stays above protocol panels. Its strongly compact 150-190 px height is limited to screen/viewer mode; the ordinary control page reserves at least 300 px so an empty protocol editor cannot crowd the timer, cycle chip, and compact action buttons. The cycle row and compact action row retain an explicit vertical gap.
 
 ## Configuration: `params.txt`
 

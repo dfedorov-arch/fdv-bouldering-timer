@@ -219,13 +219,18 @@ test("enabled format buttons get a yellow hover outline", () => {
 });
 
 test("portrait phones stack the timer above compact protocol windows", () => {
-  assert.match(index, /@media \(max-width: 560px\) and \(orientation: portrait\) \{[\s\S]*?body\.start-list-visible \.stage-main \{[\s\S]*?grid-template-columns: minmax\(0, 1fr\);[\s\S]*?grid-template-rows: clamp\(150px, 26dvh, 190px\) auto;/);
-  assert.match(index, /body\.start-list-visible \.timer-column \{[\s\S]*?min-height: 150px;[\s\S]*?padding: clamp\(10px, 2\.5dvh, 18px\) 12px;/);
+  assert.match(index, /@media \(max-width: 560px\) and \(orientation: portrait\) \{[\s\S]*?body\.start-list-visible \.stage-main \{[\s\S]*?grid-template-columns: minmax\(0, 1fr\);[\s\S]*?grid-template-rows: minmax\(300px, 42dvh\) auto;/);
+  assert.match(index, /body\.start-list-visible \.timer-column \{[\s\S]*?min-height: 300px;[\s\S]*?padding: 12px;/);
   assert.match(index, /body\.start-list-visible \.start-list-panel \{[\s\S]*?width: 100% !important;[\s\S]*?max-width: 100% !important;/);
   assert.match(index, /body\.start-list-visible \.timer-wrap \{\s*min-height: 0;\s*height: 100%;/);
   assert.match(index, /body\.start-list-visible \.start-list-layout \{[\s\S]*?flex-direction: column;/);
   assert.match(index, /body\.start-list-visible \.start-list-scroll \{[\s\S]*?max-height: calc\(33px \+ var\(--start-list-mobile-row-count, 6\) \* 32px\)/);
   assert.match(index, /const highlightedRows = \[\.\.\.scroll\.querySelectorAll\("tbody tr\.is-active, tbody tr\.is-ready"\)\][\s\S]*?const highlightedSpan = highlightedIndexes\.length[\s\S]*?Math\.max\(5, highlightedSpan \+ 4\)[\s\S]*?--start-list-mobile-row-count/);
+});
+
+test("mobile timer footer keeps cycle controls clear of compact actions", () => {
+  assert.match(index, /\.compact-actions \{[\s\S]*?margin-top: 12px;/);
+  assert.match(index, /body\.start-list-visible\.fullscreen \.stage-main,[\s\S]*?body\.start-list-visible\.viewer-mode \.stage-main \{\s*grid-template-rows: clamp\(150px, 26dvh, 190px\) auto;/);
 });
 
 test("primary PIN button highlights its outline on hover", () => {
