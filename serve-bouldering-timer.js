@@ -16,7 +16,7 @@ const runtimeStatePath = path.join(runtimeStateDir, "timer-state.json");
 const beepsPath = path.join(root, "beeps");
 const fontsPath = path.join(root, "fonts");
 const offlineAudioPath = path.join(root, "lib", "offline-audio.js");
-const BUILD_NUMBER = 280;
+const BUILD_NUMBER = 300;
 const serverInstanceId = crypto.randomUUID();
 const SNAPSHOT_SCHEMA_VERSION = 1;
 const SNAPSHOT_MAX_AGE_MS = 12 * 60 * 60 * 1000;
@@ -35,6 +35,8 @@ const defaultConfig = {
   festivalRoundMinutes: 120,
   festivalBreakMinutes: 30,
   finalRotationMinutes: 4,
+  finalRoundFormat: "old",
+  finalRestRotations: 3,
   language: "ru",
   primaryBrowser: false,
   sound: true,
@@ -234,6 +236,8 @@ const config = {
   festivalRoundMinutes: intParam(params, "festival_round_minutes", defaultConfig.festivalRoundMinutes, 1, 240),
   festivalBreakMinutes: intParam(params, "festival_break_minutes", defaultConfig.festivalBreakMinutes, 0, 240),
   finalRotationMinutes: intParam(params, "final_rotation_minutes", defaultConfig.finalRotationMinutes, 1, 240),
+  finalRoundFormat: textParam(params, "final_round_format", defaultConfig.finalRoundFormat).toLowerCase() === "new" ? "new" : "old",
+  finalRestRotations: intParam(params, "final_rest_rotations", defaultConfig.finalRestRotations, 1, 9),
   language: languageParam(params, "language", defaultConfig.language),
   primaryBrowser: boolParam(params, "primary_browser", defaultConfig.primaryBrowser),
   sound: boolParam(params, "sound", defaultConfig.sound),
@@ -309,12 +313,16 @@ const timerState = {
   activeSettings: {
     rotationSeconds: config.classicRotationMinutes * 60,
     breakSeconds: config.classicBreakSeconds,
-    oneShot: false
+    oneShot: false,
+    finalRoundFormat: config.finalRoundFormat,
+    finalRestRotations: config.finalRestRotations
   },
   draftSettings: {
     rotationMinutes: config.classicRotationMinutes,
     breakSeconds: config.classicBreakSeconds,
     oneShot: false,
+    finalRoundFormat: config.finalRoundFormat,
+    finalRestRotations: config.finalRestRotations,
     startHours: "",
     startMinutes: ""
   },
@@ -331,6 +339,8 @@ const timerState = {
   primaryPinClientId: "",
   primaryPinValue: "",
   startLists: [null],
+  startListParallel: false,
+  startListEnabled: false,
   startListDisplaySelections: {},
   startListFinalCycle: 0,
   version: 1
@@ -593,6 +603,8 @@ function assignTimerState(source = {}) {
     "primaryPinClientId",
     "primaryPinValue",
     "startLists",
+    "startListParallel",
+    "startListEnabled",
     "startListDisplaySelections",
     "startListFinalCycle",
     "version"
@@ -625,6 +637,8 @@ function restoreTimerSnapshot() {
       : timerState.activeSettings.oneShot ? "final" : timerState.activePreset || "classic";
     timerState.draftSettings = normalizeDraftSettings(timerState.draftSettings, timerState.activePreset);
     timerState.startLists = sanitizeStartLists(timerState.startLists);
+    timerState.startListParallel = Boolean(timerState.startListParallel) && timerState.startLists.length === 2;
+    timerState.startListEnabled = Boolean(timerState.startListEnabled);
     timerState.startListDisplaySelections = sanitizeStartListDisplaySelections(
       timerState.startListDisplaySelections,
       timerState.startLists
@@ -895,7 +909,7 @@ function publicClients() {
 }
 
 function startListVisibleForClient(clientId) {
-  return startListIndexesForClient(clientId).length > 0;
+  return timerState.startListEnabled && startListIndexesForClient(clientId).length > 0;
 }
 
 function sanitizeStartLists(value) {
@@ -1303,7 +1317,8 @@ function handleRequest(req, res) {
       let legacyModeCommand = null;
       const advanceCompletedFinalList = Boolean(
         timerState.activeSettings?.oneShot
-        && ((type === "reset" && (timerState.running || timerState.completed || timerState.elapsedBeforePause > 0))
+        && ((type === "reset" && ((timerState.running && !timerState.countdownOnly)
+          || timerState.completed || timerState.elapsedBeforePause > 0))
           || (type === "start" && timerState.completed))
       );
       const clearIncidentsForNewRound = type === "reset"
@@ -1437,11 +1452,22 @@ function handleRequest(req, res) {
 
       if (type === "startLists") {
         const nextStartLists = sanitizeStartLists(body.startLists);
+        if (timerState.startLists.length !== 2 || nextStartLists.length !== 2) timerState.startListParallel = false;
         timerState.startLists = nextStartLists;
         timerState.startListDisplaySelections = sanitizeStartListDisplaySelections(
           timerState.startListDisplaySelections,
           nextStartLists
         );
+        timerState.version += 1;
+      }
+
+      if (type === "startListLayout" && timerState.startLists.length === 2) {
+        timerState.startListParallel = Boolean(body.parallel);
+        timerState.version += 1;
+      }
+
+      if (type === "startListEnabled") {
+        timerState.startListEnabled = Boolean(body.enabled);
         timerState.version += 1;
       }
 

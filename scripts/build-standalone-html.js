@@ -45,6 +45,7 @@ function build() {
   const offlineAudio = embedTimerFont(read("lib/offline-audio.js"));
   const clientActionTransport = read("lib/client-action-transport.js");
   const startList = read("lib/start-list.js");
+  const xlsxMini = read("lib/vendor/xlsx.mini.min.js");
   const manifest = JSON.parse(read("manifest.webmanifest"));
   const appIcon = read("app-icon.svg");
   manifest.icons = [{
@@ -73,7 +74,7 @@ function build() {
   );
   html = html.replace(
     /\s*<script src="lib\/start-list\.js"><\/script>/,
-    `\n  ${scriptTag(startList)}`
+    () => `\n  ${scriptTag(`window.FDV_XLSX_LIBRARY_SOURCE = ${JSON.stringify(xlsxMini)};`)}\n  ${scriptTag(startList)}`
   );
   html = html.replace(
     /\s*<script src="lib\/client-action-transport\.js"><\/script>/,
@@ -91,6 +92,9 @@ function build() {
   }
   if (!html.includes("window.FDVStartList")) {
     throw new Error("Standalone HTML does not contain start-list support");
+  }
+  if (!html.includes("window.FDV_XLSX_LIBRARY_SOURCE")) {
+    throw new Error("Standalone HTML does not contain XLSX support");
   }
 
   fs.mkdirSync(path.dirname(outputPath), { recursive: true });

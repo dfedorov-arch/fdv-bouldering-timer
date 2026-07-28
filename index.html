@@ -77,7 +77,7 @@
     body {
       margin: 0;
       font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      background: var(--timer-rotation-bg);
+      background: #0e1116;
       color: var(--text);
     }
 
@@ -110,7 +110,7 @@
       display: none;
       flex-direction: column;
       padding: 20px;
-      background: rgba(23, 27, 34, .92);
+      background: #171b22;
       border-right: 1px solid var(--line);
       overflow: auto;
     }
@@ -473,6 +473,11 @@
       border-color: var(--yellow);
     }
 
+    .preset:not(:disabled):hover {
+      border-color: var(--yellow);
+      box-shadow: 0 0 0 2px rgba(255, 200, 87, .4);
+    }
+
     .preset.format-locked {
       cursor: not-allowed;
     }
@@ -481,6 +486,81 @@
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
       gap: 10px;
+    }
+
+    .final-round-format-field {
+      display: grid;
+      gap: 5px;
+      align-content: start;
+    }
+
+    .final-round-format-field > #finalRoundFormatLabel {
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .final-round-options {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      min-height: 38px;
+    }
+
+    .final-round-option {
+      display: inline-flex;
+      grid-template-columns: none;
+      align-items: center;
+      gap: 5px;
+      cursor: pointer;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .final-round-option input {
+      appearance: none;
+      width: 16px;
+      height: 16px;
+      min-height: 16px;
+      margin: 0;
+      padding: 0;
+      border: 1px solid #77808d;
+      border-radius: 3px;
+      background: #10141b;
+    }
+
+    .final-round-option input:checked {
+      border-color: #8d96a3;
+      background-color: #10141b;
+      background-image: linear-gradient(var(--text), var(--text));
+      background-position: center;
+      background-repeat: no-repeat;
+      background-size: 8px 8px;
+      box-shadow: none;
+    }
+
+    .final-round-option input:disabled {
+      cursor: not-allowed;
+      opacity: .62;
+    }
+
+    .final-rest-field {
+      grid-column: 1 / -1;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
+    .final-rest-field .parameter-input-row {
+      display: block;
+      flex: 0 0 48px;
+      width: 48px;
+    }
+
+    .final-rest-field[hidden],
+    .final-round-format-field[hidden],
+    .break-parameter-field[hidden] {
+      display: none;
     }
 
     .sound-profile-field {
@@ -554,6 +634,15 @@
       font-size: 10px;
       line-height: 18px;
       cursor: pointer;
+      transition: border-color .16s ease, box-shadow .16s ease, color .16s ease;
+    }
+
+    .primary-pin-button:not(:disabled):hover,
+    .primary-pin-button:not(:disabled):focus-visible {
+      border-color: var(--cyan);
+      box-shadow: 0 0 0 1px rgba(73, 198, 229, .65);
+      color: var(--text);
+      outline: none;
     }
 
     .primary-pin-button.is-set {
@@ -942,15 +1031,21 @@
     }
 
     .start-list-panel-controls {
-      display: flex;
+      display: grid;
+      grid-template-columns: 34px minmax(0, 1fr) auto 34px;
       align-items: center;
       gap: 6px;
-      min-width: 0;
+      min-width: 350px;
       padding: 8px;
       border-bottom: 1px solid var(--line);
     }
+    .start-list-panel-controls.has-layout-toggle {
+      grid-template-columns: 34px 34px minmax(0, 1fr) auto 34px;
+      min-width: 390px;
+    }
 
     .start-list-add,
+    .start-list-layout-toggle,
     .start-list-file-button,
     .start-list-clear {
       min-height: 34px;
@@ -962,15 +1057,16 @@
       font-size: 11px;
       font-weight: 800;
       text-align: center;
+      transition: border-color .16s ease, box-shadow .16s ease, color .16s ease;
     }
 
     .start-list-add { position: relative; flex: 0 0 34px; width: 34px; padding: 0; color: var(--green); background: transparent; font-size: 0; line-height: 1; }
+    .start-list-layout-toggle { position: relative; width: 34px; padding: 0; color: #8d97a5; background: transparent; font-size: 0; line-height: 1; }
     .start-list-file-button { min-width: 0; flex: 1 1 auto; color: #041217; background: var(--cyan); cursor: pointer; white-space: nowrap; }
     .start-list-file-button input { display: none; }
     .start-list-route-field { flex: 0 0 auto; display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 11px; white-space: nowrap; }
     .start-list-route-field input { width: 48px; min-height: 34px; padding-inline: 5px; text-align: center; }
     .start-list-summary { display: none; }
-    .start-list-cycle { flex: 0 0 auto; color: var(--muted); font-size: 11px; white-space: nowrap; }
     .start-list-clear { position: relative; flex: 0 0 34px; width: 34px; padding: 0; color: var(--red); background: transparent; font-size: 0; line-height: 1; }
     .start-list-add::before,
     .start-list-add::after,
@@ -990,6 +1086,45 @@
     .start-list-add::after { transform: translate(-50%, -50%) rotate(90deg); }
     .start-list-clear::before { transform: translate(-50%, -50%) rotate(45deg); }
     .start-list-clear::after { transform: translate(-50%, -50%) rotate(-45deg); }
+    .start-list-layout-toggle::before,
+    .start-list-layout-toggle::after {
+      content: "";
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      display: block;
+    }
+    .start-list-layout-toggle::before {
+      width: 16px;
+      height: 3px;
+      border-radius: 2px;
+      background: currentColor;
+      transform: translate(-50%, -50%);
+    }
+    .start-list-layout-toggle::after {
+      width: 8px;
+      height: 8px;
+      border-top: 3px solid currentColor;
+      border-right: 3px solid currentColor;
+    }
+    .start-list-layout-toggle.move-right::after { transform: translate(-25%, -50%) rotate(45deg); }
+    .start-list-layout-toggle.move-left::after { transform: translate(-75%, -50%) rotate(-135deg); }
+
+    .start-list-add:not(:disabled):hover,
+    .start-list-layout-toggle:not(:disabled):hover,
+    .start-list-file-button:hover,
+    .start-list-clear:not(:disabled):hover,
+    .start-list-incident-action:not(:disabled):hover,
+    .start-list-incident-close:not(:disabled):hover,
+    .start-list-incident-remove:not(:disabled):hover,
+    .start-list-route-button:not(:disabled):hover {
+      border-color: currentColor;
+      box-shadow: 0 0 0 1px currentColor;
+    }
+    .start-list-file-button:hover {
+      border-color: #b9f2ff;
+      box-shadow: 0 0 0 1px rgba(185, 242, 255, .9);
+    }
 
     .stage-main {
       min-width: 0;
@@ -1007,6 +1142,7 @@
       padding: clamp(18px, 3vw, 42px);
       position: relative;
       overflow: hidden;
+      background: var(--timer-rotation-bg);
     }
 
     .start-list-panel {
@@ -1030,7 +1166,7 @@
 
     .start-list-incident-menu {
       display: grid;
-      grid-template-columns: auto auto minmax(0, 1fr) auto;
+      grid-template-columns: auto minmax(0, 1fr) auto;
       align-items: center;
       gap: 5px;
       padding: 6px 7px;
@@ -1039,7 +1175,22 @@
       font-size: 11px;
     }
     .start-list-incident-menu[hidden] { display: none; }
+    .start-list-title-bar {
+      min-height: 34px;
+      padding: 7px 8px;
+      color: var(--text);
+      background: #1b212a;
+      border-bottom: 1px solid var(--line);
+      font-size: clamp(12px, .92vw, 15px);
+      font-weight: 850;
+      text-align: center;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .start-list-title-bar[hidden] { display: none; }
     .start-list-incident-title { color: var(--text); font-weight: 850; white-space: nowrap; }
+    .start-list-incident-controls { min-width: 0; display: flex; align-items: center; justify-content: flex-end; gap: 5px; }
     .start-list-incident-cycle { display: flex; align-items: center; gap: 4px; color: var(--muted); white-space: nowrap; }
     .start-list-incident-cycle input { width: 58px; min-height: 28px; padding-inline: 4px; text-align: center; }
     .start-list-incident-actions { min-width: 0; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 5px; }
@@ -1053,10 +1204,20 @@
       font-size: 10px;
       font-weight: 800;
       white-space: nowrap;
+      transition: border-color .16s ease, box-shadow .16s ease, color .16s ease;
     }
+    .start-list-incident-action { position: relative; width: 30px; padding: 0; font-size: 0; }
+    .start-list-incident-action::before,
+    .start-list-incident-action::after { content: ""; position: absolute; display: block; }
     .start-list-incident-action.pause { color: var(--yellow); border-color: rgba(255, 200, 87, .65); }
+    .start-list-incident-action.pause::before,
+    .start-list-incident-action.pause::after { top: 7px; bottom: 7px; width: 3px; border-radius: 1px; background: currentColor; }
+    .start-list-incident-action.pause::before { left: 9px; }
+    .start-list-incident-action.pause::after { right: 9px; }
     .start-list-incident-action.resume { color: var(--green); border-color: rgba(38, 208, 124, .7); }
+    .start-list-incident-action.resume::before { top: 7px; left: 10px; border-top: 7px solid transparent; border-bottom: 7px solid transparent; border-left: 11px solid currentColor; }
     .start-list-incident-action.stop { color: var(--red); border-color: rgba(240, 90, 89, .65); }
+    .start-list-incident-action.stop::before { top: 8px; left: 9px; width: 10px; height: 10px; border-radius: 1px; background: currentColor; }
     .start-list-incident-close { width: 28px; display: grid; place-items: center; padding: 0; color: var(--muted); font-size: 0; }
     .start-list-incident-close::before {
       content: "×";
@@ -1083,6 +1244,7 @@
       color: var(--red);
       background: transparent;
       font-size: 0;
+      transition: border-color .16s ease, box-shadow .16s ease, color .16s ease;
     }
     .start-list-incident-remove::before,
     .start-list-incident-remove::after {
@@ -1107,7 +1269,7 @@
     body.start-list-visible .time { font-size: var(--timer-font-size, clamp(86px, min(17vw, 46vh), 620px)); }
 
     .start-list-scroll { min-height: 0; flex: 1 1 auto; overflow: auto; scrollbar-gutter: stable; }
-    .start-list-table { width: max-content; min-width: 100%; border-collapse: separate; border-spacing: 0; font-size: clamp(11px, .85vw, 14px); }
+    .start-list-table { width: max-content; border-collapse: separate; border-spacing: 0; font-size: clamp(11px, .85vw, 14px); }
     .start-list-table th,
     .start-list-table td { height: 32px; padding: 4px 6px; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); white-space: nowrap; }
     .start-list-table th { position: sticky; top: 0; z-index: 2; color: var(--text); background: #242a33; text-align: left; }
@@ -1127,10 +1289,14 @@
       font: inherit;
       font-weight: 850;
       line-height: 1;
+      transition: border-color .16s ease, box-shadow .16s ease, color .16s ease;
     }
-    .start-list-route-button:hover:not(:disabled),
     .start-list-route-button:focus-visible { border-color: var(--cyan); outline: none; }
     .start-list-route-button:disabled { cursor: default; opacity: 1; }
+    .start-list-route-button.is-selected {
+      border: 2px solid var(--yellow);
+      box-shadow: 0 0 0 1px rgba(255, 200, 87, .46);
+    }
     .start-list-table th.route-paused .start-list-route-button {
       border: 2px solid var(--yellow);
       color: #ffe29a;
@@ -1312,6 +1478,14 @@
       border-color: #68dcff;
       box-shadow: 0 0 0 1px rgba(104, 220, 255, .5), 0 0 12px rgba(73, 201, 240, .18);
     }
+    .cycle-chip.cycle-rotation {
+      border-color: var(--green);
+      box-shadow: 0 0 0 1px rgba(45, 209, 139, .48), 0 0 12px rgba(45, 209, 139, .16);
+    }
+    .cycle-chip.cycle-break {
+      border-color: var(--yellow);
+      box-shadow: 0 0 0 1px rgba(255, 200, 87, .48), 0 0 12px rgba(255, 200, 87, .16);
+    }
     .cycle-input {
       width: 6ch;
       min-width: 0;
@@ -1362,11 +1536,12 @@
     }
 
     .schedule.with-cycle {
-      grid-template-columns: minmax(88px, 1fr) auto;
+      grid-template-columns: auto;
+      justify-content: center;
     }
 
     .schedule.with-cycle.with-break {
-      grid-template-columns: minmax(88px, 1fr) auto minmax(88px, 1fr);
+      grid-template-columns: auto;
     }
 
     .chip {
@@ -1408,8 +1583,7 @@
       border-color: var(--red);
     }
 
-    body.warning-active,
-    body.warning-active .stage {
+    body.warning-active .timer-column {
       background: var(--timer-warning-bg);
     }
 
@@ -1417,11 +1591,7 @@
       color: var(--timer-warning-text);
     }
 
-    body.countdown-active {
-      background: var(--timer-countdown-bg);
-    }
-
-    body.countdown-active .stage {
+    body.countdown-active .timer-column {
       background: var(--timer-countdown-bg);
     }
 
@@ -1429,22 +1599,12 @@
       color: var(--timer-countdown-text);
     }
 
-    body.break-active {
-      background: var(--timer-break-bg);
-    }
-
-    body.break-active .stage {
+    body.break-active .timer-column {
       background: var(--timer-break-bg);
     }
 
     body.break-active .time {
       color: var(--timer-break-text);
-    }
-
-    body.break-active .controls {
-      background: rgba(68, 12, 14, .94);
-      background: color-mix(in srgb, var(--timer-break-bg) 35%, #10141b);
-      border-right-color: rgba(255, 255, 255, .2);
     }
 
     .compact-actions {
@@ -1712,6 +1872,69 @@
         white-space: nowrap;
       }
     }
+
+    @media (max-width: 560px) and (orientation: portrait) {
+      body.start-list-visible .stage {
+        min-height: 0;
+        overflow: visible;
+      }
+
+      body.start-list-visible .stage-main {
+        grid-template-columns: minmax(0, 1fr);
+        grid-template-rows: minmax(210px, 36dvh) auto;
+        overflow: visible;
+      }
+
+      body.start-list-visible .timer-column {
+        min-height: 210px;
+        padding: 12px;
+      }
+
+      body.start-list-visible .timer-wrap {
+        min-height: 0;
+        height: 100%;
+      }
+
+      body.start-list-visible .time {
+        font-size: var(--timer-font-size, clamp(86px, 28vw, 150px));
+      }
+
+      body.start-list-visible .start-list-panel {
+        width: 100% !important;
+        min-width: 0;
+        max-width: 100% !important;
+        border-top: 1px solid var(--line);
+        border-left: 0;
+        overflow: visible;
+      }
+
+      body.start-list-visible .start-list-layout {
+        flex-direction: column;
+        overflow: visible;
+      }
+
+      body.start-list-visible .start-list-column {
+        width: 100% !important;
+        min-width: 0;
+        flex: 0 0 auto !important;
+        overflow: visible;
+      }
+
+      body.start-list-visible .start-list-column + .start-list-column {
+        border-top: 1px solid var(--line);
+        border-left: 0;
+      }
+
+      body.start-list-visible .start-list-slot {
+        flex: 0 0 auto;
+        overflow: visible;
+      }
+
+      body.start-list-visible .start-list-scroll {
+        flex: 0 0 auto;
+        max-height: calc(33px + var(--start-list-mobile-row-count, 6) * 32px);
+      }
+    }
   </style>
 </head>
 <body>
@@ -1783,10 +2006,22 @@
               <span id="rotationInputUnit">минут</span>
             </span>
           </label>
-          <label class="parameter-field"><span id="breakInputLabel">Перерыв</span>
+          <label id="breakParameterField" class="parameter-field break-parameter-field"><span id="breakInputLabel">Перерыв</span>
             <span class="parameter-input-row">
               <input id="breakSeconds" type="number" min="0" max="3600" step="1" value="15">
               <span id="breakInputUnit">секунд</span>
+            </span>
+          </label>
+          <div id="finalRoundFormatField" class="parameter-field final-round-format-field" hidden>
+            <span id="finalRoundFormatLabel">Формат раунда</span>
+            <span id="finalRoundOptions" class="final-round-options" role="radiogroup" aria-label="Формат раунда">
+              <label id="finalOldOption" class="final-round-option"><input type="radio" name="finalRoundFormat" value="old" checked><span id="finalOldLabel">Старый</span></label>
+              <label id="finalNewOption" class="final-round-option"><input type="radio" name="finalRoundFormat" value="new"><span id="finalNewLabel">Новый</span></label>
+            </span>
+          </div>
+          <label id="finalRestField" class="parameter-field final-rest-field" hidden><span id="finalRestLabel">Количество ротаций для отдыха</span>
+            <span class="parameter-input-row">
+              <input id="finalRestRotations" type="number" min="1" max="9" step="1" value="3">
             </span>
           </label>
         </div>
@@ -1851,7 +2086,7 @@
       </section>
       <div class="control-footer">
         <a id="helpLink" class="help-link" href="help.html?lang=ru" target="_blank" rel="noopener">Руководство</a>
-        <div class="credits">2026 <span id="authorName" title="Говорил, что делать">Фёдоров Денис</span> + <span id="codexCredit" title="Делал">Codex</span><span id="buildSeparator" class="build-separator" hidden> | </span><a id="buildInfo" class="build-info" href="https://github.com/dfedorov-arch/fdv-bouldering-timer" target="_blank" rel="noopener" aria-describedby="buildProjectHint" aria-expanded="false" hidden></a></div>
+        <div class="credits" id="copyrightCredit" title="Говорил, что делать, Codex - делал :)">2026 <span id="authorName">Фёдоров Денис</span><span id="buildSeparator" class="build-separator" hidden> | </span><a id="buildInfo" class="build-info" href="https://github.com/dfedorov-arch/fdv-bouldering-timer" target="_blank" rel="noopener" aria-describedby="buildProjectHint" aria-expanded="false" hidden></a></div>
         <div id="buildProjectHint" class="build-project-hint" role="status" hidden></div>
       </div>
     </aside>
@@ -1905,7 +2140,7 @@
     const presets = {
       classic: { rotationMinutes: 4, breakSeconds: 15, oneShot: false },
       festival: { rotationMinutes: 120, breakSeconds: 1800, oneShot: false },
-      final: { rotationMinutes: 4, breakSeconds: "", oneShot: true }
+      final: { rotationMinutes: 4, breakSeconds: 0, oneShot: true, finalRoundFormat: "old", finalRestRotations: 3 }
     };
 
     const state = {
@@ -1931,13 +2166,15 @@
       ownPrimaryPinSaved: false,
       ownPrimaryPinValue: "",
       startLists: [null],
+      startListParallel: false,
+      startListEnabled: false,
       startListIndexes: [],
       startListVisible: false,
       startListFinalCycle: 0,
       timeline: []
     };
 
-    const pageBuildNumber = 280;
+    const pageBuildNumber = 300;
     const projectUrl = "https://github.com/dfedorov-arch/fdv-bouldering-timer";
     const buildLinkConfirmDelayMs = 550;
     const offlineSnapshotKey = "fdvBoulderingTimerOfflineSnapshot";
@@ -1958,23 +2195,36 @@
         hours: "часов", minutes: "минут",
         parameters: "Параметры", rotationMinutes: "Время ротации",
         roundMinutes: "Время раунда", breakSeconds: "Перерыв",
+        finalRoundFormat: "Формат раунда",
+        finalRoundFormatHint: "Выбор имеет смысл, если вы загружаете стартовый протокол",
+        finalOld: "Старый",
+        finalOldHint: "Все участники последовательно лезут каждую трассу",
+        finalNew: "Новый",
+        finalNewHint: "Первый участник после отдыха переходит на вторую трассу",
+        finalRestRotations: "Количество ротаций для отдыха",
+        finalRestRotationsHint: "Количество полных ротаций отдыха между попытками участника на соседних трассах",
         breakMinutes: "Перерыв", minuteUnit: "минут", secondUnit: "секунд",
         primary: "Основной браузер", diagnosticPrimary: "Основной", diagnosticScreen: "Экран", sound: "Звук", soundProfile: "Комплект звуков", festivalAnnouncements: "Объявления времени",
         festivalAnnouncementsHint: "Объявления за 60, 30, 10 и 5 минут",
         primarySound: "Звук в основном браузере", otherSound: "Звук в других браузерах",
         otherFullscreen: "Полный экран в других браузерах", flashing: "Мигание",
-        startList: "Стартовый список", startListToggle: "Стартовый протокол", addStartList: "Добавить протокол", loadStartList: "Загрузить", loadStartListNumber: "Загрузить {number}", startListRoutes: "Трасс",
-        startListHint: "MXL, CSV, TSV или TXT с заголовками в первой строке", clearStartList: "Удалить",
+        startList: "Стартовый список", startListToggle: "Стартовый протокол", addStartList: "Добавить протокол", loadStartList: "Загрузить протокол", loadStartListNumber: "Загрузить протокол {number}", startListRoutes: "Трасс",
+        startListMoveRight: "Расположить второй протокол справа", startListMoveLeft: "Вернуть второй протокол вниз",
+        startListHint: "XLSX, MXL, CSV, TSV или TXT с заголовками в первой строке", clearStartList: "Удалить",
         startListLoaded: "Участников: {rows}; столбцов: {columns}; трасс: {routes}", startListInvalid: "Не удалось прочитать таблицу: нужны заголовки и хотя бы одна строка участника",
         startListCycle: "Цикл {cycle}", startListRoute: "Трасса {route}", cycleNumber: "Номер цикла",
         routeIncidentCycle: "Цикл", routeIncidentPause: "Приостановить", routeIncidentResume: "Возобновить",
+        routeIncidentStartCycleHint: "Цикл, начиная с которого трасса будет приостановлена или остановлена полностью",
+        routeIncidentResumeCycleHint: "Цикл, начиная с которого трасса возобновит работу или будет остановлена",
         routeIncidentStop: "Остановить", routeIncidentCancelStop: "Отменить остановку", routeIncidentClearPause: "Удалить приостановку", routeIncidentClose: "Закрыть меню трассы",
         routeIncidentPausedFrom: "Приостановлена с цикла {cycle}", routeIncidentStoppedFrom: "Остановлена с цикла {cycle}",
         routeIncidentPausedRange: "Была приостановлена с цикла {start} по цикл {resume}",
+        routeIncidentPausedUntilStop: "Приостановка с цикла {start} завершена остановкой на цикле {stop}",
         routeIncidentNoParticipant: "В выбранном цикле на этой трассе нет участника.",
         routeMarkerReady: "Готовится", routeMarkerActive: "На трассе", routeMarkerDone: "Закончил", routeMarkerPaused: "Техническая пауза", routeMarkerStopped: "Трасса остановлена",
         controls: "Управление", start: "Старт", pause: "Пауза", reset: "Стоп",
         presetLockedHint: "Чтобы выбрать другой формат, сначала остановите таймер кнопкой «Стоп»",
+        finalPresetLockedHint: 'Чтобы выбрать другой формат, сначала остановите таймер кнопкой "Стоп" и перейдите на Цикл 1',
         screen: "Экран", exitScreen: "Выйти из режима Экран", browsers: "Браузеры", ready: "Готов", readiness: "Готовность",
         waitingStart: "Ожидание старта", untilStart: "До начала старта",
         waitingManual: "Ожидание ручного старта", readyStart: "Готов к старту",
@@ -1987,7 +2237,7 @@
         ms: "мс", sec: "с", switchLanguage: "Switch to English",
         primaryHint: "Основной браузер: Ctrl+M / Ctrl+Ь",
         fullscreenHint: "Браузеры могут потребовать тап по экрану для перехода в полный экран",
-        author: "Фёдоров Денис", authorHint: "Говорил, что делать", codexHint: "Делал",
+        author: "Фёдоров Денис", authorHint: "Говорил, что делать, Codex - делал :)",
         audioOffsetPrompt: "Поправка звука для этого браузера, мс. Отрицательное значение запускает звук раньше:",
         audioOffsetUser: "Пользовательская поправка звука",
         testStartSignal: "Старт",
@@ -2035,23 +2285,36 @@
         hours: "hours", minutes: "minutes",
         parameters: "Parameters", rotationMinutes: "Rotation time",
         roundMinutes: "Round time", breakSeconds: "Break",
+        finalRoundFormat: "Round format",
+        finalRoundFormatHint: "This choice matters when a start protocol is loaded",
+        finalOld: "Old",
+        finalOldHint: "All participants climb each route sequentially",
+        finalNew: "New",
+        finalNewHint: "The first participant moves to the second route after resting",
+        finalRestRotations: "Rest rotations",
+        finalRestRotationsHint: "Number of complete rest rotations between the participant's attempts on adjacent routes",
         breakMinutes: "Break", minuteUnit: "minutes", secondUnit: "seconds",
         primary: "Primary browser", diagnosticPrimary: "Primary", diagnosticScreen: "Screen", sound: "Sound", soundProfile: "Sound profile", festivalAnnouncements: "Time announcements",
         festivalAnnouncementsHint: "Announcements at 60, 30, 10 and 5 minutes remaining",
         primarySound: "Sound in primary browser", otherSound: "Sound in other browsers",
         otherFullscreen: "Fullscreen in other browsers", flashing: "Flashing",
-        startList: "Start list", startListToggle: "Start protocol", addStartList: "Add protocol", loadStartList: "Upload", loadStartListNumber: "Upload {number}", startListRoutes: "Routes",
-        startListHint: "MXL, CSV, TSV or TXT with headers in the first row", clearStartList: "Remove",
+        startList: "Start list", startListToggle: "Start protocol", addStartList: "Add protocol", loadStartList: "Upload protocol", loadStartListNumber: "Upload protocol {number}", startListRoutes: "Routes",
+        startListMoveRight: "Place the second protocol on the right", startListMoveLeft: "Move the second protocol back below",
+        startListHint: "XLSX, MXL, CSV, TSV or TXT with headers in the first row", clearStartList: "Remove",
         startListLoaded: "Participants: {rows}; columns: {columns}; routes: {routes}", startListInvalid: "Could not read the table: headers and at least one participant row are required",
         startListCycle: "Cycle {cycle}", startListRoute: "Route {route}", cycleNumber: "Cycle number",
         routeIncidentCycle: "Cycle", routeIncidentPause: "Pause", routeIncidentResume: "Resume",
+        routeIncidentStartCycleHint: "Cycle from which the route will be paused or stopped permanently",
+        routeIncidentResumeCycleHint: "Cycle from which the route will resume operation or be stopped",
         routeIncidentStop: "Stop", routeIncidentCancelStop: "Cancel stop", routeIncidentClearPause: "Remove pause", routeIncidentClose: "Close route menu",
         routeIncidentPausedFrom: "Paused from cycle {cycle}", routeIncidentStoppedFrom: "Stopped from cycle {cycle}",
         routeIncidentPausedRange: "Was paused from cycle {start} through cycle {resume}",
+        routeIncidentPausedUntilStop: "Pause from cycle {start} ended with a stop at cycle {stop}",
         routeIncidentNoParticipant: "There is no participant on this route in the selected cycle.",
         routeMarkerReady: "Preparing", routeMarkerActive: "On route", routeMarkerDone: "Finished", routeMarkerPaused: "Technical pause", routeMarkerStopped: "Route stopped",
         controls: "Controls", start: "Start", pause: "Pause", reset: "Stop",
         presetLockedHint: "To select another format, first stop the timer with the Stop button",
+        finalPresetLockedHint: "To select another format, stop the timer with Stop and return to Cycle 1",
         screen: "Screen", exitScreen: "Exit screen mode", browsers: "Browsers", ready: "Ready", readiness: "Ready",
         waitingStart: "Waiting for start", untilStart: "Until start",
         waitingManual: "Waiting for manual start", readyStart: "Ready to start",
@@ -2063,7 +2326,7 @@
         online: "online", offline: "offline", yes: "yes", no: "no",
         ms: "ms", sec: "s", switchLanguage: "Переключить на русский",
         primaryHint: "Primary browser: Ctrl+M", fullscreenHint: "Browsers may require a screen tap to enter fullscreen",
-        author: "Fedorov Denis", authorHint: "Said what to do", codexHint: "Did it",
+        author: "Fedorov Denis", authorHint: "Said what to do, Codex did it :)",
         audioOffsetPrompt: "Sound offset for this browser, ms. A negative value plays sounds earlier:",
         audioOffsetUser: "User-defined sound offset",
         testStartSignal: "Start",
@@ -2145,8 +2408,8 @@
       buildInfo: document.getElementById("buildInfo"),
       buildSeparator: document.getElementById("buildSeparator"),
       buildProjectHint: document.getElementById("buildProjectHint"),
+      copyrightCredit: document.getElementById("copyrightCredit"),
       authorName: document.getElementById("authorName"),
-      codexCredit: document.getElementById("codexCredit"),
       startTimeFields: document.getElementById("startTimeFields"),
       scheduledStartBtn: document.getElementById("scheduledStartBtn"),
       scheduledStartIcon: document.getElementById("scheduledStartIcon"),
@@ -2156,6 +2419,18 @@
       rotationInputUnit: document.getElementById("rotationInputUnit"),
       breakInputLabel: document.getElementById("breakInputLabel"),
       breakInputUnit: document.getElementById("breakInputUnit"),
+      breakParameterField: document.getElementById("breakParameterField"),
+      finalRoundFormatField: document.getElementById("finalRoundFormatField"),
+      finalRoundFormatLabel: document.getElementById("finalRoundFormatLabel"),
+      finalRoundOptions: document.getElementById("finalRoundOptions"),
+      finalRoundFormatInputs: document.querySelectorAll('input[name="finalRoundFormat"]'),
+      finalOldOption: document.getElementById("finalOldOption"),
+      finalOldLabel: document.getElementById("finalOldLabel"),
+      finalNewOption: document.getElementById("finalNewOption"),
+      finalNewLabel: document.getElementById("finalNewLabel"),
+      finalRestField: document.getElementById("finalRestField"),
+      finalRestLabel: document.getElementById("finalRestLabel"),
+      finalRestRotations: document.getElementById("finalRestRotations"),
       soundProfileLabel: document.getElementById("soundProfileLabel"),
       soundProfileSelect: document.getElementById("soundProfileSelect"),
       festivalAnnouncementsRow: document.getElementById("festivalAnnouncementsRow"),
@@ -2248,10 +2523,13 @@
     let lastStartListStructureKey = "";
     let lastStartListScrollAnchors = [];
     let pendingStartListScrollRestores = [];
+    let startListInitialAutoScrollPending = false;
     let startListIncidentSelections = [];
+    let startListRouteClickGuard = { key: "", until: 0 };
     let startListWidthFitFrame = 0;
     let measuredBrowserScrollbarWidth = null;
     let startListEditorOpen = safeStorageGet("sessionStorage", startListEditorPreferenceKey) === "1";
+    state.startListEnabled = startListEditorOpen;
     els.startListToggle.checked = startListEditorOpen;
     let startupConfigApplied = false;
     let audioUnlocked = false;
@@ -2640,6 +2918,8 @@
             primaryClientId: state.primaryClientId,
             primaryPinSet: state.primaryPinSet,
             startLists: state.startLists,
+            startListParallel: state.startListParallel,
+            startListEnabled: state.startListEnabled,
             startListVisible: state.startListVisible,
             startListFinalCycle: state.startListFinalCycle
           }
@@ -2699,9 +2979,16 @@
           primaryClientId: restoredPrimaryClientId,
           primaryPinSet: Boolean(snapshot.state.primaryPinSet),
           startLists: normalizeStartLists(snapshot.state.startLists),
+          startListParallel: Boolean(snapshot.state.startListParallel)
+            && normalizeStartLists(snapshot.state.startLists).length === 2,
+          startListEnabled: Object.prototype.hasOwnProperty.call(snapshot.state, "startListEnabled")
+            ? Boolean(snapshot.state.startListEnabled)
+            : snapshot.state.startListVisible !== false,
           startListVisible: snapshot.state.startListVisible !== false && hasStartLists(normalizeStartLists(snapshot.state.startLists)),
           startListFinalCycle: Math.max(0, Math.round(Number(snapshot.state.startListFinalCycle) || 0))
         });
+        startListEditorOpen = state.startListEnabled;
+        els.startListToggle.checked = startListEditorOpen;
         isPrimaryClient = state.primaryClientId === clientId;
         isViewerClient = Boolean(state.primaryClientId && !isPrimaryClient);
         document.body.classList.toggle("primary-active", isPrimaryClient);
@@ -3468,6 +3755,26 @@
       els.hoursUnit.textContent = t("hours");
       els.minutesUnit.textContent = t("minutes");
       els.parametersTitle.textContent = t("parameters");
+      els.finalRoundFormatLabel.textContent = t("finalRoundFormat");
+      els.finalRoundFormatField.title = t("finalRoundFormatHint");
+      els.finalRoundFormatLabel.title = t("finalRoundFormatHint");
+      els.finalRoundOptions.setAttribute("aria-label", t("finalRoundFormat"));
+      els.finalOldLabel.textContent = t("finalOld");
+      els.finalOldOption.title = t("finalOldHint");
+      els.finalNewLabel.textContent = t("finalNew");
+      els.finalNewOption.title = t("finalNewHint");
+      els.finalRestLabel.textContent = t("finalRestRotations");
+      els.finalRestField.title = t("finalRestRotationsHint");
+      els.finalRestLabel.title = t("finalRestRotationsHint");
+      els.finalRestRotations.title = t("finalRestRotationsHint");
+      els.finalRestRotations.setAttribute("aria-label", t("finalRestRotations"));
+      els.finalRoundFormatInputs.forEach((input) => {
+        const isNew = input.value === "new";
+        const label = t(isNew ? "finalNew" : "finalOld");
+        const hint = t(isNew ? "finalNewHint" : "finalOldHint");
+        input.title = hint;
+        input.setAttribute("aria-label", `${label}. ${hint}`);
+      });
       els.startListToggleLabel.textContent = t("startListToggle");
       lastStartListStructureKey = "";
       els.soundProfileLabel.textContent = t("soundProfile");
@@ -3515,8 +3822,7 @@
       els.installAppBtn.title = t("installAppTitle");
       renderBuildInfo();
       els.authorName.textContent = t("author");
-      els.authorName.title = t("authorHint");
-      els.codexCredit.title = t("codexHint");
+      els.copyrightCredit.title = t("authorHint");
       pickSpeechVoice();
       updateParameterLabels();
       updateStartListControls();
@@ -3592,6 +3898,8 @@
       presets.festival.rotationMinutes = finiteNumber(config.festivalRoundMinutes, presets.festival.rotationMinutes);
       presets.festival.breakSeconds = finiteNumber(config.festivalBreakMinutes, Math.round(presets.festival.breakSeconds / 60)) * 60;
       presets.final.rotationMinutes = finiteNumber(config.finalRotationMinutes, presets.final.rotationMinutes);
+      presets.final.finalRoundFormat = config.finalRoundFormat === "new" ? "new" : "old";
+      presets.final.finalRestRotations = clampNumber(config.finalRestRotations, 1, 9, presets.final.finalRestRotations);
       if (startupConfigApplied) return;
       startupConfigApplied = true;
       state.flashing = config.flashing !== false;
@@ -3641,15 +3949,23 @@
       if (audioContext) loadAudioBuffers();
     }
 
+    function selectedFinalRoundFormat() {
+      return Array.from(els.finalRoundFormatInputs).find((input) => input.checked)?.value === "new" ? "new" : "old";
+    }
+
     function updateParameterLabels() {
       const festivalMode = isFestivalMode();
+      const finalMode = isFinalMode();
+      const finalRoundFormat = selectedFinalRoundFormat();
       els.rotationInputLabel.textContent = festivalMode ? t("roundMinutes") : t("rotationMinutes");
       els.breakInputLabel.textContent = festivalMode ? t("breakMinutes") : t("breakSeconds");
       els.rotationInputUnit.textContent = t("minuteUnit");
       els.breakInputUnit.textContent = festivalMode ? t("minuteUnit") : t("secondUnit");
       els.breakSeconds.max = festivalMode ? "240" : "3600";
       els.breakSeconds.step = "1";
-      els.breakSeconds.disabled = false;
+      els.breakParameterField.hidden = finalMode;
+      els.finalRoundFormatField.hidden = !finalMode;
+      els.finalRestField.hidden = !finalMode || finalRoundFormat !== "new";
       els.festivalAnnouncementsRow.hidden = !festivalMode;
       els.startListToggleRow.hidden = festivalMode;
       updateStartListVisibility();
@@ -3657,9 +3973,12 @@
 
     function setInputsFromDraft(draft) {
       if (!draft) return;
-      updateParameterLabels();
       els.climbMinutes.value = draft.rotationMinutes;
       els.breakSeconds.value = isFestivalMode() ? Math.round(draft.breakSeconds / 60) : draft.breakSeconds;
+      const finalRoundFormat = draft.finalRoundFormat === "new" ? "new" : "old";
+      els.finalRoundFormatInputs.forEach((input) => { input.checked = input.value === finalRoundFormat; });
+      els.finalRestRotations.value = clampNumber(draft.finalRestRotations, 1, 9, 3);
+      updateParameterLabels();
       if (draft.startHours !== undefined) {
         els.startHours.value = draft.startHours === "" ? "" : String(draft.startHours).padStart(2, "0");
       }
@@ -3792,13 +4111,13 @@
       const fallbackBreak = festivalMode ? Math.round(presets.festival.breakSeconds / 60) : fallbackPreset.breakSeconds;
       const maxBreak = festivalMode ? 240 : 3600;
       const breakValue = clampNumber(els.breakSeconds.value, 0, maxBreak, fallbackBreak);
-      const breakSeconds = finalMode && els.breakSeconds.value === ""
-        ? ""
-        : festivalMode ? breakValue * 60 : breakValue;
+      const breakSeconds = finalMode ? 0 : festivalMode ? breakValue * 60 : breakValue;
       return {
         rotationMinutes: clampNumber(els.climbMinutes.value, 1, 240, fallbackPreset.rotationMinutes),
         breakSeconds,
         oneShot: finalMode,
+        finalRoundFormat: selectedFinalRoundFormat(),
+        finalRestRotations: clampNumber(els.finalRestRotations.value, 1, 9, fallbackPreset.finalRestRotations || 3),
         startHours: els.startHours.value,
         startMinutes: els.startMinutes.value
       };
@@ -3809,7 +4128,9 @@
       return {
         rotationSeconds: draft.rotationMinutes * 60,
         breakSeconds: Number(draft.breakSeconds) || 0,
-        oneShot: draft.oneShot
+        oneShot: draft.oneShot,
+        finalRoundFormat: draft.finalRoundFormat,
+        finalRestRotations: draft.finalRestRotations
       };
     }
 
@@ -3848,10 +4169,17 @@
         lastStartListRenderKey = "";
       }
       state.startLists = nextStartLists;
+      state.startListParallel = Boolean(remote.startListParallel) && nextStartLists.length === 2;
+      state.startListEnabled = Boolean(remote.startListEnabled);
       state.startListIndexes = Array.isArray(remote.startListIndexes)
         ? [...new Set(remote.startListIndexes.map(Number).filter((index) => Number.isInteger(index) && index >= 0 && index < 4))]
         : [];
       state.startListVisible = Boolean(remote.startListVisible);
+      if (!standaloneMode) {
+        startListEditorOpen = state.startListEnabled;
+        els.startListToggle.checked = startListEditorOpen;
+        safeStorageSet("sessionStorage", startListEditorPreferenceKey, startListEditorOpen ? "1" : "0");
+      }
       state.startListFinalCycle = Math.max(0, Math.round(Number(remote.startListFinalCycle) || 0));
       updateStartListControls();
       updateStartListVisibility();
@@ -3956,10 +4284,17 @@
         lastStartListRenderKey = "";
       }
       state.startLists = nextStartLists;
+      state.startListParallel = Boolean(remote.startListParallel) && nextStartLists.length === 2;
+      state.startListEnabled = Boolean(remote.startListEnabled);
       state.startListIndexes = Array.isArray(remote.startListIndexes)
         ? [...new Set(remote.startListIndexes.map(Number).filter((index) => Number.isInteger(index) && index >= 0 && index < 4))]
         : [];
       state.startListVisible = Boolean(remote.startListVisible);
+      if (!standaloneMode) {
+        startListEditorOpen = state.startListEnabled;
+        els.startListToggle.checked = startListEditorOpen;
+        safeStorageSet("sessionStorage", startListEditorPreferenceKey, startListEditorOpen ? "1" : "0");
+      }
       state.startListFinalCycle = Math.max(0, Math.round(Number(remote.startListFinalCycle) || 0));
       updateStartListControls();
       updateStartListVisibility();
@@ -4418,20 +4753,26 @@
         state.timeline.map((item) => `${item.type}:${item.duration}`).join("|")
       ].join(":");
       if (scheduleStateKey === lastScheduleStateKey) return;
-      const chips = [];
-      state.timeline.forEach((item) => {
-        const classes = ["chip"];
-        if (segment && item.type === segment.type) classes.push("current");
-        if (item.type === "break") classes.push("resting");
-        const name = item.type === "rotation"
-          ? (state.runtimePreset === "festival" ? t("round") : t("rotation"))
-          : t("break");
-        chips.push(`<div class="${classes.join(" ")}"><span>${name}</span><span>${formatTime(item.duration)}</span></div>`);
-        if (item.type === "rotation" && showCycle) {
-          chips.push(`<label class="chip cycle-chip${editableCycle ? " cycle-editable" : ""}"><span>${t("cycle")}</span><input id="cycleInput" class="cycle-input" type="number" min="1" max="9999" step="1" value="${cycleNumber}" aria-label="${t("cycleNumber")}" title="${t("cycleNumber")}"${editableCycle ? "" : " disabled"}></label>`);
-        }
-      });
-      setScheduleMarkup(chips.join(""), showCycle, showCycle && hasBreak, scheduleStateKey);
+      if (!showCycle) {
+        const chips = state.timeline.map((item) => {
+          const classes = ["chip"];
+          if (segment && item.type === segment.type) classes.push("current");
+          if (item.type === "break") classes.push("resting");
+          const name = item.type === "rotation"
+            ? (state.runtimePreset === "festival" ? t("round") : t("rotation"))
+            : t("break");
+          return `<div class="${classes.join(" ")}"><span>${name}</span><span>${formatTime(item.duration)}</span></div>`;
+        });
+        setScheduleMarkup(chips.join(""), false, hasBreak, scheduleStateKey);
+        return;
+      }
+      const phaseName = segment?.type === "break"
+        ? t("break")
+        : (state.runtimePreset === "festival" ? t("round") : t("rotation"));
+      const phaseClass = editableCycle ? "cycle-editable" : (segment?.type === "break" ? "cycle-break" : "cycle-rotation");
+      const cycleTitle = editableCycle ? t("cycleNumber") : phaseName;
+      const cycleChip = `<label class="chip cycle-chip ${phaseClass}" title="${escapeHtml(cycleTitle)}"><span>${t("cycle")}</span><input id="cycleInput" class="cycle-input" type="number" min="1" max="9999" step="1" value="${cycleNumber}" aria-label="${t("cycleNumber")}" title="${escapeHtml(cycleTitle)}"${editableCycle ? "" : " disabled"}></label>`;
+      setScheduleMarkup(cycleChip, true, false, scheduleStateKey);
     }
 
     function escapeHtml(value) {
@@ -4611,35 +4952,46 @@
     }
 
     function startListColumns(entries = visibleStartListEntries()) {
+      if (entries.length === 2 && state.startListParallel) return [[entries[0]], [entries[1]]];
       return entries.length > 2 ? [entries.slice(0, 2), entries.slice(2, 4)] : [entries];
     }
 
+    function defaultStartListRouteCount() {
+      return isFinalMode() ? 4 : 5;
+    }
+
     function startListSlotHtml(list, index, controlsVisible) {
+      const hasLayoutToggle = controlsVisible && state.startLists.length === 2 && index === 1;
+      const layoutLabel = state.startListParallel ? t("startListMoveLeft") : t("startListMoveRight");
+      const layoutToggle = hasLayoutToggle
+        ? `<button class="start-list-layout-toggle ${state.startListParallel ? "move-left" : "move-right"}" type="button" data-start-list-layout-toggle title="${escapeHtml(layoutLabel)}" aria-label="${escapeHtml(layoutLabel)}"></button>`
+        : "";
       const controls = controlsVisible ? `
-        <div class="start-list-panel-controls">
+        <div class="start-list-panel-controls${hasLayoutToggle ? " has-layout-toggle" : ""}">
           <button class="start-list-add" type="button" data-start-list-add title="${escapeHtml(t("addStartList"))}" aria-label="${escapeHtml(t("addStartList"))}"${state.startLists.length >= 4 ? " disabled" : ""}>+</button>
+          ${layoutToggle}
           <label class="start-list-file-button">
             <span>${escapeHtml(formatStartListText("loadStartListNumber", { number: index + 1 }))}</span>
-            <input type="file" data-start-list-file accept=".csv,.tsv,.txt,.mxl,text/csv,text/tab-separated-values,text/plain,application/octet-stream">
+            <input type="file" data-start-list-file accept=".xlsx,.csv,.tsv,.txt,.mxl">
           </label>
           <label class="start-list-route-field">
             <span>${escapeHtml(t("startListRoutes"))}</span>
-            <input type="number" data-start-list-routes min="1" max="20" step="1" value="${list?.routeCount || 5}">
+            <input type="number" data-start-list-routes min="1" max="20" step="1" value="${list?.routeCount || defaultStartListRouteCount()}">
           </label>
-          <span class="start-list-cycle" data-start-list-cycle></span>
           <div class="start-list-summary" data-start-list-summary aria-live="polite" hidden></div>
           <button class="start-list-clear" type="button" data-start-list-clear title="${escapeHtml(t("clearStartList"))}" aria-label="${escapeHtml(t("clearStartList"))}"${index === 0 && !list ? " disabled" : ""}>×</button>
         </div>` : "";
       const incidentMenu = controlsVisible
         ? `<div class="start-list-incident-menu" data-start-list-incident-menu hidden></div>`
         : "";
-      return `<article class="start-list-slot" data-start-list-index="${index}">${controls}${incidentMenu}<div class="start-list-scroll" data-start-list-scroll></div></article>`;
+      const titleBar = `<div class="start-list-title-bar" data-start-list-title hidden></div>`;
+      return `<article class="start-list-slot" data-start-list-index="${index}">${controls}${titleBar}${incidentMenu}<div class="start-list-scroll" data-start-list-scroll></div></article>`;
     }
 
     function ensureStartListStructure() {
       const controlsVisible = standaloneMode || isPrimaryClient;
       const entries = visibleStartListEntries();
-      const structureKey = `${language}:${entries.map(({ index }) => index).join(",")}:${controlsVisible}:${controlsAvailable()}`;
+      const structureKey = `${language}:${entries.map(({ index }) => index).join(",")}:${controlsVisible}:${controlsAvailable()}:${state.startListParallel}`;
       if (structureKey === lastStartListStructureKey) return;
       const existingIndexes = new Set([...els.startListLayout.querySelectorAll("[data-start-list-index]")]
         .map((slot) => Number(slot.dataset.startListIndex)));
@@ -4680,6 +5032,40 @@
       return width;
     }
 
+    function intrinsicStartListControlsWidth(controls) {
+      const previousWidth = controls.style.width;
+      const previousMinWidth = controls.style.minWidth;
+      const previousMaxWidth = controls.style.maxWidth;
+      controls.style.width = "max-content";
+      controls.style.minWidth = "";
+      controls.style.maxWidth = "none";
+      const width = Math.ceil(controls.getBoundingClientRect().width);
+      controls.style.width = previousWidth;
+      controls.style.minWidth = previousMinWidth;
+      controls.style.maxWidth = previousMaxWidth;
+      return width;
+    }
+
+    function synchronizeStackedStartListTableColumns(column) {
+      const tables = [...column.querySelectorAll(".start-list-table")];
+      if (tables.length < 2) return;
+      const columnGroups = tables.map((table) => [...table.querySelectorAll("colgroup > col")]);
+      const columnCount = columnGroups[0].length;
+      if (!columnCount || columnGroups.some((group) => group.length !== columnCount)) return;
+      columnGroups.forEach((group) => group.forEach((tableColumn) => {
+        tableColumn.style.width = "";
+      }));
+      const synchronizedWidths = Array(columnCount).fill(0);
+      tables.forEach((table) => {
+        [...table.tHead.rows[0].cells].forEach((cell, index) => {
+          synchronizedWidths[index] = Math.max(synchronizedWidths[index], Math.ceil(cell.getBoundingClientRect().width));
+        });
+      });
+      columnGroups.forEach((group) => group.forEach((tableColumn, index) => {
+        tableColumn.style.width = `${synchronizedWidths[index]}px`;
+      }));
+    }
+
     function fitStartListPanelWidth() {
       const columns = [...els.startListLayout.querySelectorAll(".start-list-column")];
       if (!columns.length) return 0;
@@ -4688,14 +5074,17 @@
       const nativeScrollbarWidth = browserScrollbarWidth();
       const scrollbarRoundingAllowance = 2;
       const measurements = columns.map((column) => {
+        synchronizeStackedStartListTableColumns(column);
         const tables = [...column.querySelectorAll(".start-list-table")];
         const tableWidth = tables.reduce((maximum, table) =>
           Math.max(maximum, intrinsicStartListTableWidth(table)), 0);
+        const controlsWidth = [...column.querySelectorAll(".start-list-panel-controls")]
+          .reduce((maximum, controls) => Math.max(maximum, intrinsicStartListControlsWidth(controls)), 0);
         const scrollbars = [...column.querySelectorAll(".start-list-scroll")];
         const scrollbarAllowance = scrollbars.reduce((maximum, scroll) =>
           Math.max(maximum, scroll.offsetWidth - scroll.clientWidth), nativeScrollbarWidth)
           + scrollbarRoundingAllowance;
-        const measuredContentWidth = tableWidth;
+        const measuredContentWidth = Math.max(tableWidth, controlsWidth);
         const contentWidth = Math.min(maximumContentWidth, measuredContentWidth);
         return {
           scrollbarAllowance,
@@ -4746,7 +5135,7 @@
         const routes = slot.querySelector("[data-start-list-routes]");
         const summary = slot.querySelector("[data-start-list-summary]");
         const clear = slot.querySelector("[data-start-list-clear]");
-        if (routes && list) routes.value = String(list.routeCount);
+        if (routes) routes.value = String(list?.routeCount || defaultStartListRouteCount());
         if (summary) summary.textContent = list
           ? formatStartListText("startListLoaded", { rows: list.rows.length, columns: list.headers.length, routes: list.routeCount })
           : t("startListHint");
@@ -4764,13 +5153,35 @@
         : visibleStartListEntries().length > 0 && state.startListVisible));
       document.body.classList.toggle("start-list-visible", visible);
       els.startListPanel.hidden = !visible;
-      if (visible && !wasVisible) scheduleStartListPanelWidthFit();
+      if (visible && !wasVisible) {
+        startListInitialAutoScrollPending = true;
+        visibleStartListEntries().forEach(({ index }) => {
+          lastStartListScrollAnchors[index] = null;
+          pendingStartListScrollRestores[index] = null;
+        });
+        scheduleStartListPanelWidthFit();
+      }
       if (!visible) {
+        startListInitialAutoScrollPending = false;
         lastStartListRenderKey = "";
         els.startListLayout.innerHTML = "";
         lastStartListStructureKey = "";
       }
       scheduleFitTimer();
+    }
+
+    function scheduleStartListAnchorScroll(scroll, anchor, left, settleLayout = false) {
+      let pass = 0;
+      const applyAnchor = () => {
+        if (!scroll.isConnected) return;
+        const row = scroll.querySelector(`[data-participant-index="${anchor}"]`);
+        const headerHeight = scroll.querySelector("thead")?.offsetHeight || 0;
+        if (row) scroll.scrollTop = Math.max(0, row.offsetTop - headerHeight);
+        scroll.scrollLeft = left;
+        pass += 1;
+        if (settleLayout && pass < 6) requestAnimationFrame(applyAnchor);
+      };
+      requestAnimationFrame(applyAnchor);
     }
 
     function currentStartListPosition() {
@@ -4799,6 +5210,19 @@
       return segment ? { cycle: segment.cycle, phase: segment.type } : { cycle: 0, phase: "ready" };
     }
 
+    function startListSchedule(list) {
+      const displayPreset = state.running || state.elapsedBeforePause > 0 || state.completed ? state.runtimePreset : state.activePreset;
+      if (displayPreset !== "final") return {};
+      const settings = state.running || state.elapsedBeforePause > 0 || state.completed
+        ? activeSettings()
+        : activeSettingsFromDraft();
+      return {
+        finalFormat: settings.finalRoundFormat === "new" ? "new" : "old",
+        restRotations: settings.finalRestRotations || 3,
+        participantCount: list?.rows?.length || 1
+      };
+    }
+
     function startListMarkerLabel(marker) {
       const keys = {
         ready: "routeMarkerReady",
@@ -4820,6 +5244,12 @@
       if (activeInDisplayedCycle || incident.resumeCycle === null || incident.resumeCycle === undefined) {
         return formatStartListText("routeIncidentPausedFrom", { cycle: incident.startCycle });
       }
+      if (incident.resolution === "stop") {
+        return formatStartListText("routeIncidentPausedUntilStop", {
+          start: incident.startCycle,
+          stop: incident.resumeCycle
+        });
+      }
       return formatStartListText("routeIncidentPausedRange", {
         start: incident.startCycle,
         resume: incident.resumeCycle
@@ -4831,6 +5261,9 @@
       if (!menu) return;
       const selectedRoute = startListIncidentSelections[listIndex];
       const routeIndex = Number.isInteger(selectedRoute) ? selectedRoute : -1;
+      slot.querySelectorAll("[data-start-list-route]").forEach((button) => {
+        button.classList.toggle("is-selected", Number(button.dataset.startListRoute) === routeIndex);
+      });
       if (!list || !Number.isInteger(routeIndex) || routeIndex < 0 || routeIndex >= list.routeCount) {
         menu.hidden = true;
         menu.innerHTML = "";
@@ -4843,17 +5276,18 @@
       const stop = window.FDVStartList.stopForRoute(routeIndex, incidents);
       const routePauses = incidents.filter((incident) => incident.kind === "pause" && incident.route === routeIndex + 1);
       const cycleValue = defaultRouteIncidentCycle(position);
+      const cycleHint = activePause ? t("routeIncidentResumeCycleHint") : t("routeIncidentStartCycleHint");
       let actions = "";
       if (stop) {
         actions = "";
       } else if (activePause) {
         actions = `
-          <button class="start-list-incident-action resume" type="button" data-start-list-incident-action="resume">${escapeHtml(t("routeIncidentResume"))}</button>
-          <button class="start-list-incident-action stop" type="button" data-start-list-incident-action="stop">${escapeHtml(t("routeIncidentStop"))}</button>`;
+          <button class="start-list-incident-action resume" type="button" data-start-list-incident-action="resume" title="${escapeHtml(t("routeIncidentResume"))}" aria-label="${escapeHtml(t("routeIncidentResume"))}"></button>
+          <button class="start-list-incident-action stop" type="button" data-start-list-incident-action="stop" title="${escapeHtml(t("routeIncidentStop"))}" aria-label="${escapeHtml(t("routeIncidentStop"))}"></button>`;
       } else {
         actions = `
-          <button class="start-list-incident-action pause" type="button" data-start-list-incident-action="pause">${escapeHtml(t("routeIncidentPause"))}</button>
-          <button class="start-list-incident-action stop" type="button" data-start-list-incident-action="stop">${escapeHtml(t("routeIncidentStop"))}</button>`;
+          <button class="start-list-incident-action pause" type="button" data-start-list-incident-action="pause" title="${escapeHtml(t("routeIncidentPause"))}" aria-label="${escapeHtml(t("routeIncidentPause"))}"></button>
+          <button class="start-list-incident-action stop" type="button" data-start-list-incident-action="stop" title="${escapeHtml(t("routeIncidentStop"))}" aria-label="${escapeHtml(t("routeIncidentStop"))}"></button>`;
       }
       const pauseNotes = routePauses.map((incident) => {
         const incidentIndex = incidents.indexOf(incident);
@@ -4865,10 +5299,13 @@
         stop ? `<div class="start-list-incident-note"><button class="start-list-incident-remove" type="button" data-start-list-incident-action="cancel-stop" title="${escapeHtml(t("routeIncidentCancelStop"))}" aria-label="${escapeHtml(t("routeIncidentCancelStop"))}">×</button><span>${escapeHtml(formatStartListText("routeIncidentStoppedFrom", { cycle: stop.startCycle }))}</span></div>` : "",
         errorText ? `<div class="start-list-incident-note error"><span>${escapeHtml(errorText)}</span></div>` : ""
       ].filter(Boolean).join("");
+      const incidentControls = actions ? `<div class="start-list-incident-controls">
+        <label class="start-list-incident-cycle" title="${escapeHtml(cycleHint)}"><span>${escapeHtml(t("routeIncidentCycle"))}</span><input type="number" min="1" max="9999" step="1" value="${cycleValue}" data-start-list-incident-cycle title="${escapeHtml(cycleHint)}"></label>
+        <div class="start-list-incident-actions">${actions}</div>
+      </div>` : "<div></div>";
       menu.innerHTML = `
         <strong class="start-list-incident-title">${escapeHtml(formatStartListText("startListRoute", { route: routeIndex + 1 }))}</strong>
-        <label class="start-list-incident-cycle"><span>${escapeHtml(t("routeIncidentCycle"))}</span><input type="number" min="1" max="9999" step="1" value="${cycleValue}" data-start-list-incident-cycle></label>
-        <div class="start-list-incident-actions">${actions}</div>
+        ${incidentControls}
         <button class="start-list-incident-close" type="button" data-start-list-incident-close title="${escapeHtml(t("routeIncidentClose"))}" aria-label="${escapeHtml(t("routeIncidentClose"))}">×</button>
         ${notesHtml ? `<div class="start-list-incident-notes">${notesHtml}</div>` : ""}`;
       menu.hidden = false;
@@ -4883,7 +5320,7 @@
       let incidents = [...(list.incidents || [])];
       const activePause = window.FDVStartList.activePauseForRoute(routeIndex, incidents);
       if (action === "pause") {
-        const participantIndex = window.FDVStartList.participantAtCycle(routeIndex, cycle, incidents, list.rows.length);
+        const participantIndex = window.FDVStartList.participantAtCycle(routeIndex, cycle, incidents, list.rows.length, startListSchedule(list));
         if (participantIndex < 0) {
           renderStartListIncidentMenu(slot, list, listIndex, currentStartListPosition(), t("routeIncidentNoParticipant"));
           return;
@@ -4892,18 +5329,24 @@
       }
       if (action === "resume" && activePause) {
         incidents = incidents.map((incident) => incident === activePause
-          ? { ...incident, resumeCycle: Math.max(incident.startCycle, cycle) }
+          ? { ...incident, resumeCycle: Math.max(incident.startCycle, cycle), resolution: "resume" }
           : incident);
       }
       if (action === "stop") {
         incidents = incidents.filter((incident) => !(incident.kind === "stop" && incident.route === routeIndex + 1));
         incidents = incidents.map((incident) => incident === activePause
-          ? { ...incident, resumeCycle: Math.max(incident.startCycle, cycle) }
+          ? { ...incident, resumeCycle: Math.max(incident.startCycle, cycle), resolution: "stop" }
           : incident);
         incidents.push({ kind: "stop", route: routeIndex + 1, startCycle: cycle });
       }
       if (action === "cancel-stop") {
-        incidents = incidents.filter((incident) => !(incident.kind === "stop" && incident.route === routeIndex + 1));
+        const canceledStop = incidents.find((incident) => incident.kind === "stop" && incident.route === routeIndex + 1);
+        incidents = incidents.filter((incident) => incident !== canceledStop).map((incident) => {
+          if (incident.kind !== "pause" || incident.route !== routeIndex + 1
+              || incident.resolution !== "stop" || incident.resumeCycle !== canceledStop?.startCycle) return incident;
+          const { resolution: _resolution, ...reopenedPause } = incident;
+          return { ...reopenedPause, resumeCycle: null };
+        });
       }
       if (action === "clear-pause") {
         const targetIndex = Number(incidentIndex);
@@ -4921,22 +5364,34 @@
       if (!document.body.classList.contains("start-list-visible")) return;
       ensureStartListStructure();
       const position = currentStartListPosition();
-      const renderKey = `${language}:${position.cycle}:${position.phase}:${(state.startListIndexes || []).join(",")}:${JSON.stringify(state.startLists)}`;
+      const settings = state.running || state.elapsedBeforePause > 0 || state.completed
+        ? activeSettings()
+        : activeSettingsFromDraft();
+      const renderKey = `${language}:${position.cycle}:${position.phase}:${settings.finalRoundFormat || "old"}:${settings.finalRestRotations || 3}:${(state.startListIndexes || []).join(",")}:${JSON.stringify(state.startLists)}`;
       if (renderKey === lastStartListRenderKey) return;
       lastStartListRenderKey = renderKey;
+      const settleInitialAutoScroll = startListInitialAutoScrollPending;
+      startListInitialAutoScrollPending = false;
       state.startLists.forEach((list, index) => {
         const slot = els.startListLayout.querySelector(`[data-start-list-index="${index}"]`);
-        const cycle = slot?.querySelector("[data-start-list-cycle]");
         const scroll = slot?.querySelector("[data-start-list-scroll]");
+        const titleBar = slot?.querySelector("[data-start-list-title]");
         if (!scroll) return;
-        if (cycle) cycle.textContent = list ? (position.cycle > 0
-          ? formatStartListText("startListCycle", { cycle: position.cycle })
-          : position.scheduled && position.cycle < 0 ? t("waitingStart") : t("ready")) : "";
         if (!list) {
+          if (titleBar) {
+            titleBar.textContent = "";
+            titleBar.hidden = true;
+          }
           scroll.innerHTML = "";
           return;
         }
+        if (titleBar) {
+          titleBar.textContent = list.title || "";
+          titleBar.hidden = !list.title;
+          titleBar.title = list.title || "";
+        }
         const incidents = list.incidents || [];
+        const schedule = startListSchedule(list);
         const canManageIncidents = Boolean(slot.querySelector("[data-start-list-incident-menu]")) && controlsAvailable();
         const routeHeaders = Array.from({ length: list.routeCount }, (_, routeIndex) => {
           const routeStatus = window.FDVStartList.routeState(routeIndex, position.cycle, incidents);
@@ -4952,18 +5407,29 @@
           return `<th class="route-cell${routeStatus ? ` route-${routeStatus}` : ""}" title="${escapeHtml(routeTitle)}"><button class="start-list-route-button" type="button" data-start-list-route="${routeIndex}" aria-label="${escapeHtml(routeTitle)}"${canManageIncidents ? "" : " disabled"}>${routeIndex + 1}</button></th>`;
         }).join("");
         const body = list.rows.map((row, participantIndex) => {
-          const rowStatus = window.FDVStartList.rowStatus(participantIndex, list.routeCount, position.cycle, position.phase, incidents);
+          const rowStatus = window.FDVStartList.rowStatus(participantIndex, list.routeCount, position.cycle, position.phase, incidents, schedule);
           const cells = list.headers.map((_, columnIndex) => `<td>${escapeHtml(row[columnIndex] || "")}</td>`).join("");
           const routes = Array.from({ length: list.routeCount }, (_, routeIndex) => {
-            const marker = window.FDVStartList.marker(participantIndex, routeIndex, position.cycle, position.phase, incidents);
+            const marker = window.FDVStartList.marker(participantIndex, routeIndex, position.cycle, position.phase, incidents, schedule);
             return `<td class="route-cell">${marker ? `<span class="route-marker ${marker}" aria-label="${escapeHtml(startListMarkerLabel(marker))}"></span>` : ""}</td>`;
           }).join("");
           return `<tr data-participant-index="${participantIndex}" class="${rowStatus ? `is-${rowStatus}` : ""}">${cells}${routes}</tr>`;
         }).join("");
         const previousScroll = { top: scroll.scrollTop, left: scroll.scrollLeft };
-        scroll.innerHTML = `<table class="start-list-table"><thead><tr>${list.headers.map((header) => `<th>${escapeHtml(header)}</th>`).join("")}${routeHeaders}</tr></thead><tbody>${body}</tbody></table>`;
+        const tableColumnCount = list.headers.length + list.routeCount;
+        const tableColumns = Array.from({ length: tableColumnCount }, () => "<col>").join("");
+        scroll.innerHTML = `<table class="start-list-table"><colgroup>${tableColumns}</colgroup><thead><tr>${list.headers.map((header) => `<th>${escapeHtml(header)}</th>`).join("")}${routeHeaders}</tr></thead><tbody>${body}</tbody></table>`;
+        const highlightedRows = [...scroll.querySelectorAll("tbody tr.is-active, tbody tr.is-ready")];
+        const highlightedIndexes = highlightedRows
+          .map((row) => Number(row.dataset.participantIndex))
+          .filter(Number.isInteger);
+        const highlightedSpan = highlightedIndexes.length
+          ? Math.max(...highlightedIndexes) - Math.min(...highlightedIndexes) + 1
+          : 1;
+        const mobileRowCount = Math.min(list.rows.length, Math.max(5, highlightedSpan + 4));
+        scroll.style.setProperty("--start-list-mobile-row-count", String(mobileRowCount));
         renderStartListIncidentMenu(slot, list, index, position);
-        const anchor = window.FDVStartList.scrollAnchor(list.routeCount, position.cycle, position.phase, incidents, list.rows.length);
+        const anchor = window.FDVStartList.scrollAnchor(list.routeCount, position.cycle, position.phase, incidents, list.rows.length, schedule);
         const autoScrollKey = `${position.cycle}:${position.phase}:${anchor}`;
         const pendingScroll = pendingStartListScrollRestores[index];
         if (pendingScroll?.listKey === JSON.stringify(list)) {
@@ -4976,12 +5442,7 @@
           });
         } else if (autoScrollKey !== lastStartListScrollAnchors[index]) {
           lastStartListScrollAnchors[index] = autoScrollKey;
-          requestAnimationFrame(() => {
-            const row = scroll.querySelector(`[data-participant-index="${anchor}"]`);
-            const headerHeight = scroll.querySelector("thead")?.offsetHeight || 0;
-            if (row) scroll.scrollTop = Math.max(0, row.offsetTop - headerHeight);
-            scroll.scrollLeft = previousScroll.left;
-          });
+          scheduleStartListAnchorScroll(scroll, anchor, previousScroll.left, settleInitialAutoScroll);
         } else {
           requestAnimationFrame(() => {
             scroll.scrollTop = previousScroll.top;
@@ -4998,16 +5459,69 @@
       if (/\.mxl$/i.test(file.name) || new TextDecoder("ascii").decode(bytes.slice(0, 6)) === "MOXCEL") {
         return window.FDVStartList.parseMxl(bytes, routeCount);
       }
+      if (/\.xlsx$/i.test(file.name)) {
+        const xlsx = await loadXlsxLibrary();
+        const workbook = xlsx.read(bytes, { type: "array", cellDates: false });
+        for (const sheetName of workbook.SheetNames || []) {
+          const records = xlsx.utils.sheet_to_json(workbook.Sheets[sheetName], {
+            header: 1,
+            raw: false,
+            defval: "",
+            blankrows: false
+          });
+          const list = window.FDVStartList.parseRows(records, routeCount);
+          if (list) return list;
+        }
+        return null;
+      }
       let text = new TextDecoder("utf-8").decode(bytes);
       if (text.includes("\uFFFD")) text = new TextDecoder("windows-1251").decode(bytes);
       return window.FDVStartList.parse(text, routeCount);
     }
 
+    let xlsxLibraryPromise = null;
+    function loadXlsxLibrary() {
+      if (window.XLSX?.read && window.XLSX?.utils?.sheet_to_json) return Promise.resolve(window.XLSX);
+      if (xlsxLibraryPromise) return xlsxLibraryPromise;
+      xlsxLibraryPromise = new Promise((resolve, reject) => {
+        const finish = () => window.XLSX?.read && window.XLSX?.utils?.sheet_to_json
+          ? resolve(window.XLSX)
+          : reject(new Error("XLSX library did not initialize"));
+        const script = document.createElement("script");
+        if (window.FDV_XLSX_LIBRARY_SOURCE) {
+          script.textContent = window.FDV_XLSX_LIBRARY_SOURCE;
+          try {
+            document.head.appendChild(script);
+            finish();
+            window.FDV_XLSX_LIBRARY_SOURCE = "";
+          } catch (error) {
+            reject(error);
+          } finally {
+            script.remove();
+          }
+          return;
+        }
+        script.src = "lib/vendor/xlsx.mini.min.js";
+        script.onload = finish;
+        script.onerror = () => reject(new Error("Could not load XLSX library"));
+        document.head.appendChild(script);
+      }).catch((error) => {
+        xlsxLibraryPromise = null;
+        throw error;
+      });
+      return xlsxLibraryPromise;
+    }
+
     async function importStartList(file, index, input) {
       if (!file) return;
       const slot = input.closest("[data-start-list-index]");
-      const routeCount = slot?.querySelector("[data-start-list-routes]")?.value || 5;
-      const list = await readStartListFile(file, routeCount);
+      const routeCount = slot?.querySelector("[data-start-list-routes]")?.value || defaultStartListRouteCount();
+      let list = null;
+      try {
+        list = await readStartListFile(file, routeCount);
+      } catch (error) {
+        console.error("Could not import start protocol", error);
+      }
       input.value = "";
       if (!list) {
         const summary = slot?.querySelector("[data-start-list-summary]");
@@ -5022,11 +5536,14 @@
     async function commitStartLists(value) {
       const lists = normalizeStartLists(value);
       if (standaloneMode) {
+        const keepParallelLayout = state.startLists.length === 2 && lists.length === 2;
         if (JSON.stringify(lists) !== JSON.stringify(state.startLists)) {
           rememberStartListScrollPositions(lists);
         }
         state.startLists = lists;
-        state.startListVisible = hasStartLists(lists);
+        if (!keepParallelLayout) state.startListParallel = false;
+        state.startListVisible = state.startListEnabled && hasStartLists(lists);
+        lastStartListStructureKey = "";
         lastStartListRenderKey = "";
         updateStartListControls();
         renderStartList();
@@ -5034,6 +5551,20 @@
         return;
       }
       await sendServerAction("startLists", { startLists: lists });
+    }
+
+    async function commitStartListLayout(parallel) {
+      const nextParallel = Boolean(parallel) && state.startLists.length === 2;
+      if (standaloneMode) {
+        state.startListParallel = nextParallel;
+        lastStartListStructureKey = "";
+        lastStartListRenderKey = "";
+        updateStartListControls();
+        renderStartList();
+        saveOfflineSnapshot();
+        return;
+      }
+      await sendServerAction("startListLayout", { parallel: nextParallel });
     }
 
     function diagnosticStatusLabel(value) {
@@ -5232,7 +5763,7 @@
                   ? `Протокол ${listIndex + 1} не загружен`
                   : `Start list ${listIndex + 1} is not loaded`;
               return diagChip(
-                `LIST ${listIndex + 1}`,
+                `PROTOCOL ${listIndex + 1}`,
                 `${listAvailable ? "start-list-available clickable" : "neutral"}${listSelected ? " start-list-selected" : ""}`,
                 title,
                 listAvailable
@@ -6381,8 +6912,13 @@
       els.startListToggle.disabled = !available;
       updateStartListControls();
       updatePresetControlState(available);
-      els.climbMinutes.disabled = !available || state.running;
-      els.breakSeconds.disabled = !available || state.running;
+      const timerParametersLocked = (state.running && !beforeScheduledStart)
+        || (state.elapsedBeforePause > 0 && !state.completed)
+        || finalRoundProgressLocked();
+      els.climbMinutes.disabled = !available || timerParametersLocked;
+      els.breakSeconds.disabled = !available || timerParametersLocked;
+      els.finalRestRotations.disabled = !available || timerParametersLocked;
+      els.finalRoundFormatInputs.forEach((input) => { input.disabled = !available || timerParametersLocked; });
       [els.startHours, els.startMinutes].forEach((input) => { input.disabled = !available; });
       els.soundProfileSelect.disabled = !available || (state.running && !beforeScheduledStart)
         || state.elapsedBeforePause > 0
@@ -6390,11 +6926,18 @@
       updatePrimaryPinUi();
     }
 
+    function finalRoundProgressLocked() {
+      const finalSelected = state.runtimePreset === "final" || state.activePreset === "final";
+      const completedCycles = Math.max(0, Math.round(Number(state.startListFinalCycle) || 0));
+      return finalSelected && completedCycles > 0;
+    }
+
     function formatSelectionLocked() {
       return state.running
         || state.elapsedBeforePause > 0
         || state.completed
-        || state.waitingForManualStart;
+        || state.waitingForManualStart
+        || finalRoundProgressLocked();
     }
 
     function presetDefaultTitle(name) {
@@ -6408,11 +6951,13 @@
 
     function updatePresetControlState(available = controlsAvailable()) {
       const locked = available && formatSelectionLocked();
+      const finalSelected = state.runtimePreset === "final" || state.activePreset === "final";
+      const lockedHint = finalSelected ? t("finalPresetLockedHint") : t("presetLockedHint");
       els.presets.forEach((button) => {
         button.disabled = !available;
         button.classList.toggle("format-locked", locked);
         button.setAttribute("aria-disabled", String(locked));
-        button.title = locked ? t("presetLockedHint") : presetDefaultTitle(button.dataset.preset);
+        button.title = locked ? lockedHint : presetDefaultTitle(button.dataset.preset);
       });
     }
 
@@ -6482,7 +7027,7 @@
 
     function resetStandaloneTimer(shouldSignal = false) {
       const completedFinalAttempt = state.runtimePreset === "final"
-        && (state.running || state.completed || state.elapsedBeforePause > 0);
+        && ((state.running && !state.countdownOnly) || state.completed || state.elapsedBeforePause > 0);
       if (completedFinalAttempt) state.startListFinalCycle += 1;
       clearStartListIncidentsForNewRound();
       state.running = false;
@@ -6658,6 +7203,10 @@
 
     async function hardReset(shouldSignal = true) {
       if (!controlsAvailable()) return;
+      if (isBeforeScheduledStart()) {
+        await toggleScheduledCountdown();
+        return;
+      }
       if (standaloneMode) {
         resetStandaloneTimer(shouldSignal);
         return;
@@ -7151,12 +7700,19 @@
         event.target.blur();
       }
     });
-    els.startListToggle.addEventListener("change", () => {
+    els.startListToggle.addEventListener("change", async () => {
       startListEditorOpen = els.startListToggle.checked;
+      state.startListEnabled = startListEditorOpen;
+      if (standaloneMode) state.startListVisible = startListEditorOpen && hasStartLists();
       safeStorageSet("sessionStorage", startListEditorPreferenceKey, startListEditorOpen ? "1" : "0");
       updateStartListVisibility();
       renderStartList();
       renderBrowserList(lastKnownClients);
+      if (standaloneMode) {
+        saveOfflineSnapshot();
+      } else {
+        await sendServerAction("startListEnabled", { enabled: startListEditorOpen });
+      }
     });
     els.startListLayout.addEventListener("change", (event) => {
       const slot = event.target.closest("[data-start-list-index]");
@@ -7182,9 +7738,18 @@
       const slot = event.target.closest("[data-start-list-index]");
       if (!slot) return;
       const index = Number(slot.dataset.startListIndex);
+      if (event.target.closest("[data-start-list-layout-toggle]")) {
+        commitStartListLayout(!state.startListParallel);
+        return;
+      }
       const routeButton = event.target.closest("[data-start-list-route]");
       if (routeButton && !routeButton.disabled) {
-        startListIncidentSelections[index] = Number(routeButton.dataset.startListRoute);
+        const routeIndex = Number(routeButton.dataset.startListRoute);
+        const clickKey = `${index}:${routeIndex}`;
+        const clickNow = performance.now();
+        if (startListRouteClickGuard.key === clickKey && clickNow < startListRouteClickGuard.until) return;
+        startListRouteClickGuard = { key: clickKey, until: clickNow + 320 };
+        startListIncidentSelections[index] = startListIncidentSelections[index] === routeIndex ? null : routeIndex;
         renderStartListIncidentMenu(slot, state.startLists[index], index, currentStartListPosition());
         return;
       }
@@ -7309,8 +7874,7 @@
       });
     });
 
-    [els.climbMinutes, els.breakSeconds].forEach((input) => {
-      input.addEventListener("input", () => {
+    function commitDraftSettingsChange() {
         if (!standaloneMode) {
           sendServerAction("settings", {
             activePreset: state.activePreset,
@@ -7323,6 +7887,17 @@
           return;
         }
         hardReset(false);
+    }
+
+    [els.climbMinutes, els.breakSeconds, els.finalRestRotations].forEach((input) => {
+      input.addEventListener("input", commitDraftSettingsChange);
+    });
+
+    els.finalRoundFormatInputs.forEach((input) => {
+      input.addEventListener("change", () => {
+        updateParameterLabels();
+        lastStartListRenderKey = "";
+        commitDraftSettingsChange();
       });
     });
 

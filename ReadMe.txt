@@ -107,6 +107,8 @@ Linux:
   festival_break_minutes=30
   festival_announcements=true
   final_rotation_minutes=4
+  final_round_format=old
+  final_rest_rotations=3
   sound_profile=FSR_2026
 
   timer_font_file=Roboto-Variable.ttf
@@ -307,6 +309,8 @@ Edit params.txt if required, then restart the server. Main parameters:
   festival_break_minutes=30
   festival_announcements=true
   final_rotation_minutes=4
+  final_round_format=old
+  final_rest_rotations=3
   sound_profile=FSR_2026
 
   timer_font_file=Roboto-Variable.ttf

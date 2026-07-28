@@ -869,11 +869,13 @@
 
         <div id="format-final" class="platform">
           <h3>3.3. Финал</h3>
-          <p>Международный одноразовый формат. Он выполняет одну ротацию и, если задан, один перерыв.</p>
+          <p>Одноразовый формат: каждый запуск выполняет одну ротацию и останавливается, пока оператор вручную не запустит следующую.</p>
           <ul>
-            <li>Время ротации задаётся в минутах, перерыв — в секундах.</li>
-            <li>Поле перерыва можно оставить пустым или установить ноль.</li>
-            <li>После ротации и необязательного перерыва таймер останавливается на <code>00:00</code>; в обычном основном интерфейсе это состояние дополнительно отмечается как завершённое.</li>
+            <li>Время ротации задаётся в минутах; отдельного перерыва таймера в этом формате нет.</li>
+            <li>«Старый» формат раунда проводит всех участников сначала по первой трассе, затем по второй и далее.</li>
+            <li>«Новый» формат переводит участника на следующую трассу после заданного количества полных ротаций отдыха; значение по умолчанию — 3. После трассы в цикле 1 участник готовится в цикле 4 и выходит на следующую трассу в цикле 5.</li>
+            <li>Выбор формата раунда влияет только на продвижение загруженного стартового протокола.</li>
+            <li>После ротации таймер останавливается на <code>00:00</code>; в обычном основном интерфейсе это состояние дополнительно отмечается как завершённое.</li>
             <li>Для следующего финального запуска достаточно снова нажать «Старт» или <kbd>Z</kbd> / <kbd>Я</kbd>.</li>
           </ul>
         </div>
@@ -882,7 +884,7 @@
           <thead><tr><th>Свойство</th><th>Классика</th><th>Фестиваль</th><th>Финал</th></tr></thead>
           <tbody>
             <tr><td>Ротация / раунд</td><td>Минуты</td><td>Минуты</td><td>Минуты</td></tr>
-            <tr><td>Перерыв</td><td>Секунды</td><td>Минуты</td><td>Секунды или без перерыва</td></tr>
+            <tr><td>Перерыв</td><td>Секунды</td><td>Минуты</td><td>Нет</td></tr>
             <tr><td>Повторение</td><td>Бесконечные циклы</td><td>Бесконечные циклы</td><td>Один запуск</td></tr>
             <tr><td>После окончания</td><td>Следующий цикл</td><td>Следующий цикл</td><td><code>00:00</code>, затем «Старт» для нового запуска</td></tr>
           </tbody>
@@ -1216,6 +1218,8 @@ xattr -dr com.apple.quarantine "/полный/путь/к/fdv-bouldering-timer-v
             <tr><td><code>festival_round_minutes</code></td><td>Фестивальный раунд, минуты</td><td>120</td></tr>
             <tr><td><code>festival_break_minutes</code></td><td>Фестивальный перерыв, минуты</td><td>30</td></tr>
             <tr><td><code>final_rotation_minutes</code></td><td>Ротация финала, минуты</td><td>4</td></tr>
+            <tr><td><code>final_round_format</code></td><td>Начальный формат продвижения протокола в финале</td><td>old / new</td></tr>
+            <tr><td><code>final_rest_rotations</code></td><td>Число ротаций отдыха в новом формате финала</td><td>3</td></tr>
             <tr><td><code>primary_browser</code></td><td>Автоматически назначить первый браузер основным</td><td>false</td></tr>
             <tr><td><code>sound</code></td><td>Начальное состояние звука</td><td>true</td></tr>
             <tr><td><code>sound_in_other_browsers</code></td><td>Начальное состояние звука экранов</td><td>false</td></tr>
@@ -1393,13 +1397,13 @@ xattr -dr com.apple.quarantine "/полный/путь/к/fdv-bouldering-timer-v
         </div>
         <div class="platform">
           <h3>3.3. Final</h3>
-          <p>A one-shot international format with one rotation and an optional break. When complete, it stops at <code>00:00</code>. Press Start again for another run.</p>
+          <p>A one-shot format. Each Start runs one rotation and then waits for the operator. The Old protocol schedule sends every participant through route 1 before route 2; the New schedule moves a participant to the next route after a configurable number of complete rest rotations (3 by default). A participant on route 1 in cycle 1 prepares in cycle 4 and climbs the next route in cycle 5. This choice affects only a loaded start protocol.</p>
         </div>
         <table class="comparison">
           <thead><tr><th>Property</th><th>Classic</th><th>Festival</th><th>Final</th></tr></thead>
           <tbody>
             <tr><td>Rotation / round</td><td>Minutes</td><td>Minutes</td><td>Minutes</td></tr>
-            <tr><td>Break</td><td>Seconds</td><td>Minutes</td><td>Seconds or none</td></tr>
+            <tr><td>Break</td><td>Seconds</td><td>Minutes</td><td>None</td></tr>
             <tr><td>Repeating</td><td>Unlimited</td><td>Unlimited</td><td>One run</td></tr>
             <tr><td>After completion</td><td>Next cycle</td><td>Next cycle</td><td><code>00:00</code></td></tr>
           </tbody>
@@ -1572,6 +1576,8 @@ xattr -dr com.apple.quarantine "/full/path/to/fdv-bouldering-timer-v1.0.7-macos-
             <tr><td><code>festival_break_minutes</code></td><td>Festival break, minutes</td><td>30</td></tr>
             <tr><td><code>festival_announcements</code></td><td>Festival announcements enabled by default</td><td>true</td></tr>
             <tr><td><code>final_rotation_minutes</code></td><td>Final rotation, minutes</td><td>4</td></tr>
+            <tr><td><code>final_round_format</code></td><td>Initial Final protocol schedule</td><td>old / new</td></tr>
+            <tr><td><code>final_rest_rotations</code></td><td>Rest rotations in the New Final schedule</td><td>3</td></tr>
             <tr><td><code>primary_browser</code></td><td>Make the first browser primary</td><td>false</td></tr>
             <tr><td><code>sound</code></td><td>Initial sound state</td><td>true</td></tr>
             <tr><td><code>sound_in_other_browsers</code></td><td>Initial remote display sound</td><td>false</td></tr>

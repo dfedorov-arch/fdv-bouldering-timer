@@ -3,6 +3,7 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const startList = require("../lib/start-list");
+const XLSX = require("../lib/vendor/xlsx.mini.min.js");
 
 test("parses CSV, TSV and quoted fields with arbitrary participant columns", () => {
   const csv = startList.parse('№;ИН;ФИО;Регион\r\n1;22;"Архипов, Вячеслав";Москва\r\n2;33;Овечкин Ярослав;СПб', 5);
@@ -28,6 +29,65 @@ test("adds a cycle column when no source column follows every row position", () 
 
   const existingCycle = startList.parse("Name;Cycle\nFirst;1\nSecond;2", 5);
   assert.deepEqual(existingCycle.headers, ["Name", "Cycle"]);
+});
+
+test("recognizes a single-cell protocol title above column headers", () => {
+  const list = startList.parse("Qualification group A\nStart number;Name\n12;First\n18;Second", 5);
+  assert.equal(list.title, "Qualification group A");
+  assert.deepEqual(list.headers, ["#", "Start number", "Name"]);
+  assert.deepEqual(list.rows, [["1", "12", "First"], ["2", "18", "Second"]]);
+
+  const oneColumn = startList.parse("Name\nFirst\nSecond", 3);
+  assert.equal(Object.prototype.hasOwnProperty.call(oneColumn, "title"), false);
+  assert.deepEqual(oneColumn.headers, ["#", "Name"]);
+});
+
+test("reads XLSX worksheet rows through the mini SheetJS build", () => {
+  const workbook = XLSX.utils.book_new();
+  const worksheet = XLSX.utils.aoa_to_sheet([
+    ["Final — men"],
+    ["Start number", "Name", "Region"],
+    [12, "Malhasyan Artem", "Moscow"],
+    [18, "Ivanov Ivan", "Saint Petersburg"]
+  ]);
+  XLSX.utils.book_append_sheet(workbook, worksheet, "Protocol");
+  const bytes = XLSX.write(workbook, { type: "buffer", bookType: "xlsx" });
+  const restored = XLSX.read(bytes, { type: "buffer" });
+  const records = XLSX.utils.sheet_to_json(restored.Sheets.Protocol, {
+    header: 1,
+    raw: false,
+    defval: "",
+    blankrows: false
+  });
+
+  assert.deepEqual(startList.parseRows(records, 4), {
+    title: "Final — men",
+    headers: ["#", "Start number", "Name", "Region"],
+    rows: [
+      ["1", "12", "Malhasyan Artem", "Moscow"],
+      ["2", "18", "Ivanov Ivan", "Saint Petersburg"]
+    ],
+    routeCount: 4
+  });
+});
+
+test("drops worksheet columns that are completely blank", () => {
+  const list = startList.parseRows([
+    ["Qualification", "", "", "", ""],
+    ["Bib", "Name", "Team", "", ""],
+    [12, "First", "A", "", ""],
+    [18, "Second", "B", "", ""]
+  ], 5);
+
+  assert.deepEqual(list, {
+    title: "Qualification",
+    headers: ["#", "Bib", "Name", "Team"],
+    rows: [
+      ["1", "12", "First", "A"],
+      ["2", "18", "Second", "B"]
+    ],
+    routeCount: 5
+  });
 });
 
 test("parses 1C MXL table rows and escaped quotes", () => {
@@ -67,6 +127,29 @@ test("cycle 12 matches the diagonal route progression in the reference table", (
   assert.equal(status(14, 1), "");
   assert.equal(status(12, 1, "break"), "done");
   assert.equal(startList.scrollAnchor(5, 12, "rotation"), 2);
+});
+
+test("old Final format completes every participant on a route before the next route", () => {
+  const schedule = { finalFormat: "old", participantCount: 4 };
+  assert.equal(startList.attemptCycle(0, 0, schedule), 1);
+  assert.equal(startList.attemptCycle(3, 0, schedule), 4);
+  assert.equal(startList.attemptCycle(0, 1, schedule), 5);
+  assert.equal(startList.marker(3, 0, 4, "rotation", [], schedule), "active");
+  assert.equal(startList.marker(0, 1, 4, "rotation", [], schedule), "ready");
+  assert.equal(startList.marker(0, 1, 5, "rotation", [], schedule), "active");
+  assert.equal(startList.marker(1, 1, 5, "rotation", [], schedule), "ready");
+});
+
+test("new Final format overlaps routes after the configured rest rotations", () => {
+  const schedule = { finalFormat: "new", participantCount: 8, restRotations: 3 };
+  assert.equal(startList.attemptCycle(0, 0, schedule), 1);
+  assert.equal(startList.attemptCycle(0, 1, schedule), 5);
+  assert.equal(startList.attemptCycle(0, 2, schedule), 9);
+  assert.equal(startList.marker(3, 0, 4, "rotation", [], schedule), "active");
+  assert.equal(startList.marker(0, 1, 4, "rotation", [], schedule), "ready");
+  assert.equal(startList.marker(0, 1, 5, "rotation", [], schedule), "active");
+  assert.equal(startList.marker(4, 0, 4, "rotation", [], schedule), "ready");
+  assert.equal(startList.marker(1, 1, 5, "rotation", [], schedule), "ready");
 });
 
 test("before the first start only the first participant is marked ready", () => {
@@ -140,6 +223,34 @@ test("permanent route stop crosses this and all subsequent attempts without shif
   assert.equal(startList.marker(18, 0, 19, "rotation", incidents), "active");
 });
 
+test("stopping a paused route releases the delayed wave without a resume cycle", () => {
+  const incidents = [
+    { kind: "pause", route: 3, startCycle: 36, resumeCycle: 38, participantIndex: 31 },
+    { kind: "stop", route: 3, startCycle: 38 }
+  ];
+  assert.equal(startList.marker(31, 2, 38, "rotation", incidents), "stopped");
+  assert.equal(startList.marker(31, 3, 38, "rotation", incidents), "ready");
+  assert.equal(startList.marker(32, 3, 38, "rotation", incidents), "");
+  assert.equal(startList.marker(33, 3, 38, "rotation", incidents), "");
+  assert.equal(startList.marker(34, 1, 38, "rotation", incidents), "ready");
+  assert.equal(startList.marker(35, 1, 38, "rotation", incidents), "");
+  assert.equal(startList.marker(36, 0, 38, "rotation", incidents), "ready");
+  assert.equal(startList.marker(37, 0, 38, "rotation", incidents), "");
+  assert.equal(startList.marker(31, 3, 39, "rotation", incidents), "active");
+  assert.equal(startList.marker(32, 3, 39, "rotation", incidents), "ready");
+  assert.equal(startList.marker(34, 1, 39, "rotation", incidents), "active");
+  assert.equal(startList.marker(36, 0, 39, "rotation", incidents), "active");
+
+  const migrated = startList.sanitize({
+    headers: ["#", "Name"],
+    rows: Array.from({ length: 40 }, (_, index) => [String(index + 1), `Participant ${index + 1}`]),
+    routeCount: 5,
+    incidents
+  });
+  assert.equal(migrated.incidents[0].resolution, "stop");
+  assert.equal(startList.marker(31, 3, 38, "rotation", migrated.incidents), "ready");
+});
+
 test("incident settings are sanitized with each start list", () => {
   const list = startList.sanitize({
     headers: ["#", "Name"],
@@ -152,7 +263,7 @@ test("incident settings are sanitized with each start list", () => {
     ]
   });
   assert.deepEqual(list.incidents, [
-    { kind: "pause", route: 2, startCycle: 3, resumeCycle: 5, participantIndex: 0 },
+    { kind: "pause", route: 2, startCycle: 3, resumeCycle: 5, participantIndex: 0, resolution: "resume" },
     { kind: "stop", route: 3, startCycle: 7 }
   ]);
 });
