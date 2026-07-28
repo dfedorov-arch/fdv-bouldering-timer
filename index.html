@@ -473,7 +473,7 @@
       border-color: var(--yellow);
     }
 
-    .preset:not(:disabled):hover {
+    .preset:not(.active):not(.format-locked):not(:disabled):hover {
       border-color: var(--yellow);
       box-shadow: 0 0 0 2px rgba(255, 200, 87, .4);
     }
@@ -2174,12 +2174,13 @@
       timeline: []
     };
 
-    const pageBuildNumber = 300;
+    const pageBuildNumber = 301;
     const projectUrl = "https://github.com/dfedorov-arch/fdv-bouldering-timer";
     const buildLinkConfirmDelayMs = 550;
     const offlineSnapshotKey = "fdvBoulderingTimerOfflineSnapshot";
     const primarySoundPreferenceKey = "fdvBoulderingTimerPrimarySound";
     const startListEditorPreferenceKey = "fdvBoulderingTimerStartListEditorOpen";
+    const startListScrollPreferenceKey = "fdvBoulderingTimerStartListScrollPositions";
     const offlineSnapshotMaxAgeMs = 12 * 60 * 60 * 1000;
     const mobileResumeSyncEnabled = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
     const iosAudioWorkaroundEnabled = /iPad|iPhone|iPod/i.test(navigator.userAgent)
@@ -2523,6 +2524,8 @@
     let lastStartListStructureKey = "";
     let lastStartListScrollAnchors = [];
     let pendingStartListScrollRestores = [];
+    let storedStartListScrollRestoreLoaded = false;
+    let startListScrollPersistFrame = 0;
     let startListInitialAutoScrollPending = false;
     let startListIncidentSelections = [];
     let startListRouteClickGuard = { key: "", until: 0 };
@@ -4941,6 +4944,57 @@
       });
     }
 
+    function persistStartListScrollPositions() {
+      if (startListScrollPersistFrame) {
+        cancelAnimationFrame(startListScrollPersistFrame);
+        startListScrollPersistFrame = 0;
+      }
+      const positions = [];
+      els.startListLayout.querySelectorAll("[data-start-list-index]").forEach((slot) => {
+        const index = Number(slot.dataset.startListIndex);
+        const list = state.startLists[index];
+        const scroll = slot.querySelector("[data-start-list-scroll]");
+        if (!list || !scroll) return;
+        positions[index] = {
+          listKey: JSON.stringify(list),
+          top: scroll.scrollTop,
+          left: scroll.scrollLeft
+        };
+      });
+      safeStorageSet("sessionStorage", startListScrollPreferenceKey, JSON.stringify(positions));
+    }
+
+    function scheduleStartListScrollPersistence() {
+      if (startListScrollPersistFrame) return;
+      startListScrollPersistFrame = requestAnimationFrame(() => {
+        startListScrollPersistFrame = 0;
+        persistStartListScrollPositions();
+      });
+    }
+
+    function loadStoredStartListScrollPositions() {
+      if (storedStartListScrollRestoreLoaded || !(standaloneMode || isPrimaryClient)) return;
+      storedStartListScrollRestoreLoaded = true;
+      let stored = [];
+      try {
+        stored = JSON.parse(safeStorageGet("sessionStorage", startListScrollPreferenceKey) || "[]");
+      } catch (error) {
+        stored = [];
+      }
+      if (!Array.isArray(stored)) return;
+      normalizeStartLists(state.startLists).forEach((list, index) => {
+        const position = stored[index];
+        if (!list || position?.listKey !== JSON.stringify(list)) return;
+        const top = Number(position.top);
+        const left = Number(position.left);
+        pendingStartListScrollRestores[index] = {
+          listKey: position.listKey,
+          top: Number.isFinite(top) ? Math.max(0, top) : 0,
+          left: Number.isFinite(left) ? Math.max(0, left) : 0
+        };
+      });
+    }
+
     function visibleStartListEntries() {
       const lists = normalizeStartLists(state.startLists);
       state.startLists = lists;
@@ -5155,9 +5209,11 @@
       els.startListPanel.hidden = !visible;
       if (visible && !wasVisible) {
         startListInitialAutoScrollPending = true;
-        visibleStartListEntries().forEach(({ index }) => {
+        visibleStartListEntries().forEach(({ list, index }) => {
           lastStartListScrollAnchors[index] = null;
-          pendingStartListScrollRestores[index] = null;
+          if (pendingStartListScrollRestores[index]?.listKey !== JSON.stringify(list)) {
+            pendingStartListScrollRestores[index] = null;
+          }
         });
         scheduleStartListPanelWidthFit();
       }
@@ -5360,6 +5416,7 @@
     }
 
     function renderStartList() {
+      loadStoredStartListScrollPositions();
       updateStartListVisibility();
       if (!document.body.classList.contains("start-list-visible")) return;
       ensureStartListStructure();
@@ -8044,6 +8101,7 @@
     });
 
     window.addEventListener("pagehide", () => {
+      persistStartListScrollPositions();
       pageHiddenAt = Date.now();
       clockContinuityWallAt = pageHiddenAt;
       clockContinuityPerfAt = performance.now();
@@ -8081,6 +8139,8 @@
       scheduleStartListPanelWidthFit();
       scheduleFitTimer();
     });
+
+    els.startListLayout.addEventListener("scroll", scheduleStartListScrollPersistence, true);
 
     function scheduleOrientationFits() {
       scheduleFitTimer();

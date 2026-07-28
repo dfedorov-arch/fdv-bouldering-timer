@@ -179,7 +179,12 @@ test("start-list route incident controls render pause, stop, resume and cancella
   assert.match(index, /function ensureStartListStructure\(\)[\s\S]*?rememberStartListScrollPositions\(state\.startLists\);[\s\S]*?existingIndexes\.has\(index\)[\s\S]*?lastStartListScrollAnchors\[index\] = null/);
   assert.match(index, /const previousScroll = \{ top: scroll\.scrollTop, left: scroll\.scrollLeft \};[\s\S]*?else \{[\s\S]*?scroll\.scrollTop = previousScroll\.top;[\s\S]*?scroll\.scrollLeft = previousScroll\.left;/);
   assert.match(index, /const autoScrollKey = `\$\{position\.cycle\}:\$\{position\.phase\}:\$\{anchor\}`;[\s\S]*?autoScrollKey !== lastStartListScrollAnchors\[index\]/);
-  assert.match(index, /visible && !wasVisible[\s\S]*?startListInitialAutoScrollPending = true;[\s\S]*?lastStartListScrollAnchors\[index\] = null;[\s\S]*?pendingStartListScrollRestores\[index\] = null;/);
+  assert.match(index, /visible && !wasVisible[\s\S]*?startListInitialAutoScrollPending = true;[\s\S]*?lastStartListScrollAnchors\[index\] = null;[\s\S]*?pendingStartListScrollRestores\[index\]\?\.listKey !== JSON\.stringify\(list\)[\s\S]*?pendingStartListScrollRestores\[index\] = null;/);
+  assert.match(index, /function persistStartListScrollPositions\(\)[\s\S]*?listKey: JSON\.stringify\(list\)[\s\S]*?top: scroll\.scrollTop[\s\S]*?left: scroll\.scrollLeft[\s\S]*?safeStorageSet\("sessionStorage", startListScrollPreferenceKey, JSON\.stringify\(positions\)\)/);
+  assert.match(index, /function loadStoredStartListScrollPositions\(\)[\s\S]*?standaloneMode \|\| isPrimaryClient[\s\S]*?position\?\.listKey !== JSON\.stringify\(list\)[\s\S]*?pendingStartListScrollRestores\[index\]/);
+  assert.match(index, /function renderStartList\(\) \{\s*loadStoredStartListScrollPositions\(\);\s*updateStartListVisibility\(\);/);
+  assert.match(index, /els\.startListLayout\.addEventListener\("scroll", scheduleStartListScrollPersistence, true\)/);
+  assert.match(index, /window\.addEventListener\("pagehide", \(\) => \{\s*persistStartListScrollPositions\(\);/);
   assert.match(index, /function scheduleStartListAnchorScroll\(scroll, anchor, left, settleLayout = false\)[\s\S]*?scroll\.isConnected[\s\S]*?scroll\.scrollTop = Math\.max\(0, row\.offsetTop - headerHeight\)[\s\S]*?settleLayout && pass < 6[\s\S]*?requestAnimationFrame\(applyAnchor\)/);
   assert.match(index, /const titleBar = `<div class="start-list-title-bar" data-start-list-title hidden><\/div>`;[\s\S]*?\$\{controls\}\$\{titleBar\}\$\{incidentMenu\}<div class="start-list-scroll"/);
   assert.match(index, /titleBar\.textContent = list\.title \|\| "";[\s\S]*?titleBar\.hidden = !list\.title/);
@@ -210,7 +215,7 @@ test("mobile controls keep compact multi-column grids", () => {
 });
 
 test("enabled format buttons get a yellow hover outline", () => {
-  assert.match(index, /\.preset:not\(:disabled\):hover \{[\s\S]*?border-color: var\(--yellow\);[\s\S]*?box-shadow: 0 0 0 2px rgba\(255, 200, 87, \.4\);/);
+  assert.match(index, /\.preset:not\(\.active\):not\(\.format-locked\):not\(:disabled\):hover \{[\s\S]*?border-color: var\(--yellow\);[\s\S]*?box-shadow: 0 0 0 2px rgba\(255, 200, 87, \.4\);/);
 });
 
 test("portrait phones stack the timer above compact protocol windows", () => {

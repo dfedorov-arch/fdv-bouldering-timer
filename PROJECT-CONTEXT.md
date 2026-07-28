@@ -7,7 +7,7 @@ This file is a handoff document for a new AI/chat or a new developer session. Re
 - Project: network-synchronized timer for bouldering competitions.
 - Repository: `https://github.com/dfedorov-arch/fdv-bouldering-timer`.
 - Current public release: `v1.2.0`.
-- Current application build on `develop`: `300`.
+- Current application build on `develop`: `301`.
 - Runtime: plain Node.js server plus a browser client implemented mainly in `index.html`.
 - UI languages: Russian and English.
 - Most important quality goals: identical time on all displays, deterministic phase transitions, stable and accurately timed sound, recovery after temporary network loss or device sleep.
@@ -99,7 +99,7 @@ Cycle behavior:
 - A scheduled countdown is not a competition rotation. Loading a list initially shows participant 1 preparing; scheduling a later start clears that marker until the remaining countdown reaches one rotation duration.
 - Starting a genuinely new round/reset clears all route incidents and their pause/cross markers. Seeking backward within the same round does not clear incidents.
 
-Protocol auto-scroll keeps the first relevant unfinished participant near the top, with one fully completed row above when possible. If everyone is completed it anchors to the last row; paused participants remain valid anchors. Auto-positioning is reconsidered on every cycle/phase change, even when the numeric anchor is unchanged. Ordinary renders, incident actions, layout rebuilds, rapid consecutive SSE updates, parallel lists, and the same list on another screen must preserve each scroll container's vertical and horizontal position. This is operationally important because a remote display may be a television with no convenient input device.
+Protocol auto-scroll keeps the first relevant unfinished participant near the top, with one fully completed row above when possible. If everyone is completed it anchors to the last row; paused participants remain valid anchors. Auto-positioning is reconsidered on every cycle/phase change, even when the numeric anchor is unchanged. Ordinary renders, incident actions, layout rebuilds, rapid consecutive SSE updates, parallel lists, and the same list on another screen must preserve each scroll container's vertical and horizontal position. Scroll coordinates are also saved in the current tab's `sessionStorage` and restored after a primary-browser reload only when the stored protocol identity still matches, so replacing a list never applies stale coordinates. This is operationally important because a remote display may be a television with no convenient input device.
 
 On the first opening of the protocol panel after a page reload, the current cycle anchor is applied repeatedly for a few animation frames while the panel width and height settle. This prevents an initially unconstrained hidden table from clamping `scrollTop` to zero. Opening the panel intentionally chooses the current automatic anchor rather than restoring a stale hidden-panel position.
 
