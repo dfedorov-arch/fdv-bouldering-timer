@@ -2463,7 +2463,7 @@
       timeline: []
     };
 
-    const pageBuildNumber = 351;
+    const pageBuildNumber = 352;
     const projectUrl = "https://github.com/dfedorov-arch/fdv-bouldering-timer";
     const buildLinkConfirmDelayMs = 550;
     const offlineSnapshotKey = "fdvBoulderingTimerOfflineSnapshot";
@@ -2825,6 +2825,7 @@
     let startListInitialAutoScrollPending = false;
     let startListIncidentSelections = [];
     let startListRouteClickGuard = { key: "", until: 0 };
+    let startListIncidentActionGuard = { key: "", until: 0 };
     let startListIncidentPreviewCell = null;
     const startListIncidentPreviewTriggerSelector = [
       "[data-start-list-incident-cycle-control]",
@@ -8466,7 +8467,11 @@
         const clickNow = performance.now();
         if (startListRouteClickGuard.key === clickKey && clickNow < startListRouteClickGuard.until) return;
         startListRouteClickGuard = { key: clickKey, until: clickNow + 320 };
-        startListIncidentSelections[index] = startListIncidentSelections[index] === routeIndex ? null : routeIndex;
+        const openingIncidentMenu = startListIncidentSelections[index] !== routeIndex;
+        startListIncidentSelections[index] = openingIncidentMenu ? routeIndex : null;
+        if (openingIncidentMenu) {
+          startListIncidentActionGuard = { key: clickKey, until: clickNow + 500 };
+        }
         renderStartListIncidentMenu(slot, state.startLists[index], index, currentStartListPosition());
         return;
       }
@@ -8477,6 +8482,10 @@
       }
       const incidentAction = event.target.closest("[data-start-list-incident-action]");
       if (incidentAction) {
+        const actionKey = `${index}:${Number(slot.dataset.startListIncidentRoute)}`;
+        if (event.detail > 1
+            || (startListIncidentActionGuard.key === actionKey
+              && performance.now() < startListIncidentActionGuard.until)) return;
         const incidentIndex = incidentAction.dataset.startListIncidentIndex;
         applyStartListIncidentAction(
           slot,

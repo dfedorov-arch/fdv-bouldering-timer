@@ -225,7 +225,10 @@ test("start-list route incident controls render pause, stop, resume and cancella
   assert.match(index, /\.start-list-file-button:hover,[\s\S]*?\.start-list-incident-action:not\(:disabled\):hover[\s\S]*?border-color: currentColor;[\s\S]*?box-shadow: 0 0 0 1px currentColor;/);
   assert.match(index, /\.start-list-file-button:hover \{\s*border-color: #b9f2ff;\s*box-shadow: 0 0 0 1px rgba\(185, 242, 255, \.9\);/);
   assert.match(index, /let startListRouteClickGuard = \{ key: "", until: 0 \};/);
-  assert.match(index, /const clickKey = `\$\{index\}:\$\{routeIndex\}`;[\s\S]*?clickNow < startListRouteClickGuard\.until\) return;[\s\S]*?clickNow \+ 320[\s\S]*?startListIncidentSelections\[index\] === routeIndex \? null : routeIndex/);
+  assert.match(index, /const clickKey = `\$\{index\}:\$\{routeIndex\}`;[\s\S]*?clickNow < startListRouteClickGuard\.until\) return;[\s\S]*?clickNow \+ 320/);
+  assert.match(index, /let startListIncidentActionGuard = \{ key: "", until: 0 \};/);
+  assert.match(index, /const openingIncidentMenu = startListIncidentSelections\[index\] !== routeIndex;[\s\S]*?startListIncidentActionGuard = \{ key: clickKey, until: clickNow \+ 500 \}/);
+  assert.match(index, /const incidentAction = event\.target\.closest\("\[data-start-list-incident-action\]"\);[\s\S]*?event\.detail > 1[\s\S]*?performance\.now\(\) < startListIncidentActionGuard\.until\)\) return;/);
   assert.match(index, /class="start-list-incident-remove"[\s\S]*?data-start-list-incident-action="clear-pause"/);
   assert.match(index, /class="start-list-incident-remove"[\s\S]*?data-start-list-incident-action="cancel-stop"/);
   assert.match(index, /const pauseNotes = routePauses\.map[\s\S]*?data-start-list-incident-index="\$\{incidentIndex\}"[\s\S]*?<span>\$\{escapeHtml\(pauseNote\)\}<\/span>/);
