@@ -178,6 +178,10 @@
     }
 
     body.web-standalone .server-connection-warning[data-state="standalone"] {
+      align-content: center;
+      justify-items: center;
+      margin-top: 8px;
+      min-height: 58px;
       text-align: center;
     }
 
@@ -1812,6 +1816,15 @@
       min-height: 46px;
     }
 
+    body.fullscreen .start-list-panel-controls,
+    body.fullscreen .start-list-incident-menu,
+    body.viewer-mode .start-list-panel-controls,
+    body.viewer-mode .start-list-incident-menu,
+    :fullscreen .start-list-panel-controls,
+    :fullscreen .start-list-incident-menu {
+      display: none !important;
+    }
+
     body.flash .timer-column::after {
       content: "";
       position: absolute;
@@ -1959,6 +1972,27 @@
 
       .compact-actions {
         display: flex;
+      }
+
+      .compact-actions .action {
+        min-width: 0;
+        flex: 1 1 0;
+      }
+    }
+
+    @media (max-width: 900px) and (orientation: landscape) {
+      .stage {
+        min-height: 100vh;
+        min-height: 100dvh;
+        grid-template-rows: 1fr;
+      }
+
+      .timer-column {
+        padding: clamp(8px, 2dvh, 14px) clamp(12px, 2.5vw, 20px);
+      }
+
+      .timer-wrap {
+        min-height: 0;
       }
     }
 
@@ -2190,7 +2224,10 @@
 
       body.start-list-visible.fullscreen .stage-main,
       body.start-list-visible.viewer-mode .stage-main {
-        grid-template-rows: clamp(150px, 26dvh, 190px) auto;
+        height: 100vh;
+        height: 100dvh;
+        grid-template-rows: clamp(150px, 26dvh, 190px) minmax(0, 1fr);
+        overflow: hidden;
       }
 
       body.start-list-visible.fullscreen .timer-column,
@@ -2198,11 +2235,41 @@
         min-height: 150px;
         padding: clamp(10px, 2.5dvh, 18px) 12px;
       }
+
+      body.start-list-visible.fullscreen .start-list-panel,
+      body.start-list-visible.viewer-mode .start-list-panel,
+      body.start-list-visible.fullscreen .start-list-layout,
+      body.start-list-visible.viewer-mode .start-list-layout,
+      body.start-list-visible.fullscreen .start-list-column,
+      body.start-list-visible.viewer-mode .start-list-column,
+      body.start-list-visible.fullscreen .start-list-slot,
+      body.start-list-visible.viewer-mode .start-list-slot {
+        min-height: 0;
+        height: 100%;
+        overflow: hidden;
+      }
+
+      body.start-list-visible.fullscreen .start-list-column,
+      body.start-list-visible.viewer-mode .start-list-column,
+      body.start-list-visible.fullscreen .start-list-slot,
+      body.start-list-visible.viewer-mode .start-list-slot {
+        flex: 1 1 0 !important;
+      }
+
+      body.start-list-visible.fullscreen .start-list-scroll,
+      body.start-list-visible.viewer-mode .start-list-scroll {
+        min-height: 0;
+        max-height: none;
+        flex: 1 1 auto;
+      }
     }
 
     @media (max-width: 560px) and (orientation: portrait) and (display-mode: fullscreen) {
       body.start-list-visible .stage-main {
-        grid-template-rows: clamp(150px, 26dvh, 190px) auto;
+        height: 100vh;
+        height: 100dvh;
+        grid-template-rows: clamp(150px, 26dvh, 190px) minmax(0, 1fr);
+        overflow: hidden;
       }
 
       body.start-list-visible .timer-column {
@@ -2407,6 +2474,7 @@
               <button id="compactStart" class="action start" title="Старт: Z / Я">Старт</button>
               <button id="compactPause" class="action pause" title="Пауза: Ctrl+Q / Ctrl+Й" disabled>Пауза</button>
               <button id="compactReset" class="action reset" title="Стоп: P / З">Стоп</button>
+              <button id="compactFull" class="action full" title="Экран: Ctrl+F / Ctrl+А">Экран</button>
             </div>
           </footer>
         </div>
@@ -2463,7 +2531,7 @@
       timeline: []
     };
 
-    const pageBuildNumber = 352;
+    const pageBuildNumber = 353;
     const projectUrl = "https://github.com/dfedorov-arch/fdv-bouldering-timer";
     const buildLinkConfirmDelayMs = 550;
     const offlineSnapshotKey = "fdvBoulderingTimerOfflineSnapshot";
@@ -2698,6 +2766,7 @@
       instancesFullscreenRow: document.getElementById("instancesFullscreenRow"),
       flashLabel: document.getElementById("flashLabel"),
       controlsTitle: document.getElementById("controlsTitle"),
+      controlsContent: document.getElementById("controlsContent"),
       browsersTitle: document.getElementById("browsersTitle"),
       helpLink: document.getElementById("helpLink"),
       exitFullscreenBtn: document.getElementById("exitFullscreenBtn"),
@@ -2752,6 +2821,7 @@
       compactStart: document.getElementById("compactStart"),
       compactPause: document.getElementById("compactPause"),
       compactReset: document.getElementById("compactReset"),
+      compactFull: document.getElementById("compactFull"),
       status: document.getElementById("status"),
       phase: document.getElementById("phase"),
       time: document.getElementById("time"),
@@ -2994,6 +3064,19 @@
 
     function controlsAvailable() {
       return serverAvailable || standaloneMode;
+    }
+
+    function startListManagementVisible() {
+      return (standaloneMode || isPrimaryClient)
+        && !isViewerClient
+        && !document.body.classList.contains("fullscreen")
+        && !document.fullscreenElement;
+    }
+
+    function refreshStartListScreenMode() {
+      lastStartListStructureKey = "";
+      lastStartListRenderKey = "";
+      renderStartList();
     }
 
     function isLocalStandalonePage() {
@@ -4200,6 +4283,7 @@
       els.resetBtn.textContent = t("reset");
       els.compactReset.textContent = t("reset");
       els.fullBtn.textContent = t("screen");
+      els.compactFull.textContent = t("screen");
       els.exitFullscreenBtn.title = t("exitScreen");
       els.exitFullscreenBtn.setAttribute("aria-label", t("exitScreen"));
       els.languageToggle.textContent = language === "ru" ? "EN" : "RU";
@@ -4211,6 +4295,7 @@
       els.compactStart.title = els.startBtn.title;
       els.compactPause.title = els.pauseBtn.title;
       els.compactReset.title = els.resetBtn.title;
+      els.compactFull.title = els.fullBtn.title;
       updatePresetControlState();
       els.helpLink.textContent = t("helpManual");
       els.helpLink.title = t("helpManualTitle");
@@ -5474,7 +5559,7 @@
     }
 
     function ensureStartListStructure() {
-      const controlsVisible = standaloneMode || isPrimaryClient;
+      const controlsVisible = startListManagementVisible();
       const entries = visibleStartListEntries();
       const structureKey = `${language}:${entries.map(({ index }) => index).join(",")}:${controlsVisible}:${controlsAvailable()}:${state.startListParallel}`;
       if (structureKey === lastStartListStructureKey) return;
@@ -8092,6 +8177,7 @@
       screenModeScrollY = window.scrollY;
       screenModeRequested = true;
       document.body.classList.add("fullscreen");
+      refreshStartListScreenMode();
       revealExitFullscreenButton();
       if (document.documentElement.requestFullscreen) {
         try {
@@ -8118,6 +8204,7 @@
       clearTimeout(exitFullscreenHideTimer);
       document.body.classList.remove("exit-fullscreen-visible");
       document.body.classList.remove("fullscreen");
+      refreshStartListScreenMode();
       if (document.fullscreenElement) {
         try {
           await document.exitFullscreen();
@@ -8676,7 +8763,7 @@
     [els.startBtn, els.compactStart].forEach((button) => button.addEventListener("click", startTimer));
     [els.pauseBtn, els.compactPause].forEach((button) => button.addEventListener("click", pauseTimer));
     [els.resetBtn, els.compactReset].forEach((button) => button.addEventListener("click", () => hardReset(false)));
-    els.fullBtn.addEventListener("click", toggleFullscreen);
+    [els.fullBtn, els.compactFull].forEach((button) => button.addEventListener("click", toggleFullscreen));
     els.stage.addEventListener("click", handleStageClick);
     document.addEventListener("click", (event) => {
       if (performance.now() >= suppressGestureClicksUntil) return;
@@ -8756,6 +8843,7 @@
       } else {
         document.body.classList.remove("fullscreen", "exit-fullscreen-visible");
       }
+      refreshStartListScreenMode();
       if (isViewerClient && instancesFullscreenEnabled && !document.fullscreenElement) {
         pendingViewerFullscreen = true;
       }
@@ -8854,6 +8942,9 @@
     document.body.classList.toggle("web-standalone", isWebStandalonePage());
     if (window.matchMedia?.("(max-width: 560px)")?.matches) {
       els.browserList.hidden = true;
+    }
+    if (window.matchMedia?.("(max-width: 560px) and (orientation: portrait)")?.matches) {
+      els.controlsContent.hidden = true;
     }
     applyLanguage(language);
 

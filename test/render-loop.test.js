@@ -337,7 +337,7 @@ test("mobile standalone controls collapse without reserving a viewport-height ga
 });
 
 test("single-file standalone variants expose only applicable controls and notices", () => {
-  assert.match(index, /body\.web-standalone \.server-connection-warning\[data-state="standalone"\][\s\S]*?text-align: center/);
+  assert.match(index, /body\.web-standalone \.server-connection-warning\[data-state="standalone"\][\s\S]*?align-content: center;[\s\S]*?justify-items: center;[\s\S]*?margin-top: 8px;[\s\S]*?text-align: center/);
   assert.match(index, /body\.web-standalone[\s\S]*?#serverConnectionWarningText,[\s\S]*?body\.file-mode #primaryRow,[\s\S]*?body\.file-mode #primaryPinPanel[\s\S]*?display: none/);
   assert.match(standaloneBuilder, /path\.normalize\(outputPath\) === path\.normalize\(path\.join\(root, "docs", "standalone\.html"\)\)/);
   assert.match(standaloneBuilder, /window\.FDV_WEB_STANDALONE = \$\{webStandalone\}/);
@@ -345,7 +345,22 @@ test("single-file standalone variants expose only applicable controls and notice
 
 test("mobile timer footer keeps cycle controls clear of compact actions", () => {
   assert.match(index, /\.compact-actions \{[\s\S]*?margin-top: 12px;/);
-  assert.match(index, /body\.start-list-visible\.fullscreen \.stage-main,[\s\S]*?body\.start-list-visible\.viewer-mode \.stage-main \{\s*grid-template-rows: clamp\(150px, 26dvh, 190px\) auto;/);
+  assert.match(index, /id="compactStart"[\s\S]*?id="compactPause"[\s\S]*?id="compactReset"[\s\S]*?id="compactFull"/);
+  assert.match(index, /\[els\.fullBtn, els\.compactFull\]\.forEach\(\(button\) => button\.addEventListener\("click", toggleFullscreen\)\)/);
+  assert.match(index, /window\.matchMedia\?\.\("\(max-width: 560px\) and \(orientation: portrait\)"\)\?\.matches[\s\S]*?els\.controlsContent\.hidden = true/);
+  assert.match(index, /body\.start-list-visible\.fullscreen \.stage-main,[\s\S]*?body\.start-list-visible\.viewer-mode \.stage-main \{[\s\S]*?grid-template-rows: clamp\(150px, 26dvh, 190px\) minmax\(0, 1fr\)/);
+});
+
+test("screen modes remove protocol management and fill the remaining phone height", () => {
+  assert.match(index, /body\.fullscreen \.start-list-panel-controls,[\s\S]*?body\.viewer-mode \.start-list-incident-menu,[\s\S]*?:fullscreen \.start-list-panel-controls[\s\S]*?display: none !important/);
+  assert.match(index, /function startListManagementVisible\(\)[\s\S]*?!document\.body\.classList\.contains\("fullscreen"\)[\s\S]*?!document\.fullscreenElement/);
+  assert.match(index, /const controlsVisible = startListManagementVisible\(\)/);
+  assert.match(index, /document\.body\.classList\.add\("fullscreen"\);\s*refreshStartListScreenMode\(\)/);
+  assert.match(index, /body\.start-list-visible\.fullscreen \.start-list-scroll,[\s\S]*?body\.start-list-visible\.viewer-mode \.start-list-scroll \{[\s\S]*?max-height: none;[\s\S]*?flex: 1 1 auto/);
+});
+
+test("landscape phones use their actual viewport height for the timer stage", () => {
+  assert.match(index, /@media \(max-width: 900px\) and \(orientation: landscape\) \{[\s\S]*?\.stage \{[\s\S]*?min-height: 100dvh;[\s\S]*?grid-template-rows: 1fr;[\s\S]*?\.timer-column \{[\s\S]*?padding: clamp\(8px, 2dvh, 14px\)/);
 });
 
 test("primary PIN button highlights its outline on hover", () => {
