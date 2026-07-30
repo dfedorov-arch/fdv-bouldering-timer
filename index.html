@@ -1684,7 +1684,7 @@
       box-shadow: 0 0 0 1px rgba(255, 200, 87, .48), 0 0 12px rgba(255, 200, 87, .16);
     }
     .cycle-input {
-      width: 6ch;
+      width: calc(var(--cycle-digits, 1) * 1ch + var(--cycle-spinner-space, 20px));
       min-width: 0;
       padding: 0;
       border: 0;
@@ -1756,11 +1756,19 @@
     }
 
     .chip.cycle-chip {
-      min-width: 82px;
+      --cycle-spinner-space: 20px;
+      --cycle-item-gap: 8px;
+      min-width: 102px;
       padding: 0 12px;
       color: var(--text);
       background: rgba(23, 27, 34, .72);
       white-space: nowrap;
+    }
+
+    .chip.cycle-chip::before {
+      content: "";
+      width: calc(var(--cycle-spinner-space) - var(--cycle-item-gap));
+      flex: 0 0 calc(var(--cycle-spinner-space) - var(--cycle-item-gap));
     }
 
     .phase,
@@ -2531,7 +2539,7 @@
       timeline: []
     };
 
-    const pageBuildNumber = 353;
+    const pageBuildNumber = 354;
     const projectUrl = "https://github.com/dfedorov-arch/fdv-bouldering-timer";
     const buildLinkConfirmDelayMs = 550;
     const offlineSnapshotKey = "fdvBoulderingTimerOfflineSnapshot";
@@ -5272,7 +5280,8 @@
         : (state.runtimePreset === "festival" ? t("round") : t("rotation"));
       const phaseClass = editableCycle ? "cycle-editable" : (segment?.type === "break" ? "cycle-break" : "cycle-rotation");
       const cycleTitle = editableCycle ? t("cycleNumber") : phaseName;
-      const cycleChip = `<label class="chip cycle-chip ${phaseClass}" title="${escapeHtml(cycleTitle)}"><span>${t("cycle")}</span><input id="cycleInput" class="cycle-input" type="number" min="1" max="9999" step="1" value="${cycleNumber}" aria-label="${t("cycleNumber")}" title="${escapeHtml(cycleTitle)}"${editableCycle ? "" : " disabled"}></label>`;
+      const cycleDigits = String(cycleNumber).length;
+      const cycleChip = `<label class="chip cycle-chip ${phaseClass}" style="--cycle-digits:${cycleDigits}" title="${escapeHtml(cycleTitle)}"><span>${t("cycle")}</span><input id="cycleInput" class="cycle-input" type="number" min="1" max="9999" step="1" value="${cycleNumber}" aria-label="${t("cycleNumber")}" title="${escapeHtml(cycleTitle)}"${editableCycle ? "" : " disabled"}></label>`;
       setScheduleMarkup(cycleChip, true, false, scheduleStateKey);
     }
 

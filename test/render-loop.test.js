@@ -97,6 +97,9 @@ test("cycle plaque becomes an editable synchronized cycle selector while stopped
   assert.match(index, /const cycleTitle = editableCycle \? t\("cycleNumber"\) : phaseName/);
   assert.match(index, /setScheduleMarkup\(cycleChip, true, false, scheduleStateKey\)/);
   assert.match(index, /\.schedule\.with-cycle \{\s*grid-template-columns: auto;\s*justify-content: center;/);
+  assert.match(index, /const cycleDigits = String\(cycleNumber\)\.length;[\s\S]*?style="--cycle-digits:\$\{cycleDigits\}"/);
+  assert.match(index, /\.cycle-input \{[\s\S]*?width: calc\(var\(--cycle-digits, 1\) \* 1ch \+ var\(--cycle-spinner-space, 20px\)\)/);
+  assert.match(index, /\.chip\.cycle-chip::before \{[\s\S]*?width: calc\(var\(--cycle-spinner-space\) - var\(--cycle-item-gap\)\);[\s\S]*?flex: 0 0 calc\(var\(--cycle-spinner-space\) - var\(--cycle-item-gap\)\)/);
   assert.match(index, /\.cycle-chip\.cycle-rotation[\s\S]*?border-color: var\(--green\)/);
   assert.match(index, /\.cycle-chip\.cycle-break[\s\S]*?border-color: var\(--yellow\)/);
   assert.match(index, /setScheduleMarkup\(`<div class="chip current"><span>\$\{untilStart > 0 \? t\("untilStart"\) : t\("waitingManual"\)\}<\/span><\/div>`\)/);
