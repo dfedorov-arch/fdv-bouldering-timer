@@ -1,4 +1,4 @@
-const BUILD_NUMBER = 351;
+const BUILD_NUMBER = 352;
 const CACHE_NAME = `fdv-bouldering-timer-v${BUILD_NUMBER}`;
 const CACHE_PREFIX = "fdv-bouldering-timer-v";
 const CORE_URLS = [

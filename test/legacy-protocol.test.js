@@ -13,7 +13,7 @@ const displayCore = fs.readFileSync(path.join(root, "lib", "start-list-display.j
 test("Legacy start-list display core remains parseable by ES5-era browsers", () => {
   assert.doesNotMatch(displayCore, /\b(?:const|let|class)\b|=>|\?\.|\.\.\.|`/);
   assert.match(displayCore, /root\.FDVStartListDisplay = api/);
-  assert.match(legacy, /src="lib\/start-list-display\.js\?v=351"/);
+  assert.match(legacy, /src="lib\/start-list-display\.js\?v=352"/);
 });
 
 test("Legacy requests protocol data conditionally and stores it separately from timer snapshots", () => {
