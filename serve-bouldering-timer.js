@@ -16,7 +16,7 @@ const runtimeStatePath = path.join(runtimeStateDir, "timer-state.json");
 const beepsPath = path.join(root, "beeps");
 const fontsPath = path.join(root, "fonts");
 const offlineAudioPath = path.join(root, "lib", "offline-audio.js");
-const BUILD_NUMBER = 304;
+const BUILD_NUMBER = 350;
 const serverInstanceId = crypto.randomUUID();
 const SNAPSHOT_SCHEMA_VERSION = 1;
 const SNAPSHOT_MAX_AGE_MS = 12 * 60 * 60 * 1000;
@@ -362,6 +362,7 @@ let stateTransitionTimer = null;
 let snapshotWriteTimer = null;
 let timerStartedAtMono = 0;
 let diagnosticsBroadcastTimer = null;
+let startListDataRevision = 1;
 let lastDiagnosticsBroadcastAt = 0;
 
 const runtimeCommandTypes = new Set(["start", "pause", "stopCountdown", "reset", "seek", "seekCycle"]);
@@ -861,6 +862,7 @@ function registerClient(req, source = {}) {
     viewport: sourceValue(source, "viewport") || existing.viewport || "",
     screen: sourceValue(source, "screen") || existing.screen || "",
     dpr: optionalNumber(sourceValue(source, "dpr"), existing.dpr ?? null),
+    clientBuild: optionalNumber(sourceValue(source, "clientBuild"), existing.clientBuild ?? null),
     audioUnlocked: optionalBool(sourceValue(source, "audioUnlocked"), existing.audioUnlocked ?? null),
     soundAllowed: optionalBool(sourceValue(source, "soundAllowed"), existing.soundAllowed ?? null),
     audioBaseLatency: optionalNumber(sourceValue(source, "audioBaseLatency"), existing.audioBaseLatency ?? null),
@@ -958,7 +960,33 @@ function clearStartListIncidents() {
     const { incidents: _incidents, ...cleanList } = list;
     return cleanList;
   });
+  if (changed) startListDataRevision += 1;
   return changed;
+}
+
+function legacyProtocolRevision(clientId) {
+  return `${serverInstanceId}:${startListDataRevision}:${startListIndexesForClient(clientId).join(",")}`;
+}
+
+function legacyPublicState(options = {}) {
+  const state = publicState({
+    ...options,
+    includeClients: false
+  });
+  const revision = legacyProtocolRevision(options.clientId || "");
+  const knownRevision = String(options.protocolRevision || "").slice(0, 200);
+  const selectedIndexes = new Set(state.startListIndexes || []);
+  const legacyProtocols = knownRevision === revision
+    ? undefined
+    : sanitizeStartLists(state.startLists)
+      .map((list, index) => list && selectedIndexes.has(index) ? { index, list } : null)
+      .filter(Boolean);
+  return {
+    ...state,
+    startLists: undefined,
+    protocolRevision: revision,
+    legacyProtocols
+  };
 }
 
 function elapsedSeconds(now = monoNow()) {
@@ -1213,8 +1241,18 @@ function handleRequest(req, res) {
   if (requestUrl.pathname === "/api/state" && req.method === "GET") {
     const receivedAt = wallNow();
     const clientId = registerClient(req, requestUrl.searchParams);
-    const includeClients = shouldIncludeDiagnostics(clientId, requestUrl.searchParams.get("diagnostics") === "1");
-    sendJson(res, 200, publicState({ receivedAt, clientId, includeClients }));
+    const legacyResponse = requestUrl.searchParams.get("legacy") === "1";
+    const includeClients = legacyResponse
+      ? false
+      : shouldIncludeDiagnostics(clientId, requestUrl.searchParams.get("diagnostics") === "1");
+    const responseState = legacyResponse
+      ? legacyPublicState({
+        receivedAt,
+        clientId,
+        protocolRevision: requestUrl.searchParams.get("protocolRevision") || ""
+      })
+      : publicState({ receivedAt, clientId, includeClients });
+    sendJson(res, 200, responseState);
     if (clientId) legacyRedirectPending.delete(clientId);
     return;
   }
@@ -1454,6 +1492,7 @@ function handleRequest(req, res) {
         const nextStartLists = sanitizeStartLists(body.startLists);
         if (timerState.startLists.length !== 2 || nextStartLists.length !== 2) timerState.startListParallel = false;
         timerState.startLists = nextStartLists;
+        startListDataRevision += 1;
         timerState.startListDisplaySelections = sanitizeStartListDisplaySelections(
           timerState.startListDisplaySelections,
           nextStartLists

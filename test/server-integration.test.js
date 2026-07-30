@@ -149,6 +149,7 @@ test("production server validates settings, rejects stale commands, and deduplic
       headers: ["№", "ФИО"],
       rows: [["1", "Архипов Вячеслав"], ["2", "Овечкин Ярослав"]],
       routeCount: 5,
+      excludedParticipants: [1, 1, 9],
       incidents: [{ kind: "pause", route: 2, startCycle: 3, resumeCycle: 5, participantIndex: 0 }]
     }]
   });
@@ -158,6 +159,7 @@ test("production server validates settings, rejects stale commands, and deduplic
   assert.deepEqual(startListLoaded.body.startLists[0].incidents, [
     { kind: "pause", route: 2, startCycle: 3, resumeCycle: 5, participantIndex: 0, resolution: "resume" }
   ]);
+  assert.deepEqual(startListLoaded.body.startLists[0].excludedParticipants, [1]);
   assert.equal(Object.prototype.hasOwnProperty.call(startListLoaded.body, "startList"), false);
   assert.equal(startListLoaded.body.startListEnabled, false);
   assert.equal(startListLoaded.body.startListVisible, false);
@@ -214,6 +216,16 @@ test("production server validates settings, rejects stale commands, and deduplic
   const multiSelectionState = await fetch(`${baseUrl}/api/state?clientId=list-screen`).then((response) => response.json());
   assert.deepEqual(multiSelectionState.startListIndexes, [0, 2]);
   assert.equal(Object.prototype.hasOwnProperty.call(multiSelectionState, "startListDisplaySelections"), false);
+  const firstLegacyState = await fetch(`${baseUrl}/api/state?legacy=1&clientId=list-screen`).then((response) => response.json());
+  assert.equal(Object.prototype.hasOwnProperty.call(firstLegacyState, "startLists"), false);
+  assert.deepEqual(firstLegacyState.legacyProtocols.map((entry) => entry.index), [0, 2]);
+  assert.equal(firstLegacyState.legacyProtocols[0].list.rows.length, 2);
+  assert.deepEqual(firstLegacyState.legacyProtocols[0].list.excludedParticipants, [1]);
+  assert.ok(firstLegacyState.protocolRevision);
+  const repeatedLegacyState = await fetch(`${baseUrl}/api/state?legacy=1&clientId=list-screen&protocolRevision=${encodeURIComponent(firstLegacyState.protocolRevision)}`)
+    .then((response) => response.json());
+  assert.equal(repeatedLegacyState.protocolRevision, firstLegacyState.protocolRevision);
+  assert.equal(Object.prototype.hasOwnProperty.call(repeatedLegacyState, "legacyProtocols"), false);
 
   const protocolsDisabled = await postAction(baseUrl, { type: "startListEnabled", enabled: false });
   assert.equal(protocolsDisabled.status, 200);

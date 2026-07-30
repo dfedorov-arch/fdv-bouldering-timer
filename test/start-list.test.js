@@ -3,7 +3,47 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const startList = require("../lib/start-list");
+const startListDisplay = require("../lib/start-list-display");
 const XLSX = require("../lib/vendor/xlsx.mini.min.js");
+
+test("modern and ES5-compatible display APIs use the same implementation", () => {
+  for (const name of ["attemptCycle", "attemptInfo", "marker", "routeState", "rowStatus", "scrollAnchor", "prioritizedScrollAnchor", "scheduledCycle", "normalizeExcludedParticipants", "participantScheduleIndex", "participantRowIndex", "includedParticipantCount", "rebaseIncidents"]) {
+    assert.equal(startList[name], startListDisplay[name]);
+  }
+});
+
+test("active protocol range replaces the completed-row buffer only when space is tight", () => {
+  assert.equal(startList.prioritizedScrollAnchor(10, [11, 12, 13, 14, 15, 16, 17, 18], 9), 10);
+  assert.equal(startList.prioritizedScrollAnchor(10, [11, 12, 13, 14, 15, 16, 17, 18], 8), 11);
+  assert.equal(startList.prioritizedScrollAnchor(10, [11, 14, 18], 9), 10);
+  assert.equal(startList.prioritizedScrollAnchor(10, [11, 14, 18], 8), 11);
+  assert.equal(startList.prioritizedScrollAnchor(10, [], 3), 10);
+});
+
+test("excluded participants are retained but removed from schedule calculations", () => {
+  assert.deepEqual(startList.normalizeExcludedParticipants([4, 1, 4, -1, 99], 7), [1, 4]);
+  assert.equal(startList.includedParticipantCount(7, [1, 4]), 5);
+  assert.equal(startList.participantScheduleIndex(1, [1, 4], 7), -1);
+  assert.equal(startList.participantScheduleIndex(5, [1, 4], 7), 3);
+  assert.equal(startList.participantRowIndex(3, [1, 4], 7), 5);
+
+  const excluded = [1];
+  const physicalActiveRow = 5;
+  const calculationIndex = startList.participantScheduleIndex(physicalActiveRow, excluded, 8);
+  assert.equal(startList.marker(calculationIndex, 0, 5, "rotation"), "active");
+  assert.equal(startList.marker(startList.participantScheduleIndex(4, [], 8), 0, 5, "rotation"), "active");
+});
+
+test("incident participant indexes are rebased around excluded rows", () => {
+  const incidents = [
+    { kind: "pause", route: 2, startCycle: 7, resumeCycle: null, participantIndex: 4 },
+    { kind: "stop", route: 3, startCycle: 9 }
+  ];
+  assert.deepEqual(startList.rebaseIncidents(incidents, [1, 4], 7), [
+    { kind: "pause", route: 2, startCycle: 7, resumeCycle: null, participantIndex: 3, resolution: undefined },
+    incidents[1]
+  ]);
+});
 
 test("parses CSV, TSV and quoted fields with arbitrary participant columns", () => {
   const csv = startList.parse('№;ИН;ФИО;Регион\r\n1;22;"Архипов, Вячеслав";Москва\r\n2;33;Овечкин Ярослав;СПб', 5);
@@ -88,6 +128,40 @@ test("drops worksheet columns that are completely blank", () => {
     ],
     routeCount: 5
   });
+});
+
+test("detects the participant table and uses only its immediately preceding title row", () => {
+  const list = startList.parseRows([
+    ["Competition title", "", "", "", "unrelated note"],
+    ["Route 1", "", "", "", "another note"],
+    ["Bib", "Name", "Team", "", "Ignore"],
+    [12, "First", "A", "", "outside table"],
+    [18, "Second", "B", "", "outside table"]
+  ], 5);
+
+  assert.deepEqual(list, {
+    title: "Route 1",
+    headers: ["#", "Bib", "Name", "Team"],
+    rows: [
+      ["1", "12", "First", "A"],
+      ["2", "18", "Second", "B"]
+    ],
+    routeCount: 5
+  });
+});
+
+test("XLSX content bounds ignore formatted emptiness and remote cells outside protocol columns", () => {
+  const worksheet = XLSX.utils.aoa_to_sheet([
+    ["Competition title", "", ""],
+    ["Route 1", "", ""],
+    ["Bib", "Name", "Team"],
+    [12, "First", "A"],
+    [18, "Second", "B"]
+  ]);
+  worksheet.XFD1048576 = { t: "s", v: "ignore" };
+  worksheet["!ref"] = "A1:XFD1048576";
+
+  assert.equal(startList.worksheetContentRange(worksheet, XLSX.utils), "A1:C5");
 });
 
 test("parses 1C MXL table rows and escaped quotes", () => {
@@ -181,6 +255,11 @@ test("temporary route incident pauses the affected wave and shifts it after resu
   assert.equal(startList.marker(15, 1, 16, "rotation", pending), "");
   assert.equal(startList.marker(15, 2, 16, "rotation", pending), "");
   assert.equal(startList.marker(9, 3, 16, "rotation", pending), "active");
+  assert.equal(startList.marker(10, 2, 12, "rotation", pending), "paused");
+  assert.equal(startList.marker(11, 2, 12, "rotation", pending), "paused");
+  assert.equal(startList.marker(13, 1, 12, "rotation", pending), "paused");
+  assert.equal(startList.marker(15, 0, 12, "rotation", pending), "paused");
+  assert.equal(startList.marker(9, 2, 12, "rotation", pending), "");
 
   const resumed = [{ ...pending[0], resumeCycle: 18 }];
   assert.equal(startList.marker(10, 2, 14, "rotation", resumed), "ready");
@@ -204,6 +283,38 @@ test("temporary route incident pauses the affected wave and shifts it after resu
   assert.deepEqual(startList.routePauseHistory(2, 18, resumed), resumed);
 });
 
+test("a pause with a future resume cycle remains editable while it is active", () => {
+  const pause = { kind: "pause", route: 2, startCycle: 17, resumeCycle: 20, participantIndex: 14, resolution: "resume" };
+  assert.equal(startList.activePauseForRoute(1, [pause]), null);
+  assert.equal(startList.activePauseForRoute(1, [pause], 16), null);
+  assert.equal(startList.activePauseForRoute(1, [pause], 17), pause);
+  assert.equal(startList.activePauseForRoute(1, [pause], 18), pause);
+  assert.equal(startList.activePauseForRoute(1, [pause], 20), null);
+});
+
+test("an incident in an empty cycle targets the next participant on that route", () => {
+  const history = [{ kind: "pause", route: 2, startCycle: 15, resumeCycle: 18, participantIndex: 12 }];
+  assert.equal(startList.participantAtCycle(2, 18, history, 30), -1);
+  assert.equal(startList.participantAtOrAfterCycle(2, 18, history, 30), 12);
+  assert.equal(startList.participantAtOrAfterCycle(2, 20, history, 30), 12);
+  assert.equal(startList.participantAtOrAfterCycle(2, 99, history, 30), -1);
+});
+
+test("pause markers move past a permanently stopped earlier route", () => {
+  const pause = { kind: "pause", route: 3, startCycle: 47, resumeCycle: null, participantIndex: 42 };
+  const incidents = [
+    { kind: "stop", route: 1, startCycle: 36 },
+    pause
+  ];
+  assert.equal(startList.pauseMarkerRoute(47, pause, incidents), 1);
+  for (let participantIndex = 42; participantIndex < 60; participantIndex += 1) {
+    const markers = [0, 1, 2].map((routeIndex) =>
+      startList.marker(participantIndex, routeIndex, 47, "rotation", incidents));
+    assert.equal(markers.filter((marker) => marker === "paused").length, 1);
+    assert.equal(markers[0], "stopped");
+  }
+});
+
 test("scroll anchor remains defined when every participant is finished or paused", () => {
   const paused = [{ kind: "pause", route: 3, startCycle: 15, resumeCycle: null, participantIndex: 10 }];
   assert.equal(startList.scrollAnchor(5, 18, "rotation", paused, 16), 8);
@@ -221,6 +332,27 @@ test("permanent route stop crosses this and all subsequent attempts without shif
   assert.equal(startList.marker(12, 3, 19, "rotation", incidents), "stopped");
   assert.equal(startList.marker(13, 3, 20, "rotation", incidents), "stopped");
   assert.equal(startList.marker(18, 0, 19, "rotation", incidents), "active");
+});
+
+test("a later pause on another route does not remove permanent stop markers", () => {
+  const stopped = [{ kind: "stop", route: 4, startCycle: 18 }];
+  const stoppedAndPaused = [
+    ...stopped,
+    { kind: "pause", route: 2, startCycle: 18, resumeCycle: null, participantIndex: 15 }
+  ];
+
+  assert.equal(startList.marker(11, 3, 18, "rotation", stopped), "stopped");
+  assert.equal(startList.marker(14, 3, 18, "rotation", stopped), "stopped");
+  assert.equal(startList.marker(39, 3, 18, "rotation", stopped), "stopped");
+  assert.equal(startList.marker(11, 3, 18, "rotation", stoppedAndPaused), "stopped");
+  assert.equal(startList.marker(14, 3, 18, "rotation", stoppedAndPaused), "stopped");
+  assert.equal(startList.marker(39, 3, 18, "rotation", stoppedAndPaused), "stopped");
+  assert.equal(startList.marker(15, 1, 18, "rotation", stoppedAndPaused), "paused");
+  const stoppedCount = (incidentList) => Array.from({ length: 120 }, (_, participantIndex) =>
+    startList.marker(participantIndex, 3, 18, "rotation", incidentList)
+  ).filter((status) => status === "stopped").length;
+  assert.equal(stoppedCount(stopped), 109);
+  assert.equal(stoppedCount(stoppedAndPaused), 109);
 });
 
 test("stopping a paused route releases the delayed wave without a resume cycle", () => {
@@ -251,6 +383,18 @@ test("stopping a paused route releases the delayed wave without a resume cycle",
   assert.equal(startList.marker(31, 3, 38, "rotation", migrated.incidents), "ready");
 });
 
+test("stopping a future pause in an empty cycle does not delay the following routes", () => {
+  const incidents = [
+    { kind: "pause", route: 3, startCycle: 27, resumeCycle: 36, participantIndex: 22, resolution: "resume" },
+    { kind: "pause", route: 1, startCycle: 40, resumeCycle: 45, participantIndex: 35, resolution: "stop" },
+    { kind: "stop", route: 1, startCycle: 45 }
+  ];
+  assert.equal(startList.marker(35, 1, 48, "rotation", incidents), "done");
+  assert.equal(startList.marker(36, 1, 48, "rotation", incidents), "active");
+  assert.equal(startList.marker(37, 1, 48, "rotation", incidents), "ready");
+  assert.equal(startList.marker(35, 2, 48, "rotation", incidents), "ready");
+});
+
 test("incident settings are sanitized with each start list", () => {
   const list = startList.sanitize({
     headers: ["#", "Name"],
@@ -266,4 +410,14 @@ test("incident settings are sanitized with each start list", () => {
     { kind: "pause", route: 2, startCycle: 3, resumeCycle: 5, participantIndex: 0, resolution: "resume" },
     { kind: "stop", route: 3, startCycle: 7 }
   ]);
+});
+
+test("excluded participant indexes are sanitized with each start list", () => {
+  const list = startList.sanitize({
+    headers: ["#", "Name"],
+    rows: [["1", "First"], ["2", "Second"], ["3", "Third"]],
+    routeCount: 3,
+    excludedParticipants: [2, 1, 2, -1, 3]
+  });
+  assert.deepEqual(list.excludedParticipants, [1, 2]);
 });

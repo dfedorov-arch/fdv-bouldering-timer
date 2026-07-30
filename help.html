@@ -987,10 +987,11 @@
         <h3 id="legacy-mode">6.3. Legacy-режим для старых экранов</h3>
         <p>Legacy-экран предназначен для старых браузеров в телевизорах, планшетах и медиаплеерах, где обычная страница может работать нестабильно. Он открывается как <code>/legacy.html</code> без видимых служебных параметров в адресной строке.</p>
         <ul>
-          <li>На экране остаётся только крупное табло времени без панели управления, списка браузеров, диагностики и настроек звука.</li>
+          <li>Без выбранных протоколов на экране остаётся только крупное табло времени. Кнопками PROTOCOL 1–4 в основном браузере можно вывести на Legacy-экран полные таблицы выбранных протоколов без элементов управления.</li>
           <li>Страница использует упрощённый JavaScript и обычные XHR-запросы к <code>/api/state</code>, поэтому не зависит от SSE, Fetch API, Web Audio, Wake Lock и других современных возможностей.</li>
           <li>Звук в Legacy-режиме не воспроизводится. Если нужны звуковые сигналы, оставьте звук на основном браузере или на обычном современном экране.</li>
           <li>Время считается локально по состоянию сервера и периодически уточняется по лучшим сетевым измерениям. Из-за упрощённой синхронизации точность может быть немного ниже, чем на обычном экране.</li>
+          <li>Протоколы загружаются только при изменении их ревизии. При временной потере сети Legacy-экран продолжает локально обновлять маркеры, подсветку и автопрокрутку по автономному таймеру, а после восстановления связи принимает авторитетное состояние сервера.</li>
           <li>Размер цифр подбирается под экран, включая длинные значения фестиваля вроде <code>120:00</code>. После поворота устройства Legacy-экран несколько раз пересчитывает размер и центрирование.</li>
           <li>Повторное нажатие LEGACY из основного браузера возвращает экран на обычную страницу <code>/</code>.</li>
         </ul>
@@ -1473,10 +1474,11 @@ xattr -dr com.apple.quarantine "/полный/путь/к/fdv-bouldering-timer-v
         <h3>6.3. Legacy mode for older displays</h3>
         <p>Legacy mode is intended for old TV browsers, tablets, and media players where the normal page may be unstable. It opens as <code>/legacy.html</code> without visible service parameters in the address bar.</p>
         <ul>
-          <li>The page shows only the large timer, without controls, browser diagnostics, sound settings, or the browser list.</li>
+          <li>With no protocols selected, the page shows only the large timer. Use PROTOCOL 1–4 in the primary browser to show complete read-only protocol tables on a Legacy display.</li>
           <li>It uses simplified JavaScript and plain XHR requests to <code>/api/state</code>, so it does not depend on SSE, Fetch API, Web Audio, Wake Lock, or other modern browser features.</li>
           <li>Legacy mode does not play sound. Keep sound on the primary browser or on a normal modern display when audio signals are needed.</li>
           <li>The display calculates time locally from the server state and periodically refines its clock offset using the best network samples. Because synchronization is simplified, it may be slightly less precise than the normal display.</li>
+          <li>Protocol data is downloaded only when its revision changes. During a temporary network loss, the Legacy display continues updating markers, row highlighting, and auto-scroll from its offline timer, then reconciles with the authoritative server state after reconnecting.</li>
           <li>The digit size is fitted to the screen, including long Festival values such as <code>120:00</code>. After device rotation the Legacy page recalculates sizing and centering several times.</li>
           <li>Click LEGACY again from the primary browser to return that display to the normal <code>/</code> page.</li>
         </ul>

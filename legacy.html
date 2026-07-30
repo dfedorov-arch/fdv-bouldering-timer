@@ -9,6 +9,7 @@
   <style>
     html,
     body {
+      color-scheme: dark;
       width: 100%;
       height: 100%;
       margin: 0;
@@ -16,6 +17,8 @@
       background: #0e1116;
       color: #f4f7fb;
       font-family: Arial, Helvetica, sans-serif;
+      -webkit-text-size-adjust: none;
+      text-size-adjust: none;
     }
 
     body.break-active {
@@ -41,6 +44,405 @@
       white-space: nowrap;
     }
 
+    #timerPane {
+      position: absolute;
+      left: 0;
+      top: 0;
+      right: 0;
+      bottom: 0;
+      overflow: hidden;
+      background: #0e1116;
+    }
+
+    #protocolPane {
+      display: none;
+      position: absolute;
+      top: 0;
+      right: 0;
+      bottom: 0;
+      left: auto;
+      width: 58%;
+      overflow: hidden;
+      background: #161b22;
+      color: #f4f7fb;
+      text-align: left;
+    }
+
+    body.protocol-visible #timerPane {
+      right: 58%;
+    }
+
+    body.protocol-visible #protocolPane {
+      display: block;
+    }
+
+    #protocolLayout {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      white-space: nowrap;
+      font-family: Arial, Helvetica, sans-serif;
+      font-size: 0;
+    }
+
+    .protocol-column {
+      display: inline-block;
+      width: 50%;
+      height: 100%;
+      overflow: hidden;
+      vertical-align: top;
+      white-space: normal;
+      font-size: 13px;
+    }
+
+    .protocol-column.protocol-column-only {
+      width: 100%;
+    }
+
+    .protocol-slot {
+      position: relative;
+      width: 100%;
+      overflow: hidden;
+      border-left: 1px solid #39414c;
+      border-bottom: 1px solid #39414c;
+      box-sizing: border-box;
+    }
+
+    .protocol-title {
+      height: 30px;
+      padding: 6px 8px;
+      overflow: hidden;
+      box-sizing: border-box;
+      color: #f4f7fb;
+      background: #202630;
+      font-size: 13px;
+      font-weight: bold;
+      line-height: 18px;
+      text-align: center;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .protocol-title.protocol-title-empty {
+      display: none;
+    }
+
+    .protocol-scroll {
+      position: absolute;
+      left: 0;
+      right: 0;
+      top: 30px;
+      bottom: 0;
+      overflow-x: hidden;
+      overflow-y: auto;
+      scrollbar-color: #687384 #202630;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    .protocol-scroll::-webkit-scrollbar,
+    #protocolPane::-webkit-scrollbar {
+      width: 14px;
+      height: 14px;
+      background: #202630;
+    }
+
+    .protocol-scroll::-webkit-scrollbar-track,
+    #protocolPane::-webkit-scrollbar-track {
+      background: #202630;
+    }
+
+    .protocol-scroll::-webkit-scrollbar-thumb,
+    #protocolPane::-webkit-scrollbar-thumb {
+      min-height: 36px;
+      border: 3px solid #202630;
+      border-radius: 8px;
+      background: #687384;
+    }
+
+    .protocol-scroll::-webkit-scrollbar-thumb:hover,
+    #protocolPane::-webkit-scrollbar-thumb:hover {
+      background: #818b99;
+    }
+
+    .protocol-slot.protocol-without-title .protocol-scroll {
+      top: 0;
+    }
+
+    .protocol-table {
+      width: auto;
+      table-layout: auto;
+      border-collapse: separate;
+      border-spacing: 0;
+      color: #f4f7fb;
+      background: #161b22;
+      font-size: 12px;
+      line-height: 16px;
+      white-space: nowrap;
+    }
+
+    .protocol-table th,
+    .protocol-table td {
+      height: 30px;
+      padding: 4px 5px;
+      border-right: 1px solid #39414c;
+      border-bottom: 1px solid #39414c;
+      box-sizing: border-box;
+      white-space: nowrap;
+    }
+
+    .protocol-table .protocol-data-cell {
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .protocol-table .protocol-data-cell-first {
+      width: 42px;
+    }
+
+    .protocol-table .protocol-data-cell-second {
+      width: 54px;
+    }
+
+    .protocol-table th {
+      position: sticky;
+      top: 0;
+      z-index: 2;
+      background: #242a33;
+      text-align: left;
+    }
+
+    .protocol-table .protocol-route-cell {
+      width: 30px;
+      min-width: 30px;
+      max-width: 30px;
+      height: 30px;
+      padding: 2px;
+      text-align: center;
+    }
+
+    body.protocol-compact .protocol-title {
+      height: 27px;
+      padding: 5px 6px;
+      font-size: 12px;
+      line-height: 17px;
+    }
+
+    body.protocol-compact .protocol-scroll { top: 27px; }
+    body.protocol-compact .protocol-slot.protocol-without-title .protocol-scroll { top: 0; }
+
+    body.protocol-compact .protocol-table {
+      font-size: 11px;
+      line-height: 15px;
+    }
+
+    body.protocol-compact .protocol-table th,
+    body.protocol-compact .protocol-table td {
+      height: 27px;
+      padding: 3px 4px;
+    }
+
+    body.protocol-compact .protocol-table .protocol-data-cell-first { width: 38px; }
+    body.protocol-compact .protocol-table .protocol-data-cell-second { width: 48px; }
+
+    body.protocol-compact .protocol-table .protocol-route-cell {
+      width: 27px;
+      min-width: 27px;
+      max-width: 27px;
+      height: 27px;
+      padding: 2px;
+    }
+
+    body.protocol-dense .protocol-title {
+      height: 25px;
+      padding: 4px 5px;
+      font-size: 11px;
+      line-height: 17px;
+    }
+
+    body.protocol-dense .protocol-scroll { top: 25px; }
+    body.protocol-dense .protocol-slot.protocol-without-title .protocol-scroll { top: 0; }
+
+    body.protocol-dense .protocol-table {
+      font-size: 10px;
+      line-height: 14px;
+    }
+
+    body.protocol-dense .protocol-table th,
+    body.protocol-dense .protocol-table td {
+      height: 24px;
+      padding: 2px 3px;
+    }
+
+    body.protocol-dense .protocol-table .protocol-data-cell-first { width: 34px; }
+    body.protocol-dense .protocol-table .protocol-data-cell-second { width: 44px; }
+
+    body.protocol-dense .protocol-table .protocol-route-cell {
+      width: 24px;
+      min-width: 24px;
+      max-width: 24px;
+      height: 24px;
+      padding: 1px;
+    }
+
+    body.protocol-ultra-dense .protocol-title { height: 20px; padding: 3px 4px; font-size: 9px; line-height: 14px; }
+    body.protocol-ultra-dense .protocol-scroll { top: 20px; }
+    body.protocol-ultra-dense .protocol-slot.protocol-without-title .protocol-scroll { top: 0; }
+    body.protocol-ultra-dense .protocol-table { font-size: 9px; line-height: 12px; }
+    body.protocol-ultra-dense .protocol-table th,
+    body.protocol-ultra-dense .protocol-table td { height: 18px; padding: 1px 2px; }
+    body.protocol-ultra-dense .protocol-table .protocol-data-cell-first { width: 29px; }
+    body.protocol-ultra-dense .protocol-table .protocol-data-cell-second { width: 38px; }
+    body.protocol-ultra-dense .protocol-table .protocol-route-cell { width: 18px; min-width: 18px; max-width: 18px; height: 18px; padding: 1px; }
+    body.protocol-ultra-dense .route-marker { width: 11px; height: 11px; }
+    body.protocol-ultra-dense .route-marker.ready { width: 0; height: 0; border-left-width: 6px; border-right-width: 6px; border-bottom-width: 11px; }
+    body.protocol-ultra-dense .route-marker.done { width: 9px; height: 9px; }
+    body.protocol-ultra-dense .route-marker.paused:before,
+    body.protocol-ultra-dense .route-marker.paused:after { top: 0; bottom: 0; width: 3px; }
+    body.protocol-ultra-dense .route-marker.stopped:before,
+    body.protocol-ultra-dense .route-marker.stopped:after { left: 4px; width: 2px; height: 11px; }
+
+    .protocol-table tr.protocol-active td {
+      background: #204a36;
+    }
+
+    .protocol-table tr.protocol-ready td {
+      background: #4d4220;
+    }
+
+    .protocol-table tr.protocol-excluded td {
+      position: relative;
+    }
+
+    .protocol-table tr.protocol-excluded td:after {
+      content: "";
+      position: absolute;
+      z-index: 4;
+      top: 50%;
+      left: 0;
+      right: -1px;
+      height: 1px;
+      margin-top: -1px;
+      pointer-events: none;
+      background: #ff4b50;
+      box-shadow: 0 0 2px rgba(255, 75, 80, .72);
+    }
+
+    .protocol-table th.route-paused {
+      background: #7a6328;
+    }
+
+    .protocol-table th.route-stopped {
+      background: #7a3030;
+    }
+
+    .protocol-table th.route-paused-history {
+      box-shadow: inset 0 0 0 2px #d5ac43;
+    }
+
+    .protocol-table th.route-stopped-history {
+      box-shadow: inset 0 0 0 2px #cf5555;
+    }
+
+    .route-marker {
+      display: none;
+      position: relative;
+      width: 15px;
+      height: 15px;
+      margin: 0 auto;
+      box-sizing: border-box;
+    }
+
+    .route-marker.ready,
+    .route-marker.active,
+    .route-marker.done,
+    .route-marker.paused,
+    .route-marker.stopped {
+      display: block;
+    }
+
+    .route-marker.ready {
+      width: 0;
+      height: 0;
+      border-left: 8px solid transparent;
+      border-right: 8px solid transparent;
+      border-bottom: 14px solid #ffc857;
+    }
+
+    .route-marker.active {
+      border-radius: 50%;
+      background: #4fd18b;
+    }
+
+    .route-marker.done {
+      width: 12px;
+      height: 12px;
+      margin-top: 1px;
+      background: #f05a59;
+      -webkit-transform: rotate(45deg);
+      transform: rotate(45deg);
+    }
+
+    .route-marker.paused:before,
+    .route-marker.paused:after {
+      content: "";
+      position: absolute;
+      top: 1px;
+      bottom: 1px;
+      width: 4px;
+      background: #a8afb8;
+    }
+
+    .route-marker.paused:before { left: 2px; }
+    .route-marker.paused:after { right: 2px; }
+
+    .route-marker.stopped:before,
+    .route-marker.stopped:after {
+      content: "";
+      position: absolute;
+      left: 6px;
+      top: 0;
+      width: 3px;
+      height: 16px;
+      background: #f05a59;
+      -webkit-transform: rotate(45deg);
+      transform: rotate(45deg);
+    }
+
+    .route-marker.stopped:after {
+      -webkit-transform: rotate(-45deg);
+      transform: rotate(-45deg);
+    }
+
+    body.protocol-portrait #timerPane {
+      right: 0;
+      bottom: auto;
+    }
+
+    body.protocol-portrait #protocolPane {
+      left: 0;
+      width: auto;
+      top: 180px;
+      overflow-x: hidden;
+      overflow-y: auto;
+    }
+
+    body.protocol-portrait #protocolLayout {
+      height: auto;
+      overflow: visible;
+    }
+
+    body.protocol-portrait .protocol-column {
+      display: block;
+      width: 100%;
+      height: auto;
+      overflow: visible;
+    }
+
+    body.protocol-portrait .protocol-table {
+      width: 100%;
+      table-layout: fixed;
+    }
+
     #time {
       display: table-cell;
       width: 100%;
@@ -56,12 +458,17 @@
   </style>
 </head>
 <body>
-  <div id="wrap">
-    <div id="time">--:--</div>
+  <div id="timerPane">
+    <div id="wrap">
+      <div id="time">--:--</div>
+    </div>
   </div>
+  <div id="protocolPane"><div id="protocolLayout"></div></div>
 
+  <script src="lib/start-list-display.js?v=350"></script>
   <script>
     (function () {
+      var legacyBuildNumber = 350;
       var state = null;
       var serverOffset = 0;
       var lastContact = 0;
@@ -85,7 +492,22 @@
       };
       var manualLegacyUrl = /(?:^|[?&])manualLegacy=1(?:&|$)/.test(window.location.search || "");
       var legacySnapshotKey = "fdvBoulderingTimerLegacySnapshot";
+      var legacyProtocolSnapshotKey = "fdvBoulderingTimerLegacyProtocols";
       var legacySnapshotMaxAgeMs = 12 * 60 * 60 * 1000;
+      var protocolRevision = "";
+      var legacyProtocols = [];
+      var protocolViews = {};
+      var protocolStructureKey = "";
+      var protocolProgressKey = "";
+      var protocolLayoutKey = "";
+      var protocolDataDirty = true;
+      var protocolScrollbarWidth = null;
+      var protocolSizeKey = "";
+      var lastProtocolVerticalDensity = 0;
+      var protocolAppliedDensity = 0;
+      var lastLegacySnapshotSavedAt = 0;
+      var lastLegacySnapshotVersion = null;
+      var legacySnapshotSaveIntervalMs = 5000;
       var storedClientId = "";
       var storedFitText = "";
       try {
@@ -104,6 +526,9 @@
       }
       var wrapEl = document.getElementById("wrap");
       var timeEl = document.getElementById("time");
+      var timerPaneEl = document.getElementById("timerPane");
+      var protocolPaneEl = document.getElementById("protocolPane");
+      var protocolLayoutEl = document.getElementById("protocolLayout");
 
       function viewportWidth() {
         if (window.visualViewport && window.visualViewport.width) return Math.floor(window.visualViewport.width);
@@ -115,9 +540,184 @@
         return window.innerHeight || document.documentElement.clientHeight || document.body.clientHeight || 640;
       }
 
+      function nativeProtocolScrollbarWidth() {
+        var probe;
+        var width;
+        if (protocolScrollbarWidth !== null) return protocolScrollbarWidth;
+        probe = document.createElement("div");
+        probe.style.cssText = "position:absolute;left:-9999px;top:-9999px;width:100px;height:100px;overflow:scroll;";
+        document.body.appendChild(probe);
+        width = Math.max(0, probe.offsetWidth - probe.clientWidth);
+        document.body.removeChild(probe);
+        protocolScrollbarWidth = width || 14;
+        return protocolScrollbarWidth;
+      }
+
+      function setProtocolDensity(level) {
+        setBodyFlag("protocol-compact", level >= 1);
+        setBodyFlag("protocol-dense", level >= 2);
+        setBodyFlag("protocol-ultra-dense", level >= 3);
+      }
+
+      function protocolHighlightedIndexes(view) {
+        var result = [];
+        var i;
+        for (i = 0; i < view.rows.length; i += 1) {
+          if (view.rows[i].status === "active" || view.rows[i].status === "ready") result.push(i);
+        }
+        return result;
+      }
+
+      function protocolRowCapacity(view, density) {
+        var rowHeights = [30, 27, 24, 18];
+        var titleHeights = [30, 27, 25, 20];
+        var rowHeight = rowHeights[density] || rowHeights[0];
+        var titleHeight = view.list && view.list.title ? titleHeights[density] || titleHeights[0] : 0;
+        var scrollHeight = Math.max(0, (view.slot.clientHeight || 0) - titleHeight);
+        if (!scrollHeight) return 0;
+        return Math.max(1, Math.floor((scrollHeight - rowHeight) / rowHeight) - 1);
+      }
+
+      function minimumProtocolVerticalDensity() {
+        var required = 0;
+        var key;
+        var view;
+        var highlighted;
+        var span;
+        for (key in protocolViews) {
+          if (!Object.prototype.hasOwnProperty.call(protocolViews, key)) continue;
+          view = protocolViews[key];
+          highlighted = protocolHighlightedIndexes(view);
+          if (!highlighted.length) continue;
+          span = highlighted[highlighted.length - 1] - highlighted[0] + 1;
+          if (span >= protocolRowCapacity(view, 0)) required = Math.max(required, 1);
+          if (span >= protocolRowCapacity(view, 1)) required = Math.max(required, 2);
+          if (span >= protocolRowCapacity(view, 2)) required = Math.max(required, 3);
+        }
+        return required;
+      }
+
+      function measureProtocolColumns(columns, scrollbar) {
+        var widths = [];
+        var total = 0;
+        var tables;
+        var titles;
+        var width;
+        var i;
+        var j;
+        for (i = 0; i < columns.length; i += 1) columns[i].style.width = "1px";
+        for (i = 0; i < columns.length; i += 1) {
+          tables = columns[i].getElementsByTagName("table");
+          titles = columns[i].getElementsByClassName
+            ? columns[i].getElementsByClassName("protocol-title")
+            : [];
+          width = 0;
+          for (j = 0; j < tables.length; j += 1) width = Math.max(width, tables[j].offsetWidth, tables[j].scrollWidth);
+          for (j = 0; j < titles.length; j += 1) width = Math.max(width, titles[j].scrollWidth);
+          widths.push(Math.ceil(width + scrollbar + 1));
+          total += widths[i];
+        }
+        return { widths: widths, total: total };
+      }
+
+      function sizeProtocolPane(portrait, fullWidth) {
+        var columns;
+        var scrollbar;
+        var measurement;
+        var widths;
+        var total;
+        var maximum;
+        var scale;
+        var density = minimumProtocolVerticalDensity();
+        var previousDensity = protocolAppliedDensity;
+        var sizeKey = (protocolIsVisible() ? "visible" : "hidden") + ":"
+          + String(Boolean(portrait)) + ":" + String(fullWidth) + ":"
+          + protocolStructureKey + ":" + protocolLayoutKey + ":" + String(density);
+        var i;
+        if (sizeKey === protocolSizeKey) return;
+        protocolSizeKey = sizeKey;
+        if (!protocolIsVisible()) {
+          setProtocolDensity(0);
+          protocolAppliedDensity = 0;
+          lastProtocolVerticalDensity = 0;
+          timerPaneEl.style.right = "";
+          protocolPaneEl.style.width = "";
+          protocolLayoutEl.style.width = "";
+          return;
+        }
+        if (portrait) {
+          setProtocolDensity(0);
+          protocolAppliedDensity = 0;
+          lastProtocolVerticalDensity = 0;
+          timerPaneEl.style.right = "0";
+          protocolPaneEl.style.width = "";
+          protocolLayoutEl.style.width = "";
+          if (previousDensity !== protocolAppliedDensity) window.setTimeout(reanchorProtocolViews, 0);
+          return;
+        }
+        columns = protocolLayoutEl.getElementsByClassName
+          ? protocolLayoutEl.getElementsByClassName("protocol-column")
+          : [];
+        if (!columns.length) return;
+        scrollbar = nativeProtocolScrollbarWidth();
+        maximum = Math.max(1, fullWidth - Math.min(160, Math.floor(fullWidth * 0.16)));
+        lastProtocolVerticalDensity = density;
+        setProtocolDensity(density);
+        measurement = measureProtocolColumns(columns, scrollbar);
+        if (density < 1 && measurement.total > maximum) {
+          density = 1;
+          setProtocolDensity(density);
+          measurement = measureProtocolColumns(columns, scrollbar);
+        }
+        if (density < 2 && measurement.total > maximum) {
+          density = 2;
+          setProtocolDensity(density);
+          measurement = measureProtocolColumns(columns, scrollbar);
+        }
+        if (density < 3 && measurement.total > maximum) {
+          density = 3;
+          setProtocolDensity(density);
+          measurement = measureProtocolColumns(columns, scrollbar);
+        }
+        widths = measurement.widths;
+        total = measurement.total;
+        if (total > maximum) {
+          scale = maximum / total;
+          total = 0;
+          for (i = 0; i < widths.length; i += 1) {
+            widths[i] = Math.max(1, Math.floor(widths[i] * scale));
+            total += widths[i];
+          }
+        }
+        for (i = 0; i < columns.length; i += 1) columns[i].style.width = widths[i] + "px";
+        protocolPaneEl.style.width = total + "px";
+        protocolLayoutEl.style.width = total + "px";
+        timerPaneEl.style.right = total + "px";
+        protocolAppliedDensity = density;
+        if (previousDensity !== protocolAppliedDensity) {
+          reanchorProtocolViews();
+          window.setTimeout(reanchorProtocolViews, 0);
+          window.setTimeout(reanchorProtocolViews, 100);
+        }
+      }
+
       function syncViewportSize() {
-        var w = viewportWidth();
-        var h = viewportHeight();
+        var fullWidth = viewportWidth();
+        var fullHeight = viewportHeight();
+        var portrait = protocolIsVisible() && (fullWidth <= 560 || fullHeight > fullWidth * 1.15);
+        var timerHeight;
+        if (portrait) {
+          timerHeight = Math.max(150, Math.min(190, Math.floor(fullHeight * 0.26)));
+          timerPaneEl.style.height = timerHeight + "px";
+          protocolPaneEl.style.top = timerHeight + "px";
+        } else {
+          timerPaneEl.style.height = "";
+          protocolPaneEl.style.top = "0";
+        }
+        setBodyFlag("protocol-portrait", portrait);
+        sizeProtocolPane(portrait, fullWidth);
+        var w = timerPaneEl.clientWidth || fullWidth;
+        var h = timerPaneEl.clientHeight || (portrait ? timerHeight : fullHeight);
         if (w < 1) w = 360;
         if (h < 1) h = 640;
         wrapEl.style.width = w + "px";
@@ -195,9 +795,10 @@
 
       function scheduleViewportFit() {
         fitTimerText(true);
-        window.setTimeout(function () { fitTimerText(true); }, 100);
-        window.setTimeout(function () { fitTimerText(true); }, 300);
-        window.setTimeout(function () { fitTimerText(true); }, 700);
+        updateProtocolSlotHeights();
+        window.setTimeout(function () { fitTimerText(true); updateProtocolSlotHeights(); }, 100);
+        window.setTimeout(function () { fitTimerText(true); updateProtocolSlotHeights(); }, 300);
+        window.setTimeout(function () { fitTimerText(true); updateProtocolSlotHeights(); }, 700);
       }
 
       function fullscreenWanted() {
@@ -444,18 +1045,68 @@
         return clean;
       }
 
+      function compactRemoteState(remote) {
+        var compact = {};
+        var key;
+        for (key in remote) {
+          if (!Object.prototype.hasOwnProperty.call(remote, key)) continue;
+          if (key === "legacyProtocols" || key === "startLists") continue;
+          compact[key] = remote[key];
+        }
+        return compact;
+      }
+
       function saveLegacySnapshot(remote) {
+        var savedAtWall;
+        var remoteVersion;
         if (!remote || !window.localStorage || window.location.protocol === "file:") return;
+        savedAtWall = new Date().getTime();
+        remoteVersion = Number(remote.version);
+        if (lastLegacySnapshotSavedAt
+            && remoteVersion === lastLegacySnapshotVersion
+            && savedAtWall - lastLegacySnapshotSavedAt < legacySnapshotSaveIntervalMs) return;
         try {
           localStorage.setItem(legacySnapshotKey, JSON.stringify({
             schemaVersion: 1,
-            savedAtWall: new Date().getTime(),
+            savedAtWall: savedAtWall,
             serverNow: Number(remote.now || 0),
             serverOffset: Number(serverOffset || 0),
             clockSamples: cleanClockSamples(clockSamples),
-            state: remote
+            state: compactRemoteState(remote)
+          }));
+          lastLegacySnapshotSavedAt = savedAtWall;
+          lastLegacySnapshotVersion = remoteVersion;
+        } catch (error) {}
+      }
+
+      function saveLegacyProtocolSnapshot() {
+        if (!window.localStorage || window.location.protocol === "file:") return;
+        try {
+          localStorage.setItem(legacyProtocolSnapshotKey, JSON.stringify({
+            schemaVersion: 1,
+            savedAtWall: new Date().getTime(),
+            protocolRevision: protocolRevision,
+            protocols: legacyProtocols
           }));
         } catch (error) {}
+      }
+
+      function restoreLegacyProtocolSnapshot() {
+        var snapshot;
+        var age;
+        if (!window.localStorage || window.location.protocol === "file:") return false;
+        try {
+          snapshot = JSON.parse(localStorage.getItem(legacyProtocolSnapshotKey) || "null");
+        } catch (error) {
+          return false;
+        }
+        if (!snapshot || snapshot.schemaVersion !== 1 || !snapshot.protocolRevision || !snapshot.protocols) return false;
+        age = new Date().getTime() - Number(snapshot.savedAtWall || 0);
+        if (!isFinite(age) || age < 0 || age > legacySnapshotMaxAgeMs) return false;
+        protocolRevision = String(snapshot.protocolRevision || "");
+        legacyProtocols = cleanLegacyProtocols(snapshot.protocols);
+        protocolDataDirty = true;
+        return true;
       }
 
       function restoreLegacySnapshot() {
@@ -546,11 +1197,612 @@
         return { phase: "rotation", seconds: rotation - pos, isBreak: false, warning: rotation - pos <= 5 };
       }
 
+      function hasClass(element, name) {
+        return (" " + String(element.className || "") + " ").indexOf(" " + name + " ") >= 0;
+      }
+
+      function setBodyFlag(name, enabled) {
+        var classes = String(document.body.className || "").split(/\s+/);
+        var next = [];
+        var found = false;
+        var nextClassName;
+        var i;
+        for (i = 0; i < classes.length; i += 1) {
+          if (!classes[i]) continue;
+          if (classes[i] === name) {
+            found = true;
+            if (enabled) next.push(classes[i]);
+          } else {
+            next.push(classes[i]);
+          }
+        }
+        if (enabled && !found) next.push(name);
+        nextClassName = next.join(" ");
+        if (document.body.className !== nextClassName) document.body.className = nextClassName;
+      }
+
+      function cleanLegacyProtocols(value) {
+        var source = Object.prototype.toString.call(value) === "[object Array]" ? value : [];
+        var clean = [];
+        var i;
+        var entry;
+        var list;
+        for (i = 0; i < source.length && clean.length < 4; i += 1) {
+          entry = source[i];
+          list = entry && entry.list;
+          if (!list || Object.prototype.toString.call(list.headers) !== "[object Array]"
+              || Object.prototype.toString.call(list.rows) !== "[object Array]") continue;
+          clean.push({ index: Math.max(0, Math.min(3, Math.round(Number(entry.index) || 0))), list: list });
+        }
+        clean.sort(function (left, right) { return left.index - right.index; });
+        return clean;
+      }
+
+      function protocolDisplayPreset() {
+        if (!state) return "";
+        return state.running || Number(state.elapsedBeforePause || 0) > 0 || state.completed
+          ? String(state.runtimePreset || state.activePreset || "")
+          : String(state.activePreset || "");
+      }
+
+      function protocolIsVisible() {
+        var preset = protocolDisplayPreset();
+        return Boolean(state && state.startListEnabled && legacyProtocols.length
+          && (preset === "classic" || preset === "final"));
+      }
+
+      function protocolRawSettings() {
+        var started = state && (state.running || Number(state.elapsedBeforePause || 0) > 0 || state.completed);
+        if (!state) return {};
+        return started ? (state.activeSettings || {}) : (state.draftSettings || state.activeSettings || {});
+      }
+
+      function currentProtocolPosition(view) {
+        var settings = activeSettings();
+        var elapsed = elapsedSeconds();
+        var preset = protocolDisplayPreset();
+        var secondsUntilStart;
+        var scheduledCountdown;
+        var completedCycles;
+        var cycleLength;
+        var cycle;
+        if (!state || !legacyProtocols.length) return { cycle: 0, phase: "ready" };
+        secondsUntilStart = Math.max(0, (Number(state.startedAt || 0) - serverNow()) / 1000);
+        scheduledCountdown = state.countdownOnly
+          || (state.running && Number(state.startedAt || 0) > serverNow() && !state.manualStartDisplayHold);
+        if (scheduledCountdown) {
+          return {
+            cycle: window.FDVStartListDisplay.scheduledCycle(secondsUntilStart, settings.rotationSeconds),
+            phase: "ready",
+            scheduled: true
+          };
+        }
+        if (preset === "final") {
+          completedCycles = Math.max(0, Math.round(Number(state.startListFinalCycle) || 0));
+          if (!state.running && !state.completed && Number(state.elapsedBeforePause || 0) === 0) {
+            return completedCycles
+              ? { cycle: completedCycles, phase: "completed" }
+              : { cycle: 0, phase: "ready" };
+          }
+          return {
+            cycle: completedCycles + 1,
+            phase: state.completed || view.phase === "done" ? "completed" : (view.isBreak ? "break" : "rotation")
+          };
+        }
+        if (!state.running && Number(state.elapsedBeforePause || 0) === 0) return { cycle: 0, phase: "ready" };
+        cycleLength = settings.rotationSeconds + settings.breakSeconds;
+        cycle = cycleLength > 0 ? Math.floor(Math.max(0, elapsed) / cycleLength) + 1 : 0;
+        return { cycle: cycle, phase: view.isBreak ? "break" : "rotation" };
+      }
+
+      function protocolSchedule(list) {
+        var settings = protocolRawSettings();
+        if (protocolDisplayPreset() !== "final") return {};
+        return {
+          finalFormat: settings.finalRoundFormat === "new" ? "new" : "old",
+          restRotations: Number(settings.finalRestRotations) || 3,
+          participantCount: list && list.rows
+            ? window.FDVStartListDisplay.includedParticipantCount(list.rows.length, list.excludedParticipants) || 1
+            : 1
+        };
+      }
+
+      function protocolScheduleKey(schedule) {
+        return String(schedule.finalFormat || "classic") + ":"
+          + String(schedule.restRotations || 0) + ":" + String(schedule.participantCount || 0);
+      }
+
+      function protocolMarkerLabel(status) {
+        var english = state && (state.language === "en" || (state.config && state.config.language === "en"));
+        var labelsEn = { ready: "Preparing", active: "Climbing", done: "Completed", paused: "Paused", stopped: "Route stopped" };
+        var labelsRu = { ready: "Подготовка", active: "На трассе", done: "Завершено", paused: "Пауза", stopped: "Трасса остановлена" };
+        return (english ? labelsEn : labelsRu)[status] || "";
+      }
+
+      function protocolStructuralValue() {
+        var result = [];
+        var i;
+        var entry;
+        for (i = 0; i < legacyProtocols.length; i += 1) {
+          entry = legacyProtocols[i];
+          result.push({
+            index: entry.index,
+            title: entry.list.title || "",
+            headers: entry.list.headers,
+            rows: entry.list.rows,
+            routeCount: entry.list.routeCount,
+            excludedParticipants: entry.list.excludedParticipants || []
+          });
+        }
+        return result;
+      }
+
+      function appendCellBucket(bucket, cycle, cell) {
+        var key = String(cycle);
+        if (!bucket[key]) bucket[key] = [];
+        bucket[key].push(cell);
+      }
+
+      function buildTransitionIndex(view, schedule, scheduleKey) {
+        var incidents = window.FDVStartListDisplay.rebaseIncidents(
+          view.list.incidents,
+          view.list.excludedParticipants,
+          view.list.rows.length
+        );
+        var transitions = {};
+        var active = {};
+        var participantIndex;
+        var routeIndex;
+        var cell;
+        var activeCycle;
+        if (incidents.length) {
+          view.transitionIndex = null;
+          view.transitionScheduleKey = scheduleKey;
+          return;
+        }
+        for (participantIndex = 0; participantIndex < view.rows.length; participantIndex += 1) {
+          if (view.rows[participantIndex].excluded) continue;
+          for (routeIndex = 0; routeIndex < view.rows[participantIndex].cells.length; routeIndex += 1) {
+            cell = view.rows[participantIndex].cells[routeIndex];
+            activeCycle = window.FDVStartListDisplay.attemptCycle(cell.calculationParticipantIndex, routeIndex, schedule);
+            appendCellBucket(transitions, activeCycle - 1, cell);
+            appendCellBucket(transitions, activeCycle, cell);
+            appendCellBucket(transitions, activeCycle + 1, cell);
+            appendCellBucket(active, activeCycle, cell);
+          }
+        }
+        view.transitionIndex = { transitions: transitions, active: active };
+        view.transitionScheduleKey = scheduleKey;
+      }
+
+      function buildProtocolTable(entry, slot) {
+        var list = entry.list;
+        var title = document.createElement("div");
+        var scroll = document.createElement("div");
+        var table = document.createElement("table");
+        var thead = document.createElement("thead");
+        var headRow = document.createElement("tr");
+        var tbody = document.createElement("tbody");
+        var routeHeaders = [];
+        var rows = [];
+        var i;
+        var j;
+        var th;
+        var tr;
+        var td;
+        var markerEl;
+        var excludedParticipants = window.FDVStartListDisplay.normalizeExcludedParticipants(list.excludedParticipants, list.rows.length);
+        var excluded;
+        var calculationParticipantIndex;
+        var english = state && (state.language === "en" || (state.config && state.config.language === "en"));
+        title.className = list.title ? "protocol-title" : "protocol-title protocol-title-empty";
+        title.appendChild(document.createTextNode(String(list.title || "")));
+        slot.className = list.title ? "protocol-slot" : "protocol-slot protocol-without-title";
+        scroll.className = "protocol-scroll";
+        table.className = "protocol-table";
+        for (i = 0; i < list.headers.length; i += 1) {
+          th = document.createElement("th");
+          th.className = "protocol-data-cell" + (i === 0 ? " protocol-data-cell-first" : i === 1 ? " protocol-data-cell-second" : "");
+          th.title = String(list.headers[i] || "");
+          th.appendChild(document.createTextNode(String(list.headers[i] || "")));
+          headRow.appendChild(th);
+        }
+        for (i = 0; i < list.routeCount; i += 1) {
+          th = document.createElement("th");
+          th.className = "protocol-route-cell";
+          th.title = (english ? "Route " : "Трасса ") + String(i + 1);
+          th.appendChild(document.createTextNode(list.routeCount === 1 ? (english ? "R" : "T") : String(i + 1)));
+          headRow.appendChild(th);
+          routeHeaders.push({ element: th, status: "" });
+        }
+        thead.appendChild(headRow);
+        table.appendChild(thead);
+        for (i = 0; i < list.rows.length; i += 1) {
+          tr = document.createElement("tr");
+          excluded = excludedParticipants.indexOf(i) !== -1;
+          calculationParticipantIndex = window.FDVStartListDisplay.participantScheduleIndex(i, excludedParticipants, list.rows.length);
+          if (excluded) tr.className = "protocol-excluded";
+          for (j = 0; j < list.headers.length; j += 1) {
+            td = document.createElement("td");
+            td.className = "protocol-data-cell" + (j === 0 ? " protocol-data-cell-first" : j === 1 ? " protocol-data-cell-second" : "");
+            td.title = String(list.rows[i][j] || "");
+            td.appendChild(document.createTextNode(String(list.rows[i][j] || "")));
+            tr.appendChild(td);
+          }
+          var routeCells = [];
+          for (j = 0; j < list.routeCount; j += 1) {
+            td = document.createElement("td");
+            td.className = "protocol-route-cell";
+            markerEl = document.createElement("span");
+            markerEl.className = "route-marker";
+            td.appendChild(markerEl);
+            tr.appendChild(td);
+            routeCells.push({ element: markerEl, status: "", participantIndex: i, calculationParticipantIndex: calculationParticipantIndex, routeIndex: j });
+          }
+          tbody.appendChild(tr);
+          rows.push({ element: tr, cells: routeCells, status: "", excluded: excluded });
+        }
+        table.appendChild(tbody);
+        scroll.appendChild(table);
+        slot.appendChild(title);
+        slot.appendChild(scroll);
+        return {
+          index: entry.index,
+          list: list,
+          slot: slot,
+          scroll: scroll,
+          table: table,
+          rows: rows,
+          routeHeaders: routeHeaders,
+          lastCycle: null,
+          lastPhase: "",
+          lastScheduleKey: "",
+          dataRevision: "",
+          transitionIndex: null,
+          transitionScheduleKey: ""
+        };
+      }
+
+      function protocolColumns() {
+        if (legacyProtocols.length === 2 && state && state.startListParallel) {
+          return [[legacyProtocols[0]], [legacyProtocols[1]]];
+        }
+        if (legacyProtocols.length > 2) return [legacyProtocols.slice(0, 2), legacyProtocols.slice(2, 4)];
+        return [legacyProtocols.slice(0)];
+      }
+
+      function rebuildProtocolStructure() {
+        var columns = protocolColumns();
+        var column;
+        var slot;
+        var view;
+        var i;
+        var j;
+        protocolLayoutEl.innerHTML = "";
+        protocolViews = {};
+        protocolSizeKey = "";
+        for (i = 0; i < columns.length; i += 1) {
+          if (!columns[i].length) continue;
+          column = document.createElement("div");
+          column.className = columns.length === 1 ? "protocol-column protocol-column-only" : "protocol-column";
+          for (j = 0; j < columns[i].length; j += 1) {
+            slot = document.createElement("div");
+            slot.style.height = String(100 / columns[i].length) + "%";
+            view = buildProtocolTable(columns[i][j], slot);
+            protocolViews[String(view.index)] = view;
+            column.appendChild(slot);
+          }
+          protocolLayoutEl.appendChild(column);
+        }
+        protocolProgressKey = "";
+        scheduleViewportFit();
+      }
+
+      function ensureProtocolStructure() {
+        var structureKey = protocolDataDirty ? JSON.stringify(protocolStructuralValue()) : protocolStructureKey;
+        var layoutKey = legacyProtocols.map(function (entry) { return entry.index; }).join(",")
+          + ":" + String(Boolean(state && state.startListParallel))
+          + ":" + String(state && (state.language || (state.config && state.config.language)) || "ru");
+        var i;
+        var view;
+        if (structureKey !== protocolStructureKey || layoutKey !== protocolLayoutKey) {
+          protocolStructureKey = structureKey;
+          protocolLayoutKey = layoutKey;
+          protocolDataDirty = false;
+          rebuildProtocolStructure();
+          return;
+        }
+        for (i = 0; i < legacyProtocols.length; i += 1) {
+          view = protocolViews[String(legacyProtocols[i].index)];
+          if (view) view.list = legacyProtocols[i].list;
+        }
+        protocolDataDirty = false;
+      }
+
+      function updateProtocolMarker(cell, status) {
+        if (cell.status === status) return false;
+        cell.status = status;
+        cell.element.className = status ? "route-marker " + status : "route-marker";
+        cell.element.title = protocolMarkerLabel(status);
+        return true;
+      }
+
+      function updateProtocolRow(view, participantIndex) {
+        var row = view.rows[participantIndex];
+        var next = "";
+        var i;
+        if (!row) return;
+        if (row.excluded) {
+          row.status = "";
+          row.element.className = "protocol-excluded";
+          return;
+        }
+        for (i = 0; i < row.cells.length; i += 1) {
+          if (row.cells[i].status === "active") {
+            next = "active";
+            break;
+          }
+          if (row.cells[i].status === "ready") next = "ready";
+        }
+        if (row.status === next) return;
+        row.status = next;
+        row.element.className = next ? "protocol-" + next : "";
+      }
+
+      function updateProtocolHeaders(view, cycle) {
+        var incidents = window.FDVStartListDisplay.rebaseIncidents(
+          view.list.incidents,
+          view.list.excludedParticipants,
+          view.list.rows.length
+        );
+        var i;
+        var status;
+        var header;
+        for (i = 0; i < view.routeHeaders.length; i += 1) {
+          status = window.FDVStartListDisplay.routeState(i, cycle, incidents);
+          header = view.routeHeaders[i];
+          if (header.status === status) continue;
+          header.status = status;
+          header.element.className = "protocol-route-cell" + (status ? " route-" + status : "");
+        }
+      }
+
+      function evaluateProtocolCells(view, position, schedule, candidates) {
+        var incidents = window.FDVStartListDisplay.rebaseIncidents(
+          view.list.incidents,
+          view.list.excludedParticipants,
+          view.list.rows.length
+        );
+        var dirtyRows = {};
+        var participantIndex;
+        var routeIndex;
+        var cell;
+        var status;
+        var i;
+        if (candidates) {
+          for (i = 0; i < candidates.length; i += 1) {
+            cell = candidates[i];
+            status = cell.calculationParticipantIndex < 0 ? "" : window.FDVStartListDisplay.marker(
+              cell.calculationParticipantIndex,
+              cell.routeIndex,
+              position.cycle,
+              position.phase,
+              incidents,
+              schedule
+            );
+            if (updateProtocolMarker(cell, status)) dirtyRows[String(cell.participantIndex)] = true;
+          }
+        } else {
+          for (participantIndex = 0; participantIndex < view.rows.length; participantIndex += 1) {
+            for (routeIndex = 0; routeIndex < view.rows[participantIndex].cells.length; routeIndex += 1) {
+              cell = view.rows[participantIndex].cells[routeIndex];
+              status = cell.calculationParticipantIndex < 0 ? "" : window.FDVStartListDisplay.marker(
+                cell.calculationParticipantIndex,
+                routeIndex,
+                position.cycle,
+                position.phase,
+                incidents,
+                schedule
+              );
+              if (updateProtocolMarker(cell, status)) dirtyRows[String(participantIndex)] = true;
+            }
+          }
+        }
+        for (participantIndex in dirtyRows) {
+          if (Object.prototype.hasOwnProperty.call(dirtyRows, participantIndex)) {
+            updateProtocolRow(view, Number(participantIndex));
+          }
+        }
+      }
+
+      function uniqueProtocolCells(source) {
+        var result = [];
+        var seen = {};
+        var i;
+        var cell;
+        var key;
+        source = source || [];
+        for (i = 0; i < source.length; i += 1) {
+          cell = source[i];
+          key = String(cell.participantIndex) + ":" + String(cell.routeIndex);
+          if (seen[key]) continue;
+          seen[key] = true;
+          result.push(cell);
+        }
+        return result;
+      }
+
+      function fastProtocolCandidates(view, position, scheduleKey) {
+        var index = view.transitionIndex;
+        var source;
+        if (!index || view.transitionScheduleKey !== scheduleKey || view.dataRevision !== protocolRevision) return null;
+        if (position.cycle === view.lastCycle + 1) {
+          source = index.transitions[String(position.cycle)] || [];
+          return uniqueProtocolCells(source);
+        }
+        if (position.cycle === view.lastCycle
+            && position.phase !== view.lastPhase
+            && (position.phase === "break" || position.phase === "completed")) {
+          source = index.active[String(position.cycle)] || [];
+          return uniqueProtocolCells(source);
+        }
+        return null;
+      }
+
+      function cachedProtocolAnchor(view, cycle) {
+        var participantIndex;
+        var routeIndex;
+        var completed;
+        var status;
+        if (cycle <= 0) return 0;
+        for (participantIndex = 0; participantIndex < view.rows.length; participantIndex += 1) {
+          if (view.rows[participantIndex].excluded) continue;
+          completed = true;
+          for (routeIndex = 0; routeIndex < view.rows[participantIndex].cells.length; routeIndex += 1) {
+            status = view.rows[participantIndex].cells[routeIndex].status;
+            if (status !== "done" && status !== "stopped") {
+              completed = false;
+              break;
+            }
+          }
+          if (!completed) return Math.max(0, participantIndex - 1);
+        }
+        return Math.max(0, view.rows.length - 1);
+      }
+
+      function scrollProtocolToAnchor(view, anchor, settle) {
+        var pass = 0;
+        var left = view.scroll.scrollLeft;
+        function apply() {
+          var header = view.table.getElementsByTagName("thead")[0];
+          var headerHeight = header ? header.offsetHeight : 0;
+          var sampleRow = view.rows[0] && view.rows[0].element;
+          var rowHeight = sampleRow ? sampleRow.offsetHeight : 1;
+          var capacity = Math.max(1, Math.floor((view.scroll.clientHeight - headerHeight) / rowHeight) - 1);
+          var highlighted = protocolHighlightedIndexes(view);
+          var prioritizedAnchor = window.FDVStartListDisplay.prioritizedScrollAnchor(anchor, highlighted, capacity);
+          if (highlighted.length
+              && highlighted[highlighted.length - 1] - highlighted[0] + 1 >= capacity) {
+            prioritizedAnchor = highlighted[0];
+          }
+          var row = view.rows[prioritizedAnchor] && view.rows[prioritizedAnchor].element;
+          var scrollRect;
+          var rowRect;
+          var firstHighlightedRow;
+          var lastHighlightedRow;
+          var firstHighlightedRect;
+          var lastHighlightedRect;
+          var visibleTop;
+          var visibleBottom;
+          if (!row) return;
+          scrollRect = view.scroll.getBoundingClientRect();
+          rowRect = row.getBoundingClientRect();
+          view.scroll.scrollTop = Math.max(0, view.scroll.scrollTop + rowRect.top - scrollRect.top - headerHeight);
+          if (highlighted.length) {
+            firstHighlightedRow = view.rows[highlighted[0]] && view.rows[highlighted[0]].element;
+            lastHighlightedRow = view.rows[highlighted[highlighted.length - 1]] && view.rows[highlighted[highlighted.length - 1]].element;
+            if (firstHighlightedRow && lastHighlightedRow) {
+              scrollRect = view.scroll.getBoundingClientRect();
+              firstHighlightedRect = firstHighlightedRow.getBoundingClientRect();
+              lastHighlightedRect = lastHighlightedRow.getBoundingClientRect();
+              visibleTop = scrollRect.top + headerHeight;
+              visibleBottom = scrollRect.top + view.scroll.clientHeight;
+              if (firstHighlightedRect.top < visibleTop - 1 || lastHighlightedRect.bottom > visibleBottom + 1) {
+                view.scroll.scrollTop = Math.max(0, view.scroll.scrollTop + firstHighlightedRect.top - visibleTop);
+              }
+            }
+          }
+          view.scroll.scrollLeft = left;
+          pass += 1;
+          if (settle && pass < 5) window.setTimeout(apply, pass * 40);
+        }
+        window.setTimeout(apply, 0);
+      }
+
+      function reanchorProtocolViews() {
+        var position;
+        var key;
+        var view;
+        if (!state) return;
+        position = currentProtocolPosition(currentDisplay());
+        for (key in protocolViews) {
+          if (!Object.prototype.hasOwnProperty.call(protocolViews, key)) continue;
+          view = protocolViews[key];
+          scrollProtocolToAnchor(view, cachedProtocolAnchor(view, position.cycle), true);
+        }
+      }
+
+      function updateProtocolView(view, position) {
+        var schedule = protocolSchedule(view.list);
+        var scheduleKey = protocolScheduleKey(schedule);
+        var candidates;
+        var fullUpdate;
+        var anchor;
+        if (view.transitionScheduleKey !== scheduleKey || view.dataRevision !== protocolRevision) {
+          buildTransitionIndex(view, schedule, scheduleKey);
+        }
+        candidates = fastProtocolCandidates(view, position, scheduleKey);
+        fullUpdate = candidates === null;
+        evaluateProtocolCells(view, position, schedule, candidates);
+        updateProtocolHeaders(view, position.cycle);
+        anchor = cachedProtocolAnchor(view, position.cycle);
+        scrollProtocolToAnchor(view, anchor, view.lastCycle === null);
+        view.lastCycle = position.cycle;
+        view.lastPhase = position.phase;
+        view.lastScheduleKey = scheduleKey;
+        view.dataRevision = protocolRevision;
+        return fullUpdate;
+      }
+
+      function updateProtocolSlotHeights() {
+        var portrait = hasClass(document.body, "protocol-portrait");
+        var slots = protocolLayoutEl.getElementsByClassName
+          ? protocolLayoutEl.getElementsByClassName("protocol-slot")
+          : [];
+        var available = Math.max(220, protocolPaneEl.clientHeight || 400);
+        var height = Math.max(220, Math.floor(available / Math.min(2, Math.max(1, slots.length))));
+        var i;
+        if (!portrait) return;
+        for (i = 0; i < slots.length; i += 1) slots[i].style.height = height + "px";
+      }
+
+      function renderProtocols(view) {
+        var visible = protocolIsVisible();
+        var position;
+        var progressKey;
+        var key;
+        setBodyFlag("protocol-visible", visible);
+        protocolPaneEl.style.display = visible ? "block" : "none";
+        if (!visible) {
+          protocolProgressKey = "";
+          return;
+        }
+        ensureProtocolStructure();
+        position = currentProtocolPosition(view);
+        progressKey = protocolRevision + ":" + String(position.cycle) + ":" + position.phase
+          + ":" + protocolScheduleKey(protocolSchedule(legacyProtocols[0] && legacyProtocols[0].list));
+        if (progressKey === protocolProgressKey) return;
+        protocolProgressKey = progressKey;
+        for (key in protocolViews) {
+          if (Object.prototype.hasOwnProperty.call(protocolViews, key)) {
+            updateProtocolView(protocolViews[key], position);
+          }
+        }
+        if (minimumProtocolVerticalDensity() !== lastProtocolVerticalDensity) {
+          protocolSizeKey = "";
+          syncViewportSize();
+        }
+      }
+
       function render() {
         var view = currentDisplay();
         var online = new Date().getTime() - lastContact < 5000;
-        document.body.className = (view.isBreak ? "break-active " : "") + (view.warning ? "warning-active " : "") + (online ? "" : "offline");
-        document.body.style.backgroundColor = view.isBreak ? timerColors.breakBg : view.warning ? timerColors.warningBg : timerColors.rotationBg;
+        setBodyFlag("break-active", view.isBreak);
+        setBodyFlag("warning-active", view.warning);
+        setBodyFlag("offline", !online);
+        renderProtocols(view);
+        timerPaneEl.style.backgroundColor = view.isBreak ? timerColors.breakBg : view.warning ? timerColors.warningBg : timerColors.rotationBg;
+        document.body.style.backgroundColor = "#161b22";
         timeEl.style.color = view.isBreak ? timerColors.breakText : view.warning ? timerColors.warningText : timerColors.rotationText;
         var label = formatTime(view.seconds);
         if (timeEl.innerHTML !== label) {
@@ -616,7 +1868,15 @@
 
       function requestState() {
         var xhr = new XMLHttpRequest();
-        var url = "/api/state?legacy=1" + (manualLegacyUrl ? "&manualLegacy=1" : "") + (isOldBrowser ? "&oldBrowser=1" : "") + "&clientId=" + encodeURIComponent(clientId);
+        var reportedScreen = window.screen
+          ? String(window.screen.width || 0) + "x" + String(window.screen.height || 0)
+          : "";
+        var url = "/api/state?legacy=1" + (manualLegacyUrl ? "&manualLegacy=1" : "") + (isOldBrowser ? "&oldBrowser=1" : "") + "&clientId=" + encodeURIComponent(clientId)
+          + "&protocolRevision=" + encodeURIComponent(protocolRevision)
+          + "&viewport=" + encodeURIComponent(String(viewportWidth()) + "x" + String(viewportHeight()))
+          + "&screen=" + encodeURIComponent(reportedScreen)
+          + "&dpr=" + encodeURIComponent(String(window.devicePixelRatio || 1))
+          + "&clientBuild=" + encodeURIComponent(String(legacyBuildNumber));
         abortStaleRequest();
         if (activeRequest) return;
         activeRequest = xhr;
@@ -655,12 +1915,21 @@
             window.location.replace("/");
             return;
           }
-          state = remote;
+          if (Object.prototype.hasOwnProperty.call(remote, "legacyProtocols")) {
+            legacyProtocols = cleanLegacyProtocols(remote.legacyProtocols);
+            protocolRevision = String(remote.protocolRevision || "");
+            protocolDataDirty = true;
+            protocolProgressKey = "";
+            saveLegacyProtocolSnapshot();
+          } else if (remote.protocolRevision) {
+            protocolRevision = String(remote.protocolRevision);
+          }
+          state = compactRemoteState(remote);
           applyTitle(remote.language || (remote.config && remote.config.language));
           applyTimerFont(remote.config);
           applyTimerColors(remote.config);
           updateServerOffset(remote.now, requestStartedAt || responseReceivedAt, responseReceivedAt);
-          saveLegacySnapshot(remote);
+          saveLegacySnapshot(state);
           lastContact = responseReceivedAt;
           scheduleRender(render());
           scheduleRequest(1000);
@@ -686,6 +1955,7 @@
       }
 
       registerOfflineServiceWorker();
+      restoreLegacyProtocolSnapshot();
       restoreLegacySnapshot();
       requestState();
       scheduleRender(render());

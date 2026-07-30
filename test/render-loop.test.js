@@ -68,7 +68,11 @@ test("start-list switch follows the primary switch and supports four dynamic pro
   assert.match(index, /state\.startListEnabled = Boolean\(remote\.startListEnabled\)[\s\S]*?startListEditorOpen = state\.startListEnabled[\s\S]*?els\.startListToggle\.checked = startListEditorOpen/);
   assert.match(index, /startListToggle\.addEventListener\("change", async \(\) => \{[\s\S]*?sendServerAction\("startListEnabled", \{ enabled: startListEditorOpen \}\)/);
   assert.match(index, /PROTOCOL \$\{listIndex \+ 1\}[\s\S]*?data-start-list-index="\$\{listIndex\}"/);
+  assert.match(index, /\.diag-row \{[\s\S]*?margin-top: 2px;[\s\S]*?margin-left: -4px;/);
+  assert.match(index, /\.start-list-diag-row \{ margin-top: 4px; \}/);
   assert.match(index, /loadStartListNumber: "Загрузить протокол \{number\}"/);
+  assert.match(index, /loadStartListCompact: "Загрузить…"/);
+  assert.match(index, /class="start-list-file-button" title="\$\{escapeHtml\(formatStartListText\("loadStartListNumber"[\s\S]*?<span>\$\{escapeHtml\(t\("loadStartListCompact"\)\)\}<\/span>/);
   assert.match(index, /function defaultStartListRouteCount\(\) \{\s*return isFinalMode\(\) \? 4 : 5;\s*\}/);
   assert.match(index, /value="\$\{list\?\.routeCount \|\| defaultStartListRouteCount\(\)\}"/);
   assert.match(index, /start-list-available clickable[\s\S]*?start-list-selected/);
@@ -99,6 +103,9 @@ test("cycle plaque becomes an editable synchronized cycle selector while stopped
 
 test("start-list width uses stable intrinsic content measurements and reserves scrollbar space", () => {
   assert.match(index, /\.start-list-table \{ width: max-content; border-collapse:/);
+  assert.match(index, /\.start-list-table \{[^}]*font-size: 12px;[^}]*line-height: 16px;/);
+  assert.match(index, /\.start-list-title-bar \{[\s\S]*?font-size: 13px;[\s\S]*?text-align: center;/);
+  assert.match(index, /\.start-list-table \.route-cell \{[^}]*width: 30px;[^}]*min-width: 30px;[^}]*max-width: 30px;[^}]*height: 30px;/);
   assert.doesNotMatch(index, /\.start-list-table \{[^}]*min-width: 100%/);
   assert.match(index, /function browserScrollbarWidth\(\)[\s\S]*?overflow:scroll[\s\S]*?probe\.offsetWidth - probe\.clientWidth/);
   assert.match(index, /function intrinsicStartListTableWidth\(table\)[\s\S]*?table\.style\.minWidth = "0"[\s\S]*?getBoundingClientRect\(\)\.width[\s\S]*?table\.style\.minWidth = previousMinWidth/);
@@ -106,15 +113,17 @@ test("start-list width uses stable intrinsic content measurements and reserves s
   assert.match(index, /const scrollbarRoundingAllowance = 2/);
   assert.match(index, /const maximumContentWidth = Math\.min\(window\.innerWidth \* 0\.5, 700\)/);
   assert.match(index, /Math\.max\(maximum, intrinsicStartListTableWidth\(table\)\)/);
-  assert.match(index, /function intrinsicStartListControlsWidth\(controls\)[\s\S]*?controls\.style\.width = "max-content"[\s\S]*?getBoundingClientRect\(\)\.width[\s\S]*?controls\.style\.width = previousWidth/);
-  assert.match(index, /Math\.max\(maximum, intrinsicStartListControlsWidth\(controls\)\)[\s\S]*?Math\.max\(tableWidth, controlsWidth\)/);
+  assert.match(index, /function intrinsicStartListControlsWidth\(controls\)[\s\S]*?controls\.children[\s\S]*?start-list-file-button[\s\S]*?child\.querySelector\("span"\)\?\.scrollWidth[\s\S]*?childStyle\.paddingLeft[\s\S]*?labelWidth \+ childFrame/);
+  assert.match(index, /\.start-list-panel-controls \{[\s\S]*?min-width: 0;/);
+  assert.doesNotMatch(index, /\.start-list-file-button span \{[^}]*text-overflow: ellipsis;/);
+  assert.match(index, /Math\.max\(maximum, intrinsicStartListControlsWidth\(controls\)\)[\s\S]*?Math\.max\(tableWidth \+ scrollbarAllowance, controlsWidth\)/);
   assert.doesNotMatch(index, /Math\.max\(maximum, controls\.scrollWidth\)/);
   assert.match(index, /function synchronizeStackedStartListTableColumns\(column\)[\s\S]*?tables\.length < 2[\s\S]*?columnGroups\.some\(\(group\) => group\.length !== columnCount\)[\s\S]*?synchronizedWidths\[index\][\s\S]*?tableColumn\.style\.width = `\$\{synchronizedWidths\[index\]\}px`/);
   assert.match(index, /synchronizeStackedStartListTableColumns\(column\);[\s\S]*?intrinsicStartListTableWidth\(table\)/);
   assert.match(index, /<table class="start-list-table"><colgroup>\$\{tableColumns\}<\/colgroup>/);
   assert.match(index, /scroll\.offsetWidth - scroll\.clientWidth\), nativeScrollbarWidth\)[\s\S]*?\+ scrollbarRoundingAllowance/);
-  assert.match(index, /const measuredContentWidth = Math\.max\(tableWidth, controlsWidth\)/);
-  assert.match(index, /contentWidth \+ scrollbarAllowance/);
+  assert.match(index, /const measuredContentWidth = Math\.max\(tableWidth \+ scrollbarAllowance, controlsWidth\)/);
+  assert.match(index, /width: measuredContentWidth \? Math\.max\(minimumColumnWidth, contentWidth\) : minimumColumnWidth/);
   assert.match(index, /Math\.min\(window\.innerWidth \* 0\.72, 1400\) \+ scrollbarAllowance/);
   assert.match(index, /els\.startListPanel\.style\.maxWidth = `\$\{panelLimit\}px`/);
   assert.match(index, /function scheduleStartListPanelWidthFit\(\)[\s\S]*?const overflow = fitStartListPanelWidth\(\)[\s\S]*?pass < 2 \|\| \(overflow > 0 && pass < 6\)[\s\S]*?requestAnimationFrame\(settleWidth\)/);
@@ -122,15 +131,66 @@ test("start-list width uses stable intrinsic content measurements and reserves s
   assert.match(index, /fitStartListPanelWidth\(\);\s*scheduleStartListPanelWidthFit\(\);/);
 });
 
+test("modern start lists raise vertical density only when their highlighted range does not fit", () => {
+  assert.match(index, /body\.start-list-compact \.start-list-table \{ font-size: 11px; line-height: 15px; \}/);
+  assert.match(index, /body\.start-list-dense \.start-list-table \{ font-size: 10px; line-height: 14px; \}/);
+  assert.match(index, /body\.start-list-ultra-dense \.start-list-table \{ font-size: 9px; line-height: 12px; \}/);
+  assert.match(index, /const rowHeights = \[30, 27, 24, 18\];[\s\S]*?const titleHeights = \[30, 27, 25, 20\]/);
+  assert.match(index, /function minimumStartListVerticalDensity\(\)[\s\S]*?span > startListRowCapacity\(scroll, 0, currentDensity\)[\s\S]*?span > startListRowCapacity\(scroll, 1, currentDensity\)[\s\S]*?span > startListRowCapacity\(scroll, 2, currentDensity\)/);
+  assert.match(index, /Math\.floor\(\(availableHeight - rowHeights\[density\]\) \/ rowHeights\[density\]\) - 1/);
+  assert.match(index, /function applyStartListVerticalDensity\(\)[\s\S]*?classList\.toggle\("start-list-compact", density >= 1\)[\s\S]*?classList\.toggle\("start-list-dense", density >= 2\)[\s\S]*?classList\.toggle\("start-list-ultra-dense", density >= 3\)/);
+  assert.match(index, /function reanchorStartListScrolls\(settleLayout = true\)[\s\S]*?scroll\.dataset\.startListAnchor[\s\S]*?scheduleStartListAnchorScroll\(scroll, anchor, scroll\.scrollLeft, settleLayout\)/);
+  assert.match(index, /scroll\.dataset\.startListAnchor = String\(anchor\)/);
+  assert.match(index, /window\.addEventListener\("resize"[\s\S]*?applyStartListVerticalDensity\(\)[\s\S]*?reanchorStartListScrolls\(\)/);
+});
+
 test("copyright keeps a restrained visible credit and the full collaboration note in its tooltip", () => {
-  assert.match(index, /class="credits" id="copyrightCredit"[^>]*>2026 <span id="authorName">Фёдоров Денис<\/span>/);
+  assert.match(index, /class="credits" id="copyrightCredit"[^>]*>2026 <a id="authorName" class="author-link" href="mailto:DFedorov@gmail\.com" aria-describedby="buildProjectHint" aria-expanded="false">Фёдоров Денис<\/a>/);
+  assert.match(index, /\.author-link\.armed:hover,[\s\S]*?border-color: var\(--cyan\)/);
+  assert.match(index, /authorEmailHint: "Если хотите написать мне — нажмите ещё раз"/);
+  assert.match(index, /function activateAuthorEmailLink\(event\)[\s\S]*?if \(!authorLinkArmed\)[\s\S]*?event\.preventDefault\(\)[\s\S]*?authorLinkArmed = true[\s\S]*?now - authorLinkArmedAt < buildLinkConfirmDelayMs/);
+  assert.match(index, /els\.authorName\.addEventListener\("click", activateAuthorEmailLink\)/);
   assert.doesNotMatch(index, /id="codexCredit"/);
   assert.match(index, /authorHint: "Говорил, что делать, Codex - делал :\)"/);
   assert.match(index, /els\.copyrightCredit\.title = t\("authorHint"\)/);
 });
 
+test("control panel sections are compact, collapsible and use consistent hover outlines", () => {
+  assert.match(index, /\.brand \{[\s\S]*?margin-bottom: 0;/);
+  assert.match(index, /\.section \{\s*padding: 12px 0;[\s\S]*?border-top: 1px solid var\(--line\)/);
+  assert.match(index, /\.connections \{[\s\S]*?padding-top: 12px;/);
+  assert.match(index, /\.section-heading,[\s\S]*?margin: 0 0 8px;/);
+  assert.match(index, /\.connections-heading \{\s*margin-bottom: 7px;\s*\}/);
+  assert.match(index, /\.start-time-fields \{[\s\S]*?margin-top: 0;[\s\S]*?margin-bottom: 10px;/);
+  assert.match(index, /data-section-toggle aria-controls="formatContent"[\s\S]*?data-section-toggle aria-controls="parametersContent"[\s\S]*?data-section-toggle aria-controls="controlsContent"[\s\S]*?data-section-toggle aria-controls="browserList"/);
+  assert.match(index, /function toggleControlSection\(button\)[\s\S]*?content\.hidden = !content\.hidden[\s\S]*?updateSectionToggle\(button\)/);
+  assert.match(index, /function updateSectionToggle\(button\)[\s\S]*?const label = t\(expanded \? "sectionHide" : "sectionShow"\)[\s\S]*?button\.setAttribute\("aria-label", label\)[\s\S]*?button\.title = label[\s\S]*?button\.textContent = ""/);
+  assert.match(index, /\.section-toggle::before \{[\s\S]*?border: 1px solid currentColor/);
+  assert.match(index, /\.section-toggle::after \{[\s\S]*?top: 7px;[\s\S]*?background: currentColor/);
+  assert.match(index, /\.section-toggle\[aria-expanded="false"\]::after \{\s*top: 14px;/);
+  assert.match(index, /\.section-toggle:hover \{\s*color: #a9b2c1;\s*\}/);
+  assert.doesNotMatch(index, /\.section-toggle:hover \{[^}]*border-color:/);
+  assert.match(index, /els\.controls\.addEventListener\("click"[\s\S]*?event\.target\.closest\("\[data-section-toggle\]"\)[\s\S]*?toggleControlSection\(button\)/);
+  assert.match(index, /\.action:not\(:disabled\):hover,[\s\S]*?border-color: #f4f7fb;[\s\S]*?box-shadow: 0 0 0 1px/);
+  assert.match(index, /\.reset:not\(:disabled\):hover \{\s*background: var\(--red\);\s*\}/);
+  assert.match(index, /@media \(min-width: 901px\) and \(max-width: 1499px\),[\s\S]*?grid-template-columns: 320px minmax\(0, 1fr\)[\s\S]*?--controls-base-padding: 16px[\s\S]*?\.section \{ padding: 8px 0 10px; \}[\s\S]*?\.connections \{ margin-top: 10px; padding-top: 8px; \}[\s\S]*?\.diag-row \{ flex-wrap: wrap; \}[\s\S]*?\.diag-chip \{ padding: 1px 4px; font-size: 9px; \}/);
+  assert.match(index, /@media \(min-width: 901px\) and \(max-width: 1499px\),[\s\S]*?\.start-list-diag-row \{ flex-wrap: nowrap; gap: 2px; margin-left: -3px; \}[\s\S]*?\.start-list-diag-row \.diag-chip \{ padding-inline: 3px; letter-spacing: 0; \}/);
+  assert.match(index, /@media \(min-width: 901px\) and \(max-width: 1199px\),[\s\S]*?grid-template-columns: 280px minmax\(0, 1fr\)[\s\S]*?--controls-base-padding: 12px[\s\S]*?\.section \{ padding: 6px 0 8px; \}[\s\S]*?\.preset \{ font-size: 13px; \}/);
+  assert.match(index, /@media \(min-width: 901px\) and \(max-width: 1199px\),[\s\S]*?\.connections \{ margin-top: 8px; padding-top: 6px; \}/);
+  assert.match(index, /@media \(min-width: 901px\) and \(max-width: 1199px\),[\s\S]*?\.action \{ min-height: 38px; border-radius: 6px; font-size: 14px; \}/);
+  assert.match(index, /\.diag-row:not\(\.start-list-diag-row\) \{ flex-wrap: nowrap; gap: 2px; margin-left: -3px; \}[\s\S]*?\.diag-row:not\(\.start-list-diag-row\) \.diag-chip \{ padding-inline: 3px; letter-spacing: 0; \}/);
+  assert.match(index, /@media \(min-width: 901px\) and \(max-width: 1199px\),[\s\S]*?\.start-list-diag-row \{ flex-wrap: wrap; \}/);
+  assert.match(index, /\.final-new-short \{\s*display: none;\s*\}/);
+  assert.match(index, /@media \(min-width: 901px\) and \(max-width: 1199px\),[\s\S]*?\.final-new-full \{ display: none; \}[\s\S]*?\.final-new-short \{ display: inline; \}/);
+  assert.match(index, /finalNewShort: "Нов\."[\s\S]*?finalNewShort: "New"/);
+  assert.match(index, /const basePadding = parseFloat\(getComputedStyle\(els\.controls\)\.getPropertyValue\("--controls-base-padding"\)\) \|\| 20;[\s\S]*?basePadding - scrollbarWidth/);
+});
+
 test("start-list route incident controls render pause, stop, resume and cancellation states", () => {
   assert.match(index, /class="start-list-route-button"[\s\S]*?data-start-list-route/);
+  assert.match(index, /const routeLabel = list\.routeCount === 1 \? \(language === "en" \? "R" : "T"\) : routeIndex \+ 1/);
+  assert.match(index, /const singleRoute = list\.routeCount === 1;/);
+  assert.match(index, /class="start-list-incident-title">\$\{singleRoute \? "" : escapeHtml\(formatStartListText\("startListRoute"/);
   assert.match(index, /data-start-list-incident-menu[\s\S]*?data-start-list-incident-cycle/);
   assert.match(index, /class="start-list-incident-controls"[\s\S]*?class="start-list-incident-cycle"[\s\S]*?class="start-list-incident-actions"/);
   assert.match(index, /routeIncidentStartCycleHint[\s\S]*?routeIncidentResumeCycleHint/);
@@ -140,8 +200,11 @@ test("start-list route incident controls render pause, stop, resume and cancella
   assert.match(index, /\.start-list-route-button\.is-selected \{[\s\S]*?border: 2px solid var\(--yellow\)/);
   assert.match(index, /data-start-list-incident-action="pause"[\s\S]*?data-start-list-incident-action="stop"/);
   assert.match(index, /data-start-list-incident-action="resume"/);
+  assert.match(index, /activePauseForRoute\(routeIndex, incidents, cycleValue\)/);
+  assert.match(index, /activePauseForRoute\(routeIndex, incidents, cycle\)/);
+  assert.match(index, /function updateStartListIncidentActions\(slot\)[\s\S]*?activePauseForRoute\(routeIndex, incidents, cycle\)[\s\S]*?startListIncidentActions\(activePause, stop\)/);
   assert.match(index, /data-start-list-incident-action="cancel-stop"/);
-  assert.match(index, /FDVStartList\.participantAtCycle[\s\S]*?kind: "pause"[\s\S]*?resumeCycle: null/);
+  assert.match(index, /FDVStartList\.participantAtOrAfterCycle[\s\S]*?kind: "pause"[\s\S]*?resumeCycle: null/);
   assert.match(index, /kind: "stop"[\s\S]*?startCycle: cycle/);
   assert.match(index, /action === "resume"[\s\S]*?resolution: "resume"[\s\S]*?action === "stop"[\s\S]*?resolution: "stop"/);
   assert.match(index, /action === "cancel-stop"[\s\S]*?resolution !== "stop"[\s\S]*?resumeCycle: null/);
@@ -180,12 +243,13 @@ test("start-list route incident controls render pause, stop, resume and cancella
   assert.match(index, /const previousScroll = \{ top: scroll\.scrollTop, left: scroll\.scrollLeft \};[\s\S]*?else \{[\s\S]*?scroll\.scrollTop = previousScroll\.top;[\s\S]*?scroll\.scrollLeft = previousScroll\.left;/);
   assert.match(index, /const autoScrollKey = `\$\{position\.cycle\}:\$\{position\.phase\}:\$\{anchor\}`;[\s\S]*?autoScrollKey !== lastStartListScrollAnchors\[index\]/);
   assert.match(index, /visible && !wasVisible[\s\S]*?startListInitialAutoScrollPending = true;[\s\S]*?lastStartListScrollAnchors\[index\] = null;[\s\S]*?pendingStartListScrollRestores\[index\]\?\.listKey !== JSON\.stringify\(list\)[\s\S]*?pendingStartListScrollRestores\[index\] = null;/);
-  assert.match(index, /function persistStartListScrollPositions\(\)[\s\S]*?listKey: JSON\.stringify\(list\)[\s\S]*?top: scroll\.scrollTop[\s\S]*?left: scroll\.scrollLeft[\s\S]*?safeStorageSet\("sessionStorage", startListScrollPreferenceKey, JSON\.stringify\(positions\)\)/);
+  assert.match(index, /function persistStartListScrollPositions\(\)[\s\S]*?clearTimeout\(startListScrollPersistTimer\)[\s\S]*?listKey: JSON\.stringify\(list\)[\s\S]*?top: scroll\.scrollTop[\s\S]*?left: scroll\.scrollLeft[\s\S]*?safeStorageSet\("sessionStorage", startListScrollPreferenceKey, JSON\.stringify\(positions\)\)/);
+  assert.match(index, /function scheduleStartListScrollPersistence\(\)[\s\S]*?clearTimeout\(startListScrollPersistTimer\)[\s\S]*?window\.setTimeout\([\s\S]*?persistStartListScrollPositions\(\)[\s\S]*?150\)/);
   assert.match(index, /function loadStoredStartListScrollPositions\(\)[\s\S]*?standaloneMode \|\| isPrimaryClient[\s\S]*?position\?\.listKey !== JSON\.stringify\(list\)[\s\S]*?pendingStartListScrollRestores\[index\]/);
   assert.match(index, /function renderStartList\(\) \{\s*loadStoredStartListScrollPositions\(\);\s*updateStartListVisibility\(\);/);
   assert.match(index, /els\.startListLayout\.addEventListener\("scroll", scheduleStartListScrollPersistence, true\)/);
   assert.match(index, /window\.addEventListener\("pagehide", \(\) => \{\s*persistStartListScrollPositions\(\);/);
-  assert.match(index, /function scheduleStartListAnchorScroll\(scroll, anchor, left, settleLayout = false\)[\s\S]*?scroll\.isConnected[\s\S]*?scroll\.scrollTop = Math\.max\(0, row\.offsetTop - headerHeight\)[\s\S]*?settleLayout && pass < 6[\s\S]*?requestAnimationFrame\(applyAnchor\)/);
+  assert.match(index, /function scheduleStartListAnchorScroll\(scroll, anchor, left, settleLayout = false\)[\s\S]*?Math\.floor\(\(scroll\.clientHeight - headerHeight\) \/ sampleRowHeight\) - 1[\s\S]*?prioritizedScrollAnchor\(anchor, highlightedIndexes, visibleRowCount\)[\s\S]*?scroll\.scrollTop = Math\.max\(0, scroll\.scrollTop \+ rowRect\.top - scrollRect\.top - headerHeight\)[\s\S]*?settleLayout && pass < 6[\s\S]*?requestAnimationFrame\(applyAnchor\)/);
   assert.match(index, /const titleBar = `<div class="start-list-title-bar" data-start-list-title hidden><\/div>`;[\s\S]*?\$\{controls\}\$\{titleBar\}\$\{incidentMenu\}<div class="start-list-scroll"/);
   assert.match(index, /titleBar\.textContent = list\.title \|\| "";[\s\S]*?titleBar\.hidden = !list\.title/);
   assert.match(index, /const settleInitialAutoScroll = startListInitialAutoScrollPending;[\s\S]*?startListInitialAutoScrollPending = false;[\s\S]*?scheduleStartListAnchorScroll\(scroll, anchor, previousScroll\.left, settleInitialAutoScroll\)/);
@@ -195,7 +259,37 @@ test("start-list route incident controls render pause, stop, resume and cancella
   assert.match(index, /function resetStandaloneTimer\([\s\S]*?clearStartListIncidentsForNewRound\(\)/);
   assert.match(index, /function startTimerByTime\([\s\S]*?if \(standaloneMode\)[\s\S]*?clearStartListIncidentsForNewRound\(\)/);
   assert.match(server, /const clearIncidentsForNewRound = type === "reset"[\s\S]*?type === "start"[\s\S]*?body\.startMode === "scheduled"[\s\S]*?clearStartListIncidents\(\)/);
-  assert.match(index, /FDVStartList\.marker\(participantIndex, routeIndex, position\.cycle, position\.phase, incidents, schedule\)/);
+  assert.match(index, /FDVStartList\.marker\(calculationParticipantIndex, routeIndex, position\.cycle, position\.phase, incidents, schedule\)/);
+});
+
+test("the leftmost row cell toggles a participant's protocol exclusion", () => {
+  assert.match(index, /startListExcludeParticipant: "Исключить участника из протокола\?"/);
+  assert.match(index, /const exclusionControl = canManageIncidents && columnIndex === 0;[\s\S]*?data-start-list-participant-exclusion="\$\{participantIndex\}"[\s\S]*?title="\$\{escapeHtml\(exclusionTitle\)\}"/);
+  assert.match(index, /td\[data-start-list-participant-exclusion\]:hover,[\s\S]*?outline: 2px solid #ff4b50;[\s\S]*?background-color: rgba\(240, 90, 89, \.18\) !important/);
+  assert.match(index, /tr\.is-excluded td\[data-start-list-participant-exclusion\]:hover,[\s\S]*?outline-color: var\(--green\);[\s\S]*?background-color: rgba\(38, 208, 124, \.18\) !important/);
+  assert.doesNotMatch(index, /routeIndex === list\.routeCount - 1/);
+  assert.match(index, /tr\.is-excluded td::after[\s\S]*?height: 1px;[\s\S]*?background: #ff4b50/);
+  assert.match(index, /const marker = excluded \? "" : window\.FDVStartList\.marker/);
+  assert.match(index, /function toggleStartListParticipantExclusion[\s\S]*?excludedParticipants\.includes\(participantIndex\)[\s\S]*?commitStartLists/);
+  assert.match(index, /addEventListener\("keydown"[\s\S]*?event\.key !== "Enter" && event\.key !== " "/);
+  assert.match(index, /participantScheduleIndex\(participantIndex, excludedParticipants, list\.rows\.length\)/);
+  assert.match(index, /rebaseIncidents\(list\?\.incidents, list\?\.excludedParticipants, list\?\.rows\?\.length\)/);
+  assert.match(index, /function startListExclusionsChanged\(currentList, nextList\)[\s\S]*?normalizeExcludedParticipants[\s\S]*?currentExcluded[\s\S]*?nextExcluded/);
+  assert.match(index, /startListExclusionsChanged\(state\.startLists\[index\], normalized\[index\]\)[\s\S]*?pendingStartListScrollRestores\[index\] = null;[\s\S]*?lastStartListScrollAnchors\[index\] = null/);
+});
+
+test("incident cycle hover and focus outline the matching route cell", () => {
+  assert.match(index, /data-start-list-incident-cycle-control/);
+  assert.match(index, /data-start-list-route-cell="\$\{routeIndex\}"/);
+  assert.match(index, /function updateStartListIncidentCyclePreview\(control\)/);
+  assert.match(index, /FDVStartList\.participantAtOrAfterCycle\([\s\S]*?data-start-list-route-cell/);
+  assert.match(index, /action === "pause"[\s\S]*?FDVStartList\.participantAtOrAfterCycle\([\s\S]*?incidents\.push\(\{ kind: "pause"/);
+  assert.match(index, /addEventListener\("pointerover"[\s\S]*?updateStartListIncidentCyclePreview/);
+  assert.match(index, /addEventListener\("focusin"[\s\S]*?updateStartListIncidentCyclePreview/);
+  assert.match(index, /addEventListener\("input"[\s\S]*?updateStartListIncidentCyclePreview/);
+  assert.match(index, /td\.route-cell\.is-incident-cycle-preview[\s\S]*?box-shadow: inset 0 0 0 2px var\(--cyan\)/);
+  assert.match(index, /startListIncidentPreviewTriggerSelector[\s\S]*?data-start-list-incident-action=\\"pause\\"[\s\S]*?data-start-list-incident-action=\\"resume\\"[\s\S]*?data-start-list-incident-action=\\"stop\\"/);
+  assert.match(index, /function startListIncidentCycleControlForTrigger\(trigger\)[\s\S]*?data-start-list-incident-cycle-control/);
 });
 
 test("timer phase background is confined to the timer column", () => {
@@ -205,6 +299,10 @@ test("timer phase background is confined to the timer column", () => {
   assert.match(index, /body\.warning-active \.timer-column[\s\S]*?body\.countdown-active \.timer-column[\s\S]*?body\.break-active \.timer-column/);
   assert.doesNotMatch(index, /body\.(?:warning|countdown|break)-active\s*\{/);
   assert.doesNotMatch(index, /body\.break-active \.controls/);
+});
+
+test("viewer timer uses the Legacy-like narrow gutter beside visible protocols", () => {
+  assert.match(index, /body\.start-list-visible\.viewer-mode \.timer-column,[\s\S]*?body\.start-list-visible\.fullscreen \.timer-column \{ padding: clamp\(8px, 1vw, 14px\); \}/);
 });
 
 test("mobile controls keep compact multi-column grids", () => {
@@ -281,13 +379,15 @@ test("build number uses a guarded two-click GitHub link", () => {
   assert.match(index, /if \(!buildLinkArmed\) \{\s*event\.preventDefault\(\);/);
   assert.doesNotMatch(index, /window\.open\(projectUrl/);
   assert.match(index, /\.build-info\.armed \{[\s\S]*?border-color: var\(--line\);/);
-  assert.match(index, /\.build-separator \{\s*margin-left: 10px;\s*\}/);
+  assert.match(index, /\.build-separator \{\s*margin-left: 2px;\s*\}/);
   assert.match(index, /\.build-info \{[\s\S]*?margin-left: 0;/);
+  assert.match(index, /\.build-info \{[\s\S]*?min-height: 22px;[\s\S]*?padding: 1px 4px;/);
+  assert.match(index, /\.author-link \{[\s\S]*?min-height: 22px;[\s\S]*?padding: 1px 4px;/);
   assert.match(index, /\.build-info:not\(\.armed\):hover \{\s*color: var\(--text\);\s*\}/);
   assert.match(index, /\.build-info\.armed:hover,[\s\S]*?border-color: var\(--cyan\);[\s\S]*?color: var\(--text\);/);
   const buildHoverRule = index.match(/\.build-info\.armed:hover,[\s\S]*?\n    \}/)?.[0] || "";
   assert.doesNotMatch(buildHoverRule, /font-weight:/);
-  assert.match(index, /if \(event\.target\.closest\("#buildInfo"\)\) return;\s*deactivateBuildProjectLink\(\);/);
+  assert.match(index, /if \(event\.target\.closest\("#buildInfo, #authorName"\)\) return;\s*deactivateBuildProjectLink\(\);\s*deactivateAuthorEmailLink\(\);/);
 });
 
 test("progress animation stays on the compositor and is updated at a lower rate", () => {
@@ -373,4 +473,23 @@ test("a short mobile sleep cannot leave rendering permanently frozen", () => {
   assert.match(index, /function markResumeDisplayStale\(\) \{[\s\S]*?beginResumeSnapPending\(\);/);
   assert.match(index, /if \(!resetStaleSignals && resumeSnapPending\) clearResumeSnapPending\(false\);/);
   assert.doesNotMatch(index, /!resetStaleSignals && \(resumeSyncInProgress \|\| resumeSnapPending\)/);
+});
+
+test("server response application errors stay separate from network availability", () => {
+  assert.match(index, /function reportStateApplyError\(error, source, requestRecovery = false\)/);
+  assert.match(index, /reportApplyError: \(error, context\) => reportStateApplyError\([\s\S]*?`action:\$\{context\?\.phase \|\| "response"\}`[\s\S]*?true/);
+  assert.match(index, /let remote = null;[\s\S]*?remote = await response\.json\(\);[\s\S]*?if \(remote\) reportStateApplyError\(error, "sync"\);[\s\S]*?else markServerFailure\(\);/);
+  assert.match(index, /eventSource\.addEventListener\("state"[\s\S]*?reportStateApplyError\(error, "sse"\);/);
+});
+
+test("the adaptive Final-format label repairs missing nested spans", () => {
+  assert.match(index, /function updateFinalNewLabels\(\)[\s\S]*?querySelector\("\.final-new-full"\)[\s\S]*?document\.createElement\("span"\)[\s\S]*?appendChild\(fullLabel\)[\s\S]*?appendChild\(shortLabel\)/);
+  assert.match(index, /function applyLanguage\(nextLanguage\)[\s\S]*?updateFinalNewLabels\(\);/);
+  assert.doesNotMatch(index, /finalNewLabel\.querySelector\("\.final-new-(?:full|short)"\)\.textContent/);
+});
+
+test("XLSX import limits conversion to meaningful cells before detecting the protocol table", () => {
+  assert.match(index, /sheetRows: window\.FDVStartList\.MAX_ROWS \+ 50/);
+  assert.match(index, /FDVStartList\.worksheetContentRange\(workbook\.Sheets\[sheetName\], xlsx\.utils\)/);
+  assert.match(index, /sheet_to_json\(workbook\.Sheets\[sheetName\], \{[\s\S]*?blankrows: true,[\s\S]*?range/);
 });

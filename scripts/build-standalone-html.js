@@ -44,6 +44,7 @@ function build() {
   let html = read("index.html");
   const offlineAudio = embedTimerFont(read("lib/offline-audio.js"));
   const clientActionTransport = read("lib/client-action-transport.js");
+  const startListDisplay = read("lib/start-list-display.js");
   const startList = read("lib/start-list.js");
   const xlsxMini = read("lib/vendor/xlsx.mini.min.js");
   const manifest = JSON.parse(read("manifest.webmanifest"));
@@ -71,6 +72,10 @@ function build() {
   html = html.replace(
     /\s*<script>\s*if \(window\.location\.protocol === "file:"\) \{\s*document\.write\('<script src="lib\/offline-audio\.js"><\\\/script>'\);\s*\}\s*<\/script>/,
     `\n  ${scriptTag(`window.FDV_SINGLE_FILE_STANDALONE = true;\n${offlineAudio}`)}`
+  );
+  html = html.replace(
+    /\s*<script src="lib\/start-list-display\.js"><\/script>/,
+    () => `\n  ${scriptTag(startListDisplay)}`
   );
   html = html.replace(
     /\s*<script src="lib\/start-list\.js"><\/script>/,

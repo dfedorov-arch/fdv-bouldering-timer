@@ -166,7 +166,7 @@ WOFF, TTF и OTF; указывайте только имя файла без п�
 
 Пробел не управляет стартом или паузой.
 
-Legacy-режим для старых браузеров и телевизоров включается из списка браузеров нажатием на индикатор LEGACY. Такой экран показывает только крупное время, использует упрощённый JavaScript и XHR-синхронизацию, не воспроизводит звук и возвращается в обычный режим повторным нажатием LEGACY из основного браузера.
+Legacy-режим для старых браузеров и телевизоров включается из списка браузеров нажатием на индикатор LEGACY. Без выбранных протоколов такой экран показывает только крупное время; кнопками PROTOCOL 1–4 на нём можно вывести полные таблицы выбранных протоколов. Legacy использует упрощённый JavaScript и XHR-синхронизацию, продолжает обновлять таймер и протоколы при временной потере сети, не воспроизводит звук и возвращается в обычный режим повторным нажатием LEGACY из основного браузера.
 
 
 6. HTTPS
@@ -368,7 +368,7 @@ Keyboard shortcuts:
 
 Space does not start or pause the timer.
 
-Legacy mode for older browsers and TV browsers is toggled from the browser list by clicking the LEGACY badge. That display shows only the large time, uses simplified JavaScript and XHR synchronization, does not play sound, and returns to the normal interface when LEGACY is clicked again from the primary browser.
+Legacy mode for older browsers and TV browsers is toggled from the browser list by clicking the LEGACY badge. With no protocols selected it shows only the large timer; PROTOCOL 1–4 can add complete read-only tables for the selected lists. Legacy uses simplified JavaScript and XHR synchronization, keeps advancing its timer and protocols during temporary network loss, does not play sound, and returns to the normal interface when LEGACY is clicked again from the primary browser.
 
 
 6. HTTPS

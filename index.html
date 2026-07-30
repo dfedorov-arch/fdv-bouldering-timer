@@ -105,11 +105,12 @@
     }
 
     .controls {
+      --controls-base-padding: 20px;
       min-width: 0;
       min-height: 100vh;
       display: none;
       flex-direction: column;
-      padding: 20px;
+      padding: var(--controls-base-padding);
       background: #171b22;
       border-right: 1px solid var(--line);
       overflow: auto;
@@ -127,7 +128,7 @@
       display: flex;
       align-items: center;
       gap: 12px;
-      margin-bottom: 16px;
+      margin-bottom: 0;
     }
 
     .brand-copy {
@@ -248,7 +249,7 @@
     }
 
     .section {
-      padding: 13px 0;
+      padding: 12px 0;
       border-top: 1px solid var(--line);
     }
 
@@ -257,13 +258,80 @@
       padding-top: 0;
     }
 
+    .section-heading,
+    .connections-heading {
+      min-height: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin: 0 0 8px;
+    }
+
+    .connections-heading {
+      margin-bottom: 7px;
+    }
+
     .section-title {
-      margin: 0 0 9px;
+      margin: 0;
       font-size: 13px;
       color: var(--muted);
       text-transform: uppercase;
       letter-spacing: .08em;
     }
+
+    .section-toggle {
+      position: relative;
+      width: 22px;
+      height: 22px;
+      min-height: 20px;
+      flex: 0 0 22px;
+      padding: 0;
+      border: 1px solid transparent;
+      border-radius: 4px;
+      color: #747e8d;
+      background: transparent;
+      font-size: 0;
+    }
+
+    .section-toggle::before {
+      content: "";
+      position: absolute;
+      top: 4px;
+      left: 4px;
+      width: 12px;
+      height: 12px;
+      border: 1px solid currentColor;
+      border-radius: 2px;
+    }
+
+    .section-toggle::after {
+      content: "";
+      position: absolute;
+      top: 7px;
+      left: 7px;
+      width: 8px;
+      height: 1px;
+      background: currentColor;
+      transition: top .16s ease;
+    }
+
+    .section-toggle[aria-expanded="false"]::after {
+      top: 14px;
+    }
+
+    .section-toggle:hover {
+      color: #a9b2c1;
+    }
+
+    .section-toggle:focus-visible {
+      border-color: #596373;
+      color: #a9b2c1;
+      outline: none;
+    }
+
+    .section-content[hidden],
+    .browser-list[hidden] { display: none; }
 
     .control-footer {
       margin-top: auto;
@@ -309,15 +377,15 @@
     }
 
     .build-separator {
-      margin-left: 10px;
+      margin-left: 2px;
     }
 
     .build-info {
       display: inline-flex;
       align-items: center;
-      min-height: 28px;
+      min-height: 22px;
       margin-left: 0;
-      padding: 3px 9px;
+      padding: 1px 4px;
       border: 1px solid transparent;
       border-radius: 7px;
       color: inherit;
@@ -335,6 +403,36 @@
 
     .build-info:not(.armed):hover {
       color: var(--text);
+    }
+
+    .author-link {
+      display: inline-flex;
+      align-items: center;
+      min-height: 22px;
+      padding: 1px 4px;
+      border: 1px solid transparent;
+      border-radius: 7px;
+      color: inherit;
+      text-decoration: none;
+      cursor: pointer;
+    }
+
+    .author-link.armed {
+      border-color: var(--line);
+      background: rgba(255, 255, 255, .03);
+    }
+
+    .author-link:not(.armed):hover {
+      color: var(--text);
+    }
+
+    .author-link.armed:hover,
+    .author-link.armed:focus-visible,
+    .author-link.armed:active,
+    .author-link.opening {
+      border-color: var(--cyan);
+      color: var(--text);
+      outline: none;
     }
 
     .build-info.armed:hover,
@@ -363,7 +461,7 @@
 
     .start-time-fields {
       width: 100%;
-      margin-top: 9px;
+      margin-top: 0;
       margin-bottom: 10px;
     }
 
@@ -514,6 +612,10 @@
       cursor: pointer;
       color: var(--muted);
       font-size: 12px;
+    }
+
+    .final-new-short {
+      display: none;
     }
 
     .final-round-option input {
@@ -710,6 +812,13 @@
       border: 1px solid transparent;
     }
 
+    .action:not(:disabled):hover,
+    .action:not(:disabled):focus-visible {
+      border-color: #f4f7fb;
+      box-shadow: 0 0 0 1px rgba(244, 247, 251, .82);
+      outline: none;
+    }
+
     .start { background: var(--green); color: #07130d; }
     .pause { background: var(--yellow); color: #1a1402; }
     .reset {
@@ -719,7 +828,6 @@
     }
     .reset:not(:disabled):hover {
       background: var(--red);
-      border-color: var(--red);
     }
     .full { background: var(--blue); color: #071225; }
 
@@ -730,7 +838,7 @@
     }
 
     .connections-title {
-      margin: 0 0 8px;
+      margin: 0;
       color: var(--muted);
       font-size: 12px;
       text-transform: uppercase;
@@ -797,6 +905,7 @@
       flex-wrap: nowrap;
       gap: 3px;
       margin-top: 2px;
+      margin-left: -4px;
     }
 
     .diag-chip {
@@ -1035,13 +1144,12 @@
       grid-template-columns: 34px minmax(0, 1fr) auto 34px;
       align-items: center;
       gap: 6px;
-      min-width: 350px;
+      min-width: 0;
       padding: 8px;
       border-bottom: 1px solid var(--line);
     }
     .start-list-panel-controls.has-layout-toggle {
       grid-template-columns: 34px 34px minmax(0, 1fr) auto 34px;
-      min-width: 390px;
     }
 
     .start-list-add,
@@ -1176,12 +1284,12 @@
     }
     .start-list-incident-menu[hidden] { display: none; }
     .start-list-title-bar {
-      min-height: 34px;
-      padding: 7px 8px;
+      min-height: 30px;
+      padding: 6px 8px;
       color: var(--text);
       background: #1b212a;
       border-bottom: 1px solid var(--line);
-      font-size: clamp(12px, .92vw, 15px);
+      font-size: 13px;
       font-weight: 850;
       text-align: center;
       white-space: nowrap;
@@ -1267,13 +1375,88 @@
 
     body.start-list-visible .start-list-panel { display: flex; }
     body.start-list-visible .time { font-size: var(--timer-font-size, clamp(86px, min(17vw, 46vh), 620px)); }
+    body.start-list-visible.viewer-mode .timer-column,
+    body.start-list-visible.fullscreen .timer-column { padding: clamp(8px, 1vw, 14px); }
 
     .start-list-scroll { min-height: 0; flex: 1 1 auto; overflow: auto; scrollbar-gutter: stable; }
-    .start-list-table { width: max-content; border-collapse: separate; border-spacing: 0; font-size: clamp(11px, .85vw, 14px); }
+    .start-list-table { width: max-content; border-collapse: separate; border-spacing: 0; font-size: 12px; line-height: 16px; }
     .start-list-table th,
-    .start-list-table td { height: 32px; padding: 4px 6px; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); white-space: nowrap; }
+    .start-list-table td { height: 30px; padding: 4px 5px; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); white-space: nowrap; }
     .start-list-table th { position: sticky; top: 0; z-index: 2; color: var(--text); background: #242a33; text-align: left; }
-    .start-list-table .route-cell { width: 32px; min-width: 32px; padding: 3px; text-align: center; }
+    .start-list-table .route-cell { width: 30px; min-width: 30px; max-width: 30px; height: 30px; padding: 2px; text-align: center; }
+    body.start-list-compact .start-list-title-bar { min-height: 27px; padding: 5px 6px; font-size: 12px; }
+    body.start-list-compact .start-list-table { font-size: 11px; line-height: 15px; }
+    body.start-list-compact .start-list-table th,
+    body.start-list-compact .start-list-table td { height: 27px; padding: 3px 4px; }
+    body.start-list-compact .start-list-table .route-cell { width: 27px; min-width: 27px; max-width: 27px; height: 27px; padding: 2px; }
+    body.start-list-compact .start-list-route-button { width: 23px; height: 23px; }
+    body.start-list-compact .route-marker { width: 16px; height: 16px; }
+    body.start-list-compact .route-marker.ready { width: 0; height: 0; border-left-width: 8px; border-right-width: 8px; border-bottom-width: 16px; }
+    body.start-list-compact .route-marker.stopped::before,
+    body.start-list-compact .route-marker.stopped::after { left: 7px; height: 17px; }
+    body.start-list-dense .start-list-title-bar { min-height: 25px; padding: 4px 5px; font-size: 11px; }
+    body.start-list-dense .start-list-table { font-size: 10px; line-height: 14px; }
+    body.start-list-dense .start-list-table th,
+    body.start-list-dense .start-list-table td { height: 24px; padding: 2px 3px; }
+    body.start-list-dense .start-list-table .route-cell { width: 24px; min-width: 24px; max-width: 24px; height: 24px; padding: 1px; }
+    body.start-list-dense .start-list-route-button { width: 20px; height: 20px; border-radius: 4px; }
+    body.start-list-dense .route-marker { width: 14px; height: 14px; }
+    body.start-list-dense .route-marker.ready { width: 0; height: 0; border-left-width: 7px; border-right-width: 7px; border-bottom-width: 14px; }
+    body.start-list-dense .route-marker.paused::before,
+    body.start-list-dense .route-marker.paused::after { width: 4px; }
+    body.start-list-dense .route-marker.paused::before { left: 1px; }
+    body.start-list-dense .route-marker.paused::after { right: 1px; }
+    body.start-list-dense .route-marker.stopped::before,
+    body.start-list-dense .route-marker.stopped::after { left: 6px; width: 2px; height: 15px; }
+    body.start-list-ultra-dense .start-list-title-bar { min-height: 20px; padding: 3px 4px; font-size: 9px; line-height: 14px; }
+    body.start-list-ultra-dense .start-list-table { font-size: 9px; line-height: 12px; }
+    body.start-list-ultra-dense .start-list-table th,
+    body.start-list-ultra-dense .start-list-table td { height: 18px; padding: 1px 2px; }
+    body.start-list-ultra-dense .start-list-table .route-cell { width: 18px; min-width: 18px; max-width: 18px; height: 18px; padding: 1px; }
+    body.start-list-ultra-dense .start-list-route-button { width: 16px; height: 16px; border-radius: 3px; }
+    body.start-list-ultra-dense .route-marker { width: 11px; height: 11px; }
+    body.start-list-ultra-dense .route-marker.ready { width: 0; height: 0; border-left-width: 6px; border-right-width: 6px; border-bottom-width: 11px; }
+    body.start-list-ultra-dense .route-marker.done { width: 9px; height: 9px; }
+    body.start-list-ultra-dense .route-marker.paused::before,
+    body.start-list-ultra-dense .route-marker.paused::after { top: 0; bottom: 0; width: 3px; }
+    body.start-list-ultra-dense .route-marker.paused::before { left: 0; }
+    body.start-list-ultra-dense .route-marker.paused::after { right: 0; }
+    body.start-list-ultra-dense .route-marker.stopped::before,
+    body.start-list-ultra-dense .route-marker.stopped::after { left: 4px; width: 2px; height: 11px; }
+    .start-list-table td.route-cell.is-incident-cycle-preview {
+      position: relative;
+      z-index: 1;
+      box-shadow: inset 0 0 0 2px var(--cyan), 0 0 9px rgba(73, 198, 229, .72);
+    }
+    .start-list-table td[data-start-list-participant-exclusion] { cursor: pointer; }
+    .start-list-table td[data-start-list-participant-exclusion]:hover,
+    .start-list-table td[data-start-list-participant-exclusion]:focus-visible {
+      position: relative;
+      z-index: 3;
+      outline: 2px solid #ff4b50;
+      outline-offset: -2px;
+      background-color: rgba(240, 90, 89, .18) !important;
+      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .18), 0 0 9px rgba(240, 90, 89, .82);
+    }
+    .start-list-table tr.is-excluded td[data-start-list-participant-exclusion]:hover,
+    .start-list-table tr.is-excluded td[data-start-list-participant-exclusion]:focus-visible {
+      outline-color: var(--green);
+      background-color: rgba(38, 208, 124, .18) !important;
+      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .18), 0 0 9px rgba(38, 208, 124, .82);
+    }
+    .start-list-table tr.is-excluded td { position: relative; }
+    .start-list-table tr.is-excluded td::after {
+      content: "";
+      position: absolute;
+      z-index: 4;
+      top: calc(50% - .5px);
+      left: 0;
+      right: -1px;
+      height: 1px;
+      pointer-events: none;
+      background: #ff4b50;
+      box-shadow: 0 0 2px rgba(255, 75, 80, .72);
+    }
     .start-list-table th.route-cell.route-paused { background: rgba(255, 200, 87, .42); }
     .start-list-table th.route-cell.route-stopped { background: rgba(240, 90, 89, .46); }
     .start-list-route-button {
@@ -1649,7 +1832,7 @@
       .controls {
         height: 100%;
         min-height: 0;
-        padding-right: var(--controls-padding-right, 20px);
+        padding-right: var(--controls-padding-right, var(--controls-base-padding));
         overflow-y: auto;
         overscroll-behavior: contain;
         scrollbar-gutter: stable;
@@ -1659,6 +1842,60 @@
         height: 100%;
         min-height: 0;
       }
+    }
+
+    @media (min-width: 901px) and (max-width: 1499px),
+           (min-width: 901px) and (max-height: 850px) {
+      body.controls-ready:not(.viewer-mode):not(.fullscreen) .app {
+        grid-template-columns: 320px minmax(0, 1fr);
+      }
+
+      .controls { --controls-base-padding: 16px; }
+      .brand { gap: 10px; }
+      .brand-copy h1 { font-size: 18px; }
+      .section { padding: 8px 0 10px; }
+      .connections { margin-top: 10px; padding-top: 8px; }
+      .preset, input, select { min-height: 34px; }
+      .action { min-height: 42px; }
+      .diag-row { flex-wrap: wrap; }
+      .diag-chip { padding: 1px 4px; font-size: 9px; }
+      .start-list-diag-row { flex-wrap: nowrap; gap: 2px; margin-left: -3px; }
+      .start-list-diag-row .diag-chip { padding-inline: 3px; letter-spacing: 0; }
+      .control-footer { padding-top: 9px; }
+    }
+
+    @media (min-width: 901px) and (max-width: 1199px),
+           (min-width: 901px) and (max-height: 700px) {
+      body.controls-ready:not(.viewer-mode):not(.fullscreen) .app {
+        grid-template-columns: 280px minmax(0, 1fr);
+      }
+
+      .controls { --controls-base-padding: 12px; }
+      .brand { gap: 8px; }
+      .brand-mark { width: 32px; height: 36px; }
+      .brand-mark svg { width: 31px; height: 31px; }
+      .brand-copy h1 { font-size: 16px; }
+      .section { padding: 6px 0 8px; }
+      .section-heading, .connections-heading { margin-bottom: 6px; }
+      .section-title, .connections-title { font-size: 11px; }
+      .preset-grid { gap: 5px; }
+      .preset, input, select { min-height: 30px; border-radius: 6px; }
+      .preset { font-size: 13px; }
+      .final-new-full { display: none; }
+      .final-new-short { display: inline; }
+      label, .switch-row { font-size: 12px; }
+      .switch-row { min-height: 28px; }
+      .actions { gap: 6px; }
+      .action { min-height: 38px; border-radius: 6px; font-size: 14px; }
+      .connections { margin-top: 8px; padding-top: 6px; }
+      .browser-item { padding: 6px 7px; font-size: 11px; }
+      .browser-item strong { font-size: 12px; }
+      .diag-row:not(.start-list-diag-row) { flex-wrap: nowrap; gap: 2px; margin-left: -3px; }
+      .diag-row:not(.start-list-diag-row) .diag-chip { padding-inline: 3px; letter-spacing: 0; }
+      .start-list-diag-row { flex-wrap: wrap; }
+      .control-footer { padding-top: 7px; }
+      .help-link { min-height: 30px; }
+      .credits { padding-top: 7px; font-size: 11px; }
     }
 
     @media (max-width: 900px) {
@@ -1992,8 +2229,11 @@
       </div>
 
       <section class="section">
-        <h2 id="formatTitle" class="section-title">Формат</h2>
-        <div class="preset-grid" role="group" aria-label="Готовые форматы">
+        <div class="section-heading">
+          <h2 id="formatTitle" class="section-title">Формат</h2>
+          <button class="section-toggle" type="button" data-section-toggle aria-controls="formatContent" aria-expanded="true" aria-label="Скрыть" title="Скрыть"></button>
+        </div>
+        <div id="formatContent" class="section-content preset-grid" role="group" aria-label="Готовые форматы">
           <button class="preset active" data-preset="classic" title="Классический формат (французская система)">Классика</button>
           <button class="preset" data-preset="festival" title="Фестивальный формат">Фестиваль</button>
           <button class="preset" data-preset="final" title="Международный формат">Финал</button>
@@ -2001,7 +2241,11 @@
       </section>
 
       <section class="section">
-        <h2 id="parametersTitle" class="section-title">Параметры</h2>
+        <div class="section-heading">
+          <h2 id="parametersTitle" class="section-title">Параметры</h2>
+          <button class="section-toggle" type="button" data-section-toggle aria-controls="parametersContent" aria-expanded="true" aria-label="Скрыть" title="Скрыть"></button>
+        </div>
+        <div id="parametersContent" class="section-content">
         <div id="startTimeFields" class="start-time-fields">
           <div>
             <div class="start-time-heading">
@@ -2039,7 +2283,7 @@
             <span id="finalRoundFormatLabel">Формат раунда</span>
             <span id="finalRoundOptions" class="final-round-options" role="radiogroup" aria-label="Формат раунда">
               <label id="finalOldOption" class="final-round-option"><input type="radio" name="finalRoundFormat" value="old" checked><span id="finalOldLabel">Старый</span></label>
-              <label id="finalNewOption" class="final-round-option"><input type="radio" name="finalRoundFormat" value="new"><span id="finalNewLabel">Новый</span></label>
+              <label id="finalNewOption" class="final-round-option"><input type="radio" name="finalRoundFormat" value="new"><span id="finalNewLabel"><span class="final-new-full">Новый</span><span class="final-new-short" aria-hidden="true">Нов.</span></span></label>
             </span>
           </div>
           <label id="finalRestField" class="parameter-field final-rest-field" hidden><span id="finalRestLabel">Количество ротаций для отдыха</span>
@@ -2048,9 +2292,7 @@
             </span>
           </label>
         </div>
-      </section>
-
-      <section class="section no-divider">
+        <div class="section-options">
         <div id="primaryRow" class="switch-row" title="Основной браузер: Ctrl+M / Ctrl+Ь">
           <span id="primaryLabel">Основной браузер</span>
           <span class="primary-controls">
@@ -2092,24 +2334,32 @@
           <span id="soundProfileLabel">Комплект звуков</span>
           <select id="soundProfileSelect" aria-label="Комплект звуков"></select>
         </label>
+        </div>
+        </div>
       </section>
 
       <section class="section">
-        <h2 id="controlsTitle" class="section-title">Управление</h2>
-        <div class="actions">
+        <div class="section-heading">
+          <h2 id="controlsTitle" class="section-title">Управление</h2>
+          <button class="section-toggle" type="button" data-section-toggle aria-controls="controlsContent" aria-expanded="true" aria-label="Скрыть" title="Скрыть"></button>
+        </div>
+        <div id="controlsContent" class="section-content actions">
           <button id="startBtn" class="action start" title="Старт: Z / Я">Старт</button>
           <button id="pauseBtn" class="action pause" title="Пауза: Ctrl+Q / Ctrl+Й" disabled>Пауза</button>
           <button id="resetBtn" class="action reset" title="Стоп: P / З">Стоп</button>
           <button id="fullBtn" class="action full" title="Экран: Ctrl+F / Ctrl+А">Экран</button>
         </div>
         <div class="connections">
-          <h2 id="browsersTitle" class="connections-title">Браузеры</h2>
+          <div class="connections-heading">
+            <h2 id="browsersTitle" class="connections-title">Браузеры</h2>
+            <button class="section-toggle" type="button" data-section-toggle aria-controls="browserList" aria-expanded="true" aria-label="Скрыть" title="Скрыть"></button>
+          </div>
           <div id="browserList" class="browser-list"></div>
         </div>
       </section>
       <div class="control-footer">
         <a id="helpLink" class="help-link" href="help.html?lang=ru" target="_blank" rel="noopener">Руководство</a>
-        <div class="credits" id="copyrightCredit" title="Говорил, что делать, Codex - делал :)">2026 <span id="authorName">Фёдоров Денис</span><span id="buildSeparator" class="build-separator" hidden> | </span><a id="buildInfo" class="build-info" href="https://github.com/dfedorov-arch/fdv-bouldering-timer" target="_blank" rel="noopener" aria-describedby="buildProjectHint" aria-expanded="false" hidden></a></div>
+        <div class="credits" id="copyrightCredit" title="Говорил, что делать, Codex - делал :)">2026 <a id="authorName" class="author-link" href="mailto:DFedorov@gmail.com" aria-describedby="buildProjectHint" aria-expanded="false">Фёдоров Денис</a><span id="buildSeparator" class="build-separator" hidden> | </span><a id="buildInfo" class="build-info" href="https://github.com/dfedorov-arch/fdv-bouldering-timer" target="_blank" rel="noopener" aria-describedby="buildProjectHint" aria-expanded="false" hidden></a></div>
         <div id="buildProjectHint" class="build-project-hint" role="status" hidden></div>
       </div>
     </aside>
@@ -2157,6 +2407,7 @@
       document.write('<script src="lib/offline-audio.js"><\/script>');
     }
   </script>
+  <script src="lib/start-list-display.js"></script>
   <script src="lib/start-list.js"></script>
   <script src="lib/client-action-transport.js"></script>
   <script>
@@ -2197,7 +2448,7 @@
       timeline: []
     };
 
-    const pageBuildNumber = 304;
+    const pageBuildNumber = 350;
     const projectUrl = "https://github.com/dfedorov-arch/fdv-bouldering-timer";
     const buildLinkConfirmDelayMs = 550;
     const offlineSnapshotKey = "fdvBoulderingTimerOfflineSnapshot";
@@ -2224,6 +2475,7 @@
         finalOld: "Старый",
         finalOldHint: "Все участники последовательно лезут каждую трассу",
         finalNew: "Новый",
+        finalNewShort: "Нов.",
         finalNewHint: "Участники после отдыха переходят на следующую трассу, не дожидаясь, пока все пролезут предыдущую",
         finalRestRotations: "Количество ротаций для отдыха",
         finalRestRotationsHint: "Количество полных ротаций отдыха между попытками участника на соседних трассах",
@@ -2232,7 +2484,7 @@
         festivalAnnouncementsHint: "Объявления за 60, 30, 10 и 5 минут",
         primarySound: "Звук в основном браузере", otherSound: "Звук в других браузерах",
         otherFullscreen: "Полный экран в других браузерах", flashing: "Мигание",
-        startList: "Стартовый список", startListToggle: "Стартовый протокол", addStartList: "Добавить протокол", loadStartList: "Загрузить протокол", loadStartListNumber: "Загрузить протокол {number}", startListRoutes: "Трасс",
+        startList: "Стартовый список", startListToggle: "Стартовый протокол", addStartList: "Добавить протокол", loadStartList: "Загрузить протокол", loadStartListNumber: "Загрузить протокол {number}", loadStartListCompact: "Загрузить…", startListRoutes: "Трасс",
         startListMoveRight: "Расположить второй протокол справа", startListMoveLeft: "Вернуть второй протокол вниз",
         startListHint: "XLSX, MXL, CSV, TSV или TXT с заголовками в первой строке", clearStartList: "Удалить",
         startListLoaded: "Участников: {rows}; столбцов: {columns}; трасс: {routes}", startListInvalid: "Не удалось прочитать таблицу: нужны заголовки и хотя бы одна строка участника",
@@ -2246,7 +2498,8 @@
         routeIncidentPausedUntilStop: "Приостановка с цикла {start} завершена остановкой на цикле {stop}",
         routeIncidentNoParticipant: "В выбранном цикле на этой трассе нет участника.",
         routeMarkerReady: "Готовится", routeMarkerActive: "На трассе", routeMarkerDone: "Закончил", routeMarkerPaused: "Техническая пауза", routeMarkerStopped: "Трасса остановлена",
-        controls: "Управление", start: "Старт", pause: "Пауза", reset: "Стоп",
+        startListExcludeParticipant: "Исключить участника из протокола?", startListRestoreParticipant: "Вернуть участника в протокол?",
+        controls: "Управление", start: "Старт", pause: "Пауза", reset: "Стоп", sectionHide: "Скрыть", sectionShow: "Показать",
         presetLockedHint: "Чтобы выбрать другой формат, сначала остановите таймер кнопкой «Стоп»",
         finalPresetLockedHint: 'Чтобы выбрать другой формат, сначала остановите таймер кнопкой "Стоп" и перейдите на Цикл 1',
         screen: "Экран", exitScreen: "Выйти из режима Экран", browsers: "Браузеры", ready: "Готов", readiness: "Готовность",
@@ -2300,7 +2553,8 @@
         primaryPinBlocked: "Слишком много попыток",
         clear: "Очистить",
         buildLabel: "сборка",
-        buildProjectHint: "Для перехода на страницу проекта в GitHub нажмите на номер сборки ещё раз"
+        buildProjectHint: "Для перехода на страницу проекта в GitHub нажмите на номер сборки ещё раз",
+        authorEmailHint: "Если хотите написать мне — нажмите ещё раз"
       },
       en: {
         brandTimer: "Bouldering", brandBouldering: "Timer", format: "Format",
@@ -2314,6 +2568,7 @@
         finalOld: "Old",
         finalOldHint: "All participants climb each route sequentially",
         finalNew: "New",
+        finalNewShort: "New",
         finalNewHint: "After resting, participants move to the next route without waiting for everyone to finish the previous one",
         finalRestRotations: "Rest rotations",
         finalRestRotationsHint: "Number of complete rest rotations between the participant's attempts on adjacent routes",
@@ -2322,7 +2577,7 @@
         festivalAnnouncementsHint: "Announcements at 60, 30, 10 and 5 minutes remaining",
         primarySound: "Sound in primary browser", otherSound: "Sound in other browsers",
         otherFullscreen: "Fullscreen in other browsers", flashing: "Flashing",
-        startList: "Start list", startListToggle: "Start protocol", addStartList: "Add protocol", loadStartList: "Upload protocol", loadStartListNumber: "Upload protocol {number}", startListRoutes: "Routes",
+        startList: "Start list", startListToggle: "Start protocol", addStartList: "Add protocol", loadStartList: "Upload protocol", loadStartListNumber: "Upload protocol {number}", loadStartListCompact: "Upload…", startListRoutes: "Routes",
         startListMoveRight: "Place the second protocol on the right", startListMoveLeft: "Move the second protocol back below",
         startListHint: "XLSX, MXL, CSV, TSV or TXT with headers in the first row", clearStartList: "Remove",
         startListLoaded: "Participants: {rows}; columns: {columns}; routes: {routes}", startListInvalid: "Could not read the table: headers and at least one participant row are required",
@@ -2336,7 +2591,8 @@
         routeIncidentPausedUntilStop: "Pause from cycle {start} ended with a stop at cycle {stop}",
         routeIncidentNoParticipant: "There is no participant on this route in the selected cycle.",
         routeMarkerReady: "Preparing", routeMarkerActive: "On route", routeMarkerDone: "Finished", routeMarkerPaused: "Technical pause", routeMarkerStopped: "Route stopped",
-        controls: "Controls", start: "Start", pause: "Pause", reset: "Stop",
+        startListExcludeParticipant: "Exclude participant from the protocol?", startListRestoreParticipant: "Return participant to the protocol?",
+        controls: "Controls", start: "Start", pause: "Pause", reset: "Stop", sectionHide: "Hide", sectionShow: "Show",
         presetLockedHint: "To select another format, first stop the timer with the Stop button",
         finalPresetLockedHint: "To select another format, stop the timer with Stop and return to Cycle 1",
         screen: "Screen", exitScreen: "Exit screen mode", browsers: "Browsers", ready: "Ready", readiness: "Ready",
@@ -2389,13 +2645,15 @@
         primaryPinBlocked: "Too many attempts",
         clear: "Clear",
         buildLabel: "Build",
-        buildProjectHint: "Click the build number again to open the project page on GitHub"
+        buildProjectHint: "Click the build number again to open the project page on GitHub",
+        authorEmailHint: "If you want to email me, click again"
       }
     };
     const t = (key) => translations[language][key] || key;
 
     const els = {
       controls: document.querySelector(".controls"),
+      sectionToggles: document.querySelectorAll("[data-section-toggle]"),
       presets: document.querySelectorAll(".preset"),
       languageToggle: document.getElementById("languageToggle"),
       brandTimer: document.getElementById("brandTimer"),
@@ -2548,10 +2806,17 @@
     let lastStartListScrollAnchors = [];
     let pendingStartListScrollRestores = [];
     let storedStartListScrollRestoreLoaded = false;
-    let startListScrollPersistFrame = 0;
+    let startListScrollPersistTimer = 0;
     let startListInitialAutoScrollPending = false;
     let startListIncidentSelections = [];
     let startListRouteClickGuard = { key: "", until: 0 };
+    let startListIncidentPreviewCell = null;
+    const startListIncidentPreviewTriggerSelector = [
+      "[data-start-list-incident-cycle-control]",
+      "[data-start-list-incident-action=\"pause\"]",
+      "[data-start-list-incident-action=\"resume\"]",
+      "[data-start-list-incident-action=\"stop\"]"
+    ].join(",");
     let startListWidthFitFrame = 0;
     let measuredBrowserScrollbarWidth = null;
     let startListEditorOpen = safeStorageGet("sessionStorage", startListEditorPreferenceKey) === "1";
@@ -2584,6 +2849,7 @@
     let lastTrustedClockAnchorAt = 0;
     let syncRequestInFlight = false;
     let syncRequestGeneration = 0;
+    let stateApplyRecoveryScheduled = false;
     let syncQuality = { latency: null, offset: null, error: null, jitter: null, samples: 0 };
     let syncSamples = [];
     let lastBurstSyncAt = 0;
@@ -2631,6 +2897,8 @@
     let lastStartupConfig = null;
     let buildLinkArmed = false;
     let buildLinkArmedAt = 0;
+    let authorLinkArmed = false;
+    let authorLinkArmedAt = 0;
     let lastServerContactAt = performance.now();
     let consecutiveServerFailures = 0;
     let serverPorts = { http: 8008, https: 8443 };
@@ -2698,7 +2966,8 @@
         + (parseFloat(styles.borderRightWidth) || 0);
       const scrollbarWidth = Math.max(0,
         els.controls.offsetWidth - els.controls.clientWidth - borders);
-      const rightPadding = Math.max(4, 20 - scrollbarWidth);
+      const basePadding = parseFloat(getComputedStyle(els.controls).getPropertyValue("--controls-base-padding")) || 20;
+      const rightPadding = Math.max(4, basePadding - scrollbarWidth);
       els.controls.style.setProperty("--controls-padding-right", `${rightPadding}px`);
     }
 
@@ -3710,22 +3979,30 @@
     }
 
     function renderBuildInfo() {
-      if (!els.buildInfo) return;
-      if (!buildNumber) {
-        els.buildInfo.hidden = true;
-        els.buildSeparator.hidden = true;
-        els.buildProjectHint.hidden = true;
-        els.buildInfo.textContent = "";
-        return;
+      if (els.buildInfo) {
+        if (!buildNumber) {
+          els.buildInfo.hidden = true;
+          els.buildSeparator.hidden = true;
+          els.buildInfo.textContent = "";
+          buildLinkArmed = false;
+          buildLinkArmedAt = 0;
+        } else {
+          els.buildInfo.hidden = false;
+          els.buildSeparator.hidden = false;
+          els.buildInfo.textContent = `${t("buildLabel")} ${buildNumber}`;
+          els.buildInfo.title = projectUrl;
+          els.buildInfo.classList.toggle("armed", buildLinkArmed);
+          els.buildInfo.setAttribute("aria-expanded", String(buildLinkArmed));
+        }
       }
-      els.buildInfo.hidden = false;
-      els.buildSeparator.hidden = false;
-      els.buildInfo.textContent = `${t("buildLabel")} ${buildNumber}`;
-      els.buildInfo.title = projectUrl;
-      els.buildInfo.classList.toggle("armed", buildLinkArmed);
-      els.buildInfo.setAttribute("aria-expanded", String(buildLinkArmed));
-      els.buildProjectHint.textContent = t("buildProjectHint");
-      els.buildProjectHint.hidden = !buildLinkArmed;
+      if (els.authorName) {
+        els.authorName.classList.toggle("armed", authorLinkArmed);
+        els.authorName.setAttribute("aria-expanded", String(authorLinkArmed));
+      }
+      if (els.buildProjectHint) {
+        els.buildProjectHint.textContent = t(authorLinkArmed ? "authorEmailHint" : "buildProjectHint");
+        els.buildProjectHint.hidden = !buildLinkArmed && !authorLinkArmed;
+      }
     }
 
     function activateBuildProjectLink(event) {
@@ -3736,6 +4013,9 @@
       const now = performance.now();
       if (!buildLinkArmed) {
         event.preventDefault();
+        authorLinkArmed = false;
+        authorLinkArmedAt = 0;
+        els.authorName.classList.remove("opening");
         buildLinkArmed = true;
         buildLinkArmedAt = now;
         renderBuildInfo();
@@ -3760,6 +4040,76 @@
       buildLinkArmedAt = 0;
       els.buildInfo.classList.remove("opening");
       renderBuildInfo();
+    }
+
+    function activateAuthorEmailLink(event) {
+      const now = performance.now();
+      if (!authorLinkArmed) {
+        event.preventDefault();
+        buildLinkArmed = false;
+        buildLinkArmedAt = 0;
+        els.buildInfo.classList.remove("opening");
+        authorLinkArmed = true;
+        authorLinkArmedAt = now;
+        renderBuildInfo();
+        return;
+      }
+      if (now - authorLinkArmedAt < buildLinkConfirmDelayMs) {
+        event.preventDefault();
+        return;
+      }
+      els.authorName.classList.add("opening");
+      window.setTimeout(() => {
+        authorLinkArmed = false;
+        authorLinkArmedAt = 0;
+        els.authorName.classList.remove("opening");
+        renderBuildInfo();
+      }, 250);
+    }
+
+    function deactivateAuthorEmailLink() {
+      if (!authorLinkArmed) return;
+      authorLinkArmed = false;
+      authorLinkArmedAt = 0;
+      els.authorName.classList.remove("opening");
+      renderBuildInfo();
+    }
+
+    function updateSectionToggle(button) {
+      const content = document.getElementById(button.getAttribute("aria-controls"));
+      if (!content) return;
+      const expanded = !content.hidden;
+      button.setAttribute("aria-expanded", String(expanded));
+      const label = t(expanded ? "sectionHide" : "sectionShow");
+      button.setAttribute("aria-label", label);
+      button.title = label;
+      button.textContent = "";
+    }
+
+    function toggleControlSection(button) {
+      const content = document.getElementById(button.getAttribute("aria-controls"));
+      if (!content) return;
+      content.hidden = !content.hidden;
+      updateSectionToggle(button);
+      syncControlsScrollbarPadding();
+    }
+
+    function updateFinalNewLabels() {
+      if (!els.finalNewLabel) return;
+      let fullLabel = els.finalNewLabel.querySelector(".final-new-full");
+      let shortLabel = els.finalNewLabel.querySelector(".final-new-short");
+      if (!fullLabel || !shortLabel) {
+        els.finalNewLabel.textContent = "";
+        fullLabel = document.createElement("span");
+        fullLabel.className = "final-new-full";
+        shortLabel = document.createElement("span");
+        shortLabel.className = "final-new-short";
+        shortLabel.setAttribute("aria-hidden", "true");
+        els.finalNewLabel.appendChild(fullLabel);
+        els.finalNewLabel.appendChild(shortLabel);
+      }
+      fullLabel.textContent = t("finalNew");
+      shortLabel.textContent = t("finalNewShort");
     }
 
     function applyLanguage(nextLanguage) {
@@ -3787,7 +4137,7 @@
       els.finalRoundOptions.setAttribute("aria-label", t("finalRoundFormat"));
       els.finalOldLabel.textContent = t("finalOld");
       els.finalOldOption.title = t("finalOldHint");
-      els.finalNewLabel.textContent = t("finalNew");
+      updateFinalNewLabels();
       els.finalNewOption.title = t("finalNewHint");
       els.finalRestLabel.textContent = t("finalRestRotations");
       els.finalRestField.title = t("finalRestRotationsHint");
@@ -3819,6 +4169,7 @@
       els.flashLabel.textContent = t("flashing");
       els.controlsTitle.textContent = t("controls");
       els.browsersTitle.textContent = t("browsers");
+      els.sectionToggles.forEach(updateSectionToggle);
       els.presets.forEach((button) => {
         button.textContent = t(button.dataset.preset);
       });
@@ -4331,6 +4682,16 @@
       saveOfflineSnapshot();
     }
 
+    function reportStateApplyError(error, source, requestRecovery = false) {
+      console.error(`Could not apply server state (${source})`, error);
+      if (!requestRecovery || stateApplyRecoveryScheduled || standaloneMode) return;
+      stateApplyRecoveryScheduled = true;
+      window.setTimeout(async () => {
+        stateApplyRecoveryScheduled = false;
+        await syncFromServer({ forceApply: true, skipBurst: true });
+      }, 100);
+    }
+
     const clientActionTransport = window.FDVClientActionTransport.createActionTransport({
       applyRemote: (remote, options) => applyServerState(remote, options),
       clientDiagnostics,
@@ -4341,6 +4702,11 @@
       isRuntimeCommand: (type) => runtimeCommandTypes.has(type),
       isStandalone: () => standaloneMode,
       markFailure: (immediate) => markServerFailure(immediate),
+      reportApplyError: (error, context) => reportStateApplyError(
+        error,
+        `action:${context?.phase || "response"}`,
+        true
+      ),
       nextCommandId: () => `${clientId}:${commandSessionId}:${++commandSeq}`,
       requestTimeoutMs: syncRequestTimeoutMs,
       serverNow,
@@ -4361,6 +4727,7 @@
       const requestGeneration = syncRequestGeneration;
       const controller = new AbortController();
       const timeout = window.setTimeout(() => controller.abort(), syncRequestTimeoutMs);
+      let remote = null;
       try {
         const timing = {
           date0: Date.now(),
@@ -4377,7 +4744,7 @@
         timing.date1 = Date.now();
         timing.perf1 = performance.now();
         if (!response.ok) throw new Error("Server state failed");
-        const remote = await response.json();
+        remote = await response.json();
         if (requestGeneration !== syncRequestGeneration) return false;
         markServerContact();
         if (standaloneMode) {
@@ -4421,7 +4788,8 @@
         maybeBurstSync(options);
         return true;
       } catch (error) {
-        markServerFailure();
+        if (remote) reportStateApplyError(error, "sync");
+        else markServerFailure();
         return false;
       } finally {
         window.clearTimeout(timeout);
@@ -4510,7 +4878,9 @@
             rescheduleSignals: identity.versionChanged,
             includePhaseSignal: isRemoteStart
           });
-        } catch (error) {}
+        } catch (error) {
+          reportStateApplyError(error, "sse");
+        }
       });
       eventSource.addEventListener("audio-test", (event) => {
         if (generation !== eventStreamGeneration) return;
@@ -4952,12 +5322,30 @@
       return Array.isArray(value) && value.some(Boolean);
     }
 
+    function startListExclusionsChanged(currentList, nextList) {
+      if (!currentList || !nextList) return false;
+      const currentExcluded = window.FDVStartList.normalizeExcludedParticipants(
+        currentList.excludedParticipants,
+        currentList.rows?.length
+      );
+      const nextExcluded = window.FDVStartList.normalizeExcludedParticipants(
+        nextList.excludedParticipants,
+        nextList.rows?.length
+      );
+      return JSON.stringify(currentExcluded) !== JSON.stringify(nextExcluded);
+    }
+
     function rememberStartListScrollPositions(nextLists) {
       const normalized = normalizeStartLists(nextLists);
       els.startListLayout.querySelectorAll("[data-start-list-index]").forEach((slot) => {
         const index = Number(slot.dataset.startListIndex);
         const scroll = slot.querySelector("[data-start-list-scroll]");
         if (!scroll || !normalized[index]) return;
+        if (startListExclusionsChanged(state.startLists[index], normalized[index])) {
+          pendingStartListScrollRestores[index] = null;
+          lastStartListScrollAnchors[index] = null;
+          return;
+        }
         const pending = pendingStartListScrollRestores[index];
         pendingStartListScrollRestores[index] = {
           listKey: JSON.stringify(normalized[index]),
@@ -4968,9 +5356,9 @@
     }
 
     function persistStartListScrollPositions() {
-      if (startListScrollPersistFrame) {
-        cancelAnimationFrame(startListScrollPersistFrame);
-        startListScrollPersistFrame = 0;
+      if (startListScrollPersistTimer) {
+        clearTimeout(startListScrollPersistTimer);
+        startListScrollPersistTimer = 0;
       }
       const positions = [];
       els.startListLayout.querySelectorAll("[data-start-list-index]").forEach((slot) => {
@@ -4988,11 +5376,11 @@
     }
 
     function scheduleStartListScrollPersistence() {
-      if (startListScrollPersistFrame) return;
-      startListScrollPersistFrame = requestAnimationFrame(() => {
-        startListScrollPersistFrame = 0;
+      if (startListScrollPersistTimer) clearTimeout(startListScrollPersistTimer);
+      startListScrollPersistTimer = window.setTimeout(() => {
+        startListScrollPersistTimer = 0;
         persistStartListScrollPositions();
-      });
+      }, 150);
     }
 
     function loadStoredStartListScrollPositions() {
@@ -5047,8 +5435,8 @@
         <div class="start-list-panel-controls${hasLayoutToggle ? " has-layout-toggle" : ""}">
           <button class="start-list-add" type="button" data-start-list-add title="${escapeHtml(t("addStartList"))}" aria-label="${escapeHtml(t("addStartList"))}"${state.startLists.length >= 4 ? " disabled" : ""}>+</button>
           ${layoutToggle}
-          <label class="start-list-file-button">
-            <span>${escapeHtml(formatStartListText("loadStartListNumber", { number: index + 1 }))}</span>
+          <label class="start-list-file-button" title="${escapeHtml(formatStartListText("loadStartListNumber", { number: index + 1 }))}">
+            <span>${escapeHtml(t("loadStartListCompact"))}</span>
             <input type="file" data-start-list-file accept=".xlsx,.csv,.tsv,.txt,.mxl">
           </label>
           <label class="start-list-route-field">
@@ -5110,17 +5498,22 @@
     }
 
     function intrinsicStartListControlsWidth(controls) {
-      const previousWidth = controls.style.width;
-      const previousMinWidth = controls.style.minWidth;
-      const previousMaxWidth = controls.style.maxWidth;
-      controls.style.width = "max-content";
-      controls.style.minWidth = "";
-      controls.style.maxWidth = "none";
-      const width = Math.ceil(controls.getBoundingClientRect().width);
-      controls.style.width = previousWidth;
-      controls.style.minWidth = previousMinWidth;
-      controls.style.maxWidth = previousMaxWidth;
-      return width;
+      const style = getComputedStyle(controls);
+      const children = [...controls.children].filter((child) => getComputedStyle(child).display !== "none");
+      const horizontalFrame = [style.paddingLeft, style.paddingRight, style.borderLeftWidth, style.borderRightWidth]
+        .reduce((sum, value) => sum + (parseFloat(value) || 0), 0);
+      const gap = parseFloat(style.columnGap) || 0;
+      const childrenWidth = children.reduce((sum, child) => {
+        if (!child.classList.contains("start-list-file-button")) {
+          return sum + Math.ceil(child.getBoundingClientRect().width);
+        }
+        const childStyle = getComputedStyle(child);
+        const labelWidth = child.querySelector("span")?.scrollWidth || 0;
+        const childFrame = [childStyle.paddingLeft, childStyle.paddingRight, childStyle.borderLeftWidth, childStyle.borderRightWidth]
+          .reduce((frame, value) => frame + (parseFloat(value) || 0), 0);
+        return sum + Math.ceil(labelWidth + childFrame);
+      }, 0);
+      return Math.ceil(horizontalFrame + childrenWidth + gap * Math.max(0, children.length - 1));
     }
 
     function synchronizeStackedStartListTableColumns(column) {
@@ -5161,11 +5554,11 @@
         const scrollbarAllowance = scrollbars.reduce((maximum, scroll) =>
           Math.max(maximum, scroll.offsetWidth - scroll.clientWidth), nativeScrollbarWidth)
           + scrollbarRoundingAllowance;
-        const measuredContentWidth = Math.max(tableWidth, controlsWidth);
-        const contentWidth = Math.min(maximumContentWidth, measuredContentWidth);
+        const measuredContentWidth = Math.max(tableWidth + scrollbarAllowance, controlsWidth);
+        const contentWidth = Math.min(maximumContentWidth + scrollbarAllowance, measuredContentWidth);
         return {
           scrollbarAllowance,
-          width: measuredContentWidth ? Math.max(minimumColumnWidth, contentWidth + scrollbarAllowance) : minimumColumnWidth
+          width: measuredContentWidth ? Math.max(minimumColumnWidth, contentWidth) : minimumColumnWidth
         };
       });
       let widths = measurements.map((measurement) => measurement.width);
@@ -5202,6 +5595,59 @@
         }
       };
       startListWidthFitFrame = requestAnimationFrame(settleWidth);
+    }
+
+    function currentStartListDensity() {
+      if (document.body.classList.contains("start-list-ultra-dense")) return 3;
+      if (document.body.classList.contains("start-list-dense")) return 2;
+      if (document.body.classList.contains("start-list-compact")) return 1;
+      return 0;
+    }
+
+    function startListRowCapacity(scroll, density, currentDensity) {
+      const rowHeights = [30, 27, 24, 18];
+      const titleHeights = [30, 27, 25, 20];
+      const slot = scroll.closest("[data-start-list-index]");
+      const title = slot?.querySelector("[data-start-list-title]:not([hidden])");
+      const currentTitleHeight = title ? titleHeights[currentDensity] : 0;
+      const targetTitleHeight = title ? titleHeights[density] : 0;
+      const availableHeight = scroll.clientHeight + currentTitleHeight - targetTitleHeight;
+      return Math.max(1, Math.floor((availableHeight - rowHeights[density]) / rowHeights[density]) - 1);
+    }
+
+    function minimumStartListVerticalDensity() {
+      const currentDensity = currentStartListDensity();
+      let required = 0;
+      els.startListLayout.querySelectorAll("[data-start-list-scroll]").forEach((scroll) => {
+        const highlightedIndexes = [...scroll.querySelectorAll("tbody tr.is-active, tbody tr.is-ready")]
+          .map((row) => Number(row.dataset.participantIndex))
+          .filter(Number.isInteger);
+        if (!highlightedIndexes.length) return;
+        const span = Math.max(...highlightedIndexes) - Math.min(...highlightedIndexes) + 1;
+        if (span > startListRowCapacity(scroll, 0, currentDensity)) required = Math.max(required, 1);
+        if (span > startListRowCapacity(scroll, 1, currentDensity)) required = Math.max(required, 2);
+        if (span > startListRowCapacity(scroll, 2, currentDensity)) required = Math.max(required, 3);
+      });
+      return required;
+    }
+
+    function applyStartListVerticalDensity() {
+      const density = document.body.classList.contains("start-list-visible")
+        ? minimumStartListVerticalDensity()
+        : 0;
+      const previous = currentStartListDensity();
+      document.body.classList.toggle("start-list-compact", density >= 1);
+      document.body.classList.toggle("start-list-dense", density >= 2);
+      document.body.classList.toggle("start-list-ultra-dense", density >= 3);
+      return density !== previous;
+    }
+
+    function reanchorStartListScrolls(settleLayout = true) {
+      els.startListLayout.querySelectorAll("[data-start-list-scroll]").forEach((scroll) => {
+        const anchor = Number(scroll.dataset.startListAnchor);
+        if (!Number.isInteger(anchor) || anchor < 0) return;
+        scheduleStartListAnchorScroll(scroll, anchor, scroll.scrollLeft, settleLayout);
+      });
     }
 
     function updateStartListControls() {
@@ -5241,6 +5687,7 @@
         scheduleStartListPanelWidthFit();
       }
       if (!visible) {
+        applyStartListVerticalDensity();
         startListInitialAutoScrollPending = false;
         lastStartListRenderKey = "";
         els.startListLayout.innerHTML = "";
@@ -5253,9 +5700,19 @@
       let pass = 0;
       const applyAnchor = () => {
         if (!scroll.isConnected) return;
-        const row = scroll.querySelector(`[data-participant-index="${anchor}"]`);
+        const highlightedIndexes = [...scroll.querySelectorAll("tbody tr.is-active, tbody tr.is-ready")]
+          .map((row) => Number(row.dataset.participantIndex))
+          .filter(Number.isInteger);
         const headerHeight = scroll.querySelector("thead")?.offsetHeight || 0;
-        if (row) scroll.scrollTop = Math.max(0, row.offsetTop - headerHeight);
+        const sampleRowHeight = scroll.querySelector("tbody tr")?.offsetHeight || 1;
+        const visibleRowCount = Math.max(1, Math.floor((scroll.clientHeight - headerHeight) / sampleRowHeight) - 1);
+        const prioritizedAnchor = window.FDVStartList.prioritizedScrollAnchor(anchor, highlightedIndexes, visibleRowCount);
+        const row = scroll.querySelector(`[data-participant-index="${prioritizedAnchor}"]`);
+        if (row) {
+          const scrollRect = scroll.getBoundingClientRect();
+          const rowRect = row.getBoundingClientRect();
+          scroll.scrollTop = Math.max(0, scroll.scrollTop + rowRect.top - scrollRect.top - headerHeight);
+        }
         scroll.scrollLeft = left;
         pass += 1;
         if (settleLayout && pass < 6) requestAnimationFrame(applyAnchor);
@@ -5298,8 +5755,12 @@
       return {
         finalFormat: settings.finalRoundFormat === "new" ? "new" : "old",
         restRotations: settings.finalRestRotations || 3,
-        participantCount: list?.rows?.length || 1
+        participantCount: window.FDVStartList.includedParticipantCount(list?.rows?.length, list?.excludedParticipants) || 1
       };
+    }
+
+    function startListCalculationIncidents(list) {
+      return window.FDVStartList.rebaseIncidents(list?.incidents, list?.excludedParticipants, list?.rows?.length);
     }
 
     function startListMarkerLabel(marker) {
@@ -5335,6 +5796,18 @@
       });
     }
 
+    function startListIncidentActions(activePause, stop) {
+      if (stop) return "";
+      if (activePause) {
+        return `
+          <button class="start-list-incident-action resume" type="button" data-start-list-incident-action="resume" title="${escapeHtml(t("routeIncidentResume"))}" aria-label="${escapeHtml(t("routeIncidentResume"))}"></button>
+          <button class="start-list-incident-action stop" type="button" data-start-list-incident-action="stop" title="${escapeHtml(t("routeIncidentStop"))}" aria-label="${escapeHtml(t("routeIncidentStop"))}"></button>`;
+      }
+      return `
+          <button class="start-list-incident-action pause" type="button" data-start-list-incident-action="pause" title="${escapeHtml(t("routeIncidentPause"))}" aria-label="${escapeHtml(t("routeIncidentPause"))}"></button>
+          <button class="start-list-incident-action stop" type="button" data-start-list-incident-action="stop" title="${escapeHtml(t("routeIncidentStop"))}" aria-label="${escapeHtml(t("routeIncidentStop"))}"></button>`;
+    }
+
     function renderStartListIncidentMenu(slot, list, listIndex, position, errorText = "") {
       const menu = slot?.querySelector("[data-start-list-incident-menu]");
       if (!menu) return;
@@ -5351,23 +5824,13 @@
       }
       slot.dataset.startListIncidentRoute = String(routeIndex);
       const incidents = list.incidents || [];
-      const activePause = window.FDVStartList.activePauseForRoute(routeIndex, incidents);
+      const cycleValue = defaultRouteIncidentCycle(position);
+      const activePause = window.FDVStartList.activePauseForRoute(routeIndex, incidents, cycleValue);
       const stop = window.FDVStartList.stopForRoute(routeIndex, incidents);
       const routePauses = incidents.filter((incident) => incident.kind === "pause" && incident.route === routeIndex + 1);
-      const cycleValue = defaultRouteIncidentCycle(position);
       const cycleHint = activePause ? t("routeIncidentResumeCycleHint") : t("routeIncidentStartCycleHint");
-      let actions = "";
-      if (stop) {
-        actions = "";
-      } else if (activePause) {
-        actions = `
-          <button class="start-list-incident-action resume" type="button" data-start-list-incident-action="resume" title="${escapeHtml(t("routeIncidentResume"))}" aria-label="${escapeHtml(t("routeIncidentResume"))}"></button>
-          <button class="start-list-incident-action stop" type="button" data-start-list-incident-action="stop" title="${escapeHtml(t("routeIncidentStop"))}" aria-label="${escapeHtml(t("routeIncidentStop"))}"></button>`;
-      } else {
-        actions = `
-          <button class="start-list-incident-action pause" type="button" data-start-list-incident-action="pause" title="${escapeHtml(t("routeIncidentPause"))}" aria-label="${escapeHtml(t("routeIncidentPause"))}"></button>
-          <button class="start-list-incident-action stop" type="button" data-start-list-incident-action="stop" title="${escapeHtml(t("routeIncidentStop"))}" aria-label="${escapeHtml(t("routeIncidentStop"))}"></button>`;
-      }
+      const actions = startListIncidentActions(activePause, stop);
+      const singleRoute = list.routeCount === 1;
       const pauseNotes = routePauses.map((incident) => {
         const incidentIndex = incidents.indexOf(incident);
         const pauseNote = formatRoutePauseState(incident, position.cycle);
@@ -5379,15 +5842,84 @@
         errorText ? `<div class="start-list-incident-note error"><span>${escapeHtml(errorText)}</span></div>` : ""
       ].filter(Boolean).join("");
       const incidentControls = actions ? `<div class="start-list-incident-controls">
-        <label class="start-list-incident-cycle" title="${escapeHtml(cycleHint)}"><span>${escapeHtml(t("routeIncidentCycle"))}</span><input type="number" min="1" max="9999" step="1" value="${cycleValue}" data-start-list-incident-cycle title="${escapeHtml(cycleHint)}"></label>
+        <label class="start-list-incident-cycle" data-start-list-incident-cycle-control title="${escapeHtml(cycleHint)}"><span>${escapeHtml(t("routeIncidentCycle"))}</span><input type="number" min="1" max="9999" step="1" value="${cycleValue}" data-start-list-incident-cycle title="${escapeHtml(cycleHint)}"></label>
         <div class="start-list-incident-actions">${actions}</div>
       </div>` : "<div></div>";
       menu.innerHTML = `
-        <strong class="start-list-incident-title">${escapeHtml(formatStartListText("startListRoute", { route: routeIndex + 1 }))}</strong>
+        <strong class="start-list-incident-title">${singleRoute ? "" : escapeHtml(formatStartListText("startListRoute", { route: routeIndex + 1 }))}</strong>
         ${incidentControls}
         <button class="start-list-incident-close" type="button" data-start-list-incident-close title="${escapeHtml(t("routeIncidentClose"))}" aria-label="${escapeHtml(t("routeIncidentClose"))}">×</button>
         ${notesHtml ? `<div class="start-list-incident-notes">${notesHtml}</div>` : ""}`;
       menu.hidden = false;
+    }
+
+    function clearStartListIncidentCyclePreview() {
+      startListIncidentPreviewCell?.classList.remove("is-incident-cycle-preview");
+      startListIncidentPreviewCell = null;
+    }
+
+    function updateStartListIncidentActions(slot) {
+      const cycleInput = slot?.querySelector("[data-start-list-incident-cycle]");
+      const actions = slot?.querySelector(".start-list-incident-actions");
+      const listIndex = Number(slot?.dataset.startListIndex);
+      const routeIndex = Number(slot?.dataset.startListIncidentRoute);
+      const list = state.startLists[listIndex];
+      if (!cycleInput || !actions || !list || !Number.isInteger(routeIndex)) return;
+      const cycle = Math.max(1, Math.min(9999, Math.round(Number(cycleInput.value) || 1)));
+      const incidents = list.incidents || [];
+      const activePause = window.FDVStartList.activePauseForRoute(routeIndex, incidents, cycle);
+      const stop = window.FDVStartList.stopForRoute(routeIndex, incidents);
+      actions.innerHTML = startListIncidentActions(activePause, stop);
+      const cycleHint = activePause ? t("routeIncidentResumeCycleHint") : t("routeIncidentStartCycleHint");
+      cycleInput.title = cycleHint;
+      cycleInput.closest("[data-start-list-incident-cycle-control]")?.setAttribute("title", cycleHint);
+    }
+
+    function updateStartListIncidentCyclePreview(control) {
+      clearStartListIncidentCyclePreview();
+      const slot = control?.closest("[data-start-list-index]");
+      const cycleInput = control?.querySelector("[data-start-list-incident-cycle]");
+      if (!slot || !cycleInput) return;
+      const listIndex = Number(slot.dataset.startListIndex);
+      const routeIndex = Number(slot.dataset.startListIncidentRoute);
+      const list = state.startLists[listIndex];
+      if (!list || !Number.isInteger(routeIndex) || routeIndex < 0 || routeIndex >= list.routeCount) return;
+      const cycle = Math.max(1, Math.min(9999, Math.round(Number(cycleInput.value) || 1)));
+      const incidents = list.incidents || [];
+      const activePause = window.FDVStartList.activePauseForRoute(routeIndex, incidents, cycle);
+      const previewIncidents = activePause
+        ? incidents.map((incident) => incident === activePause
+          ? { ...incident, resumeCycle: Math.max(incident.startCycle, cycle), resolution: "resume" }
+          : incident)
+        : incidents;
+      const calculationIncidents = window.FDVStartList.rebaseIncidents(
+        previewIncidents,
+        list.excludedParticipants,
+        list.rows.length
+      );
+      const participantIndex = window.FDVStartList.participantAtOrAfterCycle(
+        routeIndex,
+        cycle,
+        calculationIncidents,
+        window.FDVStartList.includedParticipantCount(list.rows.length, list.excludedParticipants),
+        startListSchedule(list)
+      );
+      if (participantIndex < 0) return;
+      const rowIndex = window.FDVStartList.participantRowIndex(participantIndex, list.excludedParticipants, list.rows.length);
+      const row = slot.querySelector(`[data-participant-index="${rowIndex}"]`);
+      const cell = row?.querySelector(`[data-start-list-route-cell="${routeIndex}"]`);
+      if (!cell) return;
+      cell.classList.add("is-incident-cycle-preview");
+      startListIncidentPreviewCell = cell;
+    }
+
+    function startListIncidentCyclePreviewTrigger(target) {
+      return target?.closest?.(startListIncidentPreviewTriggerSelector) || null;
+    }
+
+    function startListIncidentCycleControlForTrigger(trigger) {
+      return trigger?.closest("[data-start-list-incident-menu]")
+        ?.querySelector("[data-start-list-incident-cycle-control]") || null;
     }
 
     async function applyStartListIncidentAction(slot, listIndex, routeIndex, action, incidentIndex = null) {
@@ -5397,9 +5929,16 @@
       const cycle = Math.max(1, Math.min(9999, Math.round(Number(cycleInput?.value) || defaultRouteIncidentCycle())));
       if (cycleInput) cycleInput.value = String(cycle);
       let incidents = [...(list.incidents || [])];
-      const activePause = window.FDVStartList.activePauseForRoute(routeIndex, incidents);
+      const activePause = window.FDVStartList.activePauseForRoute(routeIndex, incidents, cycle);
       if (action === "pause") {
-        const participantIndex = window.FDVStartList.participantAtCycle(routeIndex, cycle, incidents, list.rows.length, startListSchedule(list));
+        const calculatedParticipantIndex = window.FDVStartList.participantAtOrAfterCycle(
+          routeIndex,
+          cycle,
+          startListCalculationIncidents(list),
+          window.FDVStartList.includedParticipantCount(list.rows.length, list.excludedParticipants),
+          startListSchedule(list)
+        );
+        const participantIndex = window.FDVStartList.participantRowIndex(calculatedParticipantIndex, list.excludedParticipants, list.rows.length);
         if (participantIndex < 0) {
           renderStartListIncidentMenu(slot, list, listIndex, currentStartListPosition(), t("routeIncidentNoParticipant"));
           return;
@@ -5438,6 +5977,18 @@
       await commitStartLists(nextLists);
     }
 
+    async function toggleStartListParticipantExclusion(listIndex, participantIndex) {
+      const list = state.startLists[listIndex];
+      if (!list || !controlsAvailable() || participantIndex < 0 || participantIndex >= list.rows.length) return;
+      const excludedParticipants = window.FDVStartList.normalizeExcludedParticipants(list.excludedParticipants, list.rows.length);
+      const nextExcludedParticipants = excludedParticipants.includes(participantIndex)
+        ? excludedParticipants.filter((index) => index !== participantIndex)
+        : [...excludedParticipants, participantIndex];
+      const nextLists = [...state.startLists];
+      nextLists[listIndex] = window.FDVStartList.sanitize({ ...list, excludedParticipants: nextExcludedParticipants });
+      await commitStartLists(nextLists);
+    }
+
     function renderStartList() {
       loadStoredStartListScrollPositions();
       updateStartListVisibility();
@@ -5470,7 +6021,8 @@
           titleBar.hidden = !list.title;
           titleBar.title = list.title || "";
         }
-        const incidents = list.incidents || [];
+        const incidents = startListCalculationIncidents(list);
+        const excludedParticipants = window.FDVStartList.normalizeExcludedParticipants(list.excludedParticipants, list.rows.length);
         const schedule = startListSchedule(list);
         const canManageIncidents = Boolean(slot.querySelector("[data-start-list-incident-menu]")) && controlsAvailable();
         const routeHeaders = Array.from({ length: list.routeCount }, (_, routeIndex) => {
@@ -5484,16 +6036,23 @@
             : "";
           const incidentText = [historyText, stoppedText].filter(Boolean).join("; ");
           const routeTitle = incidentText ? `${title}. ${incidentText}` : title;
-          return `<th class="route-cell${routeStatus ? ` route-${routeStatus}` : ""}" title="${escapeHtml(routeTitle)}"><button class="start-list-route-button" type="button" data-start-list-route="${routeIndex}" aria-label="${escapeHtml(routeTitle)}"${canManageIncidents ? "" : " disabled"}>${routeIndex + 1}</button></th>`;
+          const routeLabel = list.routeCount === 1 ? (language === "en" ? "R" : "T") : routeIndex + 1;
+          return `<th class="route-cell${routeStatus ? ` route-${routeStatus}` : ""}" title="${escapeHtml(routeTitle)}"><button class="start-list-route-button" type="button" data-start-list-route="${routeIndex}" aria-label="${escapeHtml(routeTitle)}"${canManageIncidents ? "" : " disabled"}>${routeLabel}</button></th>`;
         }).join("");
         const body = list.rows.map((row, participantIndex) => {
-          const rowStatus = window.FDVStartList.rowStatus(participantIndex, list.routeCount, position.cycle, position.phase, incidents, schedule);
-          const cells = list.headers.map((_, columnIndex) => `<td>${escapeHtml(row[columnIndex] || "")}</td>`).join("");
-          const routes = Array.from({ length: list.routeCount }, (_, routeIndex) => {
-            const marker = window.FDVStartList.marker(participantIndex, routeIndex, position.cycle, position.phase, incidents, schedule);
-            return `<td class="route-cell">${marker ? `<span class="route-marker ${marker}" aria-label="${escapeHtml(startListMarkerLabel(marker))}"></span>` : ""}</td>`;
+          const excluded = excludedParticipants.includes(participantIndex);
+          const calculationParticipantIndex = window.FDVStartList.participantScheduleIndex(participantIndex, excludedParticipants, list.rows.length);
+          const rowStatus = excluded ? "" : window.FDVStartList.rowStatus(calculationParticipantIndex, list.routeCount, position.cycle, position.phase, incidents, schedule);
+          const exclusionTitle = excluded ? t("startListRestoreParticipant") : t("startListExcludeParticipant");
+          const cells = list.headers.map((_, columnIndex) => {
+            const exclusionControl = canManageIncidents && columnIndex === 0;
+            return `<td${exclusionControl ? ` data-start-list-participant-exclusion="${participantIndex}" tabindex="0" role="button" title="${escapeHtml(exclusionTitle)}" aria-label="${escapeHtml(exclusionTitle)}"` : ""}>${escapeHtml(row[columnIndex] || "")}</td>`;
           }).join("");
-          return `<tr data-participant-index="${participantIndex}" class="${rowStatus ? `is-${rowStatus}` : ""}">${cells}${routes}</tr>`;
+          const routes = Array.from({ length: list.routeCount }, (_, routeIndex) => {
+            const marker = excluded ? "" : window.FDVStartList.marker(calculationParticipantIndex, routeIndex, position.cycle, position.phase, incidents, schedule);
+            return `<td class="route-cell" data-start-list-route-cell="${routeIndex}">${marker ? `<span class="route-marker ${marker}" aria-label="${escapeHtml(startListMarkerLabel(marker))}"></span>` : ""}</td>`;
+          }).join("");
+          return `<tr data-participant-index="${participantIndex}" class="${excluded ? "is-excluded" : rowStatus ? `is-${rowStatus}` : ""}">${cells}${routes}</tr>`;
         }).join("");
         const previousScroll = { top: scroll.scrollTop, left: scroll.scrollLeft };
         const tableColumnCount = list.headers.length + list.routeCount;
@@ -5509,7 +6068,16 @@
         const mobileRowCount = Math.min(list.rows.length, Math.max(5, highlightedSpan + 4));
         scroll.style.setProperty("--start-list-mobile-row-count", String(mobileRowCount));
         renderStartListIncidentMenu(slot, list, index, position);
-        const anchor = window.FDVStartList.scrollAnchor(list.routeCount, position.cycle, position.phase, incidents, list.rows.length, schedule);
+        const calculationAnchor = window.FDVStartList.scrollAnchor(
+          list.routeCount,
+          position.cycle,
+          position.phase,
+          incidents,
+          window.FDVStartList.includedParticipantCount(list.rows.length, excludedParticipants),
+          schedule
+        );
+        const anchor = Math.max(0, window.FDVStartList.participantRowIndex(calculationAnchor, excludedParticipants, list.rows.length));
+        scroll.dataset.startListAnchor = String(anchor);
         const autoScrollKey = `${position.cycle}:${position.phase}:${anchor}`;
         const pendingScroll = pendingStartListScrollRestores[index];
         if (pendingScroll?.listKey === JSON.stringify(list)) {
@@ -5530,6 +6098,7 @@
           });
         }
       });
+      if (applyStartListVerticalDensity()) reanchorStartListScrolls();
       fitStartListPanelWidth();
       scheduleStartListPanelWidthFit();
     }
@@ -5541,13 +6110,20 @@
       }
       if (/\.xlsx$/i.test(file.name)) {
         const xlsx = await loadXlsxLibrary();
-        const workbook = xlsx.read(bytes, { type: "array", cellDates: false });
+        const workbook = xlsx.read(bytes, {
+          type: "array",
+          cellDates: false,
+          sheetRows: window.FDVStartList.MAX_ROWS + 50
+        });
         for (const sheetName of workbook.SheetNames || []) {
+          const range = window.FDVStartList.worksheetContentRange(workbook.Sheets[sheetName], xlsx.utils);
+          if (!range) continue;
           const records = xlsx.utils.sheet_to_json(workbook.Sheets[sheetName], {
             header: 1,
             raw: false,
             defval: "",
-            blankrows: false
+            blankrows: true,
+            range
           });
           const list = window.FDVStartList.parseRows(records, routeCount);
           if (list) return list;
@@ -5830,9 +6406,7 @@
         const startListSelectorHtml = startListEditorOpen
           && !isPrimary
           && !standaloneSelf
-          && !isLegacyViewer
-          && !isOldBrowserClient
-          ? `<div class="diag-row start-list-diag-row">${Array.from({ length: 4 }, (_, listIndex) => {
+          ? `<div class="diag-row start-list-diag-row">${state.startLists.map((_, listIndex) => {
               const listAvailable = Boolean(state.startLists[listIndex]);
               const listSelected = listAvailable && selectedListIndexes.has(listIndex);
               const title = listAvailable
@@ -5852,9 +6426,12 @@
               );
             }).join("")}</div>`
           : "";
-        const title = language === "ru"
+        let title = language === "ru"
           ? `ОС: ${operatingSystem(client.userAgent)}; устройство: ${deviceType(client.userAgent)}; экран ${client.screen || "n/a"}; окно ${client.viewport || "n/a"}; DPR ${client.dpr ?? "n/a"}`
           : `OS: ${operatingSystem(client.userAgent)}; device: ${deviceType(client.userAgent)}; screen ${client.screen || "n/a"}; viewport ${client.viewport || "n/a"}; DPR ${client.dpr ?? "n/a"}`;
+        if (client.clientBuild !== null && client.clientBuild !== undefined) {
+          title += language === "ru" ? `; сборка клиента ${client.clientBuild}` : `; client build ${client.clientBuild}`;
+        }
         const meta = [
           diagnosticStatusLabel(client.displayStatus),
           diagnosticRoleLabel(client.role),
@@ -7601,6 +8178,10 @@
     }
 
     els.presets.forEach((button) => button.addEventListener("click", () => setPreset(button.dataset.preset)));
+    els.controls.addEventListener("click", (event) => {
+      const button = event.target.closest("[data-section-toggle]");
+      if (button) toggleControlSection(button);
+    });
     els.languageToggle.addEventListener("click", () => {
       if (standaloneMode) {
         applyLanguage(language === "ru" ? "en" : "ru");
@@ -7804,6 +8385,7 @@
       }
       if (event.target.matches("[data-start-list-incident-cycle]")) {
         event.target.value = String(Math.max(1, Math.min(9999, Math.round(Number(event.target.value) || 1))));
+        updateStartListIncidentActions(slot);
         return;
       }
       if (!event.target.matches("[data-start-list-routes]")) return;
@@ -7814,10 +8396,47 @@
       nextLists[index] = window.FDVStartList.sanitize({ ...list, routeCount: event.target.value });
       commitStartLists(nextLists);
     });
+    els.startListLayout.addEventListener("pointerover", (event) => {
+      const trigger = startListIncidentCyclePreviewTrigger(event.target);
+      const control = startListIncidentCycleControlForTrigger(trigger);
+      if (control) updateStartListIncidentCyclePreview(control);
+    });
+    els.startListLayout.addEventListener("pointerout", (event) => {
+      const trigger = startListIncidentCyclePreviewTrigger(event.target);
+      const nextTrigger = startListIncidentCyclePreviewTrigger(event.relatedTarget);
+      const menu = trigger?.closest("[data-start-list-incident-menu]");
+      if (trigger && (!nextTrigger || nextTrigger.closest("[data-start-list-incident-menu]") !== menu)) {
+        clearStartListIncidentCyclePreview();
+      }
+    });
+    els.startListLayout.addEventListener("focusin", (event) => {
+      const trigger = startListIncidentCyclePreviewTrigger(event.target);
+      const control = startListIncidentCycleControlForTrigger(trigger);
+      if (control) updateStartListIncidentCyclePreview(control);
+    });
+    els.startListLayout.addEventListener("focusout", (event) => {
+      const trigger = startListIncidentCyclePreviewTrigger(event.target);
+      const nextTrigger = startListIncidentCyclePreviewTrigger(event.relatedTarget);
+      const menu = trigger?.closest("[data-start-list-incident-menu]");
+      if (trigger && (!nextTrigger || nextTrigger.closest("[data-start-list-incident-menu]") !== menu)) {
+        clearStartListIncidentCyclePreview();
+      }
+    });
+    els.startListLayout.addEventListener("input", (event) => {
+      if (!event.target.matches("[data-start-list-incident-cycle]")) return;
+      const control = event.target.closest("[data-start-list-incident-cycle-control]");
+      updateStartListIncidentActions(event.target.closest("[data-start-list-index]"));
+      if (control) updateStartListIncidentCyclePreview(control);
+    });
     els.startListLayout.addEventListener("click", (event) => {
       const slot = event.target.closest("[data-start-list-index]");
       if (!slot) return;
       const index = Number(slot.dataset.startListIndex);
+      const exclusionCell = event.target.closest("[data-start-list-participant-exclusion]");
+      if (exclusionCell) {
+        toggleStartListParticipantExclusion(index, Number(exclusionCell.dataset.startListParticipantExclusion));
+        return;
+      }
       if (event.target.closest("[data-start-list-layout-toggle]")) {
         commitStartListLayout(!state.startListParallel);
         return;
@@ -7864,6 +8483,17 @@
         startListIncidentSelections.splice(index, 1);
       }
       commitStartLists(nextLists);
+    });
+    els.startListLayout.addEventListener("keydown", (event) => {
+      if (event.key !== "Enter" && event.key !== " ") return;
+      const exclusionCell = event.target.closest("[data-start-list-participant-exclusion]");
+      const slot = exclusionCell?.closest("[data-start-list-index]");
+      if (!exclusionCell || !slot) return;
+      event.preventDefault();
+      toggleStartListParticipantExclusion(
+        Number(slot.dataset.startListIndex),
+        Number(exclusionCell.dataset.startListParticipantExclusion)
+      );
     });
     els.primaryPinButton.addEventListener("click", togglePrimaryPinPanel);
     els.primaryPinApply.addEventListener("click", savePrimaryPin);
@@ -8010,9 +8640,11 @@
 
     els.scheduledStartBtn.addEventListener("click", toggleScheduledCountdown);
     els.buildInfo.addEventListener("click", activateBuildProjectLink);
+    els.authorName.addEventListener("click", activateAuthorEmailLink);
     document.addEventListener("click", (event) => {
-      if (event.target.closest("#buildInfo")) return;
+      if (event.target.closest("#buildInfo, #authorName")) return;
       deactivateBuildProjectLink();
+      deactivateAuthorEmailLink();
     });
     [els.startBtn, els.compactStart].forEach((button) => button.addEventListener("click", startTimer));
     [els.pauseBtn, els.compactPause].forEach((button) => button.addEventListener("click", pauseTimer));
@@ -8158,6 +8790,9 @@
 
     window.addEventListener("resize", () => {
       syncControlsScrollbarPadding();
+      if (applyStartListVerticalDensity()) {
+        reanchorStartListScrolls();
+      }
       fitStartListPanelWidth();
       scheduleStartListPanelWidthFit();
       scheduleFitTimer();
