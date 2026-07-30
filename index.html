@@ -177,6 +177,16 @@
       color: var(--yellow);
     }
 
+    body.web-standalone .server-connection-warning[data-state="standalone"] {
+      text-align: center;
+    }
+
+    body.web-standalone .server-connection-warning[data-state="standalone"] #serverConnectionWarningText,
+    body.file-mode #primaryRow,
+    body.file-mode #primaryPinPanel {
+      display: none;
+    }
+
     .server-connection-warning[data-state="recovered"] {
       border-color: rgba(79, 209, 139, .7);
       background: rgba(79, 209, 139, .12);
@@ -1911,7 +1921,12 @@
       .controls {
         border-right: 0;
         border-bottom: 1px solid var(--line);
+        min-height: 0;
         padding: 18px;
+      }
+
+      .control-footer {
+        margin-top: 0;
       }
 
       .stage {
@@ -2170,7 +2185,7 @@
 
       body.start-list-visible .start-list-scroll {
         flex: 0 0 auto;
-        max-height: calc(33px + var(--start-list-mobile-row-count, 6) * 32px);
+        max-height: var(--start-list-mobile-table-height, calc(33px + var(--start-list-mobile-row-count, 6) * 32px));
       }
 
       body.start-list-visible.fullscreen .stage-main,
@@ -2448,7 +2463,7 @@
       timeline: []
     };
 
-    const pageBuildNumber = 350;
+    const pageBuildNumber = 351;
     const projectUrl = "https://github.com/dfedorov-arch/fdv-bouldering-timer";
     const buildLinkConfirmDelayMs = 550;
     const offlineSnapshotKey = "fdvBoulderingTimerOfflineSnapshot";
@@ -2488,7 +2503,7 @@
         startListMoveRight: "Расположить второй протокол справа", startListMoveLeft: "Вернуть второй протокол вниз",
         startListHint: "XLSX, MXL, CSV, TSV или TXT с заголовками в первой строке", clearStartList: "Удалить",
         startListLoaded: "Участников: {rows}; столбцов: {columns}; трасс: {routes}", startListInvalid: "Не удалось прочитать таблицу: нужны заголовки и хотя бы одна строка участника",
-        startListCycle: "Цикл {cycle}", startListRoute: "Трасса {route}", cycleNumber: "Номер цикла",
+        startListCycle: "Цикл {cycle}", startListRoute: "Трасса {route}", startListRouteMenu: "Меню трассы", cycleNumber: "Номер цикла",
         routeIncidentCycle: "Цикл", routeIncidentPause: "Приостановить", routeIncidentResume: "Возобновить",
         routeIncidentStartCycleHint: "Цикл, начиная с которого трасса будет приостановлена или остановлена полностью",
         routeIncidentResumeCycleHint: "Цикл, начиная с которого трасса возобновит работу или будет остановлена",
@@ -2581,7 +2596,7 @@
         startListMoveRight: "Place the second protocol on the right", startListMoveLeft: "Move the second protocol back below",
         startListHint: "XLSX, MXL, CSV, TSV or TXT with headers in the first row", clearStartList: "Remove",
         startListLoaded: "Participants: {rows}; columns: {columns}; routes: {routes}", startListInvalid: "Could not read the table: headers and at least one participant row are required",
-        startListCycle: "Cycle {cycle}", startListRoute: "Route {route}", cycleNumber: "Cycle number",
+        startListCycle: "Cycle {cycle}", startListRoute: "Route {route}", startListRouteMenu: "Route menu", cycleNumber: "Cycle number",
         routeIncidentCycle: "Cycle", routeIncidentPause: "Pause", routeIncidentResume: "Resume",
         routeIncidentStartCycleHint: "Cycle from which the route will be paused or stopped permanently",
         routeIncidentResumeCycleHint: "Cycle from which the route will resume operation or be stopped",
@@ -2982,6 +2997,10 @@
 
     function isLocalStandalonePage() {
       return window.location.protocol === "file:" || window.FDV_SINGLE_FILE_STANDALONE === true;
+    }
+
+    function isWebStandalonePage() {
+      return window.FDV_WEB_STANDALONE === true;
     }
 
     function updateConnectionWarning() {
@@ -6027,17 +6046,10 @@
         const canManageIncidents = Boolean(slot.querySelector("[data-start-list-incident-menu]")) && controlsAvailable();
         const routeHeaders = Array.from({ length: list.routeCount }, (_, routeIndex) => {
           const routeStatus = window.FDVStartList.routeState(routeIndex, position.cycle, incidents);
-          const title = formatStartListText("startListRoute", { route: routeIndex + 1 });
-          const routePauses = incidents.filter((incident) => incident.kind === "pause" && incident.route === routeIndex + 1);
-          const historyText = routePauses.map((incident) => formatRoutePauseState(incident, position.cycle)).join("; ");
-          const stoppedIncident = incidents.find((incident) => incident.kind === "stop" && incident.route === routeIndex + 1);
-          const stoppedText = stoppedIncident
-            ? formatStartListText("routeIncidentStoppedFrom", { cycle: stoppedIncident.startCycle })
-            : "";
-          const incidentText = [historyText, stoppedText].filter(Boolean).join("; ");
-          const routeTitle = incidentText ? `${title}. ${incidentText}` : title;
+          const routeTitle = t("startListRouteMenu");
+          const routeAriaLabel = `${routeTitle}: ${routeIndex + 1}`;
           const routeLabel = list.routeCount === 1 ? (language === "en" ? "R" : "T") : routeIndex + 1;
-          return `<th class="route-cell${routeStatus ? ` route-${routeStatus}` : ""}" title="${escapeHtml(routeTitle)}"><button class="start-list-route-button" type="button" data-start-list-route="${routeIndex}" aria-label="${escapeHtml(routeTitle)}"${canManageIncidents ? "" : " disabled"}>${routeLabel}</button></th>`;
+          return `<th class="route-cell${routeStatus ? ` route-${routeStatus}` : ""}" title="${escapeHtml(routeTitle)}"><button class="start-list-route-button" type="button" data-start-list-route="${routeIndex}" aria-label="${escapeHtml(routeAriaLabel)}"${canManageIncidents ? "" : " disabled"}>${routeLabel}</button></th>`;
         }).join("");
         const body = list.rows.map((row, participantIndex) => {
           const excluded = excludedParticipants.includes(participantIndex);
@@ -6067,6 +6079,12 @@
           : 1;
         const mobileRowCount = Math.min(list.rows.length, Math.max(5, highlightedSpan + 4));
         scroll.style.setProperty("--start-list-mobile-row-count", String(mobileRowCount));
+        const tableHead = scroll.querySelector("thead");
+        const firstTableRow = scroll.querySelector("tbody tr");
+        const measuredHeaderHeight = tableHead?.getBoundingClientRect().height || 30;
+        const measuredRowHeight = firstTableRow?.getBoundingClientRect().height || 30;
+        const mobileTableHeight = Math.ceil(measuredHeaderHeight + mobileRowCount * measuredRowHeight + 2);
+        scroll.style.setProperty("--start-list-mobile-table-height", `${mobileTableHeight}px`);
         renderStartListIncidentMenu(slot, list, index, position);
         const calculationAnchor = window.FDVStartList.scrollAnchor(
           list.routeCount,
@@ -8824,6 +8842,10 @@
 
     // Static Russian labels cover most of the initial markup, but translated-only
     // attributes (including Final format tooltips) still need one initial pass.
+    document.body.classList.toggle("web-standalone", isWebStandalonePage());
+    if (window.matchMedia?.("(max-width: 560px)")?.matches) {
+      els.browserList.hidden = true;
+    }
     applyLanguage(language);
 
     const fileMode = isLocalStandalonePage();

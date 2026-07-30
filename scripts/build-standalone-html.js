@@ -5,6 +5,7 @@ const path = require("node:path");
 
 const root = path.resolve(__dirname, "..");
 const outputPath = path.resolve(process.argv[2] || path.join(root, "dist", "fdv-bouldering-timer-standalone.html"));
+const webStandalone = path.normalize(outputPath) === path.normalize(path.join(root, "docs", "standalone.html"));
 
 function read(relativePath, encoding = "utf8") {
   return fs.readFileSync(path.join(root, relativePath), encoding);
@@ -71,7 +72,7 @@ function build() {
   );
   html = html.replace(
     /\s*<script>\s*if \(window\.location\.protocol === "file:"\) \{\s*document\.write\('<script src="lib\/offline-audio\.js"><\\\/script>'\);\s*\}\s*<\/script>/,
-    `\n  ${scriptTag(`window.FDV_SINGLE_FILE_STANDALONE = true;\n${offlineAudio}`)}`
+    `\n  ${scriptTag(`window.FDV_SINGLE_FILE_STANDALONE = true;\nwindow.FDV_WEB_STANDALONE = ${webStandalone};\n${offlineAudio}`)}`
   );
   html = html.replace(
     /\s*<script src="lib\/start-list-display\.js"><\/script>/,

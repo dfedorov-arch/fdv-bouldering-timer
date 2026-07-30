@@ -8,6 +8,7 @@ const vm = require("node:vm");
 
 const index = fs.readFileSync(path.resolve(__dirname, "..", "index.html"), "utf8");
 const server = fs.readFileSync(path.resolve(__dirname, "..", "serve-bouldering-timer.js"), "utf8");
+const standaloneBuilder = fs.readFileSync(path.resolve(__dirname, "..", "scripts", "build-standalone-html.js"), "utf8");
 
 function inlineFunction(name) {
   const match = index.match(new RegExp(`function ${name}\\([^)]*\\) \\{[\\s\\S]*?\\n    \\}`));
@@ -213,7 +214,8 @@ test("start-list route incident controls render pause, stop, resume and cancella
   assert.match(index, /th\.route-stopped \.start-list-route-button[\s\S]*?border: 2px solid var\(--red\)[\s\S]*?box-shadow:/);
   assert.match(index, /th\.route-paused-history \.start-list-route-button[\s\S]*?border: 2px solid rgba\(255, 200, 87, \.86\)/);
   assert.match(index, /th\.route-stopped-history \.start-list-route-button[\s\S]*?border: 2px solid rgba\(240, 90, 89, \.9\)/);
-  assert.match(index, /function formatRoutePauseState\(incident, cycle\)[\s\S]*?routeIncidentPausedUntilStop[\s\S]*?routeIncidentPausedRange[\s\S]*?const routePauses = incidents\.filter[\s\S]*?title="\$\{escapeHtml\(routeTitle\)\}"/);
+  assert.match(index, /startListRouteMenu: "Меню трассы"[\s\S]*?startListRouteMenu: "Route menu"/);
+  assert.match(index, /const routeTitle = t\("startListRouteMenu"\);[\s\S]*?const routeAriaLabel = `\$\{routeTitle\}: \$\{routeIndex \+ 1\}`;[\s\S]*?title="\$\{escapeHtml\(routeTitle\)\}"[\s\S]*?aria-label="\$\{escapeHtml\(routeAriaLabel\)\}"/);
   assert.match(index, /data-start-list-incident-action="clear-pause"[\s\S]*?action === "clear-pause"/);
   assert.match(index, /\.start-list-incident-action\.resume \{ color: var\(--green\)/);
   assert.match(index, /data-start-list-incident-action="pause" title="\$\{escapeHtml\(t\("routeIncidentPause"\)\)\}" aria-label="\$\{escapeHtml\(t\("routeIncidentPause"\)\)\}"><\/button>/);
@@ -254,7 +256,6 @@ test("start-list route incident controls render pause, stop, resume and cancella
   assert.match(index, /titleBar\.textContent = list\.title \|\| "";[\s\S]*?titleBar\.hidden = !list\.title/);
   assert.match(index, /const settleInitialAutoScroll = startListInitialAutoScrollPending;[\s\S]*?startListInitialAutoScrollPending = false;[\s\S]*?scheduleStartListAnchorScroll\(scroll, anchor, previousScroll\.left, settleInitialAutoScroll\)/);
   assert.match(index, /function formatRoutePauseState\(incident, cycle\)[\s\S]*?activeInDisplayedCycle[\s\S]*?routeIncidentPausedFrom/);
-  assert.match(index, /stoppedIncident[\s\S]*?routeIncidentStoppedFrom[\s\S]*?title="\$\{escapeHtml\(routeTitle\)\}"/);
   assert.match(index, /function clearStartListIncidentsForNewRound\(\)[\s\S]*?incidents: _incidents[\s\S]*?lastStartListRenderKey = ""/);
   assert.match(index, /function resetStandaloneTimer\([\s\S]*?clearStartListIncidentsForNewRound\(\)/);
   assert.match(index, /function startTimerByTime\([\s\S]*?if \(standaloneMode\)[\s\S]*?clearStartListIncidentsForNewRound\(\)/);
@@ -322,8 +323,21 @@ test("portrait phones stack the timer above compact protocol windows", () => {
   assert.match(index, /body\.start-list-visible \.start-list-panel \{[\s\S]*?width: 100% !important;[\s\S]*?max-width: 100% !important;/);
   assert.match(index, /body\.start-list-visible \.timer-wrap \{\s*min-height: 0;\s*height: 100%;/);
   assert.match(index, /body\.start-list-visible \.start-list-layout \{[\s\S]*?flex-direction: column;/);
-  assert.match(index, /body\.start-list-visible \.start-list-scroll \{[\s\S]*?max-height: calc\(33px \+ var\(--start-list-mobile-row-count, 6\) \* 32px\)/);
+  assert.match(index, /body\.start-list-visible \.start-list-scroll \{[\s\S]*?max-height: var\(--start-list-mobile-table-height/);
   assert.match(index, /const highlightedRows = \[\.\.\.scroll\.querySelectorAll\("tbody tr\.is-active, tbody tr\.is-ready"\)\][\s\S]*?const highlightedSpan = highlightedIndexes\.length[\s\S]*?Math\.max\(5, highlightedSpan \+ 4\)[\s\S]*?--start-list-mobile-row-count/);
+  assert.match(index, /const tableHead = scroll\.querySelector\("thead"\);[\s\S]*?measuredHeaderHeight[\s\S]*?measuredRowHeight[\s\S]*?--start-list-mobile-table-height/);
+});
+
+test("mobile standalone controls collapse without reserving a viewport-height gap", () => {
+  assert.match(index, /@media \(max-width: 900px\) \{[\s\S]*?\.controls \{[\s\S]*?min-height: 0;[\s\S]*?\.control-footer \{\s*margin-top: 0;/);
+  assert.match(index, /window\.matchMedia\?\.\("\(max-width: 560px\)"\)\?\.matches[\s\S]*?els\.browserList\.hidden = true;/);
+});
+
+test("single-file standalone variants expose only applicable controls and notices", () => {
+  assert.match(index, /body\.web-standalone \.server-connection-warning\[data-state="standalone"\][\s\S]*?text-align: center/);
+  assert.match(index, /body\.web-standalone[\s\S]*?#serverConnectionWarningText,[\s\S]*?body\.file-mode #primaryRow,[\s\S]*?body\.file-mode #primaryPinPanel[\s\S]*?display: none/);
+  assert.match(standaloneBuilder, /path\.normalize\(outputPath\) === path\.normalize\(path\.join\(root, "docs", "standalone\.html"\)\)/);
+  assert.match(standaloneBuilder, /window\.FDV_WEB_STANDALONE = \$\{webStandalone\}/);
 });
 
 test("mobile timer footer keeps cycle controls clear of compact actions", () => {
