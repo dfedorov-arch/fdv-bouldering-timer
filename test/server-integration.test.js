@@ -142,6 +142,175 @@ test("production server validates settings, rejects stale commands, and deduplic
   const baseUrl = `http://127.0.0.1:${port}`;
   await waitForServer(baseUrl, child, output);
 
+  const startListLoaded = await postAction(baseUrl, {
+    type: "startLists",
+    startLists: [{
+      title: "Финал — мужчины",
+      headers: ["№", "ФИО"],
+      rows: [["1", "Архипов Вячеслав"], ["2", "Овечкин Ярослав"]],
+      routeCount: 5,
+      excludedParticipants: [1, 1, 9],
+      incidents: [{ kind: "pause", route: 2, startCycle: 3, resumeCycle: 5, participantIndex: 0 }]
+    }]
+  });
+  assert.equal(startListLoaded.status, 200);
+  assert.equal(startListLoaded.body.startLists[0].rows.length, 2);
+  assert.equal(startListLoaded.body.startLists[0].title, "Финал — мужчины");
+  assert.deepEqual(startListLoaded.body.startLists[0].incidents, [
+    { kind: "pause", route: 2, startCycle: 3, resumeCycle: 5, participantIndex: 0, resolution: "resume" }
+  ]);
+  assert.deepEqual(startListLoaded.body.startLists[0].excludedParticipants, [1]);
+  assert.equal(Object.prototype.hasOwnProperty.call(startListLoaded.body, "startList"), false);
+  assert.equal(startListLoaded.body.startListEnabled, false);
+  assert.equal(startListLoaded.body.startListVisible, false);
+  assert.deepEqual(startListLoaded.body.startListIndexes, []);
+
+  const twoLists = await postAction(baseUrl, {
+    type: "startLists",
+    startLists: [startListLoaded.body.startLists[0], null]
+  });
+  assert.equal(twoLists.body.startListParallel, false);
+  const parallelLists = await postAction(baseUrl, { type: "startListLayout", parallel: true });
+  assert.equal(parallelLists.body.startListParallel, true);
+
+  await fetch(`${baseUrl}/api/state?clientId=list-screen`);
+  const protocolsEnabled = await postAction(baseUrl, { type: "startListEnabled", enabled: true });
+  assert.equal(protocolsEnabled.status, 200);
+  assert.equal(protocolsEnabled.body.startListEnabled, true);
+  const startListScreenEnabled = await postAction(baseUrl, {
+    type: "startListDisplay",
+    targetClientId: "list-screen",
+    listIndex: 0,
+    enabled: true
+  });
+  assert.equal(startListScreenEnabled.status, 200);
+  const listScreenState = await fetch(`${baseUrl}/api/state?clientId=list-screen`).then((response) => response.json());
+  assert.equal(listScreenState.startListVisible, true);
+  assert.deepEqual(listScreenState.startListIndexes, [0]);
+  assert.equal(listScreenState.startLists[0].routeCount, 5);
+
+  const multipleLists = await postAction(baseUrl, {
+    type: "startLists",
+    startLists: [
+      startListLoaded.body.startLists[0],
+      null,
+      { headers: ["#", "ФИО"], rows: [["1", "Третий участник"]], routeCount: 4 }
+    ]
+  });
+  assert.equal(multipleLists.status, 200);
+  assert.equal(multipleLists.body.startLists.length, 3);
+  assert.equal(multipleLists.body.startListParallel, false);
+  assert.equal(multipleLists.body.startLists[1], null);
+  assert.equal(multipleLists.body.startLists[2].routeCount, 4);
+  assert.equal(Object.prototype.hasOwnProperty.call(multipleLists.body.startLists[2], "incidents"), false);
+  const selectedScreenAfterUpdate = await fetch(`${baseUrl}/api/state?clientId=list-screen`).then((response) => response.json());
+  assert.equal(selectedScreenAfterUpdate.startListVisible, true);
+  assert.deepEqual(selectedScreenAfterUpdate.startListIndexes, [0]);
+  const thirdListEnabled = await postAction(baseUrl, {
+    type: "startListDisplay",
+    targetClientId: "list-screen",
+    listIndex: 2,
+    enabled: true
+  });
+  assert.equal(thirdListEnabled.status, 200);
+  const multiSelectionState = await fetch(`${baseUrl}/api/state?clientId=list-screen`).then((response) => response.json());
+  assert.deepEqual(multiSelectionState.startListIndexes, [0, 2]);
+  assert.equal(Object.prototype.hasOwnProperty.call(multiSelectionState, "startListDisplaySelections"), false);
+  const firstLegacyState = await fetch(`${baseUrl}/api/state?legacy=1&clientId=list-screen`).then((response) => response.json());
+  assert.equal(Object.prototype.hasOwnProperty.call(firstLegacyState, "startLists"), false);
+  assert.deepEqual(firstLegacyState.legacyProtocols.map((entry) => entry.index), [0, 2]);
+  assert.equal(firstLegacyState.legacyProtocols[0].list.rows.length, 2);
+  assert.deepEqual(firstLegacyState.legacyProtocols[0].list.excludedParticipants, [1]);
+  assert.ok(firstLegacyState.protocolRevision);
+  const repeatedLegacyState = await fetch(`${baseUrl}/api/state?legacy=1&clientId=list-screen&protocolRevision=${encodeURIComponent(firstLegacyState.protocolRevision)}`)
+    .then((response) => response.json());
+  assert.equal(repeatedLegacyState.protocolRevision, firstLegacyState.protocolRevision);
+  assert.equal(Object.prototype.hasOwnProperty.call(repeatedLegacyState, "legacyProtocols"), false);
+
+  const protocolsDisabled = await postAction(baseUrl, { type: "startListEnabled", enabled: false });
+  assert.equal(protocolsDisabled.status, 200);
+  const hiddenSelectionState = await fetch(`${baseUrl}/api/state?clientId=list-screen`).then((response) => response.json());
+  assert.equal(hiddenSelectionState.startListEnabled, false);
+  assert.equal(hiddenSelectionState.startListVisible, false);
+  assert.deepEqual(hiddenSelectionState.startListIndexes, [0, 2]);
+  await postAction(baseUrl, { type: "startListEnabled", enabled: true });
+  const restoredSelectionState = await fetch(`${baseUrl}/api/state?clientId=list-screen`).then((response) => response.json());
+  assert.equal(restoredSelectionState.startListVisible, true);
+  assert.deepEqual(restoredSelectionState.startListIndexes, [0, 2]);
+
+  const firstFinalist = await postAction(baseUrl, {
+    type: "start",
+    activePreset: "final",
+    settings: { rotationSeconds: 1, breakSeconds: 0, oneShot: true },
+    startMode: "manual",
+    startAudioLead: false
+  });
+  assert.equal(firstFinalist.status, 200);
+  assert.equal(Object.prototype.hasOwnProperty.call(firstFinalist.body.startLists[0], "incidents"), false);
+  const nextFinalist = await postAction(baseUrl, {
+    type: "reset",
+    activePreset: "final",
+    settings: { rotationSeconds: 1, breakSeconds: 0, oneShot: true }
+  });
+  assert.equal(nextFinalist.body.startListFinalCycle, 1);
+  const idleFinalReset = await postAction(baseUrl, {
+    type: "reset",
+    activePreset: "final",
+    settings: { rotationSeconds: 1, breakSeconds: 0, oneShot: true }
+  });
+  assert.equal(idleFinalReset.body.startListFinalCycle, 1);
+
+  const returnedToFirstFinalCycle = await postAction(baseUrl, {
+    type: "seekCycle",
+    cycle: 1
+  });
+  assert.equal(returnedToFirstFinalCycle.status, 200);
+  assert.equal(returnedToFirstFinalCycle.body.startListFinalCycle, 0);
+  assert.equal(returnedToFirstFinalCycle.body.elapsedBeforePause, 0);
+
+  const futureFinalStart = new Date(Date.now() + 120000);
+  const scheduledFinalCountdown = await postAction(baseUrl, {
+    type: "start",
+    activePreset: "final",
+    settings: { rotationSeconds: 1, breakSeconds: 0, oneShot: true },
+    startMode: "scheduled",
+    startHours: futureFinalStart.getHours(),
+    startMinutes: futureFinalStart.getMinutes(),
+    startAudioLead: false
+  });
+  assert.equal(scheduledFinalCountdown.status, 200);
+  assert.equal(scheduledFinalCountdown.body.countdownOnly, true);
+  const stoppedFinalCountdown = await postAction(baseUrl, {
+    type: "reset",
+    activePreset: "final",
+    settings: { rotationSeconds: 1, breakSeconds: 0, oneShot: true }
+  });
+  assert.equal(stoppedFinalCountdown.status, 200);
+  assert.equal(stoppedFinalCountdown.body.startListFinalCycle, 0);
+  assert.equal(stoppedFinalCountdown.body.elapsedBeforePause, 0);
+
+  const selectedFinalCycle = await postAction(baseUrl, {
+    type: "seekCycle",
+    cycle: 7
+  });
+  assert.equal(selectedFinalCycle.status, 200);
+  assert.equal(selectedFinalCycle.body.startListFinalCycle, 6);
+  assert.equal(selectedFinalCycle.body.elapsedBeforePause, 0.001);
+
+  const startedSelectedFinalCycle = await postAction(baseUrl, {
+    type: "start",
+    activePreset: "final",
+    settings: { rotationSeconds: 1, breakSeconds: 0, oneShot: true },
+    elapsedBeforePause: selectedFinalCycle.body.elapsedBeforePause,
+    startMode: "manual",
+    startAudioLead: false
+  });
+  assert.equal(startedSelectedFinalCycle.status, 200);
+  assert.equal(startedSelectedFinalCycle.body.startListFinalCycle, 6);
+  const pausedSelectedFinalCycle = await postAction(baseUrl, { type: "pause" });
+  assert.equal(pausedSelectedFinalCycle.status, 200);
+  assert.equal(pausedSelectedFinalCycle.body.startListFinalCycle, 6);
+
   const audioScreenA = await openEventStream(baseUrl, "audio-screen-a");
   const audioScreenB = await openEventStream(baseUrl, "audio-screen-b");
   eventStreams.push(audioScreenA, audioScreenB);
@@ -189,6 +358,8 @@ test("production server validates settings, rejects stale commands, and deduplic
     rotationMinutes: 1,
     breakSeconds: 3600,
     oneShot: false,
+    finalRoundFormat: "old",
+    finalRestRotations: 3,
     startHours: 23,
     startMinutes: 0
   });
@@ -224,7 +395,9 @@ test("production server validates settings, rejects stale commands, and deduplic
   assert.deepEqual(reset.body.activeSettings, {
     rotationSeconds: 1,
     breakSeconds: 14400,
-    oneShot: false
+    oneShot: false,
+    finalRoundFormat: "old",
+    finalRestRotations: 3
   });
 
   const staleVersion = reset.body.version;
@@ -251,7 +424,13 @@ test("production server validates settings, rejects stale commands, and deduplic
     activePreset: "final",
     commandId: "deduplicated-start",
     baseVersion: changed.body.version,
-    settings: { rotationSeconds: 60, breakSeconds: 0, oneShot: true },
+    settings: {
+      rotationSeconds: 60,
+      breakSeconds: 0,
+      oneShot: true,
+      finalRoundFormat: "new",
+      finalRestRotations: 4
+    },
     startMode: "manual",
     startHours: "",
     startMinutes: "",
@@ -280,7 +459,9 @@ test("production server validates settings, rejects stale commands, and deduplic
   assert.deepEqual(selectClassicWhileFinalRuns.body.activeSettings, {
     rotationSeconds: 60,
     breakSeconds: 0,
-    oneShot: true
+    oneShot: true,
+    finalRoundFormat: "new",
+    finalRestRotations: 4
   });
 
   await stopServer(child);
@@ -291,6 +472,8 @@ test("production server validates settings, rejects stale commands, and deduplic
   assert.equal(restored.manualStartDisplayHold, true);
   assert.equal(restored.activePreset, "classic");
   assert.equal(restored.runtimePreset, "final");
+  assert.equal(restored.activeSettings.finalRoundFormat, "new");
+  assert.equal(restored.activeSettings.finalRestRotations, 4);
   assert.equal(restored.flashing, false);
   assert.ok(restored.version > started.body.version);
   assert.notEqual(restored.serverInstanceId, started.body.serverInstanceId);

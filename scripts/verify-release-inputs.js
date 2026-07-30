@@ -46,6 +46,8 @@ if (uniqueBuilds.size !== 1) {
   "sw.js",
   "scripts/build-standalone-html.js",
   "lib/client-action-transport.js",
+  "lib/vendor/xlsx.mini.min.js",
+  "lib/vendor/SHEETJS-LICENSE.txt",
   "lib/timer-domain.js",
   "lib/timer-transitions.js",
   "beeps",
@@ -66,6 +68,9 @@ if (!serviceWorker.includes('"/lib/client-action-transport.js"')) {
 }
 if (!serviceWorker.includes('"/lib/offline-audio.js"')) {
   throw new Error("Service worker does not cache the offline audio bundle");
+}
+if (!serviceWorker.includes('"/lib/vendor/xlsx.mini.min.js"')) {
+  throw new Error("Service worker does not cache the XLSX reader");
 }
 if (!serviceWorker.includes('"/manifest.webmanifest"')
     || !serviceWorker.includes('"/app-icon.svg"')
@@ -107,6 +112,9 @@ if (!standaloneScript.includes("manifest.start_url = window.location.href")) {
 }
 if (!standaloneScript.includes("window.FDV_SINGLE_FILE_STANDALONE = true")) {
   throw new Error("Standalone HTML does not identify itself as a single-file build");
+}
+if (!standaloneScript.includes("window.FDV_XLSX_LIBRARY_SOURCE")) {
+  throw new Error("Standalone build does not embed the XLSX reader");
 }
 
 console.log(`Release inputs verified for build ${[...uniqueBuilds][0]}.`);

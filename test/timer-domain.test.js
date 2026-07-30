@@ -30,7 +30,9 @@ test("active settings are normalized without mutating their inputs", () => {
   assert.deepEqual(domain.normalizeActiveSettings(source, fallback), {
     rotationSeconds: 1,
     breakSeconds: LIMITS.maxFestivalBreakSeconds,
-    oneShot: false
+    oneShot: false,
+    finalRoundFormat: "old",
+    finalRestRotations: 3
   });
   assert.deepEqual(source, { rotationSeconds: -1, breakSeconds: 999999, oneShot: false });
   assert.deepEqual(fallback, { rotationSeconds: 240, breakSeconds: 15, oneShot: false });
@@ -44,7 +46,9 @@ test("one-shot active settings accept a blank break as zero", () => {
   }), {
     rotationSeconds: 120,
     breakSeconds: 0,
-    oneShot: true
+    oneShot: true,
+    finalRoundFormat: "old",
+    finalRestRotations: 3
   });
 });
 
@@ -61,6 +65,8 @@ test("draft break limit depends on the selected preset", () => {
     rotationMinutes: LIMITS.maxRotationMinutes,
     breakSeconds: LIMITS.maxClassicBreakSeconds,
     oneShot: false,
+    finalRoundFormat: "old",
+    finalRestRotations: 3,
     startHours: 23,
     startMinutes: 0
   });
@@ -68,6 +74,22 @@ test("draft break limit depends on the selected preset", () => {
     domain.normalizeDraftSettings(settings, "festival").breakSeconds,
     LIMITS.maxFestivalBreakSeconds
   );
+});
+
+test("Final format and rest rotations are normalized", () => {
+  assert.deepEqual(domain.normalizeActiveSettings({
+    rotationSeconds: 240,
+    breakSeconds: 0,
+    oneShot: true,
+    finalRoundFormat: "new",
+    finalRestRotations: 120
+  }), {
+    rotationSeconds: 240,
+    breakSeconds: 0,
+    oneShot: true,
+    finalRoundFormat: "new",
+    finalRestRotations: LIMITS.maxFinalRestRotations
+  });
 });
 
 test("optional clock parts preserve blank values", () => {

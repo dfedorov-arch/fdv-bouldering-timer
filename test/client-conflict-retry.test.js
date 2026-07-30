@@ -17,6 +17,7 @@ function makeTransport(fetchImpl, overrides = {}) {
   let serverInstanceId = "server-a";
   let commandSequence = 0;
   const applied = [];
+  const applyErrors = [];
   const failures = [];
   const transport = createActionTransport({
     applyRemote: (remote, options) => {
@@ -32,6 +33,7 @@ function makeTransport(fetchImpl, overrides = {}) {
     isRuntimeCommand: (type) => new Set(["start", "pause", "stopCountdown", "reset", "seek"]).has(type),
     isStandalone: () => false,
     markFailure: (immediate) => failures.push(immediate),
+    reportApplyError: (error, context) => applyErrors.push({ error, context }),
     nextCommandId: () => `test-client:page-session:${++commandSequence}`,
     requestTimeoutMs: 2000,
     serverNow: () => 123456,
@@ -39,7 +41,7 @@ function makeTransport(fetchImpl, overrides = {}) {
     delay: async () => {},
     ...overrides
   });
-  return { applied, failures, transport };
+  return { applied, applyErrors, failures, transport };
 }
 
 test("production client retries one version conflict with a fresh command id and version", async () => {
@@ -135,4 +137,42 @@ test("successful action can update timing without applying response state", asyn
   assert.equal(await fixture.transport.send("settings", {}, { applyResponse: false }), true);
   assert.equal(timingUpdates, 1);
   assert.equal(fixture.applied.length, 0);
+});
+
+test("an accepted action is not reported as a network failure when applying its response throws", async () => {
+  let attempts = 0;
+  const applyError = new Error("render failed");
+  const fixture = makeTransport(async () => {
+    attempts += 1;
+    return response(200, { version: 11 });
+  }, {
+    applyRemote: () => { throw applyError; }
+  });
+
+  assert.equal(await fixture.transport.send("language", { language: "en" }), true);
+  assert.equal(attempts, 1);
+  assert.deepEqual(fixture.failures, []);
+  assert.equal(fixture.applyErrors.length, 1);
+  assert.equal(fixture.applyErrors[0].error, applyError);
+  assert.deepEqual(fixture.applyErrors[0].context, {
+    type: "language",
+    phase: "success",
+    status: 200
+  });
+});
+
+test("a conflict response that cannot be applied is not retried as a network request", async () => {
+  let attempts = 0;
+  const fixture = makeTransport(async () => {
+    attempts += 1;
+    return response(409, { version: 11, commandConflict: true });
+  }, {
+    applyRemote: () => { throw new Error("render failed"); }
+  });
+
+  assert.equal(await fixture.transport.send("start"), "conflict");
+  assert.equal(attempts, 1);
+  assert.deepEqual(fixture.failures, []);
+  assert.equal(fixture.applyErrors.length, 1);
+  assert.equal(fixture.applyErrors[0].context.phase, "conflict");
 });

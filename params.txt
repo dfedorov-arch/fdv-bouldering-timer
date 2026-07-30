@@ -19,6 +19,8 @@ festival_round_minutes=120
 festival_break_minutes=30
 
 final_rotation_minutes=4
+final_round_format=old
+final_rest_rotations=3
 
 primary_browser=false
 sound=true

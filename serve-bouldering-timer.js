@@ -7,6 +7,7 @@ const crypto = require("crypto");
 const { performance } = require("perf_hooks");
 const { createTimerDomain } = require("./lib/timer-domain");
 const { createTimerTransitions } = require("./lib/timer-transitions");
+const startListDomain = require("./lib/start-list");
 
 const root = __dirname;
 const paramsPath = path.join(root, "params.txt");
@@ -15,7 +16,7 @@ const runtimeStatePath = path.join(runtimeStateDir, "timer-state.json");
 const beepsPath = path.join(root, "beeps");
 const fontsPath = path.join(root, "fonts");
 const offlineAudioPath = path.join(root, "lib", "offline-audio.js");
-const BUILD_NUMBER = 245;
+const BUILD_NUMBER = 350;
 const serverInstanceId = crypto.randomUUID();
 const SNAPSHOT_SCHEMA_VERSION = 1;
 const SNAPSHOT_MAX_AGE_MS = 12 * 60 * 60 * 1000;
@@ -34,6 +35,8 @@ const defaultConfig = {
   festivalRoundMinutes: 120,
   festivalBreakMinutes: 30,
   finalRotationMinutes: 4,
+  finalRoundFormat: "old",
+  finalRestRotations: 3,
   language: "ru",
   primaryBrowser: false,
   sound: true,
@@ -233,6 +236,8 @@ const config = {
   festivalRoundMinutes: intParam(params, "festival_round_minutes", defaultConfig.festivalRoundMinutes, 1, 240),
   festivalBreakMinutes: intParam(params, "festival_break_minutes", defaultConfig.festivalBreakMinutes, 0, 240),
   finalRotationMinutes: intParam(params, "final_rotation_minutes", defaultConfig.finalRotationMinutes, 1, 240),
+  finalRoundFormat: textParam(params, "final_round_format", defaultConfig.finalRoundFormat).toLowerCase() === "new" ? "new" : "old",
+  finalRestRotations: intParam(params, "final_rest_rotations", defaultConfig.finalRestRotations, 1, 9),
   language: languageParam(params, "language", defaultConfig.language),
   primaryBrowser: boolParam(params, "primary_browser", defaultConfig.primaryBrowser),
   sound: boolParam(params, "sound", defaultConfig.sound),
@@ -308,12 +313,16 @@ const timerState = {
   activeSettings: {
     rotationSeconds: config.classicRotationMinutes * 60,
     breakSeconds: config.classicBreakSeconds,
-    oneShot: false
+    oneShot: false,
+    finalRoundFormat: config.finalRoundFormat,
+    finalRestRotations: config.finalRestRotations
   },
   draftSettings: {
     rotationMinutes: config.classicRotationMinutes,
     breakSeconds: config.classicBreakSeconds,
     oneShot: false,
+    finalRoundFormat: config.finalRoundFormat,
+    finalRestRotations: config.finalRestRotations,
     startHours: "",
     startMinutes: ""
   },
@@ -329,6 +338,11 @@ const timerState = {
   primaryPinSalt: "",
   primaryPinClientId: "",
   primaryPinValue: "",
+  startLists: [null],
+  startListParallel: false,
+  startListEnabled: false,
+  startListDisplaySelections: {},
+  startListFinalCycle: 0,
   version: 1
 };
 
@@ -348,9 +362,10 @@ let stateTransitionTimer = null;
 let snapshotWriteTimer = null;
 let timerStartedAtMono = 0;
 let diagnosticsBroadcastTimer = null;
+let startListDataRevision = 1;
 let lastDiagnosticsBroadcastAt = 0;
 
-const runtimeCommandTypes = new Set(["start", "pause", "stopCountdown", "reset", "seek"]);
+const runtimeCommandTypes = new Set(["start", "pause", "stopCountdown", "reset", "seek", "seekCycle"]);
 
 function actionRequiresPrimary(type) {
   return type !== "primary" && type !== "primaryPin";
@@ -588,6 +603,11 @@ function assignTimerState(source = {}) {
     "primaryPinSalt",
     "primaryPinClientId",
     "primaryPinValue",
+    "startLists",
+    "startListParallel",
+    "startListEnabled",
+    "startListDisplaySelections",
+    "startListFinalCycle",
     "version"
   ]) {
     if (Object.prototype.hasOwnProperty.call(source, key)) timerState[key] = source[key];
@@ -617,6 +637,14 @@ function restoreTimerSnapshot() {
       ? snapshot.timerState.runtimePreset || ""
       : timerState.activeSettings.oneShot ? "final" : timerState.activePreset || "classic";
     timerState.draftSettings = normalizeDraftSettings(timerState.draftSettings, timerState.activePreset);
+    timerState.startLists = sanitizeStartLists(timerState.startLists);
+    timerState.startListParallel = Boolean(timerState.startListParallel) && timerState.startLists.length === 2;
+    timerState.startListEnabled = Boolean(timerState.startListEnabled);
+    timerState.startListDisplaySelections = sanitizeStartListDisplaySelections(
+      timerState.startListDisplaySelections,
+      timerState.startLists
+    );
+    timerState.startListFinalCycle = Math.max(0, Math.round(numberOrDefault(timerState.startListFinalCycle, 0)));
     clientAudioOffsets.clear();
     if (Array.isArray(snapshot.audioOffsets)) {
       snapshot.audioOffsets.forEach(([id, offset]) => {
@@ -834,6 +862,7 @@ function registerClient(req, source = {}) {
     viewport: sourceValue(source, "viewport") || existing.viewport || "",
     screen: sourceValue(source, "screen") || existing.screen || "",
     dpr: optionalNumber(sourceValue(source, "dpr"), existing.dpr ?? null),
+    clientBuild: optionalNumber(sourceValue(source, "clientBuild"), existing.clientBuild ?? null),
     audioUnlocked: optionalBool(sourceValue(source, "audioUnlocked"), existing.audioUnlocked ?? null),
     soundAllowed: optionalBool(sourceValue(source, "soundAllowed"), existing.soundAllowed ?? null),
     audioBaseLatency: optionalNumber(sourceValue(source, "audioBaseLatency"), existing.audioBaseLatency ?? null),
@@ -873,10 +902,91 @@ function publicClients() {
     .map((client) => ({
       ...client,
       manualLegacy: manualLegacyClients.has(client.id),
+      startListIndexes: startListIndexesForClient(client.id),
+      startListVisible: startListVisibleForClient(client.id),
       role: client.legacyViewer ? "screen" : timerState.primaryClientId ? (timerState.primaryClientId === client.id ? "primary" : "screen") : "",
       age: now - client.lastSeen,
       connected: now - client.lastSeen < 6000
     }));
+}
+
+function startListVisibleForClient(clientId) {
+  return timerState.startListEnabled && startListIndexesForClient(clientId).length > 0;
+}
+
+function sanitizeStartLists(value) {
+  const source = Array.isArray(value) ? value.slice(0, 4) : [null];
+  const lists = source.map((list) => list ? startListDomain.sanitize(list) : null);
+  return lists.length ? lists : [null];
+}
+
+function hasStartLists(value) {
+  return Array.isArray(value) && value.some(Boolean);
+}
+
+function availableStartListIndexes(lists = timerState.startLists) {
+  return sanitizeStartLists(lists)
+    .map((list, index) => list ? index : -1)
+    .filter((index) => index >= 0);
+}
+
+function sanitizeStartListDisplaySelections(value, lists = timerState.startLists) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  const available = new Set(availableStartListIndexes(lists));
+  return Object.fromEntries(Object.entries(value).slice(0, 100).map(([clientId, indexes]) => [
+    String(clientId || ""),
+    [...new Set((Array.isArray(indexes) ? indexes : [])
+      .map(Number)
+      .filter((index) => Number.isInteger(index) && available.has(index)))]
+  ]).filter(([clientId, indexes]) => clientId && indexes.length));
+}
+
+function startListIndexesForClient(clientId) {
+  if (!hasStartLists(timerState.startLists) || !clientId) return [];
+  if (timerState.primaryClientId && timerState.primaryClientId === clientId) {
+    return availableStartListIndexes();
+  }
+  return sanitizeStartListDisplaySelections(
+    timerState.startListDisplaySelections,
+    timerState.startLists
+  )[clientId] || [];
+}
+
+function clearStartListIncidents() {
+  let changed = false;
+  timerState.startLists = sanitizeStartLists(timerState.startLists).map((list) => {
+    if (!list?.incidents?.length) return list;
+    changed = true;
+    const { incidents: _incidents, ...cleanList } = list;
+    return cleanList;
+  });
+  if (changed) startListDataRevision += 1;
+  return changed;
+}
+
+function legacyProtocolRevision(clientId) {
+  return `${serverInstanceId}:${startListDataRevision}:${startListIndexesForClient(clientId).join(",")}`;
+}
+
+function legacyPublicState(options = {}) {
+  const state = publicState({
+    ...options,
+    includeClients: false
+  });
+  const revision = legacyProtocolRevision(options.clientId || "");
+  const knownRevision = String(options.protocolRevision || "").slice(0, 200);
+  const selectedIndexes = new Set(state.startListIndexes || []);
+  const legacyProtocols = knownRevision === revision
+    ? undefined
+    : sanitizeStartLists(state.startLists)
+      .map((list, index) => list && selectedIndexes.has(index) ? { index, list } : null)
+      .filter(Boolean);
+  return {
+    ...state,
+    startLists: undefined,
+    protocolRevision: revision,
+    legacyProtocols
+  };
 }
 
 function elapsedSeconds(now = monoNow()) {
@@ -967,6 +1077,7 @@ function publicState(options = {}) {
     primaryPinSalt: _primaryPinSalt,
     primaryPinClientId: _primaryPinClientId,
     primaryPinValue: _primaryPinValue,
+    startListDisplaySelections: _startListDisplaySelections,
     ...publicTimerState
   } = timerState;
   return {
@@ -993,6 +1104,8 @@ function publicState(options = {}) {
     manualLegacy: ownManualLegacy,
     legacyRedirect: ownLegacyRedirect,
     audioUserOffset: ownAudioOffset,
+    startListIndexes: startListIndexesForClient(clientId),
+    startListVisible: startListVisibleForClient(clientId),
     elapsed,
     serverReceivedAt: Number.isFinite(receivedAt) ? receivedAt : null,
     serverSentAt: sentAt,
@@ -1128,8 +1241,18 @@ function handleRequest(req, res) {
   if (requestUrl.pathname === "/api/state" && req.method === "GET") {
     const receivedAt = wallNow();
     const clientId = registerClient(req, requestUrl.searchParams);
-    const includeClients = shouldIncludeDiagnostics(clientId, requestUrl.searchParams.get("diagnostics") === "1");
-    sendJson(res, 200, publicState({ receivedAt, clientId, includeClients }));
+    const legacyResponse = requestUrl.searchParams.get("legacy") === "1";
+    const includeClients = legacyResponse
+      ? false
+      : shouldIncludeDiagnostics(clientId, requestUrl.searchParams.get("diagnostics") === "1");
+    const responseState = legacyResponse
+      ? legacyPublicState({
+        receivedAt,
+        clientId,
+        protocolRevision: requestUrl.searchParams.get("protocolRevision") || ""
+      })
+      : publicState({ receivedAt, clientId, includeClients });
+    sendJson(res, 200, responseState);
     if (clientId) legacyRedirectPending.delete(clientId);
     return;
   }
@@ -1230,6 +1353,17 @@ function handleRequest(req, res) {
       let audioTestCommand = null;
       let audioWakeCommand = null;
       let legacyModeCommand = null;
+      const advanceCompletedFinalList = Boolean(
+        timerState.activeSettings?.oneShot
+        && ((type === "reset" && ((timerState.running && !timerState.countdownOnly)
+          || timerState.completed || timerState.elapsedBeforePause > 0))
+          || (type === "start" && timerState.completed))
+      );
+      const clearIncidentsForNewRound = type === "reset"
+        || (type === "start"
+          && (body.startMode === "scheduled"
+            || (!timerState.waitingForManualStart
+              && (timerState.elapsedBeforePause === 0 || timerState.completed))));
 
       const timerAction = timerTransitions.applyTimerAction(timerState, body, {
         now,
@@ -1238,12 +1372,34 @@ function handleRequest(req, res) {
       });
       if (timerAction.changed) {
         assignTimerState(timerAction.state);
+        if (clearIncidentsForNewRound) clearStartListIncidents();
+        if (advanceCompletedFinalList) timerState.startListFinalCycle += 1;
         if (timerAction.effects.clock === "set") setTimerStartedAt(timerAction.state.startedAt);
         if (timerAction.effects.clock === "clear") clearTimerStartedAt();
         if (timerAction.effects.transitionAt !== null) {
           armStateTransition(timerAction.effects.transitionAt);
         }
         audioWakeCommand = timerAction.effects.audioWakeCommand;
+      }
+
+      if (type === "seekCycle" && !timerState.running) {
+        const cycle = Math.max(1, Math.min(9999, Math.round(numberOrDefault(body.cycle, 1))));
+        const settings = timerState.activeSettings || {};
+        const cycleDuration = Math.max(1,
+          numberOrDefault(settings.rotationSeconds, 0) + numberOrDefault(settings.breakSeconds, 0));
+        timerState.completed = false;
+        timerState.countdownOnly = false;
+        timerState.waitingForManualStart = false;
+        timerState.manualStartLeadMs = 0;
+        timerState.manualStartDisplayHold = false;
+        timerState.startedAt = 0;
+        timerState.elapsedBeforePause = settings.oneShot
+          ? cycle > 1 ? 0.001 : 0
+          : (cycle - 1) * cycleDuration;
+        if (settings.oneShot) timerState.startListFinalCycle = cycle - 1;
+        clearTimerStartedAt();
+        armStateTransition(0);
+        timerState.version += 1;
       }
 
       if (type === "primary") {
@@ -1330,6 +1486,48 @@ function handleRequest(req, res) {
       if (type === "festivalAnnouncements") {
         timerState.festivalAnnouncements = Boolean(body.enabled);
         timerState.version += 1;
+      }
+
+      if (type === "startLists") {
+        const nextStartLists = sanitizeStartLists(body.startLists);
+        if (timerState.startLists.length !== 2 || nextStartLists.length !== 2) timerState.startListParallel = false;
+        timerState.startLists = nextStartLists;
+        startListDataRevision += 1;
+        timerState.startListDisplaySelections = sanitizeStartListDisplaySelections(
+          timerState.startListDisplaySelections,
+          nextStartLists
+        );
+        timerState.version += 1;
+      }
+
+      if (type === "startListLayout" && timerState.startLists.length === 2) {
+        timerState.startListParallel = Boolean(body.parallel);
+        timerState.version += 1;
+      }
+
+      if (type === "startListEnabled") {
+        timerState.startListEnabled = Boolean(body.enabled);
+        timerState.version += 1;
+      }
+
+      if (type === "startListDisplay") {
+        const targetClientId = String(body.targetClientId || "");
+        const listIndex = Number(body.listIndex);
+        if (targetClientId && clients.has(targetClientId)
+          && Number.isInteger(listIndex) && listIndex >= 0 && listIndex < 4
+          && timerState.startLists[listIndex]) {
+          const selections = sanitizeStartListDisplaySelections(
+            timerState.startListDisplaySelections,
+            timerState.startLists
+          );
+          const selectedIndexes = new Set(selections[targetClientId] || []);
+          if (body.enabled) selectedIndexes.add(listIndex);
+          else selectedIndexes.delete(listIndex);
+          if (selectedIndexes.size) selections[targetClientId] = [...selectedIndexes].sort((a, b) => a - b);
+          else delete selections[targetClientId];
+          timerState.startListDisplaySelections = selections;
+          timerState.version += 1;
+        }
       }
 
       const soundProfileCanChange = timerState.elapsedBeforePause === 0

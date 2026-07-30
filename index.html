@@ -77,7 +77,7 @@
     body {
       margin: 0;
       font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      background: var(--timer-rotation-bg);
+      background: #0e1116;
       color: var(--text);
     }
 
@@ -105,12 +105,13 @@
     }
 
     .controls {
+      --controls-base-padding: 20px;
       min-width: 0;
       min-height: 100vh;
       display: none;
       flex-direction: column;
-      padding: 20px;
-      background: rgba(23, 27, 34, .92);
+      padding: var(--controls-base-padding);
+      background: #171b22;
       border-right: 1px solid var(--line);
       overflow: auto;
     }
@@ -127,7 +128,7 @@
       display: flex;
       align-items: center;
       gap: 12px;
-      margin-bottom: 16px;
+      margin-bottom: 0;
     }
 
     .brand-copy {
@@ -248,7 +249,7 @@
     }
 
     .section {
-      padding: 13px 0;
+      padding: 12px 0;
       border-top: 1px solid var(--line);
     }
 
@@ -257,13 +258,80 @@
       padding-top: 0;
     }
 
+    .section-heading,
+    .connections-heading {
+      min-height: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin: 0 0 8px;
+    }
+
+    .connections-heading {
+      margin-bottom: 7px;
+    }
+
     .section-title {
-      margin: 0 0 9px;
+      margin: 0;
       font-size: 13px;
       color: var(--muted);
       text-transform: uppercase;
       letter-spacing: .08em;
     }
+
+    .section-toggle {
+      position: relative;
+      width: 22px;
+      height: 22px;
+      min-height: 20px;
+      flex: 0 0 22px;
+      padding: 0;
+      border: 1px solid transparent;
+      border-radius: 4px;
+      color: #747e8d;
+      background: transparent;
+      font-size: 0;
+    }
+
+    .section-toggle::before {
+      content: "";
+      position: absolute;
+      top: 4px;
+      left: 4px;
+      width: 12px;
+      height: 12px;
+      border: 1px solid currentColor;
+      border-radius: 2px;
+    }
+
+    .section-toggle::after {
+      content: "";
+      position: absolute;
+      top: 7px;
+      left: 7px;
+      width: 8px;
+      height: 1px;
+      background: currentColor;
+      transition: top .16s ease;
+    }
+
+    .section-toggle[aria-expanded="false"]::after {
+      top: 14px;
+    }
+
+    .section-toggle:hover {
+      color: #a9b2c1;
+    }
+
+    .section-toggle:focus-visible {
+      border-color: #596373;
+      color: #a9b2c1;
+      outline: none;
+    }
+
+    .section-content[hidden],
+    .browser-list[hidden] { display: none; }
 
     .control-footer {
       margin-top: auto;
@@ -309,15 +377,15 @@
     }
 
     .build-separator {
-      margin-left: 10px;
+      margin-left: 2px;
     }
 
     .build-info {
       display: inline-flex;
       align-items: center;
-      min-height: 28px;
+      min-height: 22px;
       margin-left: 0;
-      padding: 3px 9px;
+      padding: 1px 4px;
       border: 1px solid transparent;
       border-radius: 7px;
       color: inherit;
@@ -335,6 +403,36 @@
 
     .build-info:not(.armed):hover {
       color: var(--text);
+    }
+
+    .author-link {
+      display: inline-flex;
+      align-items: center;
+      min-height: 22px;
+      padding: 1px 4px;
+      border: 1px solid transparent;
+      border-radius: 7px;
+      color: inherit;
+      text-decoration: none;
+      cursor: pointer;
+    }
+
+    .author-link.armed {
+      border-color: var(--line);
+      background: rgba(255, 255, 255, .03);
+    }
+
+    .author-link:not(.armed):hover {
+      color: var(--text);
+    }
+
+    .author-link.armed:hover,
+    .author-link.armed:focus-visible,
+    .author-link.armed:active,
+    .author-link.opening {
+      border-color: var(--cyan);
+      color: var(--text);
+      outline: none;
     }
 
     .build-info.armed:hover,
@@ -363,7 +461,7 @@
 
     .start-time-fields {
       width: 100%;
-      margin-top: 9px;
+      margin-top: 0;
       margin-bottom: 10px;
     }
 
@@ -473,6 +571,11 @@
       border-color: var(--yellow);
     }
 
+    .preset:not(.active):not(.format-locked):not(:disabled):hover {
+      border-color: var(--yellow);
+      box-shadow: 0 0 0 2px rgba(255, 200, 87, .4);
+    }
+
     .preset.format-locked {
       cursor: not-allowed;
     }
@@ -481,6 +584,85 @@
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
       gap: 10px;
+    }
+
+    .final-round-format-field {
+      display: grid;
+      gap: 5px;
+      align-content: start;
+    }
+
+    .final-round-format-field > #finalRoundFormatLabel {
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .final-round-options {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      min-height: 38px;
+    }
+
+    .final-round-option {
+      display: inline-flex;
+      grid-template-columns: none;
+      align-items: center;
+      gap: 5px;
+      cursor: pointer;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .final-new-short {
+      display: none;
+    }
+
+    .final-round-option input {
+      appearance: none;
+      width: 16px;
+      height: 16px;
+      min-height: 16px;
+      margin: 0;
+      padding: 0;
+      border: 1px solid #77808d;
+      border-radius: 3px;
+      background: #10141b;
+    }
+
+    .final-round-option input:checked {
+      border-color: #8d96a3;
+      background-color: #10141b;
+      background-image: linear-gradient(var(--text), var(--text));
+      background-position: center;
+      background-repeat: no-repeat;
+      background-size: 8px 8px;
+      box-shadow: none;
+    }
+
+    .final-round-option input:disabled {
+      cursor: not-allowed;
+      opacity: .62;
+    }
+
+    .final-rest-field {
+      grid-column: 1 / -1;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
+    .final-rest-field .parameter-input-row {
+      display: block;
+      flex: 0 0 48px;
+      width: 48px;
+    }
+
+    .final-rest-field[hidden],
+    .final-round-format-field[hidden],
+    .break-parameter-field[hidden] {
+      display: none;
     }
 
     .sound-profile-field {
@@ -554,6 +736,15 @@
       font-size: 10px;
       line-height: 18px;
       cursor: pointer;
+      transition: border-color .16s ease, box-shadow .16s ease, color .16s ease;
+    }
+
+    .primary-pin-button:not(:disabled):hover,
+    .primary-pin-button:not(:disabled):focus-visible {
+      border-color: var(--cyan);
+      box-shadow: 0 0 0 1px rgba(73, 198, 229, .65);
+      color: var(--text);
+      outline: none;
     }
 
     .primary-pin-button.is-set {
@@ -621,6 +812,13 @@
       border: 1px solid transparent;
     }
 
+    .action:not(:disabled):hover,
+    .action:not(:disabled):focus-visible {
+      border-color: #f4f7fb;
+      box-shadow: 0 0 0 1px rgba(244, 247, 251, .82);
+      outline: none;
+    }
+
     .start { background: var(--green); color: #07130d; }
     .pause { background: var(--yellow); color: #1a1402; }
     .reset {
@@ -630,7 +828,6 @@
     }
     .reset:not(:disabled):hover {
       background: var(--red);
-      border-color: var(--red);
     }
     .full { background: var(--blue); color: #071225; }
 
@@ -641,7 +838,7 @@
     }
 
     .connections-title {
-      margin: 0 0 8px;
+      margin: 0;
       color: var(--muted);
       font-size: 12px;
       text-transform: uppercase;
@@ -708,6 +905,7 @@
       flex-wrap: nowrap;
       gap: 3px;
       margin-top: 2px;
+      margin-left: -4px;
     }
 
     .diag-chip {
@@ -757,6 +955,15 @@
     }
 
     .diag-chip.calibrated {
+      box-shadow: 0 0 0 2px #ff9f43;
+    }
+
+    .start-list-diag-row { margin-top: 4px; }
+    .diag-chip.start-list-available {
+      color: #061318;
+      background: var(--cyan);
+    }
+    .diag-chip.start-list-selected {
       box-shadow: 0 0 0 2px #ff9f43;
     }
 
@@ -932,11 +1139,391 @@
       accent-color: #ff9f43;
     }
 
+    .start-list-panel-controls {
+      display: grid;
+      grid-template-columns: 34px minmax(0, 1fr) auto 34px;
+      align-items: center;
+      gap: 6px;
+      min-width: 0;
+      padding: 8px;
+      border-bottom: 1px solid var(--line);
+    }
+    .start-list-panel-controls.has-layout-toggle {
+      grid-template-columns: 34px 34px minmax(0, 1fr) auto 34px;
+    }
+
+    .start-list-add,
+    .start-list-layout-toggle,
+    .start-list-file-button,
+    .start-list-clear {
+      min-height: 34px;
+      display: grid;
+      place-items: center;
+      padding: 0 9px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      font-size: 11px;
+      font-weight: 800;
+      text-align: center;
+      transition: border-color .16s ease, box-shadow .16s ease, color .16s ease;
+    }
+
+    .start-list-add { position: relative; flex: 0 0 34px; width: 34px; padding: 0; color: var(--green); background: transparent; font-size: 0; line-height: 1; }
+    .start-list-layout-toggle { position: relative; width: 34px; padding: 0; color: #8d97a5; background: transparent; font-size: 0; line-height: 1; }
+    .start-list-file-button { min-width: 0; flex: 1 1 auto; color: #041217; background: var(--cyan); cursor: pointer; white-space: nowrap; }
+    .start-list-file-button input { display: none; }
+    .start-list-route-field { flex: 0 0 auto; display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 11px; white-space: nowrap; }
+    .start-list-route-field input { width: 48px; min-height: 34px; padding-inline: 5px; text-align: center; }
+    .start-list-summary { display: none; }
+    .start-list-clear { position: relative; flex: 0 0 34px; width: 34px; padding: 0; color: var(--red); background: transparent; font-size: 0; line-height: 1; }
+    .start-list-add::before,
+    .start-list-add::after,
+    .start-list-clear::before,
+    .start-list-clear::after {
+      content: "";
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 18px;
+      height: 4px;
+      display: block;
+      border-radius: 1px;
+      background: currentColor;
+    }
+    .start-list-add::before { transform: translate(-50%, -50%); }
+    .start-list-add::after { transform: translate(-50%, -50%) rotate(90deg); }
+    .start-list-clear::before { transform: translate(-50%, -50%) rotate(45deg); }
+    .start-list-clear::after { transform: translate(-50%, -50%) rotate(-45deg); }
+    .start-list-layout-toggle::before,
+    .start-list-layout-toggle::after {
+      content: "";
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      display: block;
+    }
+    .start-list-layout-toggle::before {
+      width: 16px;
+      height: 3px;
+      border-radius: 2px;
+      background: currentColor;
+      transform: translate(-50%, -50%);
+    }
+    .start-list-layout-toggle::after {
+      width: 8px;
+      height: 8px;
+      border-top: 3px solid currentColor;
+      border-right: 3px solid currentColor;
+    }
+    .start-list-layout-toggle.move-right::after { transform: translate(-25%, -50%) rotate(45deg); }
+    .start-list-layout-toggle.move-left::after { transform: translate(-75%, -50%) rotate(-135deg); }
+
+    .start-list-add:not(:disabled):hover,
+    .start-list-layout-toggle:not(:disabled):hover,
+    .start-list-file-button:hover,
+    .start-list-clear:not(:disabled):hover,
+    .start-list-incident-action:not(:disabled):hover,
+    .start-list-incident-close:not(:disabled):hover,
+    .start-list-incident-remove:not(:disabled):hover,
+    .start-list-route-button:not(:disabled):hover {
+      border-color: currentColor;
+      box-shadow: 0 0 0 1px currentColor;
+    }
+    .start-list-file-button:hover {
+      border-color: #b9f2ff;
+      box-shadow: 0 0 0 1px rgba(185, 242, 255, .9);
+    }
+
+    .stage-main {
+      min-width: 0;
+      min-height: 0;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr);
+      overflow: hidden;
+    }
+
+    .timer-column {
+      min-width: 0;
+      min-height: 0;
+      display: grid;
+      grid-template-rows: minmax(0, 1fr) auto;
+      padding: clamp(18px, 3vw, 42px);
+      position: relative;
+      overflow: hidden;
+      background: var(--timer-rotation-bg);
+    }
+
+    .start-list-panel {
+      min-width: 0;
+      min-height: 0;
+      display: none;
+      flex-direction: column;
+      overflow: hidden;
+      width: 280px;
+      min-width: 280px;
+      max-width: 72vw;
+      border-left: 1px solid var(--line);
+      background: #101318;
+    }
+
+    .start-list-layout { width: 100%; min-height: 0; flex: 1 1 auto; display: flex; overflow: hidden; }
+    .start-list-column { width: 280px; min-width: 0; min-height: 0; flex: 0 0 280px; display: flex; flex-direction: column; overflow: hidden; }
+    .start-list-column + .start-list-column { border-left: 1px solid var(--line); }
+    .start-list-slot { min-width: 0; min-height: 0; flex: 1 1 0; display: flex; flex-direction: column; overflow: hidden; }
+    .start-list-slot + .start-list-slot { border-top: 1px solid var(--line); }
+
+    .start-list-incident-menu {
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr) auto;
+      align-items: center;
+      gap: 5px;
+      padding: 6px 7px;
+      border-bottom: 1px solid var(--line);
+      background: #171c23;
+      font-size: 11px;
+    }
+    .start-list-incident-menu[hidden] { display: none; }
+    .start-list-title-bar {
+      min-height: 30px;
+      padding: 6px 8px;
+      color: var(--text);
+      background: #1b212a;
+      border-bottom: 1px solid var(--line);
+      font-size: 13px;
+      font-weight: 850;
+      text-align: center;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .start-list-title-bar[hidden] { display: none; }
+    .start-list-incident-title { color: var(--text); font-weight: 850; white-space: nowrap; }
+    .start-list-incident-controls { min-width: 0; display: flex; align-items: center; justify-content: flex-end; gap: 5px; }
+    .start-list-incident-cycle { display: flex; align-items: center; gap: 4px; color: var(--muted); white-space: nowrap; }
+    .start-list-incident-cycle input { width: 58px; min-height: 28px; padding-inline: 4px; text-align: center; }
+    .start-list-incident-actions { min-width: 0; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 5px; }
+    .start-list-incident-action,
+    .start-list-incident-close {
+      min-height: 28px;
+      padding: 0 7px;
+      border: 1px solid var(--line);
+      border-radius: 5px;
+      background: transparent;
+      font-size: 10px;
+      font-weight: 800;
+      white-space: nowrap;
+      transition: border-color .16s ease, box-shadow .16s ease, color .16s ease;
+    }
+    .start-list-incident-action { position: relative; width: 30px; padding: 0; font-size: 0; }
+    .start-list-incident-action::before,
+    .start-list-incident-action::after { content: ""; position: absolute; display: block; }
+    .start-list-incident-action.pause { color: var(--yellow); border-color: rgba(255, 200, 87, .65); }
+    .start-list-incident-action.pause::before,
+    .start-list-incident-action.pause::after { top: 7px; bottom: 7px; width: 3px; border-radius: 1px; background: currentColor; }
+    .start-list-incident-action.pause::before { left: 9px; }
+    .start-list-incident-action.pause::after { right: 9px; }
+    .start-list-incident-action.resume { color: var(--green); border-color: rgba(38, 208, 124, .7); }
+    .start-list-incident-action.resume::before { top: 7px; left: 10px; border-top: 7px solid transparent; border-bottom: 7px solid transparent; border-left: 11px solid currentColor; }
+    .start-list-incident-action.stop { color: var(--red); border-color: rgba(240, 90, 89, .65); }
+    .start-list-incident-action.stop::before { top: 8px; left: 9px; width: 10px; height: 10px; border-radius: 1px; background: currentColor; }
+    .start-list-incident-close { width: 28px; display: grid; place-items: center; padding: 0; color: var(--muted); font-size: 0; }
+    .start-list-incident-close::before {
+      content: "×";
+      display: block;
+      font-family: Arial, sans-serif;
+      font-size: 18px;
+      font-weight: 900;
+      line-height: 1;
+      transform: translateY(1px);
+    }
+    .start-list-incident-notes { grid-column: 1 / -1; display: grid; gap: 3px; }
+    .start-list-incident-note { min-width: 0; display: flex; align-items: center; gap: 5px; color: var(--muted); line-height: 1.25; }
+    .start-list-incident-note span { min-width: 0; flex: 1 1 auto; }
+    .start-list-incident-remove {
+      position: relative;
+      flex: 0 0 22px;
+      width: 22px;
+      height: 22px;
+      display: grid;
+      place-items: center;
+      padding: 0;
+      border: 1px solid rgba(240, 90, 89, .65);
+      border-radius: 5px;
+      color: var(--red);
+      background: transparent;
+      font-size: 0;
+      transition: border-color .16s ease, box-shadow .16s ease, color .16s ease;
+    }
+    .start-list-incident-remove::before,
+    .start-list-incident-remove::after {
+      content: "";
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 13px;
+      height: 3px;
+      border-radius: 1px;
+      background: currentColor;
+    }
+    .start-list-incident-remove::before { transform: translate(-50%, -50%) rotate(45deg); }
+    .start-list-incident-remove::after { transform: translate(-50%, -50%) rotate(-45deg); }
+    .start-list-incident-note.error { color: var(--red); }
+
+    body.start-list-visible .stage-main {
+      grid-template-columns: minmax(240px, 1fr) auto;
+    }
+
+    body.start-list-visible .start-list-panel { display: flex; }
+    body.start-list-visible .time { font-size: var(--timer-font-size, clamp(86px, min(17vw, 46vh), 620px)); }
+    body.start-list-visible.viewer-mode .timer-column,
+    body.start-list-visible.fullscreen .timer-column { padding: clamp(8px, 1vw, 14px); }
+
+    .start-list-scroll { min-height: 0; flex: 1 1 auto; overflow: auto; scrollbar-gutter: stable; }
+    .start-list-table { width: max-content; border-collapse: separate; border-spacing: 0; font-size: 12px; line-height: 16px; }
+    .start-list-table th,
+    .start-list-table td { height: 30px; padding: 4px 5px; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); white-space: nowrap; }
+    .start-list-table th { position: sticky; top: 0; z-index: 2; color: var(--text); background: #242a33; text-align: left; }
+    .start-list-table .route-cell { width: 30px; min-width: 30px; max-width: 30px; height: 30px; padding: 2px; text-align: center; }
+    body.start-list-compact .start-list-title-bar { min-height: 27px; padding: 5px 6px; font-size: 12px; }
+    body.start-list-compact .start-list-table { font-size: 11px; line-height: 15px; }
+    body.start-list-compact .start-list-table th,
+    body.start-list-compact .start-list-table td { height: 27px; padding: 3px 4px; }
+    body.start-list-compact .start-list-table .route-cell { width: 27px; min-width: 27px; max-width: 27px; height: 27px; padding: 2px; }
+    body.start-list-compact .start-list-route-button { width: 23px; height: 23px; }
+    body.start-list-compact .route-marker { width: 16px; height: 16px; }
+    body.start-list-compact .route-marker.ready { width: 0; height: 0; border-left-width: 8px; border-right-width: 8px; border-bottom-width: 16px; }
+    body.start-list-compact .route-marker.stopped::before,
+    body.start-list-compact .route-marker.stopped::after { left: 7px; height: 17px; }
+    body.start-list-dense .start-list-title-bar { min-height: 25px; padding: 4px 5px; font-size: 11px; }
+    body.start-list-dense .start-list-table { font-size: 10px; line-height: 14px; }
+    body.start-list-dense .start-list-table th,
+    body.start-list-dense .start-list-table td { height: 24px; padding: 2px 3px; }
+    body.start-list-dense .start-list-table .route-cell { width: 24px; min-width: 24px; max-width: 24px; height: 24px; padding: 1px; }
+    body.start-list-dense .start-list-route-button { width: 20px; height: 20px; border-radius: 4px; }
+    body.start-list-dense .route-marker { width: 14px; height: 14px; }
+    body.start-list-dense .route-marker.ready { width: 0; height: 0; border-left-width: 7px; border-right-width: 7px; border-bottom-width: 14px; }
+    body.start-list-dense .route-marker.paused::before,
+    body.start-list-dense .route-marker.paused::after { width: 4px; }
+    body.start-list-dense .route-marker.paused::before { left: 1px; }
+    body.start-list-dense .route-marker.paused::after { right: 1px; }
+    body.start-list-dense .route-marker.stopped::before,
+    body.start-list-dense .route-marker.stopped::after { left: 6px; width: 2px; height: 15px; }
+    body.start-list-ultra-dense .start-list-title-bar { min-height: 20px; padding: 3px 4px; font-size: 9px; line-height: 14px; }
+    body.start-list-ultra-dense .start-list-table { font-size: 9px; line-height: 12px; }
+    body.start-list-ultra-dense .start-list-table th,
+    body.start-list-ultra-dense .start-list-table td { height: 18px; padding: 1px 2px; }
+    body.start-list-ultra-dense .start-list-table .route-cell { width: 18px; min-width: 18px; max-width: 18px; height: 18px; padding: 1px; }
+    body.start-list-ultra-dense .start-list-route-button { width: 16px; height: 16px; border-radius: 3px; }
+    body.start-list-ultra-dense .route-marker { width: 11px; height: 11px; }
+    body.start-list-ultra-dense .route-marker.ready { width: 0; height: 0; border-left-width: 6px; border-right-width: 6px; border-bottom-width: 11px; }
+    body.start-list-ultra-dense .route-marker.done { width: 9px; height: 9px; }
+    body.start-list-ultra-dense .route-marker.paused::before,
+    body.start-list-ultra-dense .route-marker.paused::after { top: 0; bottom: 0; width: 3px; }
+    body.start-list-ultra-dense .route-marker.paused::before { left: 0; }
+    body.start-list-ultra-dense .route-marker.paused::after { right: 0; }
+    body.start-list-ultra-dense .route-marker.stopped::before,
+    body.start-list-ultra-dense .route-marker.stopped::after { left: 4px; width: 2px; height: 11px; }
+    .start-list-table td.route-cell.is-incident-cycle-preview {
+      position: relative;
+      z-index: 1;
+      box-shadow: inset 0 0 0 2px var(--cyan), 0 0 9px rgba(73, 198, 229, .72);
+    }
+    .start-list-table td[data-start-list-participant-exclusion] { cursor: pointer; }
+    .start-list-table td[data-start-list-participant-exclusion]:hover,
+    .start-list-table td[data-start-list-participant-exclusion]:focus-visible {
+      position: relative;
+      z-index: 3;
+      outline: 2px solid #ff4b50;
+      outline-offset: -2px;
+      background-color: rgba(240, 90, 89, .18) !important;
+      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .18), 0 0 9px rgba(240, 90, 89, .82);
+    }
+    .start-list-table tr.is-excluded td[data-start-list-participant-exclusion]:hover,
+    .start-list-table tr.is-excluded td[data-start-list-participant-exclusion]:focus-visible {
+      outline-color: var(--green);
+      background-color: rgba(38, 208, 124, .18) !important;
+      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .18), 0 0 9px rgba(38, 208, 124, .82);
+    }
+    .start-list-table tr.is-excluded td { position: relative; }
+    .start-list-table tr.is-excluded td::after {
+      content: "";
+      position: absolute;
+      z-index: 4;
+      top: calc(50% - .5px);
+      left: 0;
+      right: -1px;
+      height: 1px;
+      pointer-events: none;
+      background: #ff4b50;
+      box-shadow: 0 0 2px rgba(255, 75, 80, .72);
+    }
+    .start-list-table th.route-cell.route-paused { background: rgba(255, 200, 87, .42); }
+    .start-list-table th.route-cell.route-stopped { background: rgba(240, 90, 89, .46); }
+    .start-list-route-button {
+      width: 26px;
+      height: 26px;
+      display: inline-grid;
+      place-items: center;
+      padding: 0;
+      border: 1px solid #687384;
+      border-radius: 5px;
+      color: var(--text);
+      background: transparent;
+      font: inherit;
+      font-weight: 850;
+      line-height: 1;
+      transition: border-color .16s ease, box-shadow .16s ease, color .16s ease;
+    }
+    .start-list-route-button:focus-visible { border-color: var(--cyan); outline: none; }
+    .start-list-route-button:disabled { cursor: default; opacity: 1; }
+    .start-list-route-button.is-selected {
+      border: 2px solid var(--yellow);
+      box-shadow: 0 0 0 1px rgba(255, 200, 87, .46);
+    }
+    .start-list-table th.route-paused .start-list-route-button {
+      border: 2px solid var(--yellow);
+      color: #ffe29a;
+      background: rgba(255, 200, 87, .18);
+      box-shadow: 0 0 8px rgba(255, 200, 87, .72);
+    }
+    .start-list-table th.route-stopped .start-list-route-button {
+      border: 2px solid var(--red);
+      color: #ffb3b2;
+      background: rgba(240, 90, 89, .2);
+      box-shadow: 0 0 8px rgba(240, 90, 89, .76);
+    }
+    .start-list-table th.route-paused-history .start-list-route-button {
+      border: 2px solid rgba(255, 200, 87, .86);
+      color: #ffe29a;
+      background: transparent;
+    }
+    .start-list-table th.route-stopped-history .start-list-route-button {
+      border: 2px solid rgba(240, 90, 89, .9);
+      color: #ffb3b2;
+      background: transparent;
+    }
+    .start-list-table tr.is-active td { background: rgba(79, 209, 139, .22); }
+    .start-list-table tr.is-ready td { background: rgba(255, 200, 87, .22); }
+    .route-marker { display: inline-block; width: 18px; height: 18px; vertical-align: middle; filter: drop-shadow(0 1px 1px rgba(0,0,0,.55)); }
+    .route-marker.active { border: 2px solid #07140d; border-radius: 50%; background: var(--green); }
+    .route-marker.done { border: 2px solid #220707; background: #dc2f2f; transform: rotate(45deg) scale(.82); }
+    .route-marker.ready { width: 0; height: 0; border-left: 9px solid transparent; border-right: 9px solid transparent; border-bottom: 18px solid var(--yellow); filter: drop-shadow(0 0 1px #1b1400); }
+    .route-marker.paused::before,
+    .route-marker.paused::after { content: ""; position: absolute; top: 1px; bottom: 1px; width: 5px; border-radius: 1px; background: #8d97a5; }
+    .route-marker.paused { position: relative; }
+    .route-marker.paused::before { left: 2px; }
+    .route-marker.paused::after { right: 2px; }
+    .route-marker.stopped { position: relative; }
+    .route-marker.stopped::before,
+    .route-marker.stopped::after { content: ""; position: absolute; left: 8px; top: 0; width: 3px; height: 19px; border-radius: 2px; background: var(--red); }
+    .route-marker.stopped::before { transform: rotate(45deg); }
+    .route-marker.stopped::after { transform: rotate(-45deg); }
+
     .stage {
       min-width: 0;
       display: grid;
-      grid-template-rows: 1fr auto;
-      padding: clamp(18px, 3vw, 42px);
+      grid-template-rows: 1fr;
+      padding: 0;
       position: relative;
       overflow: hidden;
       background: var(--timer-rotation-bg);
@@ -1070,6 +1657,31 @@
       font-weight: 760;
     }
 
+    .cycle-chip.cycle-editable {
+      border-color: #68dcff;
+      box-shadow: 0 0 0 1px rgba(104, 220, 255, .5), 0 0 12px rgba(73, 201, 240, .18);
+    }
+    .cycle-chip.cycle-rotation {
+      border-color: var(--green);
+      box-shadow: 0 0 0 1px rgba(45, 209, 139, .48), 0 0 12px rgba(45, 209, 139, .16);
+    }
+    .cycle-chip.cycle-break {
+      border-color: var(--yellow);
+      box-shadow: 0 0 0 1px rgba(255, 200, 87, .48), 0 0 12px rgba(255, 200, 87, .16);
+    }
+    .cycle-input {
+      width: 6ch;
+      min-width: 0;
+      padding: 0;
+      border: 0;
+      outline: 0;
+      color: inherit;
+      background: transparent;
+      font: inherit;
+      text-align: left;
+    }
+    .cycle-input:disabled { opacity: 1; pointer-events: none; }
+
     #rotationMeta {
       background: rgba(23, 27, 34, .42);
     }
@@ -1107,11 +1719,12 @@
     }
 
     .schedule.with-cycle {
-      grid-template-columns: minmax(88px, 1fr) auto;
+      grid-template-columns: auto;
+      justify-content: center;
     }
 
     .schedule.with-cycle.with-break {
-      grid-template-columns: minmax(88px, 1fr) auto minmax(88px, 1fr);
+      grid-template-columns: auto;
     }
 
     .chip {
@@ -1153,8 +1766,7 @@
       border-color: var(--red);
     }
 
-    body.warning-active,
-    body.warning-active .stage {
+    body.warning-active .timer-column {
       background: var(--timer-warning-bg);
     }
 
@@ -1162,11 +1774,7 @@
       color: var(--timer-warning-text);
     }
 
-    body.countdown-active {
-      background: var(--timer-countdown-bg);
-    }
-
-    body.countdown-active .stage {
+    body.countdown-active .timer-column {
       background: var(--timer-countdown-bg);
     }
 
@@ -1174,11 +1782,7 @@
       color: var(--timer-countdown-text);
     }
 
-    body.break-active {
-      background: var(--timer-break-bg);
-    }
-
-    body.break-active .stage {
+    body.break-active .timer-column {
       background: var(--timer-break-bg);
     }
 
@@ -1186,16 +1790,11 @@
       color: var(--timer-break-text);
     }
 
-    body.break-active .controls {
-      background: rgba(68, 12, 14, .94);
-      background: color-mix(in srgb, var(--timer-break-bg) 35%, #10141b);
-      border-right-color: rgba(255, 255, 255, .2);
-    }
-
     .compact-actions {
       display: none;
       gap: 8px;
       justify-content: center;
+      margin-top: 12px;
     }
 
     .compact-actions .action {
@@ -1203,7 +1802,7 @@
       min-height: 46px;
     }
 
-    body.flash .stage::after {
+    body.flash .timer-column::after {
       content: "";
       position: absolute;
       inset: 0;
@@ -1233,7 +1832,7 @@
       .controls {
         height: 100%;
         min-height: 0;
-        padding-right: var(--controls-padding-right, 20px);
+        padding-right: var(--controls-padding-right, var(--controls-base-padding));
         overflow-y: auto;
         overscroll-behavior: contain;
         scrollbar-gutter: stable;
@@ -1243,6 +1842,60 @@
         height: 100%;
         min-height: 0;
       }
+    }
+
+    @media (min-width: 901px) and (max-width: 1499px),
+           (min-width: 901px) and (max-height: 850px) {
+      body.controls-ready:not(.viewer-mode):not(.fullscreen) .app {
+        grid-template-columns: 320px minmax(0, 1fr);
+      }
+
+      .controls { --controls-base-padding: 16px; }
+      .brand { gap: 10px; }
+      .brand-copy h1 { font-size: 18px; }
+      .section { padding: 8px 0 10px; }
+      .connections { margin-top: 10px; padding-top: 8px; }
+      .preset, input, select { min-height: 34px; }
+      .action { min-height: 42px; }
+      .diag-row { flex-wrap: wrap; }
+      .diag-chip { padding: 1px 4px; font-size: 9px; }
+      .start-list-diag-row { flex-wrap: nowrap; gap: 2px; margin-left: -3px; }
+      .start-list-diag-row .diag-chip { padding-inline: 3px; letter-spacing: 0; }
+      .control-footer { padding-top: 9px; }
+    }
+
+    @media (min-width: 901px) and (max-width: 1199px),
+           (min-width: 901px) and (max-height: 700px) {
+      body.controls-ready:not(.viewer-mode):not(.fullscreen) .app {
+        grid-template-columns: 280px minmax(0, 1fr);
+      }
+
+      .controls { --controls-base-padding: 12px; }
+      .brand { gap: 8px; }
+      .brand-mark { width: 32px; height: 36px; }
+      .brand-mark svg { width: 31px; height: 31px; }
+      .brand-copy h1 { font-size: 16px; }
+      .section { padding: 6px 0 8px; }
+      .section-heading, .connections-heading { margin-bottom: 6px; }
+      .section-title, .connections-title { font-size: 11px; }
+      .preset-grid { gap: 5px; }
+      .preset, input, select { min-height: 30px; border-radius: 6px; }
+      .preset { font-size: 13px; }
+      .final-new-full { display: none; }
+      .final-new-short { display: inline; }
+      label, .switch-row { font-size: 12px; }
+      .switch-row { min-height: 28px; }
+      .actions { gap: 6px; }
+      .action { min-height: 38px; border-radius: 6px; font-size: 14px; }
+      .connections { margin-top: 8px; padding-top: 6px; }
+      .browser-item { padding: 6px 7px; font-size: 11px; }
+      .browser-item strong { font-size: 12px; }
+      .diag-row:not(.start-list-diag-row) { flex-wrap: nowrap; gap: 2px; margin-left: -3px; }
+      .diag-row:not(.start-list-diag-row) .diag-chip { padding-inline: 3px; letter-spacing: 0; }
+      .start-list-diag-row { flex-wrap: wrap; }
+      .control-footer { padding-top: 7px; }
+      .help-link { min-height: 30px; }
+      .credits { padding-top: 7px; font-size: 11px; }
     }
 
     @media (max-width: 900px) {
@@ -1266,6 +1919,9 @@
         min-height: 620px;
         grid-template-rows: minmax(390px, 1fr) auto;
       }
+
+      body.start-list-visible .stage-main { grid-template-columns: minmax(210px, 1fr) auto; }
+      .start-list-panel { min-width: 330px; max-width: 68vw; }
     }
 
     @media (max-width: 560px) {
@@ -1302,7 +1958,7 @@
     body.fullscreen .stage {
       min-height: 100vh;
       grid-template-rows: 1fr;
-      padding: clamp(8px, 1.4vw, 22px);
+      padding: 0;
     }
 
     body.fullscreen footer,
@@ -1313,7 +1969,7 @@
     }
 
     body.fullscreen .timer-wrap {
-      min-height: calc(100vh - clamp(16px, 2.8vw, 44px));
+      min-height: 0;
       align-content: center;
     }
 
@@ -1379,11 +2035,11 @@
     body.viewer-mode .stage {
       min-height: 100vh;
       grid-template-rows: 1fr;
-      padding: clamp(8px, 1.4vw, 22px);
+      padding: 0;
     }
 
     body.viewer-mode .timer-wrap {
-      min-height: calc(100vh - clamp(16px, 2.8vw, 44px));
+      min-height: 0;
       align-content: center;
     }
 
@@ -1412,11 +2068,11 @@
     :fullscreen .stage {
       min-height: 100vh;
       grid-template-rows: 1fr;
-      padding: clamp(8px, 1.4vw, 22px);
+      padding: 0;
     }
 
     :fullscreen .timer-wrap {
-      min-height: calc(100vh - clamp(16px, 2.8vw, 44px));
+      min-height: 0;
       align-content: center;
     }
 
@@ -1434,7 +2090,7 @@
       .stage {
         min-height: 100vh;
         grid-template-rows: 1fr;
-        padding: clamp(8px, 1.4vw, 22px);
+        padding: 0;
       }
       footer,
       .compact-actions,
@@ -1443,7 +2099,7 @@
         display: none;
       }
       .timer-wrap {
-        min-height: calc(100vh - clamp(16px, 2.8vw, 44px));
+        min-height: 0;
         align-content: center;
       }
       .time {
@@ -1452,6 +2108,91 @@
         width: auto;
         text-align: center;
         white-space: nowrap;
+      }
+    }
+
+    @media (max-width: 560px) and (orientation: portrait) {
+      body.start-list-visible .stage {
+        min-height: 0;
+        overflow: visible;
+      }
+
+      body.start-list-visible .stage-main {
+        grid-template-columns: minmax(0, 1fr);
+        grid-template-rows: minmax(300px, 42dvh) auto;
+        overflow: visible;
+      }
+
+      body.start-list-visible .timer-column {
+        min-height: 300px;
+        padding: 12px;
+      }
+
+      body.start-list-visible .timer-wrap {
+        min-height: 0;
+        height: 100%;
+      }
+
+      body.start-list-visible .time {
+        font-size: var(--timer-font-size, clamp(86px, 28vw, 150px));
+      }
+
+      body.start-list-visible .start-list-panel {
+        width: 100% !important;
+        min-width: 0;
+        max-width: 100% !important;
+        border-top: 1px solid var(--line);
+        border-left: 0;
+        overflow: visible;
+      }
+
+      body.start-list-visible .start-list-layout {
+        flex-direction: column;
+        overflow: visible;
+      }
+
+      body.start-list-visible .start-list-column {
+        width: 100% !important;
+        min-width: 0;
+        flex: 0 0 auto !important;
+        overflow: visible;
+      }
+
+      body.start-list-visible .start-list-column + .start-list-column {
+        border-top: 1px solid var(--line);
+        border-left: 0;
+      }
+
+      body.start-list-visible .start-list-slot {
+        flex: 0 0 auto;
+        overflow: visible;
+      }
+
+      body.start-list-visible .start-list-scroll {
+        flex: 0 0 auto;
+        max-height: calc(33px + var(--start-list-mobile-row-count, 6) * 32px);
+      }
+
+      body.start-list-visible.fullscreen .stage-main,
+      body.start-list-visible.viewer-mode .stage-main {
+        grid-template-rows: clamp(150px, 26dvh, 190px) auto;
+      }
+
+      body.start-list-visible.fullscreen .timer-column,
+      body.start-list-visible.viewer-mode .timer-column {
+        min-height: 150px;
+        padding: clamp(10px, 2.5dvh, 18px) 12px;
+      }
+    }
+
+    @media (max-width: 560px) and (orientation: portrait) and (display-mode: fullscreen) {
+      body.start-list-visible .stage-main {
+        grid-template-rows: clamp(150px, 26dvh, 190px) auto;
+      }
+
+      body.start-list-visible .timer-column {
+        min-height: 150px;
+        padding: clamp(10px, 2.5dvh, 18px) 12px;
       }
     }
   </style>
@@ -1488,8 +2229,11 @@
       </div>
 
       <section class="section">
-        <h2 id="formatTitle" class="section-title">Формат</h2>
-        <div class="preset-grid" role="group" aria-label="Готовые форматы">
+        <div class="section-heading">
+          <h2 id="formatTitle" class="section-title">Формат</h2>
+          <button class="section-toggle" type="button" data-section-toggle aria-controls="formatContent" aria-expanded="true" aria-label="Скрыть" title="Скрыть"></button>
+        </div>
+        <div id="formatContent" class="section-content preset-grid" role="group" aria-label="Готовые форматы">
           <button class="preset active" data-preset="classic" title="Классический формат (французская система)">Классика</button>
           <button class="preset" data-preset="festival" title="Фестивальный формат">Фестиваль</button>
           <button class="preset" data-preset="final" title="Международный формат">Финал</button>
@@ -1497,7 +2241,11 @@
       </section>
 
       <section class="section">
-        <h2 id="parametersTitle" class="section-title">Параметры</h2>
+        <div class="section-heading">
+          <h2 id="parametersTitle" class="section-title">Параметры</h2>
+          <button class="section-toggle" type="button" data-section-toggle aria-controls="parametersContent" aria-expanded="true" aria-label="Скрыть" title="Скрыть"></button>
+        </div>
+        <div id="parametersContent" class="section-content">
         <div id="startTimeFields" class="start-time-fields">
           <div>
             <div class="start-time-heading">
@@ -1525,16 +2273,26 @@
               <span id="rotationInputUnit">минут</span>
             </span>
           </label>
-          <label class="parameter-field"><span id="breakInputLabel">Перерыв</span>
+          <label id="breakParameterField" class="parameter-field break-parameter-field"><span id="breakInputLabel">Перерыв</span>
             <span class="parameter-input-row">
               <input id="breakSeconds" type="number" min="0" max="3600" step="1" value="15">
               <span id="breakInputUnit">секунд</span>
             </span>
           </label>
+          <div id="finalRoundFormatField" class="parameter-field final-round-format-field" hidden>
+            <span id="finalRoundFormatLabel">Формат раунда</span>
+            <span id="finalRoundOptions" class="final-round-options" role="radiogroup" aria-label="Формат раунда">
+              <label id="finalOldOption" class="final-round-option"><input type="radio" name="finalRoundFormat" value="old" checked><span id="finalOldLabel">Старый</span></label>
+              <label id="finalNewOption" class="final-round-option"><input type="radio" name="finalRoundFormat" value="new"><span id="finalNewLabel"><span class="final-new-full">Новый</span><span class="final-new-short" aria-hidden="true">Нов.</span></span></label>
+            </span>
+          </div>
+          <label id="finalRestField" class="parameter-field final-rest-field" hidden><span id="finalRestLabel">Количество ротаций для отдыха</span>
+            <span class="parameter-input-row">
+              <input id="finalRestRotations" type="number" min="1" max="9" step="1" value="3">
+            </span>
+          </label>
         </div>
-      </section>
-
-      <section class="section no-divider">
+        <div class="section-options">
         <div id="primaryRow" class="switch-row" title="Основной браузер: Ctrl+M / Ctrl+Ь">
           <span id="primaryLabel">Основной браузер</span>
           <span class="primary-controls">
@@ -1548,6 +2306,10 @@
           <button id="primaryPinClear" type="button" hidden>Clear</button>
           <span id="primaryPinStatus" aria-live="polite"></span>
         </div>
+        <label id="startListToggleRow" class="switch-row">
+          <span id="startListToggleLabel">Стартовый протокол</span>
+          <input id="startListToggle" type="checkbox">
+        </label>
         <label class="switch-row">
           <span id="soundLabel">Звук</span>
           <input id="soundToggle" type="checkbox" checked>
@@ -1572,24 +2334,32 @@
           <span id="soundProfileLabel">Комплект звуков</span>
           <select id="soundProfileSelect" aria-label="Комплект звуков"></select>
         </label>
+        </div>
+        </div>
       </section>
 
       <section class="section">
-        <h2 id="controlsTitle" class="section-title">Управление</h2>
-        <div class="actions">
+        <div class="section-heading">
+          <h2 id="controlsTitle" class="section-title">Управление</h2>
+          <button class="section-toggle" type="button" data-section-toggle aria-controls="controlsContent" aria-expanded="true" aria-label="Скрыть" title="Скрыть"></button>
+        </div>
+        <div id="controlsContent" class="section-content actions">
           <button id="startBtn" class="action start" title="Старт: Z / Я">Старт</button>
           <button id="pauseBtn" class="action pause" title="Пауза: Ctrl+Q / Ctrl+Й" disabled>Пауза</button>
           <button id="resetBtn" class="action reset" title="Стоп: P / З">Стоп</button>
           <button id="fullBtn" class="action full" title="Экран: Ctrl+F / Ctrl+А">Экран</button>
         </div>
         <div class="connections">
-          <h2 id="browsersTitle" class="connections-title">Браузеры</h2>
+          <div class="connections-heading">
+            <h2 id="browsersTitle" class="connections-title">Браузеры</h2>
+            <button class="section-toggle" type="button" data-section-toggle aria-controls="browserList" aria-expanded="true" aria-label="Скрыть" title="Скрыть"></button>
+          </div>
           <div id="browserList" class="browser-list"></div>
         </div>
       </section>
       <div class="control-footer">
         <a id="helpLink" class="help-link" href="help.html?lang=ru" target="_blank" rel="noopener">Руководство</a>
-        <div class="credits">2026 <span id="authorName" title="Говорил, что делать">Фёдоров Денис</span> + <span id="codexCredit" title="Делал">Codex</span><span id="buildSeparator" class="build-separator" hidden> | </span><a id="buildInfo" class="build-info" href="https://github.com/dfedorov-arch/fdv-bouldering-timer" target="_blank" rel="noopener" aria-describedby="buildProjectHint" aria-expanded="false" hidden></a></div>
+        <div class="credits" id="copyrightCredit" title="Говорил, что делать, Codex - делал :)">2026 <a id="authorName" class="author-link" href="mailto:DFedorov@gmail.com" aria-describedby="buildProjectHint" aria-expanded="false">Фёдоров Денис</a><span id="buildSeparator" class="build-separator" hidden> | </span><a id="buildInfo" class="build-info" href="https://github.com/dfedorov-arch/fdv-bouldering-timer" target="_blank" rel="noopener" aria-describedby="buildProjectHint" aria-expanded="false" hidden></a></div>
         <div id="buildProjectHint" class="build-project-hint" role="status" hidden></div>
       </div>
     </aside>
@@ -1600,29 +2370,35 @@
         <div id="status" class="status-pill">Готов</div>
       </header>
 
-      <div class="timer-wrap">
-        <div id="phase" class="phase ready">Готовность</div>
-        <div id="time" class="time" aria-label="04:00">
-          <span id="timeMinutes" class="time-part">04</span>
-          <span class="time-separator">:</span>
-          <span id="timeSeconds" class="time-part">00</span>
+      <div class="stage-main">
+        <div class="timer-column">
+          <div class="timer-wrap">
+            <div id="phase" class="phase ready">Готовность</div>
+            <div id="time" class="time" aria-label="04:00">
+              <span id="timeMinutes" class="time-part">04</span>
+              <span class="time-separator">:</span>
+              <span id="timeSeconds" class="time-part">00</span>
+            </div>
+            <div class="meta" aria-live="polite">
+              <div id="cycleMeta" class="meta-item">Цикл 1</div>
+              <div id="rotationMeta" class="meta-item">Ротация 04:00</div>
+              <div id="nextMeta" class="meta-item">Далее: старт</div>
+            </div>
+          </div>
+          <footer>
+            <div id="progressTrack" class="progress" aria-label="Прогресс текущего отрезка"><span id="progressBar"></span></div>
+            <div id="schedule" class="schedule"></div>
+            <div class="compact-actions">
+              <button id="compactStart" class="action start" title="Старт: Z / Я">Старт</button>
+              <button id="compactPause" class="action pause" title="Пауза: Ctrl+Q / Ctrl+Й" disabled>Пауза</button>
+              <button id="compactReset" class="action reset" title="Стоп: P / З">Стоп</button>
+            </div>
+          </footer>
         </div>
-        <div class="meta" aria-live="polite">
-          <div id="cycleMeta" class="meta-item">Цикл 1</div>
-          <div id="rotationMeta" class="meta-item">Ротация 04:00</div>
-          <div id="nextMeta" class="meta-item">Далее: старт</div>
-        </div>
+        <section id="startListPanel" class="start-list-panel" aria-label="Стартовый список">
+          <div id="startListLayout" class="start-list-layout"></div>
+        </section>
       </div>
-
-      <footer>
-        <div id="progressTrack" class="progress" aria-label="Прогресс текущего отрезка"><span id="progressBar"></span></div>
-        <div id="schedule" class="schedule"></div>
-        <div class="compact-actions">
-          <button id="compactStart" class="action start" title="Старт: Z / Я">Старт</button>
-          <button id="compactPause" class="action pause" title="Пауза: Ctrl+Q / Ctrl+Й" disabled>Пауза</button>
-          <button id="compactReset" class="action reset" title="Стоп: P / З">Стоп</button>
-        </div>
-      </footer>
     </section>
   </main>
 
@@ -1631,12 +2407,14 @@
       document.write('<script src="lib/offline-audio.js"><\/script>');
     }
   </script>
+  <script src="lib/start-list-display.js"></script>
+  <script src="lib/start-list.js"></script>
   <script src="lib/client-action-transport.js"></script>
   <script>
     const presets = {
       classic: { rotationMinutes: 4, breakSeconds: 15, oneShot: false },
       festival: { rotationMinutes: 120, breakSeconds: 1800, oneShot: false },
-      final: { rotationMinutes: 4, breakSeconds: "", oneShot: true }
+      final: { rotationMinutes: 4, breakSeconds: 0, oneShot: true, finalRoundFormat: "old", finalRestRotations: 3 }
     };
 
     const state = {
@@ -1661,14 +2439,22 @@
       primaryPinSet: false,
       ownPrimaryPinSaved: false,
       ownPrimaryPinValue: "",
+      startLists: [null],
+      startListParallel: false,
+      startListEnabled: false,
+      startListIndexes: [],
+      startListVisible: false,
+      startListFinalCycle: 0,
       timeline: []
     };
 
-    const pageBuildNumber = 245;
+    const pageBuildNumber = 350;
     const projectUrl = "https://github.com/dfedorov-arch/fdv-bouldering-timer";
     const buildLinkConfirmDelayMs = 550;
     const offlineSnapshotKey = "fdvBoulderingTimerOfflineSnapshot";
     const primarySoundPreferenceKey = "fdvBoulderingTimerPrimarySound";
+    const startListEditorPreferenceKey = "fdvBoulderingTimerStartListEditorOpen";
+    const startListScrollPreferenceKey = "fdvBoulderingTimerStartListScrollPositions";
     const offlineSnapshotMaxAgeMs = 12 * 60 * 60 * 1000;
     const mobileResumeSyncEnabled = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
     const iosAudioWorkaroundEnabled = /iPad|iPhone|iPod/i.test(navigator.userAgent)
@@ -1684,13 +2470,38 @@
         hours: "часов", minutes: "минут",
         parameters: "Параметры", rotationMinutes: "Время ротации",
         roundMinutes: "Время раунда", breakSeconds: "Перерыв",
+        finalRoundFormat: "Формат раунда",
+        finalRoundFormatHint: "Выбор имеет смысл, если вы загружаете стартовый протокол",
+        finalOld: "Старый",
+        finalOldHint: "Все участники последовательно лезут каждую трассу",
+        finalNew: "Новый",
+        finalNewShort: "Нов.",
+        finalNewHint: "Участники после отдыха переходят на следующую трассу, не дожидаясь, пока все пролезут предыдущую",
+        finalRestRotations: "Количество ротаций для отдыха",
+        finalRestRotationsHint: "Количество полных ротаций отдыха между попытками участника на соседних трассах",
         breakMinutes: "Перерыв", minuteUnit: "минут", secondUnit: "секунд",
         primary: "Основной браузер", diagnosticPrimary: "Основной", diagnosticScreen: "Экран", sound: "Звук", soundProfile: "Комплект звуков", festivalAnnouncements: "Объявления времени",
         festivalAnnouncementsHint: "Объявления за 60, 30, 10 и 5 минут",
         primarySound: "Звук в основном браузере", otherSound: "Звук в других браузерах",
         otherFullscreen: "Полный экран в других браузерах", flashing: "Мигание",
-        controls: "Управление", start: "Старт", pause: "Пауза", reset: "Стоп",
+        startList: "Стартовый список", startListToggle: "Стартовый протокол", addStartList: "Добавить протокол", loadStartList: "Загрузить протокол", loadStartListNumber: "Загрузить протокол {number}", loadStartListCompact: "Загрузить…", startListRoutes: "Трасс",
+        startListMoveRight: "Расположить второй протокол справа", startListMoveLeft: "Вернуть второй протокол вниз",
+        startListHint: "XLSX, MXL, CSV, TSV или TXT с заголовками в первой строке", clearStartList: "Удалить",
+        startListLoaded: "Участников: {rows}; столбцов: {columns}; трасс: {routes}", startListInvalid: "Не удалось прочитать таблицу: нужны заголовки и хотя бы одна строка участника",
+        startListCycle: "Цикл {cycle}", startListRoute: "Трасса {route}", cycleNumber: "Номер цикла",
+        routeIncidentCycle: "Цикл", routeIncidentPause: "Приостановить", routeIncidentResume: "Возобновить",
+        routeIncidentStartCycleHint: "Цикл, начиная с которого трасса будет приостановлена или остановлена полностью",
+        routeIncidentResumeCycleHint: "Цикл, начиная с которого трасса возобновит работу или будет остановлена",
+        routeIncidentStop: "Остановить", routeIncidentCancelStop: "Отменить остановку", routeIncidentClearPause: "Удалить приостановку", routeIncidentClose: "Закрыть меню трассы",
+        routeIncidentPausedFrom: "Приостановлена с цикла {cycle}", routeIncidentStoppedFrom: "Остановлена с цикла {cycle}",
+        routeIncidentPausedRange: "Была приостановлена с цикла {start} по цикл {resume}",
+        routeIncidentPausedUntilStop: "Приостановка с цикла {start} завершена остановкой на цикле {stop}",
+        routeIncidentNoParticipant: "В выбранном цикле на этой трассе нет участника.",
+        routeMarkerReady: "Готовится", routeMarkerActive: "На трассе", routeMarkerDone: "Закончил", routeMarkerPaused: "Техническая пауза", routeMarkerStopped: "Трасса остановлена",
+        startListExcludeParticipant: "Исключить участника из протокола?", startListRestoreParticipant: "Вернуть участника в протокол?",
+        controls: "Управление", start: "Старт", pause: "Пауза", reset: "Стоп", sectionHide: "Скрыть", sectionShow: "Показать",
         presetLockedHint: "Чтобы выбрать другой формат, сначала остановите таймер кнопкой «Стоп»",
+        finalPresetLockedHint: 'Чтобы выбрать другой формат, сначала остановите таймер кнопкой "Стоп" и перейдите на Цикл 1',
         screen: "Экран", exitScreen: "Выйти из режима Экран", browsers: "Браузеры", ready: "Готов", readiness: "Готовность",
         waitingStart: "Ожидание старта", untilStart: "До начала старта",
         waitingManual: "Ожидание ручного старта", readyStart: "Готов к старту",
@@ -1703,7 +2514,7 @@
         ms: "мс", sec: "с", switchLanguage: "Switch to English",
         primaryHint: "Основной браузер: Ctrl+M / Ctrl+Ь",
         fullscreenHint: "Браузеры могут потребовать тап по экрану для перехода в полный экран",
-        author: "Фёдоров Денис", authorHint: "Говорил, что делать", codexHint: "Делал",
+        author: "Фёдоров Денис", authorHint: "Говорил, что делать, Codex - делал :)",
         audioOffsetPrompt: "Поправка звука для этого браузера, мс. Отрицательное значение запускает звук раньше:",
         audioOffsetUser: "Пользовательская поправка звука",
         testStartSignal: "Старт",
@@ -1742,7 +2553,8 @@
         primaryPinBlocked: "Слишком много попыток",
         clear: "Очистить",
         buildLabel: "сборка",
-        buildProjectHint: "Для перехода на страницу проекта в GitHub нажмите на номер сборки ещё раз"
+        buildProjectHint: "Для перехода на страницу проекта в GitHub нажмите на номер сборки ещё раз",
+        authorEmailHint: "Если хотите написать мне — нажмите ещё раз"
       },
       en: {
         brandTimer: "Bouldering", brandBouldering: "Timer", format: "Format",
@@ -1751,13 +2563,38 @@
         hours: "hours", minutes: "minutes",
         parameters: "Parameters", rotationMinutes: "Rotation time",
         roundMinutes: "Round time", breakSeconds: "Break",
+        finalRoundFormat: "Round format",
+        finalRoundFormatHint: "This choice matters when a start protocol is loaded",
+        finalOld: "Old",
+        finalOldHint: "All participants climb each route sequentially",
+        finalNew: "New",
+        finalNewShort: "New",
+        finalNewHint: "After resting, participants move to the next route without waiting for everyone to finish the previous one",
+        finalRestRotations: "Rest rotations",
+        finalRestRotationsHint: "Number of complete rest rotations between the participant's attempts on adjacent routes",
         breakMinutes: "Break", minuteUnit: "minutes", secondUnit: "seconds",
         primary: "Primary browser", diagnosticPrimary: "Primary", diagnosticScreen: "Screen", sound: "Sound", soundProfile: "Sound profile", festivalAnnouncements: "Time announcements",
         festivalAnnouncementsHint: "Announcements at 60, 30, 10 and 5 minutes remaining",
         primarySound: "Sound in primary browser", otherSound: "Sound in other browsers",
         otherFullscreen: "Fullscreen in other browsers", flashing: "Flashing",
-        controls: "Controls", start: "Start", pause: "Pause", reset: "Stop",
+        startList: "Start list", startListToggle: "Start protocol", addStartList: "Add protocol", loadStartList: "Upload protocol", loadStartListNumber: "Upload protocol {number}", loadStartListCompact: "Upload…", startListRoutes: "Routes",
+        startListMoveRight: "Place the second protocol on the right", startListMoveLeft: "Move the second protocol back below",
+        startListHint: "XLSX, MXL, CSV, TSV or TXT with headers in the first row", clearStartList: "Remove",
+        startListLoaded: "Participants: {rows}; columns: {columns}; routes: {routes}", startListInvalid: "Could not read the table: headers and at least one participant row are required",
+        startListCycle: "Cycle {cycle}", startListRoute: "Route {route}", cycleNumber: "Cycle number",
+        routeIncidentCycle: "Cycle", routeIncidentPause: "Pause", routeIncidentResume: "Resume",
+        routeIncidentStartCycleHint: "Cycle from which the route will be paused or stopped permanently",
+        routeIncidentResumeCycleHint: "Cycle from which the route will resume operation or be stopped",
+        routeIncidentStop: "Stop", routeIncidentCancelStop: "Cancel stop", routeIncidentClearPause: "Remove pause", routeIncidentClose: "Close route menu",
+        routeIncidentPausedFrom: "Paused from cycle {cycle}", routeIncidentStoppedFrom: "Stopped from cycle {cycle}",
+        routeIncidentPausedRange: "Was paused from cycle {start} through cycle {resume}",
+        routeIncidentPausedUntilStop: "Pause from cycle {start} ended with a stop at cycle {stop}",
+        routeIncidentNoParticipant: "There is no participant on this route in the selected cycle.",
+        routeMarkerReady: "Preparing", routeMarkerActive: "On route", routeMarkerDone: "Finished", routeMarkerPaused: "Technical pause", routeMarkerStopped: "Route stopped",
+        startListExcludeParticipant: "Exclude participant from the protocol?", startListRestoreParticipant: "Return participant to the protocol?",
+        controls: "Controls", start: "Start", pause: "Pause", reset: "Stop", sectionHide: "Hide", sectionShow: "Show",
         presetLockedHint: "To select another format, first stop the timer with the Stop button",
+        finalPresetLockedHint: "To select another format, stop the timer with Stop and return to Cycle 1",
         screen: "Screen", exitScreen: "Exit screen mode", browsers: "Browsers", ready: "Ready", readiness: "Ready",
         waitingStart: "Waiting for start", untilStart: "Until start",
         waitingManual: "Waiting for manual start", readyStart: "Ready to start",
@@ -1769,7 +2606,7 @@
         online: "online", offline: "offline", yes: "yes", no: "no",
         ms: "ms", sec: "s", switchLanguage: "Переключить на русский",
         primaryHint: "Primary browser: Ctrl+M", fullscreenHint: "Browsers may require a screen tap to enter fullscreen",
-        author: "Fedorov Denis", authorHint: "Said what to do", codexHint: "Did it",
+        author: "Fedorov Denis", authorHint: "Said what to do, Codex did it :)",
         audioOffsetPrompt: "Sound offset for this browser, ms. A negative value plays sounds earlier:",
         audioOffsetUser: "User-defined sound offset",
         testStartSignal: "Start",
@@ -1808,13 +2645,15 @@
         primaryPinBlocked: "Too many attempts",
         clear: "Clear",
         buildLabel: "Build",
-        buildProjectHint: "Click the build number again to open the project page on GitHub"
+        buildProjectHint: "Click the build number again to open the project page on GitHub",
+        authorEmailHint: "If you want to email me, click again"
       }
     };
     const t = (key) => translations[language][key] || key;
 
     const els = {
       controls: document.querySelector(".controls"),
+      sectionToggles: document.querySelectorAll("[data-section-toggle]"),
       presets: document.querySelectorAll(".preset"),
       languageToggle: document.getElementById("languageToggle"),
       brandTimer: document.getElementById("brandTimer"),
@@ -1851,8 +2690,8 @@
       buildInfo: document.getElementById("buildInfo"),
       buildSeparator: document.getElementById("buildSeparator"),
       buildProjectHint: document.getElementById("buildProjectHint"),
+      copyrightCredit: document.getElementById("copyrightCredit"),
       authorName: document.getElementById("authorName"),
-      codexCredit: document.getElementById("codexCredit"),
       startTimeFields: document.getElementById("startTimeFields"),
       scheduledStartBtn: document.getElementById("scheduledStartBtn"),
       scheduledStartIcon: document.getElementById("scheduledStartIcon"),
@@ -1862,6 +2701,18 @@
       rotationInputUnit: document.getElementById("rotationInputUnit"),
       breakInputLabel: document.getElementById("breakInputLabel"),
       breakInputUnit: document.getElementById("breakInputUnit"),
+      breakParameterField: document.getElementById("breakParameterField"),
+      finalRoundFormatField: document.getElementById("finalRoundFormatField"),
+      finalRoundFormatLabel: document.getElementById("finalRoundFormatLabel"),
+      finalRoundOptions: document.getElementById("finalRoundOptions"),
+      finalRoundFormatInputs: document.querySelectorAll('input[name="finalRoundFormat"]'),
+      finalOldOption: document.getElementById("finalOldOption"),
+      finalOldLabel: document.getElementById("finalOldLabel"),
+      finalNewOption: document.getElementById("finalNewOption"),
+      finalNewLabel: document.getElementById("finalNewLabel"),
+      finalRestField: document.getElementById("finalRestField"),
+      finalRestLabel: document.getElementById("finalRestLabel"),
+      finalRestRotations: document.getElementById("finalRestRotations"),
       soundProfileLabel: document.getElementById("soundProfileLabel"),
       soundProfileSelect: document.getElementById("soundProfileSelect"),
       festivalAnnouncementsRow: document.getElementById("festivalAnnouncementsRow"),
@@ -1869,6 +2720,10 @@
       festivalAnnouncementsToggle: document.getElementById("festivalAnnouncementsToggle"),
       climbMinutes: document.getElementById("climbMinutes"),
       breakSeconds: document.getElementById("breakSeconds"),
+      startListToggleRow: document.getElementById("startListToggleRow"),
+      startListToggleLabel: document.getElementById("startListToggleLabel"),
+      startListToggle: document.getElementById("startListToggle"),
+      startListLayout: document.getElementById("startListLayout"),
       primaryToggle: document.getElementById("primaryToggle"),
       instancesSoundToggle: document.getElementById("instancesSoundToggle"),
       instancesFullscreenToggle: document.getElementById("instancesFullscreenToggle"),
@@ -1893,6 +2748,7 @@
       progressTrack: document.getElementById("progressTrack"),
       progressBar: document.getElementById("progressBar"),
       schedule: document.getElementById("schedule"),
+      startListPanel: document.getElementById("startListPanel"),
       browserList: document.getElementById("browserList")
     };
 
@@ -1945,6 +2801,27 @@
     let pendingSeekAction = Promise.resolve(false);
     let screenWakeLock = null;
     let lastRemoteRunning = false;
+    let lastStartListRenderKey = "";
+    let lastStartListStructureKey = "";
+    let lastStartListScrollAnchors = [];
+    let pendingStartListScrollRestores = [];
+    let storedStartListScrollRestoreLoaded = false;
+    let startListScrollPersistTimer = 0;
+    let startListInitialAutoScrollPending = false;
+    let startListIncidentSelections = [];
+    let startListRouteClickGuard = { key: "", until: 0 };
+    let startListIncidentPreviewCell = null;
+    const startListIncidentPreviewTriggerSelector = [
+      "[data-start-list-incident-cycle-control]",
+      "[data-start-list-incident-action=\"pause\"]",
+      "[data-start-list-incident-action=\"resume\"]",
+      "[data-start-list-incident-action=\"stop\"]"
+    ].join(",");
+    let startListWidthFitFrame = 0;
+    let measuredBrowserScrollbarWidth = null;
+    let startListEditorOpen = safeStorageGet("sessionStorage", startListEditorPreferenceKey) === "1";
+    state.startListEnabled = startListEditorOpen;
+    els.startListToggle.checked = startListEditorOpen;
     let startupConfigApplied = false;
     let audioUnlocked = false;
     let audioUserOffsetMs = 0;
@@ -1972,6 +2849,7 @@
     let lastTrustedClockAnchorAt = 0;
     let syncRequestInFlight = false;
     let syncRequestGeneration = 0;
+    let stateApplyRecoveryScheduled = false;
     let syncQuality = { latency: null, offset: null, error: null, jitter: null, samples: 0 };
     let syncSamples = [];
     let lastBurstSyncAt = 0;
@@ -2019,6 +2897,8 @@
     let lastStartupConfig = null;
     let buildLinkArmed = false;
     let buildLinkArmedAt = 0;
+    let authorLinkArmed = false;
+    let authorLinkArmedAt = 0;
     let lastServerContactAt = performance.now();
     let consecutiveServerFailures = 0;
     let serverPorts = { http: 8008, https: 8443 };
@@ -2071,7 +2951,7 @@
     const renderRunningIntervalMs = 250;
     const displayBoundaryGuardMs = 8;
     const progressUpdateIntervalMs = 250;
-    const runtimeCommandTypes = new Set(["start", "pause", "stopCountdown", "reset", "seek"]);
+    const runtimeCommandTypes = new Set(["start", "pause", "stopCountdown", "reset", "seek", "seekCycle"]);
 
     function scheduleFitTimer() {
       if (timerFitQueued) return;
@@ -2086,7 +2966,8 @@
         + (parseFloat(styles.borderRightWidth) || 0);
       const scrollbarWidth = Math.max(0,
         els.controls.offsetWidth - els.controls.clientWidth - borders);
-      const rightPadding = Math.max(4, 20 - scrollbarWidth);
+      const basePadding = parseFloat(getComputedStyle(els.controls).getPropertyValue("--controls-base-padding")) || 20;
+      const rightPadding = Math.max(4, basePadding - scrollbarWidth);
       els.controls.style.setProperty("--controls-padding-right", `${rightPadding}px`);
     }
 
@@ -2330,7 +3211,12 @@
             flashing: state.flashing,
             festivalAnnouncements: state.festivalAnnouncements,
             primaryClientId: state.primaryClientId,
-            primaryPinSet: state.primaryPinSet
+            primaryPinSet: state.primaryPinSet,
+            startLists: state.startLists,
+            startListParallel: state.startListParallel,
+            startListEnabled: state.startListEnabled,
+            startListVisible: state.startListVisible,
+            startListFinalCycle: state.startListFinalCycle
           }
         };
         safeStorageSet("localStorage", offlineSnapshotKey, JSON.stringify(snapshot));
@@ -2386,8 +3272,18 @@
           flashing: snapshot.state.flashing !== false,
           festivalAnnouncements: snapshot.state.festivalAnnouncements !== false,
           primaryClientId: restoredPrimaryClientId,
-          primaryPinSet: Boolean(snapshot.state.primaryPinSet)
+          primaryPinSet: Boolean(snapshot.state.primaryPinSet),
+          startLists: normalizeStartLists(snapshot.state.startLists),
+          startListParallel: Boolean(snapshot.state.startListParallel)
+            && normalizeStartLists(snapshot.state.startLists).length === 2,
+          startListEnabled: Object.prototype.hasOwnProperty.call(snapshot.state, "startListEnabled")
+            ? Boolean(snapshot.state.startListEnabled)
+            : snapshot.state.startListVisible !== false,
+          startListVisible: snapshot.state.startListVisible !== false && hasStartLists(normalizeStartLists(snapshot.state.startLists)),
+          startListFinalCycle: Math.max(0, Math.round(Number(snapshot.state.startListFinalCycle) || 0))
         });
+        startListEditorOpen = state.startListEnabled;
+        els.startListToggle.checked = startListEditorOpen;
         isPrimaryClient = state.primaryClientId === clientId;
         isViewerClient = Boolean(state.primaryClientId && !isPrimaryClient);
         document.body.classList.toggle("primary-active", isPrimaryClient);
@@ -3083,22 +3979,30 @@
     }
 
     function renderBuildInfo() {
-      if (!els.buildInfo) return;
-      if (!buildNumber) {
-        els.buildInfo.hidden = true;
-        els.buildSeparator.hidden = true;
-        els.buildProjectHint.hidden = true;
-        els.buildInfo.textContent = "";
-        return;
+      if (els.buildInfo) {
+        if (!buildNumber) {
+          els.buildInfo.hidden = true;
+          els.buildSeparator.hidden = true;
+          els.buildInfo.textContent = "";
+          buildLinkArmed = false;
+          buildLinkArmedAt = 0;
+        } else {
+          els.buildInfo.hidden = false;
+          els.buildSeparator.hidden = false;
+          els.buildInfo.textContent = `${t("buildLabel")} ${buildNumber}`;
+          els.buildInfo.title = projectUrl;
+          els.buildInfo.classList.toggle("armed", buildLinkArmed);
+          els.buildInfo.setAttribute("aria-expanded", String(buildLinkArmed));
+        }
       }
-      els.buildInfo.hidden = false;
-      els.buildSeparator.hidden = false;
-      els.buildInfo.textContent = `${t("buildLabel")} ${buildNumber}`;
-      els.buildInfo.title = projectUrl;
-      els.buildInfo.classList.toggle("armed", buildLinkArmed);
-      els.buildInfo.setAttribute("aria-expanded", String(buildLinkArmed));
-      els.buildProjectHint.textContent = t("buildProjectHint");
-      els.buildProjectHint.hidden = !buildLinkArmed;
+      if (els.authorName) {
+        els.authorName.classList.toggle("armed", authorLinkArmed);
+        els.authorName.setAttribute("aria-expanded", String(authorLinkArmed));
+      }
+      if (els.buildProjectHint) {
+        els.buildProjectHint.textContent = t(authorLinkArmed ? "authorEmailHint" : "buildProjectHint");
+        els.buildProjectHint.hidden = !buildLinkArmed && !authorLinkArmed;
+      }
     }
 
     function activateBuildProjectLink(event) {
@@ -3109,6 +4013,9 @@
       const now = performance.now();
       if (!buildLinkArmed) {
         event.preventDefault();
+        authorLinkArmed = false;
+        authorLinkArmedAt = 0;
+        els.authorName.classList.remove("opening");
         buildLinkArmed = true;
         buildLinkArmedAt = now;
         renderBuildInfo();
@@ -3135,6 +4042,76 @@
       renderBuildInfo();
     }
 
+    function activateAuthorEmailLink(event) {
+      const now = performance.now();
+      if (!authorLinkArmed) {
+        event.preventDefault();
+        buildLinkArmed = false;
+        buildLinkArmedAt = 0;
+        els.buildInfo.classList.remove("opening");
+        authorLinkArmed = true;
+        authorLinkArmedAt = now;
+        renderBuildInfo();
+        return;
+      }
+      if (now - authorLinkArmedAt < buildLinkConfirmDelayMs) {
+        event.preventDefault();
+        return;
+      }
+      els.authorName.classList.add("opening");
+      window.setTimeout(() => {
+        authorLinkArmed = false;
+        authorLinkArmedAt = 0;
+        els.authorName.classList.remove("opening");
+        renderBuildInfo();
+      }, 250);
+    }
+
+    function deactivateAuthorEmailLink() {
+      if (!authorLinkArmed) return;
+      authorLinkArmed = false;
+      authorLinkArmedAt = 0;
+      els.authorName.classList.remove("opening");
+      renderBuildInfo();
+    }
+
+    function updateSectionToggle(button) {
+      const content = document.getElementById(button.getAttribute("aria-controls"));
+      if (!content) return;
+      const expanded = !content.hidden;
+      button.setAttribute("aria-expanded", String(expanded));
+      const label = t(expanded ? "sectionHide" : "sectionShow");
+      button.setAttribute("aria-label", label);
+      button.title = label;
+      button.textContent = "";
+    }
+
+    function toggleControlSection(button) {
+      const content = document.getElementById(button.getAttribute("aria-controls"));
+      if (!content) return;
+      content.hidden = !content.hidden;
+      updateSectionToggle(button);
+      syncControlsScrollbarPadding();
+    }
+
+    function updateFinalNewLabels() {
+      if (!els.finalNewLabel) return;
+      let fullLabel = els.finalNewLabel.querySelector(".final-new-full");
+      let shortLabel = els.finalNewLabel.querySelector(".final-new-short");
+      if (!fullLabel || !shortLabel) {
+        els.finalNewLabel.textContent = "";
+        fullLabel = document.createElement("span");
+        fullLabel.className = "final-new-full";
+        shortLabel = document.createElement("span");
+        shortLabel.className = "final-new-short";
+        shortLabel.setAttribute("aria-hidden", "true");
+        els.finalNewLabel.appendChild(fullLabel);
+        els.finalNewLabel.appendChild(shortLabel);
+      }
+      fullLabel.textContent = t("finalNew");
+      shortLabel.textContent = t("finalNewShort");
+    }
+
     function applyLanguage(nextLanguage) {
       language = nextLanguage === "en" ? "en" : "ru";
       document.documentElement.lang = language;
@@ -3154,6 +4131,28 @@
       els.hoursUnit.textContent = t("hours");
       els.minutesUnit.textContent = t("minutes");
       els.parametersTitle.textContent = t("parameters");
+      els.finalRoundFormatLabel.textContent = t("finalRoundFormat");
+      els.finalRoundFormatField.title = t("finalRoundFormatHint");
+      els.finalRoundFormatLabel.title = t("finalRoundFormatHint");
+      els.finalRoundOptions.setAttribute("aria-label", t("finalRoundFormat"));
+      els.finalOldLabel.textContent = t("finalOld");
+      els.finalOldOption.title = t("finalOldHint");
+      updateFinalNewLabels();
+      els.finalNewOption.title = t("finalNewHint");
+      els.finalRestLabel.textContent = t("finalRestRotations");
+      els.finalRestField.title = t("finalRestRotationsHint");
+      els.finalRestLabel.title = t("finalRestRotationsHint");
+      els.finalRestRotations.title = t("finalRestRotationsHint");
+      els.finalRestRotations.setAttribute("aria-label", t("finalRestRotations"));
+      els.finalRoundFormatInputs.forEach((input) => {
+        const isNew = input.value === "new";
+        const label = t(isNew ? "finalNew" : "finalOld");
+        const hint = t(isNew ? "finalNewHint" : "finalOldHint");
+        input.title = hint;
+        input.setAttribute("aria-label", `${label}. ${hint}`);
+      });
+      els.startListToggleLabel.textContent = t("startListToggle");
+      lastStartListStructureKey = "";
       els.soundProfileLabel.textContent = t("soundProfile");
       els.soundProfileSelect.setAttribute("aria-label", t("soundProfile"));
       els.festivalAnnouncementsLabel.textContent = t("festivalAnnouncements");
@@ -3170,6 +4169,7 @@
       els.flashLabel.textContent = t("flashing");
       els.controlsTitle.textContent = t("controls");
       els.browsersTitle.textContent = t("browsers");
+      els.sectionToggles.forEach(updateSectionToggle);
       els.presets.forEach((button) => {
         button.textContent = t(button.dataset.preset);
       });
@@ -3199,10 +4199,10 @@
       els.installAppBtn.title = t("installAppTitle");
       renderBuildInfo();
       els.authorName.textContent = t("author");
-      els.authorName.title = t("authorHint");
-      els.codexCredit.title = t("codexHint");
+      els.copyrightCredit.title = t("authorHint");
       pickSpeechVoice();
       updateParameterLabels();
+      updateStartListControls();
       render();
       renderBrowserList(lastKnownClients);
       refreshStandaloneBrowserList();
@@ -3275,6 +4275,8 @@
       presets.festival.rotationMinutes = finiteNumber(config.festivalRoundMinutes, presets.festival.rotationMinutes);
       presets.festival.breakSeconds = finiteNumber(config.festivalBreakMinutes, Math.round(presets.festival.breakSeconds / 60)) * 60;
       presets.final.rotationMinutes = finiteNumber(config.finalRotationMinutes, presets.final.rotationMinutes);
+      presets.final.finalRoundFormat = config.finalRoundFormat === "new" ? "new" : "old";
+      presets.final.finalRestRotations = clampNumber(config.finalRestRotations, 1, 9, presets.final.finalRestRotations);
       if (startupConfigApplied) return;
       startupConfigApplied = true;
       state.flashing = config.flashing !== false;
@@ -3324,23 +4326,36 @@
       if (audioContext) loadAudioBuffers();
     }
 
+    function selectedFinalRoundFormat() {
+      return Array.from(els.finalRoundFormatInputs).find((input) => input.checked)?.value === "new" ? "new" : "old";
+    }
+
     function updateParameterLabels() {
       const festivalMode = isFestivalMode();
+      const finalMode = isFinalMode();
+      const finalRoundFormat = selectedFinalRoundFormat();
       els.rotationInputLabel.textContent = festivalMode ? t("roundMinutes") : t("rotationMinutes");
       els.breakInputLabel.textContent = festivalMode ? t("breakMinutes") : t("breakSeconds");
       els.rotationInputUnit.textContent = t("minuteUnit");
       els.breakInputUnit.textContent = festivalMode ? t("minuteUnit") : t("secondUnit");
       els.breakSeconds.max = festivalMode ? "240" : "3600";
       els.breakSeconds.step = "1";
-      els.breakSeconds.disabled = false;
+      els.breakParameterField.hidden = finalMode;
+      els.finalRoundFormatField.hidden = !finalMode;
+      els.finalRestField.hidden = !finalMode || finalRoundFormat !== "new";
       els.festivalAnnouncementsRow.hidden = !festivalMode;
+      els.startListToggleRow.hidden = festivalMode;
+      updateStartListVisibility();
     }
 
     function setInputsFromDraft(draft) {
       if (!draft) return;
-      updateParameterLabels();
       els.climbMinutes.value = draft.rotationMinutes;
       els.breakSeconds.value = isFestivalMode() ? Math.round(draft.breakSeconds / 60) : draft.breakSeconds;
+      const finalRoundFormat = draft.finalRoundFormat === "new" ? "new" : "old";
+      els.finalRoundFormatInputs.forEach((input) => { input.checked = input.value === finalRoundFormat; });
+      els.finalRestRotations.value = clampNumber(draft.finalRestRotations, 1, 9, 3);
+      updateParameterLabels();
       if (draft.startHours !== undefined) {
         els.startHours.value = draft.startHours === "" ? "" : String(draft.startHours).padStart(2, "0");
       }
@@ -3473,13 +4488,13 @@
       const fallbackBreak = festivalMode ? Math.round(presets.festival.breakSeconds / 60) : fallbackPreset.breakSeconds;
       const maxBreak = festivalMode ? 240 : 3600;
       const breakValue = clampNumber(els.breakSeconds.value, 0, maxBreak, fallbackBreak);
-      const breakSeconds = finalMode && els.breakSeconds.value === ""
-        ? ""
-        : festivalMode ? breakValue * 60 : breakValue;
+      const breakSeconds = finalMode ? 0 : festivalMode ? breakValue * 60 : breakValue;
       return {
         rotationMinutes: clampNumber(els.climbMinutes.value, 1, 240, fallbackPreset.rotationMinutes),
         breakSeconds,
         oneShot: finalMode,
+        finalRoundFormat: selectedFinalRoundFormat(),
+        finalRestRotations: clampNumber(els.finalRestRotations.value, 1, 9, fallbackPreset.finalRestRotations || 3),
         startHours: els.startHours.value,
         startMinutes: els.startMinutes.value
       };
@@ -3490,7 +4505,9 @@
       return {
         rotationSeconds: draft.rotationMinutes * 60,
         breakSeconds: Number(draft.breakSeconds) || 0,
-        oneShot: draft.oneShot
+        oneShot: draft.oneShot,
+        finalRoundFormat: draft.finalRoundFormat,
+        finalRestRotations: draft.finalRestRotations
       };
     }
 
@@ -3523,6 +4540,26 @@
       state.runtimePreset = Object.prototype.hasOwnProperty.call(remote, "runtimePreset")
         ? remote.runtimePreset || ""
         : state.activeSettings.oneShot ? "final" : state.activePreset || "classic";
+      const nextStartLists = normalizeStartLists(remote.startLists);
+      if (JSON.stringify(nextStartLists) !== JSON.stringify(state.startLists)) {
+        rememberStartListScrollPositions(nextStartLists);
+        lastStartListRenderKey = "";
+      }
+      state.startLists = nextStartLists;
+      state.startListParallel = Boolean(remote.startListParallel) && nextStartLists.length === 2;
+      state.startListEnabled = Boolean(remote.startListEnabled);
+      state.startListIndexes = Array.isArray(remote.startListIndexes)
+        ? [...new Set(remote.startListIndexes.map(Number).filter((index) => Number.isInteger(index) && index >= 0 && index < 4))]
+        : [];
+      state.startListVisible = Boolean(remote.startListVisible);
+      if (!standaloneMode) {
+        startListEditorOpen = state.startListEnabled;
+        els.startListToggle.checked = startListEditorOpen;
+        safeStorageSet("sessionStorage", startListEditorPreferenceKey, startListEditorOpen ? "1" : "0");
+      }
+      state.startListFinalCycle = Math.max(0, Math.round(Number(remote.startListFinalCycle) || 0));
+      updateStartListControls();
+      updateStartListVisibility();
       state.flashing = remote.flashing !== false;
       const festivalAnnouncementsChanged = (remote.festivalAnnouncements !== false) !== state.festivalAnnouncements;
       state.festivalAnnouncements = remote.festivalAnnouncements !== false;
@@ -3618,11 +4655,41 @@
       state.runtimePreset = Object.prototype.hasOwnProperty.call(remote, "runtimePreset")
         ? remote.runtimePreset || ""
         : state.activeSettings.oneShot ? "final" : state.activePreset || "classic";
+      const nextStartLists = normalizeStartLists(remote.startLists);
+      if (JSON.stringify(nextStartLists) !== JSON.stringify(state.startLists)) {
+        rememberStartListScrollPositions(nextStartLists);
+        lastStartListRenderKey = "";
+      }
+      state.startLists = nextStartLists;
+      state.startListParallel = Boolean(remote.startListParallel) && nextStartLists.length === 2;
+      state.startListEnabled = Boolean(remote.startListEnabled);
+      state.startListIndexes = Array.isArray(remote.startListIndexes)
+        ? [...new Set(remote.startListIndexes.map(Number).filter((index) => Number.isInteger(index) && index >= 0 && index < 4))]
+        : [];
+      state.startListVisible = Boolean(remote.startListVisible);
+      if (!standaloneMode) {
+        startListEditorOpen = state.startListEnabled;
+        els.startListToggle.checked = startListEditorOpen;
+        safeStorageSet("sessionStorage", startListEditorPreferenceKey, startListEditorOpen ? "1" : "0");
+      }
+      state.startListFinalCycle = Math.max(0, Math.round(Number(remote.startListFinalCycle) || 0));
+      updateStartListControls();
+      updateStartListVisibility();
       if (settingsChanged) buildTimeline(state.activeSettings);
       lastRemoteRunning = state.running;
       syncButtons();
       render();
       saveOfflineSnapshot();
+    }
+
+    function reportStateApplyError(error, source, requestRecovery = false) {
+      console.error(`Could not apply server state (${source})`, error);
+      if (!requestRecovery || stateApplyRecoveryScheduled || standaloneMode) return;
+      stateApplyRecoveryScheduled = true;
+      window.setTimeout(async () => {
+        stateApplyRecoveryScheduled = false;
+        await syncFromServer({ forceApply: true, skipBurst: true });
+      }, 100);
     }
 
     const clientActionTransport = window.FDVClientActionTransport.createActionTransport({
@@ -3635,6 +4702,11 @@
       isRuntimeCommand: (type) => runtimeCommandTypes.has(type),
       isStandalone: () => standaloneMode,
       markFailure: (immediate) => markServerFailure(immediate),
+      reportApplyError: (error, context) => reportStateApplyError(
+        error,
+        `action:${context?.phase || "response"}`,
+        true
+      ),
       nextCommandId: () => `${clientId}:${commandSessionId}:${++commandSeq}`,
       requestTimeoutMs: syncRequestTimeoutMs,
       serverNow,
@@ -3655,6 +4727,7 @@
       const requestGeneration = syncRequestGeneration;
       const controller = new AbortController();
       const timeout = window.setTimeout(() => controller.abort(), syncRequestTimeoutMs);
+      let remote = null;
       try {
         const timing = {
           date0: Date.now(),
@@ -3671,7 +4744,7 @@
         timing.date1 = Date.now();
         timing.perf1 = performance.now();
         if (!response.ok) throw new Error("Server state failed");
-        const remote = await response.json();
+        remote = await response.json();
         if (requestGeneration !== syncRequestGeneration) return false;
         markServerContact();
         if (standaloneMode) {
@@ -3715,7 +4788,8 @@
         maybeBurstSync(options);
         return true;
       } catch (error) {
-        markServerFailure();
+        if (remote) reportStateApplyError(error, "sync");
+        else markServerFailure();
         return false;
       } finally {
         window.clearTimeout(timeout);
@@ -3804,7 +4878,9 @@
             rescheduleSignals: identity.versionChanged,
             includePhaseSignal: isRemoteStart
           });
-        } catch (error) {}
+        } catch (error) {
+          reportStateApplyError(error, "sse");
+        }
       });
       eventSource.addEventListener("audio-test", (event) => {
         if (generation !== eventStreamGeneration) return;
@@ -4058,8 +5134,9 @@
     }
 
     function drawSchedule(segment) {
-      const cycleNumber = segment?.cycle || 1;
-      const showCycle = state.runtimePreset === "classic" || state.runtimePreset === "festival";
+      const cycleNumber = displayedCycleNumber(segment);
+      const showCycle = state.runtimePreset === "classic" || state.runtimePreset === "festival" || state.runtimePreset === "final";
+      const editableCycle = cycleInputEditable();
       const hasBreak = state.timeline.some((item) => item.type === "break");
       const scheduleStateKey = [
         language,
@@ -4067,24 +5144,31 @@
         segment?.type || "ready",
         cycleNumber,
         showCycle,
+        editableCycle,
         hasBreak,
         state.timeline.map((item) => `${item.type}:${item.duration}`).join("|")
       ].join(":");
       if (scheduleStateKey === lastScheduleStateKey) return;
-      const chips = [];
-      state.timeline.forEach((item) => {
-        const classes = ["chip"];
-        if (segment && item.type === segment.type) classes.push("current");
-        if (item.type === "break") classes.push("resting");
-        const name = item.type === "rotation"
-          ? (state.runtimePreset === "festival" ? t("round") : t("rotation"))
-          : t("break");
-        chips.push(`<div class="${classes.join(" ")}"><span>${name}</span><span>${formatTime(item.duration)}</span></div>`);
-        if (item.type === "rotation" && showCycle) {
-          chips.push(`<div class="chip cycle-chip"><span>${t("cycle")} ${cycleNumber}</span></div>`);
-        }
-      });
-      setScheduleMarkup(chips.join(""), showCycle, showCycle && hasBreak, scheduleStateKey);
+      if (!showCycle) {
+        const chips = state.timeline.map((item) => {
+          const classes = ["chip"];
+          if (segment && item.type === segment.type) classes.push("current");
+          if (item.type === "break") classes.push("resting");
+          const name = item.type === "rotation"
+            ? (state.runtimePreset === "festival" ? t("round") : t("rotation"))
+            : t("break");
+          return `<div class="${classes.join(" ")}"><span>${name}</span><span>${formatTime(item.duration)}</span></div>`;
+        });
+        setScheduleMarkup(chips.join(""), false, hasBreak, scheduleStateKey);
+        return;
+      }
+      const phaseName = segment?.type === "break"
+        ? t("break")
+        : (state.runtimePreset === "festival" ? t("round") : t("rotation"));
+      const phaseClass = editableCycle ? "cycle-editable" : (segment?.type === "break" ? "cycle-break" : "cycle-rotation");
+      const cycleTitle = editableCycle ? t("cycleNumber") : phaseName;
+      const cycleChip = `<label class="chip cycle-chip ${phaseClass}" title="${escapeHtml(cycleTitle)}"><span>${t("cycle")}</span><input id="cycleInput" class="cycle-input" type="number" min="1" max="9999" step="1" value="${cycleNumber}" aria-label="${t("cycleNumber")}" title="${escapeHtml(cycleTitle)}"${editableCycle ? "" : " disabled"}></label>`;
+      setScheduleMarkup(cycleChip, true, false, scheduleStateKey);
     }
 
     function escapeHtml(value) {
@@ -4147,6 +5231,7 @@
         protocol: window.location.protocol === "file:" ? "FILE" : "LOCAL",
         connected: true,
         role: t("standaloneTitle"),
+        startListVisible: Boolean(state.startListVisible),
         age: Date.now() - standaloneClientFirstSeen,
         audioUserOffset: audioUserOffsetMs
       }]);
@@ -4160,7 +5245,8 @@
 
     function diagChip(label, status, title, attributes = "") {
       const className = `diag-chip${status && status !== "good" ? ` ${status}` : ""}`;
-      const interactive = /\sdata-(?:audio-client|legacy-mode-client)=/.test(attributes);
+      const interactive = /\sdata-(?:audio-client|legacy-mode-client)=/.test(attributes)
+        || /\sdata-start-list-client=/.test(attributes);
       const tagName = interactive ? "button" : "span";
       const type = interactive ? ' type="button"' : "";
       return `<${tagName}${type} class="${className}" title="${escapeHtml(title)}"${attributes}>${escapeHtml(label)}</${tagName}>`;
@@ -4211,6 +5297,930 @@
         return t("diagnosticScreen");
       }
       return role;
+    }
+
+    function formatStartListText(key, values = {}) {
+      return Object.entries(values).reduce((text, [name, value]) => text.replace(`{${name}}`, String(value)), t(key));
+    }
+
+    function normalizeStartLists(value) {
+      const source = Array.isArray(value) ? value.slice(0, 4) : [null];
+      const lists = source.map((list) => list ? window.FDVStartList.sanitize(list) : null);
+      return lists.length ? lists : [null];
+    }
+
+    function clearStartListIncidentsForNewRound() {
+      state.startLists = normalizeStartLists(state.startLists).map((list) => {
+        if (!list?.incidents?.length) return list;
+        const { incidents: _incidents, ...cleanList } = list;
+        return cleanList;
+      });
+      lastStartListRenderKey = "";
+    }
+
+    function hasStartLists(value = state.startLists) {
+      return Array.isArray(value) && value.some(Boolean);
+    }
+
+    function startListExclusionsChanged(currentList, nextList) {
+      if (!currentList || !nextList) return false;
+      const currentExcluded = window.FDVStartList.normalizeExcludedParticipants(
+        currentList.excludedParticipants,
+        currentList.rows?.length
+      );
+      const nextExcluded = window.FDVStartList.normalizeExcludedParticipants(
+        nextList.excludedParticipants,
+        nextList.rows?.length
+      );
+      return JSON.stringify(currentExcluded) !== JSON.stringify(nextExcluded);
+    }
+
+    function rememberStartListScrollPositions(nextLists) {
+      const normalized = normalizeStartLists(nextLists);
+      els.startListLayout.querySelectorAll("[data-start-list-index]").forEach((slot) => {
+        const index = Number(slot.dataset.startListIndex);
+        const scroll = slot.querySelector("[data-start-list-scroll]");
+        if (!scroll || !normalized[index]) return;
+        if (startListExclusionsChanged(state.startLists[index], normalized[index])) {
+          pendingStartListScrollRestores[index] = null;
+          lastStartListScrollAnchors[index] = null;
+          return;
+        }
+        const pending = pendingStartListScrollRestores[index];
+        pendingStartListScrollRestores[index] = {
+          listKey: JSON.stringify(normalized[index]),
+          top: pending?.top ?? scroll.scrollTop,
+          left: pending?.left ?? scroll.scrollLeft
+        };
+      });
+    }
+
+    function persistStartListScrollPositions() {
+      if (startListScrollPersistTimer) {
+        clearTimeout(startListScrollPersistTimer);
+        startListScrollPersistTimer = 0;
+      }
+      const positions = [];
+      els.startListLayout.querySelectorAll("[data-start-list-index]").forEach((slot) => {
+        const index = Number(slot.dataset.startListIndex);
+        const list = state.startLists[index];
+        const scroll = slot.querySelector("[data-start-list-scroll]");
+        if (!list || !scroll) return;
+        positions[index] = {
+          listKey: JSON.stringify(list),
+          top: scroll.scrollTop,
+          left: scroll.scrollLeft
+        };
+      });
+      safeStorageSet("sessionStorage", startListScrollPreferenceKey, JSON.stringify(positions));
+    }
+
+    function scheduleStartListScrollPersistence() {
+      if (startListScrollPersistTimer) clearTimeout(startListScrollPersistTimer);
+      startListScrollPersistTimer = window.setTimeout(() => {
+        startListScrollPersistTimer = 0;
+        persistStartListScrollPositions();
+      }, 150);
+    }
+
+    function loadStoredStartListScrollPositions() {
+      if (storedStartListScrollRestoreLoaded || !(standaloneMode || isPrimaryClient)) return;
+      storedStartListScrollRestoreLoaded = true;
+      let stored = [];
+      try {
+        stored = JSON.parse(safeStorageGet("sessionStorage", startListScrollPreferenceKey) || "[]");
+      } catch (error) {
+        stored = [];
+      }
+      if (!Array.isArray(stored)) return;
+      normalizeStartLists(state.startLists).forEach((list, index) => {
+        const position = stored[index];
+        if (!list || position?.listKey !== JSON.stringify(list)) return;
+        const top = Number(position.top);
+        const left = Number(position.left);
+        pendingStartListScrollRestores[index] = {
+          listKey: position.listKey,
+          top: Number.isFinite(top) ? Math.max(0, top) : 0,
+          left: Number.isFinite(left) ? Math.max(0, left) : 0
+        };
+      });
+    }
+
+    function visibleStartListEntries() {
+      const lists = normalizeStartLists(state.startLists);
+      state.startLists = lists;
+      if (standaloneMode || isPrimaryClient) return lists.map((list, index) => ({ list, index }));
+      const selectedIndexes = new Set(state.startListIndexes || []);
+      return lists
+        .map((list, index) => ({ list, index }))
+        .filter(({ list, index }) => list && selectedIndexes.has(index));
+    }
+
+    function startListColumns(entries = visibleStartListEntries()) {
+      if (entries.length === 2 && state.startListParallel) return [[entries[0]], [entries[1]]];
+      return entries.length > 2 ? [entries.slice(0, 2), entries.slice(2, 4)] : [entries];
+    }
+
+    function defaultStartListRouteCount() {
+      return isFinalMode() ? 4 : 5;
+    }
+
+    function startListSlotHtml(list, index, controlsVisible) {
+      const hasLayoutToggle = controlsVisible && state.startLists.length === 2 && index === 1;
+      const layoutLabel = state.startListParallel ? t("startListMoveLeft") : t("startListMoveRight");
+      const layoutToggle = hasLayoutToggle
+        ? `<button class="start-list-layout-toggle ${state.startListParallel ? "move-left" : "move-right"}" type="button" data-start-list-layout-toggle title="${escapeHtml(layoutLabel)}" aria-label="${escapeHtml(layoutLabel)}"></button>`
+        : "";
+      const controls = controlsVisible ? `
+        <div class="start-list-panel-controls${hasLayoutToggle ? " has-layout-toggle" : ""}">
+          <button class="start-list-add" type="button" data-start-list-add title="${escapeHtml(t("addStartList"))}" aria-label="${escapeHtml(t("addStartList"))}"${state.startLists.length >= 4 ? " disabled" : ""}>+</button>
+          ${layoutToggle}
+          <label class="start-list-file-button" title="${escapeHtml(formatStartListText("loadStartListNumber", { number: index + 1 }))}">
+            <span>${escapeHtml(t("loadStartListCompact"))}</span>
+            <input type="file" data-start-list-file accept=".xlsx,.csv,.tsv,.txt,.mxl">
+          </label>
+          <label class="start-list-route-field">
+            <span>${escapeHtml(t("startListRoutes"))}</span>
+            <input type="number" data-start-list-routes min="1" max="20" step="1" value="${list?.routeCount || defaultStartListRouteCount()}">
+          </label>
+          <div class="start-list-summary" data-start-list-summary aria-live="polite" hidden></div>
+          <button class="start-list-clear" type="button" data-start-list-clear title="${escapeHtml(t("clearStartList"))}" aria-label="${escapeHtml(t("clearStartList"))}"${index === 0 && !list ? " disabled" : ""}>×</button>
+        </div>` : "";
+      const incidentMenu = controlsVisible
+        ? `<div class="start-list-incident-menu" data-start-list-incident-menu hidden></div>`
+        : "";
+      const titleBar = `<div class="start-list-title-bar" data-start-list-title hidden></div>`;
+      return `<article class="start-list-slot" data-start-list-index="${index}">${controls}${titleBar}${incidentMenu}<div class="start-list-scroll" data-start-list-scroll></div></article>`;
+    }
+
+    function ensureStartListStructure() {
+      const controlsVisible = standaloneMode || isPrimaryClient;
+      const entries = visibleStartListEntries();
+      const structureKey = `${language}:${entries.map(({ index }) => index).join(",")}:${controlsVisible}:${controlsAvailable()}:${state.startListParallel}`;
+      if (structureKey === lastStartListStructureKey) return;
+      const existingIndexes = new Set([...els.startListLayout.querySelectorAll("[data-start-list-index]")]
+        .map((slot) => Number(slot.dataset.startListIndex)));
+      rememberStartListScrollPositions(state.startLists);
+      lastStartListStructureKey = structureKey;
+      const columns = startListColumns(entries);
+      els.startListLayout.innerHTML = columns.map((column) => {
+        return `<div class="start-list-column">${column.map(({ list, index }) => startListSlotHtml(list, index, controlsVisible)).join("")}</div>`;
+      }).join("");
+      els.startListLayout.dataset.columns = String(columns.length);
+      els.startListPanel.classList.toggle("has-parallel-column", columns.length > 1);
+      entries.forEach(({ index }) => {
+        if (!existingIndexes.has(index)) lastStartListScrollAnchors[index] = null;
+      });
+      lastStartListRenderKey = "";
+      fitStartListPanelWidth();
+    }
+
+    function browserScrollbarWidth() {
+      if (measuredBrowserScrollbarWidth !== null) return measuredBrowserScrollbarWidth;
+      const probe = document.createElement("div");
+      probe.setAttribute("aria-hidden", "true");
+      probe.style.cssText = "position:absolute;left:-9999px;top:-9999px;width:100px;height:100px;overflow:scroll;visibility:hidden;";
+      document.body.appendChild(probe);
+      measuredBrowserScrollbarWidth = Math.max(0, probe.offsetWidth - probe.clientWidth);
+      probe.remove();
+      return measuredBrowserScrollbarWidth;
+    }
+
+    function intrinsicStartListTableWidth(table) {
+      const previousWidth = table.style.width;
+      const previousMinWidth = table.style.minWidth;
+      table.style.width = "max-content";
+      table.style.minWidth = "0";
+      const width = Math.ceil(table.getBoundingClientRect().width);
+      table.style.width = previousWidth;
+      table.style.minWidth = previousMinWidth;
+      return width;
+    }
+
+    function intrinsicStartListControlsWidth(controls) {
+      const style = getComputedStyle(controls);
+      const children = [...controls.children].filter((child) => getComputedStyle(child).display !== "none");
+      const horizontalFrame = [style.paddingLeft, style.paddingRight, style.borderLeftWidth, style.borderRightWidth]
+        .reduce((sum, value) => sum + (parseFloat(value) || 0), 0);
+      const gap = parseFloat(style.columnGap) || 0;
+      const childrenWidth = children.reduce((sum, child) => {
+        if (!child.classList.contains("start-list-file-button")) {
+          return sum + Math.ceil(child.getBoundingClientRect().width);
+        }
+        const childStyle = getComputedStyle(child);
+        const labelWidth = child.querySelector("span")?.scrollWidth || 0;
+        const childFrame = [childStyle.paddingLeft, childStyle.paddingRight, childStyle.borderLeftWidth, childStyle.borderRightWidth]
+          .reduce((frame, value) => frame + (parseFloat(value) || 0), 0);
+        return sum + Math.ceil(labelWidth + childFrame);
+      }, 0);
+      return Math.ceil(horizontalFrame + childrenWidth + gap * Math.max(0, children.length - 1));
+    }
+
+    function synchronizeStackedStartListTableColumns(column) {
+      const tables = [...column.querySelectorAll(".start-list-table")];
+      if (tables.length < 2) return;
+      const columnGroups = tables.map((table) => [...table.querySelectorAll("colgroup > col")]);
+      const columnCount = columnGroups[0].length;
+      if (!columnCount || columnGroups.some((group) => group.length !== columnCount)) return;
+      columnGroups.forEach((group) => group.forEach((tableColumn) => {
+        tableColumn.style.width = "";
+      }));
+      const synchronizedWidths = Array(columnCount).fill(0);
+      tables.forEach((table) => {
+        [...table.tHead.rows[0].cells].forEach((cell, index) => {
+          synchronizedWidths[index] = Math.max(synchronizedWidths[index], Math.ceil(cell.getBoundingClientRect().width));
+        });
+      });
+      columnGroups.forEach((group) => group.forEach((tableColumn, index) => {
+        tableColumn.style.width = `${synchronizedWidths[index]}px`;
+      }));
+    }
+
+    function fitStartListPanelWidth() {
+      const columns = [...els.startListLayout.querySelectorAll(".start-list-column")];
+      if (!columns.length) return 0;
+      const minimumColumnWidth = 280;
+      const maximumContentWidth = Math.min(window.innerWidth * 0.5, 700);
+      const nativeScrollbarWidth = browserScrollbarWidth();
+      const scrollbarRoundingAllowance = 2;
+      const measurements = columns.map((column) => {
+        synchronizeStackedStartListTableColumns(column);
+        const tables = [...column.querySelectorAll(".start-list-table")];
+        const tableWidth = tables.reduce((maximum, table) =>
+          Math.max(maximum, intrinsicStartListTableWidth(table)), 0);
+        const controlsWidth = [...column.querySelectorAll(".start-list-panel-controls")]
+          .reduce((maximum, controls) => Math.max(maximum, intrinsicStartListControlsWidth(controls)), 0);
+        const scrollbars = [...column.querySelectorAll(".start-list-scroll")];
+        const scrollbarAllowance = scrollbars.reduce((maximum, scroll) =>
+          Math.max(maximum, scroll.offsetWidth - scroll.clientWidth), nativeScrollbarWidth)
+          + scrollbarRoundingAllowance;
+        const measuredContentWidth = Math.max(tableWidth + scrollbarAllowance, controlsWidth);
+        const contentWidth = Math.min(maximumContentWidth + scrollbarAllowance, measuredContentWidth);
+        return {
+          scrollbarAllowance,
+          width: measuredContentWidth ? Math.max(minimumColumnWidth, contentWidth) : minimumColumnWidth
+        };
+      });
+      let widths = measurements.map((measurement) => measurement.width);
+      const scrollbarAllowance = measurements.reduce((sum, measurement) => sum + measurement.scrollbarAllowance, 0);
+      const panelLimit = Math.max(minimumColumnWidth, Math.min(window.innerWidth * 0.72, 1400) + scrollbarAllowance);
+      const borderWidth = Math.max(0, columns.length - 1);
+      const desiredWidth = widths.reduce((sum, width) => sum + width, borderWidth);
+      if (desiredWidth > panelLimit && columns.length > 1) {
+        const distributable = Math.max(0, panelLimit - borderWidth - minimumColumnWidth * columns.length);
+        const extraWeights = widths.map((width) => Math.max(0, width - minimumColumnWidth));
+        const extraWeightTotal = extraWeights.reduce((sum, width) => sum + width, 0);
+        widths = widths.map((_, index) => minimumColumnWidth
+          + (extraWeightTotal ? distributable * extraWeights[index] / extraWeightTotal : distributable / columns.length));
+      }
+      columns.forEach((column, index) => {
+        column.style.width = `${widths[index]}px`;
+        column.style.flexBasis = `${widths[index]}px`;
+      });
+      els.startListPanel.style.maxWidth = `${panelLimit}px`;
+      els.startListPanel.style.width = `${Math.min(panelLimit, widths.reduce((sum, width) => sum + width, borderWidth))}px`;
+      return [...els.startListLayout.querySelectorAll(".start-list-scroll")].reduce((maximum, scroll) =>
+        Math.max(maximum, scroll.scrollWidth - scroll.clientWidth), 0);
+    }
+
+    function scheduleStartListPanelWidthFit() {
+      if (startListWidthFitFrame) cancelAnimationFrame(startListWidthFitFrame);
+      let pass = 0;
+      const settleWidth = () => {
+        startListWidthFitFrame = 0;
+        const overflow = fitStartListPanelWidth();
+        pass += 1;
+        if (pass < 2 || (overflow > 0 && pass < 6)) {
+          startListWidthFitFrame = requestAnimationFrame(settleWidth);
+        }
+      };
+      startListWidthFitFrame = requestAnimationFrame(settleWidth);
+    }
+
+    function currentStartListDensity() {
+      if (document.body.classList.contains("start-list-ultra-dense")) return 3;
+      if (document.body.classList.contains("start-list-dense")) return 2;
+      if (document.body.classList.contains("start-list-compact")) return 1;
+      return 0;
+    }
+
+    function startListRowCapacity(scroll, density, currentDensity) {
+      const rowHeights = [30, 27, 24, 18];
+      const titleHeights = [30, 27, 25, 20];
+      const slot = scroll.closest("[data-start-list-index]");
+      const title = slot?.querySelector("[data-start-list-title]:not([hidden])");
+      const currentTitleHeight = title ? titleHeights[currentDensity] : 0;
+      const targetTitleHeight = title ? titleHeights[density] : 0;
+      const availableHeight = scroll.clientHeight + currentTitleHeight - targetTitleHeight;
+      return Math.max(1, Math.floor((availableHeight - rowHeights[density]) / rowHeights[density]) - 1);
+    }
+
+    function minimumStartListVerticalDensity() {
+      const currentDensity = currentStartListDensity();
+      let required = 0;
+      els.startListLayout.querySelectorAll("[data-start-list-scroll]").forEach((scroll) => {
+        const highlightedIndexes = [...scroll.querySelectorAll("tbody tr.is-active, tbody tr.is-ready")]
+          .map((row) => Number(row.dataset.participantIndex))
+          .filter(Number.isInteger);
+        if (!highlightedIndexes.length) return;
+        const span = Math.max(...highlightedIndexes) - Math.min(...highlightedIndexes) + 1;
+        if (span > startListRowCapacity(scroll, 0, currentDensity)) required = Math.max(required, 1);
+        if (span > startListRowCapacity(scroll, 1, currentDensity)) required = Math.max(required, 2);
+        if (span > startListRowCapacity(scroll, 2, currentDensity)) required = Math.max(required, 3);
+      });
+      return required;
+    }
+
+    function applyStartListVerticalDensity() {
+      const density = document.body.classList.contains("start-list-visible")
+        ? minimumStartListVerticalDensity()
+        : 0;
+      const previous = currentStartListDensity();
+      document.body.classList.toggle("start-list-compact", density >= 1);
+      document.body.classList.toggle("start-list-dense", density >= 2);
+      document.body.classList.toggle("start-list-ultra-dense", density >= 3);
+      return density !== previous;
+    }
+
+    function reanchorStartListScrolls(settleLayout = true) {
+      els.startListLayout.querySelectorAll("[data-start-list-scroll]").forEach((scroll) => {
+        const anchor = Number(scroll.dataset.startListAnchor);
+        if (!Number.isInteger(anchor) || anchor < 0) return;
+        scheduleStartListAnchorScroll(scroll, anchor, scroll.scrollLeft, settleLayout);
+      });
+    }
+
+    function updateStartListControls() {
+      ensureStartListStructure();
+      els.startListLayout.querySelectorAll("[data-start-list-index]").forEach((slot) => {
+        const index = Number(slot.dataset.startListIndex);
+        const list = state.startLists[index] || null;
+        const routes = slot.querySelector("[data-start-list-routes]");
+        const summary = slot.querySelector("[data-start-list-summary]");
+        const clear = slot.querySelector("[data-start-list-clear]");
+        if (routes) routes.value = String(list?.routeCount || defaultStartListRouteCount());
+        if (summary) summary.textContent = list
+          ? formatStartListText("startListLoaded", { rows: list.rows.length, columns: list.headers.length, routes: list.routeCount })
+          : t("startListHint");
+        if (clear) clear.disabled = !controlsAvailable() || (index === 0 && !list);
+      });
+    }
+
+    function updateStartListVisibility() {
+      const wasVisible = document.body.classList.contains("start-list-visible");
+      const displayPreset = state.running || state.elapsedBeforePause > 0 || state.completed ? state.runtimePreset : state.activePreset;
+      const supportedFormat = displayPreset === "classic" || displayPreset === "final";
+      const managesList = standaloneMode || isPrimaryClient;
+      const visible = Boolean(supportedFormat && (managesList
+        ? startListEditorOpen
+        : visibleStartListEntries().length > 0 && state.startListVisible));
+      document.body.classList.toggle("start-list-visible", visible);
+      els.startListPanel.hidden = !visible;
+      if (visible && !wasVisible) {
+        startListInitialAutoScrollPending = true;
+        visibleStartListEntries().forEach(({ list, index }) => {
+          lastStartListScrollAnchors[index] = null;
+          if (pendingStartListScrollRestores[index]?.listKey !== JSON.stringify(list)) {
+            pendingStartListScrollRestores[index] = null;
+          }
+        });
+        scheduleStartListPanelWidthFit();
+      }
+      if (!visible) {
+        applyStartListVerticalDensity();
+        startListInitialAutoScrollPending = false;
+        lastStartListRenderKey = "";
+        els.startListLayout.innerHTML = "";
+        lastStartListStructureKey = "";
+      }
+      scheduleFitTimer();
+    }
+
+    function scheduleStartListAnchorScroll(scroll, anchor, left, settleLayout = false) {
+      let pass = 0;
+      const applyAnchor = () => {
+        if (!scroll.isConnected) return;
+        const highlightedIndexes = [...scroll.querySelectorAll("tbody tr.is-active, tbody tr.is-ready")]
+          .map((row) => Number(row.dataset.participantIndex))
+          .filter(Number.isInteger);
+        const headerHeight = scroll.querySelector("thead")?.offsetHeight || 0;
+        const sampleRowHeight = scroll.querySelector("tbody tr")?.offsetHeight || 1;
+        const visibleRowCount = Math.max(1, Math.floor((scroll.clientHeight - headerHeight) / sampleRowHeight) - 1);
+        const prioritizedAnchor = window.FDVStartList.prioritizedScrollAnchor(anchor, highlightedIndexes, visibleRowCount);
+        const row = scroll.querySelector(`[data-participant-index="${prioritizedAnchor}"]`);
+        if (row) {
+          const scrollRect = scroll.getBoundingClientRect();
+          const rowRect = row.getBoundingClientRect();
+          scroll.scrollTop = Math.max(0, scroll.scrollTop + rowRect.top - scrollRect.top - headerHeight);
+        }
+        scroll.scrollLeft = left;
+        pass += 1;
+        if (settleLayout && pass < 6) requestAnimationFrame(applyAnchor);
+      };
+      requestAnimationFrame(applyAnchor);
+    }
+
+    function currentStartListPosition() {
+      if (!hasStartLists()) return { cycle: 0, phase: "ready" };
+      const secondsUntilStart = Math.max(0, (state.serverStartedAt - serverNow()) / 1000);
+      const scheduledCountdown = state.countdownOnly
+        || (state.running && state.serverStartedAt > serverNow() && !state.manualStartDisplayHold);
+      if (scheduledCountdown) {
+        return {
+          cycle: window.FDVStartList.scheduledCycle(secondsUntilStart, activeSettings().rotationSeconds),
+          phase: "ready",
+          scheduled: true
+        };
+      }
+      const displayPreset = state.running || state.elapsedBeforePause > 0 || state.completed ? state.runtimePreset : state.activePreset;
+      if (displayPreset === "final") {
+        const completedCycles = Math.max(0, Math.round(Number(state.startListFinalCycle) || 0));
+        if (!state.running && !state.completed && state.elapsedBeforePause === 0) {
+          return completedCycles ? { cycle: completedCycles, phase: "completed" } : { cycle: 0, phase: "ready" };
+        }
+        const segment = getCurrentSegment(elapsedSeconds());
+        return { cycle: completedCycles + 1, phase: state.completed ? "completed" : segment?.type || "rotation" };
+      }
+      if (!state.running && state.elapsedBeforePause === 0) return { cycle: 0, phase: "ready" };
+      const segment = getCurrentSegment(elapsedSeconds());
+      return segment ? { cycle: segment.cycle, phase: segment.type } : { cycle: 0, phase: "ready" };
+    }
+
+    function startListSchedule(list) {
+      const displayPreset = state.running || state.elapsedBeforePause > 0 || state.completed ? state.runtimePreset : state.activePreset;
+      if (displayPreset !== "final") return {};
+      const settings = state.running || state.elapsedBeforePause > 0 || state.completed
+        ? activeSettings()
+        : activeSettingsFromDraft();
+      return {
+        finalFormat: settings.finalRoundFormat === "new" ? "new" : "old",
+        restRotations: settings.finalRestRotations || 3,
+        participantCount: window.FDVStartList.includedParticipantCount(list?.rows?.length, list?.excludedParticipants) || 1
+      };
+    }
+
+    function startListCalculationIncidents(list) {
+      return window.FDVStartList.rebaseIncidents(list?.incidents, list?.excludedParticipants, list?.rows?.length);
+    }
+
+    function startListMarkerLabel(marker) {
+      const keys = {
+        ready: "routeMarkerReady",
+        active: "routeMarkerActive",
+        done: "routeMarkerDone",
+        paused: "routeMarkerPaused",
+        stopped: "routeMarkerStopped"
+      };
+      return t(keys[marker] || "startListRoute");
+    }
+
+    function defaultRouteIncidentCycle(position = currentStartListPosition()) {
+      return Math.max(1, Math.round(Number(position.cycle) || displayedCycleNumber() || 1));
+    }
+
+    function formatRoutePauseState(incident, cycle) {
+      const activeInDisplayedCycle = cycle >= incident.startCycle
+        && (incident.resumeCycle === null || incident.resumeCycle === undefined || cycle < incident.resumeCycle);
+      if (activeInDisplayedCycle || incident.resumeCycle === null || incident.resumeCycle === undefined) {
+        return formatStartListText("routeIncidentPausedFrom", { cycle: incident.startCycle });
+      }
+      if (incident.resolution === "stop") {
+        return formatStartListText("routeIncidentPausedUntilStop", {
+          start: incident.startCycle,
+          stop: incident.resumeCycle
+        });
+      }
+      return formatStartListText("routeIncidentPausedRange", {
+        start: incident.startCycle,
+        resume: incident.resumeCycle
+      });
+    }
+
+    function startListIncidentActions(activePause, stop) {
+      if (stop) return "";
+      if (activePause) {
+        return `
+          <button class="start-list-incident-action resume" type="button" data-start-list-incident-action="resume" title="${escapeHtml(t("routeIncidentResume"))}" aria-label="${escapeHtml(t("routeIncidentResume"))}"></button>
+          <button class="start-list-incident-action stop" type="button" data-start-list-incident-action="stop" title="${escapeHtml(t("routeIncidentStop"))}" aria-label="${escapeHtml(t("routeIncidentStop"))}"></button>`;
+      }
+      return `
+          <button class="start-list-incident-action pause" type="button" data-start-list-incident-action="pause" title="${escapeHtml(t("routeIncidentPause"))}" aria-label="${escapeHtml(t("routeIncidentPause"))}"></button>
+          <button class="start-list-incident-action stop" type="button" data-start-list-incident-action="stop" title="${escapeHtml(t("routeIncidentStop"))}" aria-label="${escapeHtml(t("routeIncidentStop"))}"></button>`;
+    }
+
+    function renderStartListIncidentMenu(slot, list, listIndex, position, errorText = "") {
+      const menu = slot?.querySelector("[data-start-list-incident-menu]");
+      if (!menu) return;
+      const selectedRoute = startListIncidentSelections[listIndex];
+      const routeIndex = Number.isInteger(selectedRoute) ? selectedRoute : -1;
+      slot.querySelectorAll("[data-start-list-route]").forEach((button) => {
+        button.classList.toggle("is-selected", Number(button.dataset.startListRoute) === routeIndex);
+      });
+      if (!list || !Number.isInteger(routeIndex) || routeIndex < 0 || routeIndex >= list.routeCount) {
+        menu.hidden = true;
+        menu.innerHTML = "";
+        delete slot.dataset.startListIncidentRoute;
+        return;
+      }
+      slot.dataset.startListIncidentRoute = String(routeIndex);
+      const incidents = list.incidents || [];
+      const cycleValue = defaultRouteIncidentCycle(position);
+      const activePause = window.FDVStartList.activePauseForRoute(routeIndex, incidents, cycleValue);
+      const stop = window.FDVStartList.stopForRoute(routeIndex, incidents);
+      const routePauses = incidents.filter((incident) => incident.kind === "pause" && incident.route === routeIndex + 1);
+      const cycleHint = activePause ? t("routeIncidentResumeCycleHint") : t("routeIncidentStartCycleHint");
+      const actions = startListIncidentActions(activePause, stop);
+      const singleRoute = list.routeCount === 1;
+      const pauseNotes = routePauses.map((incident) => {
+        const incidentIndex = incidents.indexOf(incident);
+        const pauseNote = formatRoutePauseState(incident, position.cycle);
+        return `<div class="start-list-incident-note"><button class="start-list-incident-remove" type="button" data-start-list-incident-action="clear-pause" data-start-list-incident-index="${incidentIndex}" title="${escapeHtml(t("routeIncidentClearPause"))}" aria-label="${escapeHtml(t("routeIncidentClearPause"))}">&times;</button><span>${escapeHtml(pauseNote)}</span></div>`;
+      });
+      const notesHtml = [
+        ...pauseNotes,
+        stop ? `<div class="start-list-incident-note"><button class="start-list-incident-remove" type="button" data-start-list-incident-action="cancel-stop" title="${escapeHtml(t("routeIncidentCancelStop"))}" aria-label="${escapeHtml(t("routeIncidentCancelStop"))}">×</button><span>${escapeHtml(formatStartListText("routeIncidentStoppedFrom", { cycle: stop.startCycle }))}</span></div>` : "",
+        errorText ? `<div class="start-list-incident-note error"><span>${escapeHtml(errorText)}</span></div>` : ""
+      ].filter(Boolean).join("");
+      const incidentControls = actions ? `<div class="start-list-incident-controls">
+        <label class="start-list-incident-cycle" data-start-list-incident-cycle-control title="${escapeHtml(cycleHint)}"><span>${escapeHtml(t("routeIncidentCycle"))}</span><input type="number" min="1" max="9999" step="1" value="${cycleValue}" data-start-list-incident-cycle title="${escapeHtml(cycleHint)}"></label>
+        <div class="start-list-incident-actions">${actions}</div>
+      </div>` : "<div></div>";
+      menu.innerHTML = `
+        <strong class="start-list-incident-title">${singleRoute ? "" : escapeHtml(formatStartListText("startListRoute", { route: routeIndex + 1 }))}</strong>
+        ${incidentControls}
+        <button class="start-list-incident-close" type="button" data-start-list-incident-close title="${escapeHtml(t("routeIncidentClose"))}" aria-label="${escapeHtml(t("routeIncidentClose"))}">×</button>
+        ${notesHtml ? `<div class="start-list-incident-notes">${notesHtml}</div>` : ""}`;
+      menu.hidden = false;
+    }
+
+    function clearStartListIncidentCyclePreview() {
+      startListIncidentPreviewCell?.classList.remove("is-incident-cycle-preview");
+      startListIncidentPreviewCell = null;
+    }
+
+    function updateStartListIncidentActions(slot) {
+      const cycleInput = slot?.querySelector("[data-start-list-incident-cycle]");
+      const actions = slot?.querySelector(".start-list-incident-actions");
+      const listIndex = Number(slot?.dataset.startListIndex);
+      const routeIndex = Number(slot?.dataset.startListIncidentRoute);
+      const list = state.startLists[listIndex];
+      if (!cycleInput || !actions || !list || !Number.isInteger(routeIndex)) return;
+      const cycle = Math.max(1, Math.min(9999, Math.round(Number(cycleInput.value) || 1)));
+      const incidents = list.incidents || [];
+      const activePause = window.FDVStartList.activePauseForRoute(routeIndex, incidents, cycle);
+      const stop = window.FDVStartList.stopForRoute(routeIndex, incidents);
+      actions.innerHTML = startListIncidentActions(activePause, stop);
+      const cycleHint = activePause ? t("routeIncidentResumeCycleHint") : t("routeIncidentStartCycleHint");
+      cycleInput.title = cycleHint;
+      cycleInput.closest("[data-start-list-incident-cycle-control]")?.setAttribute("title", cycleHint);
+    }
+
+    function updateStartListIncidentCyclePreview(control) {
+      clearStartListIncidentCyclePreview();
+      const slot = control?.closest("[data-start-list-index]");
+      const cycleInput = control?.querySelector("[data-start-list-incident-cycle]");
+      if (!slot || !cycleInput) return;
+      const listIndex = Number(slot.dataset.startListIndex);
+      const routeIndex = Number(slot.dataset.startListIncidentRoute);
+      const list = state.startLists[listIndex];
+      if (!list || !Number.isInteger(routeIndex) || routeIndex < 0 || routeIndex >= list.routeCount) return;
+      const cycle = Math.max(1, Math.min(9999, Math.round(Number(cycleInput.value) || 1)));
+      const incidents = list.incidents || [];
+      const activePause = window.FDVStartList.activePauseForRoute(routeIndex, incidents, cycle);
+      const previewIncidents = activePause
+        ? incidents.map((incident) => incident === activePause
+          ? { ...incident, resumeCycle: Math.max(incident.startCycle, cycle), resolution: "resume" }
+          : incident)
+        : incidents;
+      const calculationIncidents = window.FDVStartList.rebaseIncidents(
+        previewIncidents,
+        list.excludedParticipants,
+        list.rows.length
+      );
+      const participantIndex = window.FDVStartList.participantAtOrAfterCycle(
+        routeIndex,
+        cycle,
+        calculationIncidents,
+        window.FDVStartList.includedParticipantCount(list.rows.length, list.excludedParticipants),
+        startListSchedule(list)
+      );
+      if (participantIndex < 0) return;
+      const rowIndex = window.FDVStartList.participantRowIndex(participantIndex, list.excludedParticipants, list.rows.length);
+      const row = slot.querySelector(`[data-participant-index="${rowIndex}"]`);
+      const cell = row?.querySelector(`[data-start-list-route-cell="${routeIndex}"]`);
+      if (!cell) return;
+      cell.classList.add("is-incident-cycle-preview");
+      startListIncidentPreviewCell = cell;
+    }
+
+    function startListIncidentCyclePreviewTrigger(target) {
+      return target?.closest?.(startListIncidentPreviewTriggerSelector) || null;
+    }
+
+    function startListIncidentCycleControlForTrigger(trigger) {
+      return trigger?.closest("[data-start-list-incident-menu]")
+        ?.querySelector("[data-start-list-incident-cycle-control]") || null;
+    }
+
+    async function applyStartListIncidentAction(slot, listIndex, routeIndex, action, incidentIndex = null) {
+      const list = state.startLists[listIndex];
+      if (!list) return;
+      const cycleInput = slot.querySelector("[data-start-list-incident-cycle]");
+      const cycle = Math.max(1, Math.min(9999, Math.round(Number(cycleInput?.value) || defaultRouteIncidentCycle())));
+      if (cycleInput) cycleInput.value = String(cycle);
+      let incidents = [...(list.incidents || [])];
+      const activePause = window.FDVStartList.activePauseForRoute(routeIndex, incidents, cycle);
+      if (action === "pause") {
+        const calculatedParticipantIndex = window.FDVStartList.participantAtOrAfterCycle(
+          routeIndex,
+          cycle,
+          startListCalculationIncidents(list),
+          window.FDVStartList.includedParticipantCount(list.rows.length, list.excludedParticipants),
+          startListSchedule(list)
+        );
+        const participantIndex = window.FDVStartList.participantRowIndex(calculatedParticipantIndex, list.excludedParticipants, list.rows.length);
+        if (participantIndex < 0) {
+          renderStartListIncidentMenu(slot, list, listIndex, currentStartListPosition(), t("routeIncidentNoParticipant"));
+          return;
+        }
+        incidents.push({ kind: "pause", route: routeIndex + 1, startCycle: cycle, resumeCycle: null, participantIndex });
+      }
+      if (action === "resume" && activePause) {
+        incidents = incidents.map((incident) => incident === activePause
+          ? { ...incident, resumeCycle: Math.max(incident.startCycle, cycle), resolution: "resume" }
+          : incident);
+      }
+      if (action === "stop") {
+        incidents = incidents.filter((incident) => !(incident.kind === "stop" && incident.route === routeIndex + 1));
+        incidents = incidents.map((incident) => incident === activePause
+          ? { ...incident, resumeCycle: Math.max(incident.startCycle, cycle), resolution: "stop" }
+          : incident);
+        incidents.push({ kind: "stop", route: routeIndex + 1, startCycle: cycle });
+      }
+      if (action === "cancel-stop") {
+        const canceledStop = incidents.find((incident) => incident.kind === "stop" && incident.route === routeIndex + 1);
+        incidents = incidents.filter((incident) => incident !== canceledStop).map((incident) => {
+          if (incident.kind !== "pause" || incident.route !== routeIndex + 1
+              || incident.resolution !== "stop" || incident.resumeCycle !== canceledStop?.startCycle) return incident;
+          const { resolution: _resolution, ...reopenedPause } = incident;
+          return { ...reopenedPause, resumeCycle: null };
+        });
+      }
+      if (action === "clear-pause") {
+        const targetIndex = Number(incidentIndex);
+        const target = Number.isInteger(targetIndex) ? incidents[targetIndex] : null;
+        if (!target || target.kind !== "pause" || target.route !== routeIndex + 1) return;
+        incidents.splice(targetIndex, 1);
+      }
+      const nextLists = [...state.startLists];
+      nextLists[listIndex] = window.FDVStartList.sanitize({ ...list, incidents });
+      await commitStartLists(nextLists);
+    }
+
+    async function toggleStartListParticipantExclusion(listIndex, participantIndex) {
+      const list = state.startLists[listIndex];
+      if (!list || !controlsAvailable() || participantIndex < 0 || participantIndex >= list.rows.length) return;
+      const excludedParticipants = window.FDVStartList.normalizeExcludedParticipants(list.excludedParticipants, list.rows.length);
+      const nextExcludedParticipants = excludedParticipants.includes(participantIndex)
+        ? excludedParticipants.filter((index) => index !== participantIndex)
+        : [...excludedParticipants, participantIndex];
+      const nextLists = [...state.startLists];
+      nextLists[listIndex] = window.FDVStartList.sanitize({ ...list, excludedParticipants: nextExcludedParticipants });
+      await commitStartLists(nextLists);
+    }
+
+    function renderStartList() {
+      loadStoredStartListScrollPositions();
+      updateStartListVisibility();
+      if (!document.body.classList.contains("start-list-visible")) return;
+      ensureStartListStructure();
+      const position = currentStartListPosition();
+      const settings = state.running || state.elapsedBeforePause > 0 || state.completed
+        ? activeSettings()
+        : activeSettingsFromDraft();
+      const renderKey = `${language}:${position.cycle}:${position.phase}:${settings.finalRoundFormat || "old"}:${settings.finalRestRotations || 3}:${(state.startListIndexes || []).join(",")}:${JSON.stringify(state.startLists)}`;
+      if (renderKey === lastStartListRenderKey) return;
+      lastStartListRenderKey = renderKey;
+      const settleInitialAutoScroll = startListInitialAutoScrollPending;
+      startListInitialAutoScrollPending = false;
+      state.startLists.forEach((list, index) => {
+        const slot = els.startListLayout.querySelector(`[data-start-list-index="${index}"]`);
+        const scroll = slot?.querySelector("[data-start-list-scroll]");
+        const titleBar = slot?.querySelector("[data-start-list-title]");
+        if (!scroll) return;
+        if (!list) {
+          if (titleBar) {
+            titleBar.textContent = "";
+            titleBar.hidden = true;
+          }
+          scroll.innerHTML = "";
+          return;
+        }
+        if (titleBar) {
+          titleBar.textContent = list.title || "";
+          titleBar.hidden = !list.title;
+          titleBar.title = list.title || "";
+        }
+        const incidents = startListCalculationIncidents(list);
+        const excludedParticipants = window.FDVStartList.normalizeExcludedParticipants(list.excludedParticipants, list.rows.length);
+        const schedule = startListSchedule(list);
+        const canManageIncidents = Boolean(slot.querySelector("[data-start-list-incident-menu]")) && controlsAvailable();
+        const routeHeaders = Array.from({ length: list.routeCount }, (_, routeIndex) => {
+          const routeStatus = window.FDVStartList.routeState(routeIndex, position.cycle, incidents);
+          const title = formatStartListText("startListRoute", { route: routeIndex + 1 });
+          const routePauses = incidents.filter((incident) => incident.kind === "pause" && incident.route === routeIndex + 1);
+          const historyText = routePauses.map((incident) => formatRoutePauseState(incident, position.cycle)).join("; ");
+          const stoppedIncident = incidents.find((incident) => incident.kind === "stop" && incident.route === routeIndex + 1);
+          const stoppedText = stoppedIncident
+            ? formatStartListText("routeIncidentStoppedFrom", { cycle: stoppedIncident.startCycle })
+            : "";
+          const incidentText = [historyText, stoppedText].filter(Boolean).join("; ");
+          const routeTitle = incidentText ? `${title}. ${incidentText}` : title;
+          const routeLabel = list.routeCount === 1 ? (language === "en" ? "R" : "T") : routeIndex + 1;
+          return `<th class="route-cell${routeStatus ? ` route-${routeStatus}` : ""}" title="${escapeHtml(routeTitle)}"><button class="start-list-route-button" type="button" data-start-list-route="${routeIndex}" aria-label="${escapeHtml(routeTitle)}"${canManageIncidents ? "" : " disabled"}>${routeLabel}</button></th>`;
+        }).join("");
+        const body = list.rows.map((row, participantIndex) => {
+          const excluded = excludedParticipants.includes(participantIndex);
+          const calculationParticipantIndex = window.FDVStartList.participantScheduleIndex(participantIndex, excludedParticipants, list.rows.length);
+          const rowStatus = excluded ? "" : window.FDVStartList.rowStatus(calculationParticipantIndex, list.routeCount, position.cycle, position.phase, incidents, schedule);
+          const exclusionTitle = excluded ? t("startListRestoreParticipant") : t("startListExcludeParticipant");
+          const cells = list.headers.map((_, columnIndex) => {
+            const exclusionControl = canManageIncidents && columnIndex === 0;
+            return `<td${exclusionControl ? ` data-start-list-participant-exclusion="${participantIndex}" tabindex="0" role="button" title="${escapeHtml(exclusionTitle)}" aria-label="${escapeHtml(exclusionTitle)}"` : ""}>${escapeHtml(row[columnIndex] || "")}</td>`;
+          }).join("");
+          const routes = Array.from({ length: list.routeCount }, (_, routeIndex) => {
+            const marker = excluded ? "" : window.FDVStartList.marker(calculationParticipantIndex, routeIndex, position.cycle, position.phase, incidents, schedule);
+            return `<td class="route-cell" data-start-list-route-cell="${routeIndex}">${marker ? `<span class="route-marker ${marker}" aria-label="${escapeHtml(startListMarkerLabel(marker))}"></span>` : ""}</td>`;
+          }).join("");
+          return `<tr data-participant-index="${participantIndex}" class="${excluded ? "is-excluded" : rowStatus ? `is-${rowStatus}` : ""}">${cells}${routes}</tr>`;
+        }).join("");
+        const previousScroll = { top: scroll.scrollTop, left: scroll.scrollLeft };
+        const tableColumnCount = list.headers.length + list.routeCount;
+        const tableColumns = Array.from({ length: tableColumnCount }, () => "<col>").join("");
+        scroll.innerHTML = `<table class="start-list-table"><colgroup>${tableColumns}</colgroup><thead><tr>${list.headers.map((header) => `<th>${escapeHtml(header)}</th>`).join("")}${routeHeaders}</tr></thead><tbody>${body}</tbody></table>`;
+        const highlightedRows = [...scroll.querySelectorAll("tbody tr.is-active, tbody tr.is-ready")];
+        const highlightedIndexes = highlightedRows
+          .map((row) => Number(row.dataset.participantIndex))
+          .filter(Number.isInteger);
+        const highlightedSpan = highlightedIndexes.length
+          ? Math.max(...highlightedIndexes) - Math.min(...highlightedIndexes) + 1
+          : 1;
+        const mobileRowCount = Math.min(list.rows.length, Math.max(5, highlightedSpan + 4));
+        scroll.style.setProperty("--start-list-mobile-row-count", String(mobileRowCount));
+        renderStartListIncidentMenu(slot, list, index, position);
+        const calculationAnchor = window.FDVStartList.scrollAnchor(
+          list.routeCount,
+          position.cycle,
+          position.phase,
+          incidents,
+          window.FDVStartList.includedParticipantCount(list.rows.length, excludedParticipants),
+          schedule
+        );
+        const anchor = Math.max(0, window.FDVStartList.participantRowIndex(calculationAnchor, excludedParticipants, list.rows.length));
+        scroll.dataset.startListAnchor = String(anchor);
+        const autoScrollKey = `${position.cycle}:${position.phase}:${anchor}`;
+        const pendingScroll = pendingStartListScrollRestores[index];
+        if (pendingScroll?.listKey === JSON.stringify(list)) {
+          lastStartListScrollAnchors[index] = autoScrollKey;
+          requestAnimationFrame(() => {
+            if (pendingStartListScrollRestores[index] !== pendingScroll) return;
+            scroll.scrollTop = pendingScroll.top;
+            scroll.scrollLeft = pendingScroll.left;
+            pendingStartListScrollRestores[index] = null;
+          });
+        } else if (autoScrollKey !== lastStartListScrollAnchors[index]) {
+          lastStartListScrollAnchors[index] = autoScrollKey;
+          scheduleStartListAnchorScroll(scroll, anchor, previousScroll.left, settleInitialAutoScroll);
+        } else {
+          requestAnimationFrame(() => {
+            scroll.scrollTop = previousScroll.top;
+            scroll.scrollLeft = previousScroll.left;
+          });
+        }
+      });
+      if (applyStartListVerticalDensity()) reanchorStartListScrolls();
+      fitStartListPanelWidth();
+      scheduleStartListPanelWidthFit();
+    }
+
+    async function readStartListFile(file, routeCount) {
+      const bytes = await file.arrayBuffer();
+      if (/\.mxl$/i.test(file.name) || new TextDecoder("ascii").decode(bytes.slice(0, 6)) === "MOXCEL") {
+        return window.FDVStartList.parseMxl(bytes, routeCount);
+      }
+      if (/\.xlsx$/i.test(file.name)) {
+        const xlsx = await loadXlsxLibrary();
+        const workbook = xlsx.read(bytes, {
+          type: "array",
+          cellDates: false,
+          sheetRows: window.FDVStartList.MAX_ROWS + 50
+        });
+        for (const sheetName of workbook.SheetNames || []) {
+          const range = window.FDVStartList.worksheetContentRange(workbook.Sheets[sheetName], xlsx.utils);
+          if (!range) continue;
+          const records = xlsx.utils.sheet_to_json(workbook.Sheets[sheetName], {
+            header: 1,
+            raw: false,
+            defval: "",
+            blankrows: true,
+            range
+          });
+          const list = window.FDVStartList.parseRows(records, routeCount);
+          if (list) return list;
+        }
+        return null;
+      }
+      let text = new TextDecoder("utf-8").decode(bytes);
+      if (text.includes("\uFFFD")) text = new TextDecoder("windows-1251").decode(bytes);
+      return window.FDVStartList.parse(text, routeCount);
+    }
+
+    let xlsxLibraryPromise = null;
+    function loadXlsxLibrary() {
+      if (window.XLSX?.read && window.XLSX?.utils?.sheet_to_json) return Promise.resolve(window.XLSX);
+      if (xlsxLibraryPromise) return xlsxLibraryPromise;
+      xlsxLibraryPromise = new Promise((resolve, reject) => {
+        const finish = () => window.XLSX?.read && window.XLSX?.utils?.sheet_to_json
+          ? resolve(window.XLSX)
+          : reject(new Error("XLSX library did not initialize"));
+        const script = document.createElement("script");
+        if (window.FDV_XLSX_LIBRARY_SOURCE) {
+          script.textContent = window.FDV_XLSX_LIBRARY_SOURCE;
+          try {
+            document.head.appendChild(script);
+            finish();
+            window.FDV_XLSX_LIBRARY_SOURCE = "";
+          } catch (error) {
+            reject(error);
+          } finally {
+            script.remove();
+          }
+          return;
+        }
+        script.src = "lib/vendor/xlsx.mini.min.js";
+        script.onload = finish;
+        script.onerror = () => reject(new Error("Could not load XLSX library"));
+        document.head.appendChild(script);
+      }).catch((error) => {
+        xlsxLibraryPromise = null;
+        throw error;
+      });
+      return xlsxLibraryPromise;
+    }
+
+    async function importStartList(file, index, input) {
+      if (!file) return;
+      const slot = input.closest("[data-start-list-index]");
+      const routeCount = slot?.querySelector("[data-start-list-routes]")?.value || defaultStartListRouteCount();
+      let list = null;
+      try {
+        list = await readStartListFile(file, routeCount);
+      } catch (error) {
+        console.error("Could not import start protocol", error);
+      }
+      input.value = "";
+      if (!list) {
+        const summary = slot?.querySelector("[data-start-list-summary]");
+        if (summary) summary.textContent = t("startListInvalid");
+        return;
+      }
+      const nextLists = [...state.startLists];
+      nextLists[index] = list;
+      await commitStartLists(nextLists);
+    }
+
+    async function commitStartLists(value) {
+      const lists = normalizeStartLists(value);
+      if (standaloneMode) {
+        const keepParallelLayout = state.startLists.length === 2 && lists.length === 2;
+        if (JSON.stringify(lists) !== JSON.stringify(state.startLists)) {
+          rememberStartListScrollPositions(lists);
+        }
+        state.startLists = lists;
+        if (!keepParallelLayout) state.startListParallel = false;
+        state.startListVisible = state.startListEnabled && hasStartLists(lists);
+        lastStartListStructureKey = "";
+        lastStartListRenderKey = "";
+        updateStartListControls();
+        renderStartList();
+        saveOfflineSnapshot();
+        return;
+      }
+      await sendServerAction("startLists", { startLists: lists });
+    }
+
+    async function commitStartListLayout(parallel) {
+      const nextParallel = Boolean(parallel) && state.startLists.length === 2;
+      if (standaloneMode) {
+        state.startListParallel = nextParallel;
+        lastStartListStructureKey = "";
+        lastStartListRenderKey = "";
+        updateStartListControls();
+        renderStartList();
+        saveOfflineSnapshot();
+        return;
+      }
+      await sendServerAction("startListLayout", { parallel: nextParallel });
     }
 
     function diagnosticStatusLabel(value) {
@@ -4390,9 +6400,38 @@
           diagChip("TAB", tabOk ? "good" : "bad", `Tab visibility: ${client.visibility || "unknown"}`)
         ]);
         const chipHtml = chips.join("");
-        const title = language === "ru"
+        const selectedListIndexes = new Set(Array.isArray(client.startListIndexes)
+          ? client.startListIndexes.map(Number)
+          : []);
+        const startListSelectorHtml = startListEditorOpen
+          && !isPrimary
+          && !standaloneSelf
+          ? `<div class="diag-row start-list-diag-row">${state.startLists.map((_, listIndex) => {
+              const listAvailable = Boolean(state.startLists[listIndex]);
+              const listSelected = listAvailable && selectedListIndexes.has(listIndex);
+              const title = listAvailable
+                ? language === "ru"
+                  ? `Показать или скрыть протокол ${listIndex + 1} на этом экране`
+                  : `Show or hide start list ${listIndex + 1} on this screen`
+                : language === "ru"
+                  ? `Протокол ${listIndex + 1} не загружен`
+                  : `Start list ${listIndex + 1} is not loaded`;
+              return diagChip(
+                `PROTOCOL ${listIndex + 1}`,
+                `${listAvailable ? "start-list-available clickable" : "neutral"}${listSelected ? " start-list-selected" : ""}`,
+                title,
+                listAvailable
+                  ? ` data-start-list-client="${escapeHtml(client.id)}" data-start-list-index="${listIndex}" data-start-list-enabled="${listSelected ? "1" : "0"}"`
+                  : ""
+              );
+            }).join("")}</div>`
+          : "";
+        let title = language === "ru"
           ? `ОС: ${operatingSystem(client.userAgent)}; устройство: ${deviceType(client.userAgent)}; экран ${client.screen || "n/a"}; окно ${client.viewport || "n/a"}; DPR ${client.dpr ?? "n/a"}`
           : `OS: ${operatingSystem(client.userAgent)}; device: ${deviceType(client.userAgent)}; screen ${client.screen || "n/a"}; viewport ${client.viewport || "n/a"}; DPR ${client.dpr ?? "n/a"}`;
+        if (client.clientBuild !== null && client.clientBuild !== undefined) {
+          title += language === "ru" ? `; сборка клиента ${client.clientBuild}` : `; client build ${client.clientBuild}`;
+        }
         const meta = [
           diagnosticStatusLabel(client.displayStatus),
           diagnosticRoleLabel(client.role),
@@ -4441,6 +6480,7 @@
           <strong title="${escapeHtml(title)}">${heading}</strong>
           <span title="${escapeHtml(metaTitle)}">${meta}</span>
           <div class="diag-row">${chipHtml}</div>
+          ${startListSelectorHtml}
           ${audioEditor}
         </div>`;
       }).join("");
@@ -5227,6 +7267,24 @@
       }, delayMs);
     }
 
+    function displayedCycleNumber(segment = null) {
+      const settings = activeSettings();
+      if (settings.oneShot) {
+        const completedCycles = Math.max(0, Math.round(Number(state.startListFinalCycle) || 0));
+        return Math.max(1, completedCycles + ((state.running || state.completed || state.elapsedBeforePause > 0) ? 1 : 0));
+      }
+      return Math.max(1, Math.round(Number(segment?.cycle || getCurrentSegment(elapsedSeconds())?.cycle) || 1));
+    }
+
+    function cycleInputEditable() {
+      return controlsAvailable() && !state.running && !isViewerClient && !state.countdownOnly;
+    }
+
+    function setCycleMeta(cycle = displayedCycleNumber()) {
+      const normalizedCycle = Math.max(1, Math.min(9999, Math.round(Number(cycle) || 1)));
+      setElementText(els.cycleMeta, `${t("cycle")} ${normalizedCycle}`);
+    }
+
     function render() {
       lastRenderAt = performance.now();
       scheduleDisplayBoundary();
@@ -5243,6 +7301,7 @@
       const segment = getCurrentSegment(elapsed);
       const settings = activeSettings();
       const isReady = !state.running && !state.completed && state.elapsedBeforePause === 0;
+      renderStartList();
       syncAudioTestButtons();
       syncButtonsWhenScheduledStartStateChanges();
       setElementClass(document.body, "warning-active", false);
@@ -5256,7 +7315,7 @@
         setElementClassName(els.phase, "phase ready");
         setDisplayTime(untilStart);
         setElementText(els.status, untilStart > 0 ? t("waitingStart") : t("readyStart"));
-        setElementText(els.cycleMeta, t("final"));
+        setCycleMeta(displayedCycleNumber());
         setElementText(els.rotationMeta, `${t("start")} ${new Date(state.serverStartedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`);
         setElementText(els.nextMeta, untilStart > 0 ? t("nextManual") : t("pressStart"));
         setProgressWidth(0, true);
@@ -5276,7 +7335,7 @@
           setElementClassName(els.phase, `phase ${initialSegment.type}`);
           setDisplayTime(initialDuration);
           setElementText(els.status, t("roundRunning"));
-          setElementText(els.cycleMeta, `${t("cycle")} ${initialSegment.cycle}`);
+          setCycleMeta(settings.oneShot ? displayedCycleNumber(initialSegment) : initialSegment.cycle);
           setElementText(els.rotationMeta, initialSegment.type === "break"
             ? `${t("break")} ${formatTime(settings.breakSeconds)}`
             : `${t("rotation")} ${formatTime(settings.rotationSeconds)}`);
@@ -5302,7 +7361,7 @@
         setElementClassName(els.phase, "phase ready");
         setDisplayTime(untilStart);
         setElementText(els.status, t("waitingStart"));
-        setElementText(els.cycleMeta, `${t("cycle")} 1`);
+        setCycleMeta(1);
         setElementText(els.rotationMeta, `${t("start")} ${new Date(state.serverStartedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`);
         setElementText(els.nextMeta, t("nextStart"));
         setProgressWidth(0, true);
@@ -5319,7 +7378,7 @@
         setElementClassName(els.phase, "phase ready");
         setDisplayTime(0);
         setElementText(els.status, t("readyStart"));
-        setElementText(els.cycleMeta, t("final"));
+        setCycleMeta(displayedCycleNumber());
         setElementText(els.rotationMeta, `${t("rotation")} ${formatTime(settings.rotationSeconds)}`);
         setElementText(els.nextMeta, t("nextManual"));
         setProgressWidth(0, true);
@@ -5337,7 +7396,7 @@
         setElementClassName(els.phase, "phase ready");
         setDisplayTime(0);
         setElementText(els.status, t("completed"));
-        setElementText(els.cycleMeta, t("final"));
+        setCycleMeta(displayedCycleNumber());
         setElementText(els.rotationMeta, `${t("rotation")} ${formatTime(settings.rotationSeconds)}`);
         setElementText(els.nextMeta, "");
         setProgressWidth(100, true);
@@ -5354,7 +7413,7 @@
         setElementClassName(els.phase, "phase ready");
         setDisplayTime(settings.rotationSeconds);
         setElementText(els.status, t("ready"));
-        setElementText(els.cycleMeta, `${t("cycle")} 1`);
+        setCycleMeta(displayedCycleNumber(segment));
         setElementText(els.rotationMeta, `${t("rotation")} ${formatTime(settings.rotationSeconds)}`);
         setElementText(els.nextMeta, t("nextStart"));
         setProgressWidth(0, true);
@@ -5387,7 +7446,7 @@
         setElementText(els.phase, segment.label);
         setElementClassName(els.phase, `phase ${segment.type}`);
         setElementText(els.status, state.running ? t("roundRunning") : t("pause"));
-        setElementText(els.cycleMeta, `${t("cycle")} ${segment.cycle}`);
+        setCycleMeta(settings.oneShot ? displayedCycleNumber(segment) : segment.cycle);
         setElementText(els.rotationMeta, segment.type === "break"
           ? `${t("break")} ${formatTime(settings.breakSeconds)}`
           : `${t("rotation")} ${formatTime(settings.rotationSeconds)}`);
@@ -5507,20 +7566,35 @@
       els.instancesFullscreenToggle.disabled = !serverControls;
       els.flashToggle.disabled = !available;
       els.festivalAnnouncementsToggle.disabled = !available;
+      els.startListToggle.disabled = !available;
+      updateStartListControls();
       updatePresetControlState(available);
-      [els.climbMinutes, els.breakSeconds, els.startHours, els.startMinutes]
-        .forEach((input) => { input.disabled = !available; });
+      const timerParametersLocked = (state.running && !beforeScheduledStart)
+        || (state.elapsedBeforePause > 0 && !state.completed)
+        || finalRoundProgressLocked();
+      els.climbMinutes.disabled = !available || timerParametersLocked;
+      els.breakSeconds.disabled = !available || timerParametersLocked;
+      els.finalRestRotations.disabled = !available || timerParametersLocked;
+      els.finalRoundFormatInputs.forEach((input) => { input.disabled = !available || timerParametersLocked; });
+      [els.startHours, els.startMinutes].forEach((input) => { input.disabled = !available; });
       els.soundProfileSelect.disabled = !available || (state.running && !beforeScheduledStart)
         || state.elapsedBeforePause > 0
         || state.completed;
       updatePrimaryPinUi();
     }
 
+    function finalRoundProgressLocked() {
+      const finalSelected = state.runtimePreset === "final" || state.activePreset === "final";
+      const completedCycles = Math.max(0, Math.round(Number(state.startListFinalCycle) || 0));
+      return finalSelected && completedCycles > 0;
+    }
+
     function formatSelectionLocked() {
       return state.running
         || state.elapsedBeforePause > 0
         || state.completed
-        || state.waitingForManualStart;
+        || state.waitingForManualStart
+        || finalRoundProgressLocked();
     }
 
     function presetDefaultTitle(name) {
@@ -5534,11 +7608,13 @@
 
     function updatePresetControlState(available = controlsAvailable()) {
       const locked = available && formatSelectionLocked();
+      const finalSelected = state.runtimePreset === "final" || state.activePreset === "final";
+      const lockedHint = finalSelected ? t("finalPresetLockedHint") : t("presetLockedHint");
       els.presets.forEach((button) => {
         button.disabled = !available;
         button.classList.toggle("format-locked", locked);
         button.setAttribute("aria-disabled", String(locked));
-        button.title = locked ? t("presetLockedHint") : presetDefaultTitle(button.dataset.preset);
+        button.title = locked ? lockedHint : presetDefaultTitle(button.dataset.preset);
       });
     }
 
@@ -5570,10 +7646,12 @@
 
     function startStandaloneTimer() {
       const waitingForManualStart = state.waitingForManualStart;
+      if (state.completed && state.runtimePreset === "final") state.startListFinalCycle += 1;
       const isFreshStart = state.elapsedBeforePause === 0 || state.completed || state.waitingForManualStart;
       const elapsed = isFreshStart ? 0 : state.elapsedBeforePause;
       clearSignalTimers();
       if (isFreshStart) {
+        if (!waitingForManualStart) clearStartListIncidentsForNewRound();
         if (!waitingForManualStart) state.runtimePreset = state.activePreset;
         state.activeSettings = activeSettingsFromDraft();
         state.completed = false;
@@ -5605,6 +7683,10 @@
     }
 
     function resetStandaloneTimer(shouldSignal = false) {
+      const completedFinalAttempt = state.runtimePreset === "final"
+        && ((state.running && !state.countdownOnly) || state.completed || state.elapsedBeforePause > 0);
+      if (completedFinalAttempt) state.startListFinalCycle += 1;
+      clearStartListIncidentsForNewRound();
       state.running = false;
       state.completed = false;
       state.countdownOnly = false;
@@ -5699,6 +7781,7 @@
         const now = Date.now();
         const target = new Date(now);
         target.setHours(Number(els.startHours.value || 0), Number(els.startMinutes.value || 0), 0, 0);
+        clearStartListIncidentsForNewRound();
         state.activeSettings = activeSettingsFromDraft();
         state.runtimePreset = state.activePreset;
         if (target.getTime() <= now && state.activeSettings.oneShot) {
@@ -5777,6 +7860,10 @@
 
     async function hardReset(shouldSignal = true) {
       if (!controlsAvailable()) return;
+      if (isBeforeScheduledStart()) {
+        await toggleScheduledCountdown();
+        return;
+      }
       if (standaloneMode) {
         resetStandaloneTimer(shouldSignal);
         return;
@@ -5895,6 +7982,34 @@
 
     function canScrub() {
       return controlsAvailable() && !state.running && !isViewerClient && state.elapsedBeforePause > 0;
+    }
+
+    async function seekToCycle(value) {
+      if (!cycleInputEditable()) return;
+      const cycle = Math.max(1, Math.min(9999, Math.round(Number(value) || 1)));
+      const cycleInput = document.getElementById("cycleInput");
+      if (cycleInput) cycleInput.value = String(cycle);
+      if (!standaloneMode) {
+        await sendServerAction("seekCycle", { cycle });
+        return;
+      }
+      const settings = activeSettings();
+      const cycleDuration = Math.max(1, settings.rotationSeconds + settings.breakSeconds);
+      state.running = false;
+      state.completed = false;
+      state.countdownOnly = false;
+      state.waitingForManualStart = false;
+      state.serverStartedAt = 0;
+      state.startedAt = 0;
+      state.elapsedBeforePause = settings.oneShot
+        ? cycle > 1 ? 0.001 : 0
+        : (cycle - 1) * cycleDuration;
+      if (settings.oneShot) state.startListFinalCycle = cycle - 1;
+      lastSegmentIndex = -1;
+      lastPhaseSignalKey = "";
+      clearSignalTimers();
+      render();
+      saveOfflineSnapshot();
     }
 
     function scrubToPointer(event) {
@@ -6063,6 +8178,10 @@
     }
 
     els.presets.forEach((button) => button.addEventListener("click", () => setPreset(button.dataset.preset)));
+    els.controls.addEventListener("click", (event) => {
+      const button = event.target.closest("[data-section-toggle]");
+      if (button) toggleControlSection(button);
+    });
     els.languageToggle.addEventListener("click", () => {
       if (standaloneMode) {
         applyLanguage(language === "ru" ? "en" : "ru");
@@ -6096,6 +8215,16 @@
       }
 
       if (!controlsAvailable()) return;
+
+      const startListButton = event.target.closest("[data-start-list-client]");
+      if (startListButton) {
+        sendServerAction("startListDisplay", {
+          targetClientId: startListButton.dataset.startListClient,
+          listIndex: Number(startListButton.dataset.startListIndex),
+          enabled: startListButton.dataset.startListEnabled !== "1"
+        });
+        return;
+      }
 
       const legacyButton = event.target.closest("[data-legacy-mode-client]");
       if (legacyButton) {
@@ -6214,6 +8343,158 @@
     els.primaryToggle.addEventListener("change", () => {
       setPrimaryMode(els.primaryToggle.checked);
     });
+    els.schedule.addEventListener("focusin", (event) => {
+      if (event.target.id === "cycleInput") event.target.select();
+    });
+    els.schedule.addEventListener("change", (event) => {
+      if (event.target.id === "cycleInput") seekToCycle(event.target.value);
+    });
+    els.schedule.addEventListener("keydown", (event) => {
+      if (event.target.id !== "cycleInput") return;
+      if (event.key === "Enter") {
+        event.preventDefault();
+        event.target.blur();
+      }
+      if (event.key === "Escape") {
+        event.preventDefault();
+        event.target.value = String(displayedCycleNumber());
+        event.target.blur();
+      }
+    });
+    els.startListToggle.addEventListener("change", async () => {
+      startListEditorOpen = els.startListToggle.checked;
+      state.startListEnabled = startListEditorOpen;
+      if (standaloneMode) state.startListVisible = startListEditorOpen && hasStartLists();
+      safeStorageSet("sessionStorage", startListEditorPreferenceKey, startListEditorOpen ? "1" : "0");
+      updateStartListVisibility();
+      renderStartList();
+      renderBrowserList(lastKnownClients);
+      if (standaloneMode) {
+        saveOfflineSnapshot();
+      } else {
+        await sendServerAction("startListEnabled", { enabled: startListEditorOpen });
+      }
+    });
+    els.startListLayout.addEventListener("change", (event) => {
+      const slot = event.target.closest("[data-start-list-index]");
+      if (!slot) return;
+      const index = Number(slot.dataset.startListIndex);
+      if (event.target.matches("[data-start-list-file]")) {
+        importStartList(event.target.files?.[0], index, event.target);
+        return;
+      }
+      if (event.target.matches("[data-start-list-incident-cycle]")) {
+        event.target.value = String(Math.max(1, Math.min(9999, Math.round(Number(event.target.value) || 1))));
+        updateStartListIncidentActions(slot);
+        return;
+      }
+      if (!event.target.matches("[data-start-list-routes]")) return;
+      event.target.value = String(Math.max(1, Math.min(20, Math.round(Number(event.target.value) || 1))));
+      const list = state.startLists[index];
+      if (!list) return;
+      const nextLists = [...state.startLists];
+      nextLists[index] = window.FDVStartList.sanitize({ ...list, routeCount: event.target.value });
+      commitStartLists(nextLists);
+    });
+    els.startListLayout.addEventListener("pointerover", (event) => {
+      const trigger = startListIncidentCyclePreviewTrigger(event.target);
+      const control = startListIncidentCycleControlForTrigger(trigger);
+      if (control) updateStartListIncidentCyclePreview(control);
+    });
+    els.startListLayout.addEventListener("pointerout", (event) => {
+      const trigger = startListIncidentCyclePreviewTrigger(event.target);
+      const nextTrigger = startListIncidentCyclePreviewTrigger(event.relatedTarget);
+      const menu = trigger?.closest("[data-start-list-incident-menu]");
+      if (trigger && (!nextTrigger || nextTrigger.closest("[data-start-list-incident-menu]") !== menu)) {
+        clearStartListIncidentCyclePreview();
+      }
+    });
+    els.startListLayout.addEventListener("focusin", (event) => {
+      const trigger = startListIncidentCyclePreviewTrigger(event.target);
+      const control = startListIncidentCycleControlForTrigger(trigger);
+      if (control) updateStartListIncidentCyclePreview(control);
+    });
+    els.startListLayout.addEventListener("focusout", (event) => {
+      const trigger = startListIncidentCyclePreviewTrigger(event.target);
+      const nextTrigger = startListIncidentCyclePreviewTrigger(event.relatedTarget);
+      const menu = trigger?.closest("[data-start-list-incident-menu]");
+      if (trigger && (!nextTrigger || nextTrigger.closest("[data-start-list-incident-menu]") !== menu)) {
+        clearStartListIncidentCyclePreview();
+      }
+    });
+    els.startListLayout.addEventListener("input", (event) => {
+      if (!event.target.matches("[data-start-list-incident-cycle]")) return;
+      const control = event.target.closest("[data-start-list-incident-cycle-control]");
+      updateStartListIncidentActions(event.target.closest("[data-start-list-index]"));
+      if (control) updateStartListIncidentCyclePreview(control);
+    });
+    els.startListLayout.addEventListener("click", (event) => {
+      const slot = event.target.closest("[data-start-list-index]");
+      if (!slot) return;
+      const index = Number(slot.dataset.startListIndex);
+      const exclusionCell = event.target.closest("[data-start-list-participant-exclusion]");
+      if (exclusionCell) {
+        toggleStartListParticipantExclusion(index, Number(exclusionCell.dataset.startListParticipantExclusion));
+        return;
+      }
+      if (event.target.closest("[data-start-list-layout-toggle]")) {
+        commitStartListLayout(!state.startListParallel);
+        return;
+      }
+      const routeButton = event.target.closest("[data-start-list-route]");
+      if (routeButton && !routeButton.disabled) {
+        const routeIndex = Number(routeButton.dataset.startListRoute);
+        const clickKey = `${index}:${routeIndex}`;
+        const clickNow = performance.now();
+        if (startListRouteClickGuard.key === clickKey && clickNow < startListRouteClickGuard.until) return;
+        startListRouteClickGuard = { key: clickKey, until: clickNow + 320 };
+        startListIncidentSelections[index] = startListIncidentSelections[index] === routeIndex ? null : routeIndex;
+        renderStartListIncidentMenu(slot, state.startLists[index], index, currentStartListPosition());
+        return;
+      }
+      if (event.target.closest("[data-start-list-incident-close]")) {
+        startListIncidentSelections[index] = null;
+        renderStartListIncidentMenu(slot, state.startLists[index], index, currentStartListPosition());
+        return;
+      }
+      const incidentAction = event.target.closest("[data-start-list-incident-action]");
+      if (incidentAction) {
+        const incidentIndex = incidentAction.dataset.startListIncidentIndex;
+        applyStartListIncidentAction(
+          slot,
+          index,
+          Number(slot.dataset.startListIncidentRoute),
+          incidentAction.dataset.startListIncidentAction,
+          incidentIndex === undefined ? null : Number(incidentIndex)
+        );
+        return;
+      }
+      if (event.target.closest("[data-start-list-add]")) {
+        if (state.startLists.length < 4) commitStartLists([...state.startLists, null]);
+        return;
+      }
+      if (!event.target.closest("[data-start-list-clear]")) return;
+      const nextLists = [...state.startLists];
+      if (index === 0) {
+        nextLists[0] = null;
+        startListIncidentSelections[0] = null;
+      } else {
+        nextLists.splice(index, 1);
+        startListIncidentSelections.splice(index, 1);
+      }
+      commitStartLists(nextLists);
+    });
+    els.startListLayout.addEventListener("keydown", (event) => {
+      if (event.key !== "Enter" && event.key !== " ") return;
+      const exclusionCell = event.target.closest("[data-start-list-participant-exclusion]");
+      const slot = exclusionCell?.closest("[data-start-list-index]");
+      if (!exclusionCell || !slot) return;
+      event.preventDefault();
+      toggleStartListParticipantExclusion(
+        Number(slot.dataset.startListIndex),
+        Number(exclusionCell.dataset.startListParticipantExclusion)
+      );
+    });
     els.primaryPinButton.addEventListener("click", togglePrimaryPinPanel);
     els.primaryPinApply.addEventListener("click", savePrimaryPin);
     els.primaryPinClear.addEventListener("click", clearPrimaryPinFromUi);
@@ -6303,8 +8584,7 @@
       });
     });
 
-    [els.climbMinutes, els.breakSeconds].forEach((input) => {
-      input.addEventListener("input", () => {
+    function commitDraftSettingsChange() {
         if (!standaloneMode) {
           sendServerAction("settings", {
             activePreset: state.activePreset,
@@ -6317,6 +8597,17 @@
           return;
         }
         hardReset(false);
+    }
+
+    [els.climbMinutes, els.breakSeconds, els.finalRestRotations].forEach((input) => {
+      input.addEventListener("input", commitDraftSettingsChange);
+    });
+
+    els.finalRoundFormatInputs.forEach((input) => {
+      input.addEventListener("change", () => {
+        updateParameterLabels();
+        lastStartListRenderKey = "";
+        commitDraftSettingsChange();
       });
     });
 
@@ -6349,9 +8640,11 @@
 
     els.scheduledStartBtn.addEventListener("click", toggleScheduledCountdown);
     els.buildInfo.addEventListener("click", activateBuildProjectLink);
+    els.authorName.addEventListener("click", activateAuthorEmailLink);
     document.addEventListener("click", (event) => {
-      if (event.target.closest("#buildInfo")) return;
+      if (event.target.closest("#buildInfo, #authorName")) return;
       deactivateBuildProjectLink();
+      deactivateAuthorEmailLink();
     });
     [els.startBtn, els.compactStart].forEach((button) => button.addEventListener("click", startTimer));
     [els.pauseBtn, els.compactPause].forEach((button) => button.addEventListener("click", pauseTimer));
@@ -6463,6 +8756,7 @@
     });
 
     window.addEventListener("pagehide", () => {
+      persistStartListScrollPositions();
       pageHiddenAt = Date.now();
       clockContinuityWallAt = pageHiddenAt;
       clockContinuityPerfAt = performance.now();
@@ -6496,8 +8790,15 @@
 
     window.addEventListener("resize", () => {
       syncControlsScrollbarPadding();
+      if (applyStartListVerticalDensity()) {
+        reanchorStartListScrolls();
+      }
+      fitStartListPanelWidth();
+      scheduleStartListPanelWidthFit();
       scheduleFitTimer();
     });
+
+    els.startListLayout.addEventListener("scroll", scheduleStartListScrollPersistence, true);
 
     function scheduleOrientationFits() {
       scheduleFitTimer();
@@ -6520,6 +8821,10 @@
       timerResizeObserver.observe(document.querySelector(".stage"));
       timerResizeObserver.observe(timerWrap);
     }
+
+    // Static Russian labels cover most of the initial markup, but translated-only
+    // attributes (including Final format tooltips) still need one initial pass.
+    applyLanguage(language);
 
     const fileMode = isLocalStandalonePage();
     if (fileMode) {

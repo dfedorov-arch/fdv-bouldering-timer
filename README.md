@@ -16,6 +16,7 @@
 - Продолжение отсчёта на экране при временной потере соединения.
 - Запуск сразу или по заданному времени.
 - Управление подключёнными браузерами и диагностика связи.
+- Импорт стартового списка и отображение продвижения участников по трассам в форматах «Классика» и «Финал».
 - Настраиваемые звуковые профили, цвета и локальные шрифты.
 - Интерфейс и руководство на русском и английском языках.
 - Работа по HTTP или HTTPS.
@@ -67,6 +68,18 @@ node --test test/*.test.js
 
 Пробел не управляет таймером.
 
+## Стартовый список
+
+Переключатель «Стартовый протокол» после настройки основного браузера открывает и скрывает справа область списков. Зелёная кнопка `+` добавляет до четырёх независимых протоколов. Если протоколов ровно два, серая стрелка на втором переключает их между расположением друг под другом и рядом. При добавлении третьего стрелка исчезает: первый и второй располагаются слева, третий и четвёртый — справа. У каждого протокола есть собственные загрузка, количество трасс и компактная кнопка удаления. Крест в первой области очищает её, а во второй–четвёртой удаляет всю соответствующую область. Поддерживаются книги Excel `.xlsx`, табличные документы 1С `.mxl` и текстовые таблицы `.csv`, `.tsv`, `.txt`. В XLSX используется первый непустой лист. Если над строкой заголовков столбцов находится отдельная строка с одним текстовым значением, она распознаётся как название протокола и показывается над таблицей на всю её ширину. В текстовых файлах разделителем может быть точка с запятой, запятая или табуляция. Если ни один столбец не содержит последовательность циклов `1, 2, 3…`, приложение автоматически добавляет первым столбец `#`.
+
+Участника можно временно исключить из расчёта, нажав крайнюю левую ячейку его строки. Исключённая строка остаётся в таблице, перечёркивается красной линией и теряет маркеры трасс; все следующие строки немедленно пересчитываются так, будто участника не было. Повторное нажатие возвращает участника в протокол.
+
+Стартовый список всегда показывается в основном браузере. Для других подключённых браузеров, включая Legacy-экраны, его можно включить кнопками `PROTOCOL 1–4` в панели диагностики. Legacy загружает только выбранные таблицы и продолжает обновлять их по автономному таймеру при временной потере сети. Таблица только визуализирует продвижение и не изменяет состояние или ход таймера. Для нового протокола в формате «Финал» по умолчанию предлагаются 4 трассы, в остальных поддерживаемых форматах — 5.
+
+В формате «Финал» досрочное нажатие «Стоп» завершает текущую попытку в протоколе так же, как окончание времени ротации. Для протокола доступны два формата раунда: «Старый» последовательно проводит всех участников по первой трассе, затем по второй и далее; «Новый» переводит участника на следующую трассу после настраиваемого количества полных ротаций отдыха (по умолчанию 3). Например, участник, лезущий первую трассу в цикле 1, готовится ко второй в цикле 4 и выходит на неё в цикле 5. Поэтому часть финала может одновременно показывать нескольких лезущих. Ширина каждой колонки протоколов подстраивается под фактическую ширину загруженных таблиц; горизонтальная прокрутка не появляется, пока таблицу можно разместить, расширив колонку не более чем до половины ширины экрана.
+
+Когда таймер остановлен или поставлен на паузу, номер в плашке «Цикл» можно изменить вручную. В «Классике» таймер переходит к началу выбранного цикла, а в «Финале» — к началу выбранной попытки. Во время работы таймера поле заблокировано.
+
 ## Лицензия
 
 Проект распространяется по лицензии [MIT](LICENSE).
@@ -89,6 +102,7 @@ FDV Bouldering Timer is a networked competition timer. One computer controls the
 - Local countdown continuity during temporary connection loss.
 - Immediate or scheduled starts.
 - Connected-browser controls and connection diagnostics.
+- Start-list import and route-progress display in Classic and Final formats.
 - Configurable sound profiles, colors, and bundled local fonts.
 - Russian and English interface and documentation.
 - HTTP and HTTPS support.
@@ -103,5 +117,13 @@ FDV Bouldering Timer is a networked competition timer. One computer controls the
 5. Open the network address printed by the launcher on other displays, for example `http://192.168.1.68:8008/`.
 
 All devices must be connected to the same local network. On macOS, the first launch may require right-clicking the app and choosing **Open**, allowing it in **System Settings → Privacy & Security**, or clearing the quarantine attribute on the extracted folder. On Linux, run `./install-linux-launcher.sh` once to add the app-menu icon. See the [quick-start guide](ReadMe.txt) and the [full user guide](help.html?lang=en) for setup, migration, HTTPS, and troubleshooting.
+
+### Start list
+
+The “Start protocol” switch below the primary-browser setting opens and hides the panel on the right. Its top row contains upload, route count, and a compact remove button. With exactly two protocols, a gray arrow on the second switches between stacked and side-by-side layouts. The timer accepts Excel `.xlsx` workbooks, 1C `.mxl` spreadsheet documents, and `.csv`, `.tsv`, and `.txt` text tables. The first non-empty XLSX worksheet is used. A single-cell text row above the column headers is recognized as an optional protocol title and displayed across the table. Semicolon, comma, and tab delimiters are detected automatically for text files. If no column contains the cycle sequence `1, 2, 3…`, a leading `#` column is added automatically.
+
+A participant can be temporarily excluded from schedule calculations by clicking the leftmost cell in their row. The row remains visible with a red strike-through and no route markers, while every following row is recalculated immediately as if that participant were absent. Click the cell again to restore the participant.
+
+The list is always visible in the primary browser. Use the `PROTOCOL 1–4` diagnostic buttons to enable selected lists in other connected browsers, including Legacy displays. Legacy downloads only its selected tables and keeps advancing them from its offline timer during a temporary network loss. The table is display-only and does not alter timer state or timing. A new Final protocol defaults to 4 routes; other supported formats default to 5.
 
 The project is available under the [MIT License](LICENSE).

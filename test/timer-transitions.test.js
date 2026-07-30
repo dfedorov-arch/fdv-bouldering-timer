@@ -163,7 +163,9 @@ test("reset clears runtime flags and normalizes the next active settings", () =>
   assert.deepEqual(result.state.activeSettings, {
     rotationSeconds: 1,
     breakSeconds: 14400,
-    oneShot: false
+    oneShot: false,
+    finalRoundFormat: "old",
+    finalRestRotations: 3
   });
 });
 
@@ -192,6 +194,8 @@ test("settings update the draft and idle zero-position active settings", () => {
       rotationMinutes: 120,
       breakSeconds: 1800,
       oneShot: true,
+      finalRoundFormat: "new",
+      finalRestRotations: 4,
       startHours: "",
       startMinutes: ""
     }
@@ -199,10 +203,13 @@ test("settings update the draft and idle zero-position active settings", () => {
 
   assert.equal(result.state.activePreset, "festival");
   assert.equal(result.state.runtimePreset, "festival");
+  assert.equal(result.state.draftSettings.breakSeconds, 0);
   assert.deepEqual(result.state.activeSettings, {
     rotationSeconds: 7200,
-    breakSeconds: 1800,
-    oneShot: true
+    breakSeconds: 0,
+    oneShot: true,
+    finalRoundFormat: "new",
+    finalRestRotations: 4
   });
   assert.equal(result.state.version, 11);
 });
