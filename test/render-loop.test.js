@@ -167,7 +167,8 @@ test("control panel sections are compact, collapsible and use consistent hover o
   assert.match(index, /\.connections-heading \{\s*margin-bottom: 7px;\s*\}/);
   assert.match(index, /\.start-time-fields \{[\s\S]*?margin-top: 0;[\s\S]*?margin-bottom: 10px;/);
   assert.match(index, /data-section-toggle aria-controls="formatContent"[\s\S]*?data-section-toggle aria-controls="parametersContent"[\s\S]*?data-section-toggle aria-controls="controlsContent"[\s\S]*?data-section-toggle aria-controls="browserList"/);
-  assert.match(index, /function toggleControlSection\(button\)[\s\S]*?content\.hidden = !content\.hidden[\s\S]*?updateSectionToggle\(button\)/);
+  assert.match(index, /function toggleControlSection\(button\)[\s\S]*?setControlSectionExpanded\(content, content\.hidden\)/);
+  assert.match(index, /function setControlSectionExpanded\(content, expanded\)[\s\S]*?content\.hidden = !expanded[\s\S]*?updateSectionToggle\(button\)/);
   assert.match(index, /function updateSectionToggle\(button\)[\s\S]*?const label = t\(expanded \? "sectionHide" : "sectionShow"\)[\s\S]*?button\.setAttribute\("aria-label", label\)[\s\S]*?button\.title = label[\s\S]*?button\.textContent = ""/);
   assert.match(index, /\.section-toggle::before \{[\s\S]*?border: 1px solid currentColor/);
   assert.match(index, /\.section-toggle::after \{[\s\S]*?top: 7px;[\s\S]*?background: currentColor/);
@@ -324,7 +325,7 @@ test("enabled format buttons get a yellow hover outline", () => {
 });
 
 test("portrait phones stack the timer above compact protocol windows", () => {
-  assert.match(index, /@media \(max-width: 560px\) and \(orientation: portrait\) \{[\s\S]*?body\.start-list-visible \.stage-main \{[\s\S]*?grid-template-columns: minmax\(0, 1fr\);[\s\S]*?grid-template-rows: minmax\(300px, 42dvh\) auto;/);
+  assert.match(index, /@media \(max-width: 560px\) and \(orientation: portrait\) \{[\s\S]*?body\.start-list-visible \.stage-main \{[\s\S]*?grid-template-columns: minmax\(0, 1fr\);[\s\S]*?grid-template-rows: minmax\(300px, 42dvh\) auto auto;/);
   assert.match(index, /body\.start-list-visible \.timer-column \{[\s\S]*?min-height: 300px;[\s\S]*?padding: 12px;/);
   assert.match(index, /body\.start-list-visible \.start-list-panel \{[\s\S]*?width: 100% !important;[\s\S]*?max-width: 100% !important;/);
   assert.match(index, /body\.start-list-visible \.timer-wrap \{\s*min-height: 0;\s*height: 100%;/);
@@ -341,17 +342,31 @@ test("mobile standalone controls collapse without reserving a viewport-height ga
 
 test("single-file standalone variants expose only applicable controls and notices", () => {
   assert.match(index, /body\.web-standalone \.server-connection-warning\[data-state="standalone"\][\s\S]*?align-content: center;[\s\S]*?justify-items: center;[\s\S]*?margin-top: 8px;[\s\S]*?text-align: center/);
+  assert.match(index, /body\.web-standalone \.server-connection-warning\[data-state="standalone"\] \.server-connection-actions,[\s\S]*?\.install-hint \{\s*display: none;/);
   assert.match(index, /body\.web-standalone[\s\S]*?#serverConnectionWarningText,[\s\S]*?body\.file-mode #primaryRow,[\s\S]*?body\.file-mode #primaryPinPanel[\s\S]*?display: none/);
   assert.match(standaloneBuilder, /path\.normalize\(outputPath\) === path\.normalize\(path\.join\(root, "docs", "standalone\.html"\)\)/);
   assert.match(standaloneBuilder, /window\.FDV_WEB_STANDALONE = \$\{webStandalone\}/);
 });
 
-test("mobile timer footer keeps cycle controls clear of compact actions", () => {
-  assert.match(index, /\.compact-actions \{[\s\S]*?margin-top: 12px;/);
+test("mobile timer footer keeps cycle controls clear of neutral compact actions", () => {
+  assert.match(index, /\.compact-actions \{[\s\S]*?margin: 0;[\s\S]*?border-top: 1px solid var\(--line\);[\s\S]*?background: #171b22;/);
+  assert.match(index, /<\/footer>\s*<\/div>\s*<div class="compact-actions">/);
   assert.match(index, /id="compactStart"[\s\S]*?id="compactPause"[\s\S]*?id="compactReset"[\s\S]*?id="compactFull"/);
   assert.match(index, /\[els\.fullBtn, els\.compactFull\]\.forEach\(\(button\) => button\.addEventListener\("click", toggleFullscreen\)\)/);
-  assert.match(index, /window\.matchMedia\?\.\("\(max-width: 560px\) and \(orientation: portrait\)"\)\?\.matches[\s\S]*?els\.controlsContent\.hidden = true/);
+  assert.match(index, /window\.matchMedia\?\.\("\(max-width: 560px\) and \(orientation: portrait\)"\)\?\.matches[\s\S]*?setControlSectionExpanded\(els\.controlsContent, false\)/);
   assert.match(index, /body\.start-list-visible\.fullscreen \.stage-main,[\s\S]*?body\.start-list-visible\.viewer-mode \.stage-main \{[\s\S]*?grid-template-rows: clamp\(150px, 26dvh, 190px\) minmax\(0, 1fr\)/);
+});
+
+test("phone orientation opens controls and preserves a timer-focused scroll", () => {
+  assert.match(index, /function rememberPhoneTimerScrollPosition\(\)[\s\S]*?phonePortraitWasAtTimer = window\.scrollY \+ window\.innerHeight >= documentHeight - 24/);
+  assert.match(index, /function applyPhoneOrientationLayout\(\)[\s\S]*?changedFromPortraitToLandscape[\s\S]*?setControlSectionExpanded\(els\.controlsContent, true\)[\s\S]*?requestAnimationFrame\(scrollPhoneToTimer\)/);
+  assert.match(index, /window\.addEventListener\("scroll", rememberPhoneTimerScrollPosition, \{ passive: true \}\)/);
+});
+
+test("one portrait protocol fills the ordinary phone viewport", () => {
+  assert.match(index, /body\.start-list-visible\.start-list-single:not\(\.fullscreen\):not\(\.viewer-mode\) \.stage-main \{[\s\S]*?grid-template-rows: minmax\(300px, 42dvh\) auto minmax\(0, 1fr\);[\s\S]*?overflow: hidden;/);
+  assert.match(index, /body\.start-list-visible\.start-list-single:not\(\.fullscreen\):not\(\.viewer-mode\) \.start-list-scroll \{[\s\S]*?max-height: none;[\s\S]*?flex: 1 1 auto;/);
+  assert.match(index, /document\.body\.classList\.toggle\("start-list-single", visible && visibleEntries\.length === 1\)/);
 });
 
 test("screen modes remove protocol management and fill the remaining phone height", () => {

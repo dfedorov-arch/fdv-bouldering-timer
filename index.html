@@ -181,8 +181,14 @@
       align-content: center;
       justify-items: center;
       margin-top: 8px;
-      min-height: 58px;
+      min-height: 52px;
+      padding-block: 7px;
       text-align: center;
+    }
+
+    body.web-standalone .server-connection-warning[data-state="standalone"] .server-connection-actions,
+    body.web-standalone .server-connection-warning[data-state="standalone"] .install-hint {
+      display: none;
     }
 
     body.web-standalone .server-connection-warning[data-state="standalone"] #serverConnectionWarningText,
@@ -1816,7 +1822,12 @@
       display: none;
       gap: 8px;
       justify-content: center;
-      margin-top: 12px;
+      margin: 0;
+      padding: 12px;
+      position: relative;
+      z-index: 2;
+      border-top: 1px solid var(--line);
+      background: #171b22;
     }
 
     .compact-actions .action {
@@ -1982,6 +1993,10 @@
         display: flex;
       }
 
+      .stage-main {
+        grid-template-rows: minmax(0, 1fr) auto;
+      }
+
       .compact-actions .action {
         min-width: 0;
         flex: 1 1 0;
@@ -2001,6 +2016,10 @@
 
       .timer-wrap {
         min-height: 0;
+      }
+
+      .compact-actions {
+        display: none;
       }
     }
 
@@ -2176,7 +2195,7 @@
 
       body.start-list-visible .stage-main {
         grid-template-columns: minmax(0, 1fr);
-        grid-template-rows: minmax(300px, 42dvh) auto;
+        grid-template-rows: minmax(300px, 42dvh) auto auto;
         overflow: visible;
       }
 
@@ -2228,6 +2247,37 @@
       body.start-list-visible .start-list-scroll {
         flex: 0 0 auto;
         max-height: var(--start-list-mobile-table-height, calc(33px + var(--start-list-mobile-row-count, 6) * 32px));
+      }
+
+      body.start-list-visible.start-list-single:not(.fullscreen):not(.viewer-mode) .stage,
+      body.start-list-visible.start-list-single:not(.fullscreen):not(.viewer-mode) .stage-main {
+        min-height: 100vh;
+        min-height: 100dvh;
+      }
+
+      body.start-list-visible.start-list-single:not(.fullscreen):not(.viewer-mode) .stage-main {
+        grid-template-rows: minmax(300px, 42dvh) auto minmax(0, 1fr);
+        overflow: hidden;
+      }
+
+      body.start-list-visible.start-list-single:not(.fullscreen):not(.viewer-mode) .start-list-panel,
+      body.start-list-visible.start-list-single:not(.fullscreen):not(.viewer-mode) .start-list-layout,
+      body.start-list-visible.start-list-single:not(.fullscreen):not(.viewer-mode) .start-list-column,
+      body.start-list-visible.start-list-single:not(.fullscreen):not(.viewer-mode) .start-list-slot {
+        min-height: 0;
+        height: 100%;
+        overflow: hidden;
+      }
+
+      body.start-list-visible.start-list-single:not(.fullscreen):not(.viewer-mode) .start-list-column,
+      body.start-list-visible.start-list-single:not(.fullscreen):not(.viewer-mode) .start-list-slot {
+        flex: 1 1 0 !important;
+      }
+
+      body.start-list-visible.start-list-single:not(.fullscreen):not(.viewer-mode) .start-list-scroll {
+        min-height: 0;
+        max-height: none;
+        flex: 1 1 auto;
       }
 
       body.start-list-visible.fullscreen .stage-main,
@@ -2478,13 +2528,13 @@
           <footer>
             <div id="progressTrack" class="progress" aria-label="Прогресс текущего отрезка"><span id="progressBar"></span></div>
             <div id="schedule" class="schedule"></div>
-            <div class="compact-actions">
-              <button id="compactStart" class="action start" title="Старт: Z / Я">Старт</button>
-              <button id="compactPause" class="action pause" title="Пауза: Ctrl+Q / Ctrl+Й" disabled>Пауза</button>
-              <button id="compactReset" class="action reset" title="Стоп: P / З">Стоп</button>
-              <button id="compactFull" class="action full" title="Экран: Ctrl+F / Ctrl+А">Экран</button>
-            </div>
           </footer>
+        </div>
+        <div class="compact-actions">
+          <button id="compactStart" class="action start" title="Старт: Z / Я">Старт</button>
+          <button id="compactPause" class="action pause" title="Пауза: Ctrl+Q / Ctrl+Й" disabled>Пауза</button>
+          <button id="compactReset" class="action reset" title="Стоп: P / З">Стоп</button>
+          <button id="compactFull" class="action full" title="Экран: Ctrl+F / Ctrl+А">Экран</button>
         </div>
         <section id="startListPanel" class="start-list-panel" aria-label="Стартовый список">
           <div id="startListLayout" class="start-list-layout"></div>
@@ -2539,7 +2589,7 @@
       timeline: []
     };
 
-    const pageBuildNumber = 354;
+    const pageBuildNumber = 355;
     const projectUrl = "https://github.com/dfedorov-arch/fdv-bouldering-timer";
     const buildLinkConfirmDelayMs = 550;
     const offlineSnapshotKey = "fdvBoulderingTimerOfflineSnapshot";
@@ -2987,6 +3037,8 @@
     let screenModeRequested = false;
     let nativeScreenModeActive = false;
     let screenModeScrollY = 0;
+    let lastPhonePortraitOrientation = window.matchMedia?.("(max-width: 560px) and (orientation: portrait)")?.matches === true;
+    let phonePortraitWasAtTimer = false;
     let suppressGestureClicksUntil = 0;
     let lastStartupConfig = null;
     let buildLinkArmed = false;
@@ -4200,8 +4252,14 @@
     function toggleControlSection(button) {
       const content = document.getElementById(button.getAttribute("aria-controls"));
       if (!content) return;
-      content.hidden = !content.hidden;
-      updateSectionToggle(button);
+      setControlSectionExpanded(content, content.hidden);
+    }
+
+    function setControlSectionExpanded(content, expanded) {
+      if (!content) return;
+      content.hidden = !expanded;
+      const button = els.controls.querySelector(`[data-section-toggle][aria-controls="${content.id}"]`);
+      if (button) updateSectionToggle(button);
       syncControlsScrollbarPadding();
     }
 
@@ -5570,6 +5628,7 @@
     function ensureStartListStructure() {
       const controlsVisible = startListManagementVisible();
       const entries = visibleStartListEntries();
+      document.body.classList.toggle("start-list-single", entries.length === 1);
       const structureKey = `${language}:${entries.map(({ index }) => index).join(",")}:${controlsVisible}:${controlsAvailable()}:${state.startListParallel}`;
       if (structureKey === lastStartListStructureKey) return;
       const existingIndexes = new Set([...els.startListLayout.querySelectorAll("[data-start-list-index]")]
@@ -5785,14 +5844,16 @@
       const displayPreset = state.running || state.elapsedBeforePause > 0 || state.completed ? state.runtimePreset : state.activePreset;
       const supportedFormat = displayPreset === "classic" || displayPreset === "final";
       const managesList = standaloneMode || isPrimaryClient;
+      const visibleEntries = visibleStartListEntries();
       const visible = Boolean(supportedFormat && (managesList
         ? startListEditorOpen
-        : visibleStartListEntries().length > 0 && state.startListVisible));
+        : visibleEntries.length > 0 && state.startListVisible));
       document.body.classList.toggle("start-list-visible", visible);
+      document.body.classList.toggle("start-list-single", visible && visibleEntries.length === 1);
       els.startListPanel.hidden = !visible;
       if (visible && !wasVisible) {
         startListInitialAutoScrollPending = true;
-        visibleStartListEntries().forEach(({ list, index }) => {
+        visibleEntries.forEach(({ list, index }) => {
           lastStartListScrollAnchors[index] = null;
           if (pendingStartListScrollRestores[index]?.listKey !== JSON.stringify(list)) {
             pendingStartListScrollRestores[index] = null;
@@ -8913,6 +8974,7 @@
     });
 
     window.addEventListener("resize", () => {
+      applyPhoneOrientationLayout();
       syncControlsScrollbarPadding();
       if (applyStartListVerticalDensity()) {
         reanchorStartListScrolls();
@@ -8924,11 +8986,39 @@
 
     els.startListLayout.addEventListener("scroll", scheduleStartListScrollPersistence, true);
 
-    function scheduleOrientationFits() {
-      scheduleFitTimer();
-      [120, 360, 800].forEach((delay) => window.setTimeout(scheduleFitTimer, delay));
+    function rememberPhoneTimerScrollPosition() {
+      if (!lastPhonePortraitOrientation) return;
+      const documentHeight = Math.max(document.documentElement.scrollHeight, document.body.scrollHeight);
+      phonePortraitWasAtTimer = window.scrollY + window.innerHeight >= documentHeight - 24;
     }
 
+    function scrollPhoneToTimer() {
+      const stageTop = window.scrollY + els.stage.getBoundingClientRect().top;
+      window.scrollTo(0, Math.max(0, Math.round(stageTop)));
+    }
+
+    function applyPhoneOrientationLayout() {
+      const portraitNow = window.matchMedia?.("(max-width: 560px) and (orientation: portrait)")?.matches === true;
+      if (portraitNow === lastPhonePortraitOrientation) return;
+      const changedFromPortraitToLandscape = lastPhonePortraitOrientation && !portraitNow;
+      lastPhonePortraitOrientation = portraitNow;
+      if (!changedFromPortraitToLandscape) return;
+      setControlSectionExpanded(els.controlsContent, true);
+      if (!phonePortraitWasAtTimer) return;
+      window.requestAnimationFrame(scrollPhoneToTimer);
+      [120, 360].forEach((delay) => window.setTimeout(scrollPhoneToTimer, delay));
+    }
+
+    function scheduleOrientationFits() {
+      applyPhoneOrientationLayout();
+      scheduleFitTimer();
+      [120, 360, 800].forEach((delay) => window.setTimeout(() => {
+        applyPhoneOrientationLayout();
+        scheduleFitTimer();
+      }, delay));
+    }
+
+    window.addEventListener("scroll", rememberPhoneTimerScrollPosition, { passive: true });
     window.addEventListener("orientationchange", scheduleOrientationFits);
     window.screen?.orientation?.addEventListener?.("change", scheduleOrientationFits);
 
@@ -8953,7 +9043,7 @@
       els.browserList.hidden = true;
     }
     if (window.matchMedia?.("(max-width: 560px) and (orientation: portrait)")?.matches) {
-      els.controlsContent.hidden = true;
+      setControlSectionExpanded(els.controlsContent, false);
     }
     applyLanguage(language);
 
