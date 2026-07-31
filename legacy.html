@@ -510,6 +510,84 @@
       var legacySnapshotSaveIntervalMs = 5000;
       var storedClientId = "";
       var storedFitText = "";
+      var performanceDiagnosticsEnabled = queryValue("perf") === "1";
+      var performanceDiagnostics = {
+        startedAt: legacyPerformanceNow(),
+        resetAt: legacyPerformanceNow(),
+        counters: {},
+        timings: {}
+      };
+      var performanceOverlay = null;
+
+      function legacyPerformanceNow() {
+        return window.performance && window.performance.now
+          ? window.performance.now()
+          : new Date().getTime();
+      }
+
+      function performanceCount(name, amount) {
+        if (!performanceDiagnosticsEnabled) return;
+        performanceDiagnostics.counters[name] = (performanceDiagnostics.counters[name] || 0)
+          + (amount === undefined ? 1 : amount);
+      }
+
+      function performanceStart() {
+        return performanceDiagnosticsEnabled ? legacyPerformanceNow() : null;
+      }
+
+      function performanceEnd(name, startedAt) {
+        var duration;
+        var timing;
+        if (!performanceDiagnosticsEnabled || startedAt === null) return;
+        duration = Math.max(0, legacyPerformanceNow() - startedAt);
+        timing = performanceDiagnostics.timings[name] || { count: 0, totalMs: 0, maxMs: 0 };
+        timing.count += 1;
+        timing.totalMs += duration;
+        timing.maxMs = Math.max(timing.maxMs, duration);
+        performanceDiagnostics.timings[name] = timing;
+      }
+
+      function performanceSnapshot() {
+        var counters = {};
+        var timings = {};
+        var name;
+        var timing;
+        for (name in performanceDiagnostics.counters) {
+          if (Object.prototype.hasOwnProperty.call(performanceDiagnostics.counters, name)) {
+            counters[name] = performanceDiagnostics.counters[name];
+          }
+        }
+        for (name in performanceDiagnostics.timings) {
+          if (!Object.prototype.hasOwnProperty.call(performanceDiagnostics.timings, name)) continue;
+          timing = performanceDiagnostics.timings[name];
+          timings[name] = {
+            count: timing.count,
+            totalMs: Math.round(timing.totalMs * 1000) / 1000,
+            averageMs: Math.round(timing.totalMs / Math.max(1, timing.count) * 1000) / 1000,
+            maxMs: Math.round(timing.maxMs * 1000) / 1000
+          };
+        }
+        return {
+          enabled: performanceDiagnosticsEnabled,
+          ageMs: Math.round(legacyPerformanceNow() - performanceDiagnostics.startedAt),
+          sampleAgeMs: Math.round(legacyPerformanceNow() - performanceDiagnostics.resetAt),
+          counters: counters,
+          timings: timings,
+          gauges: {
+            clockSamples: clockSamples.length,
+            protocolCount: legacyProtocols.length,
+            protocolViews: Object.keys(protocolViews).length,
+            activeRequest: activeRequest ? 1 : 0
+          }
+        };
+      }
+
+      function resetPerformanceDiagnostics() {
+        performanceDiagnostics.counters = {};
+        performanceDiagnostics.timings = {};
+        performanceDiagnostics.resetAt = legacyPerformanceNow();
+        return performanceSnapshot();
+      }
       try {
         storedClientId = sessionStorage.getItem("boulderingTimerClientId") || "";
         storedFitText = sessionStorage.getItem("boulderingTimerLegacyFitText") || "";
@@ -529,6 +607,18 @@
       var timerPaneEl = document.getElementById("timerPane");
       var protocolPaneEl = document.getElementById("protocolPane");
       var protocolLayoutEl = document.getElementById("protocolLayout");
+      window.FDVLegacyPerformanceDiagnostics = {
+        enabled: performanceDiagnosticsEnabled,
+        snapshot: performanceSnapshot,
+        reset: resetPerformanceDiagnostics
+      };
+
+      if (performanceDiagnosticsEnabled) {
+        performanceOverlay = document.createElement("pre");
+        performanceOverlay.style.cssText = "position:fixed;z-index:9999;left:4px;top:4px;max-width:55%;margin:0;padding:4px;background:#000;color:#7ff;font:11px monospace;white-space:pre-wrap;pointer-events:none;opacity:.85";
+        performanceOverlay.appendChild(document.createTextNode("Performance diagnostics enabled"));
+        document.body.appendChild(performanceOverlay);
+      }
 
       function viewportWidth() {
         if (window.visualViewport && window.visualViewport.width) return Math.floor(window.visualViewport.width);
@@ -758,6 +848,9 @@
       }
 
       function fitTimerText(force) {
+        var performanceStartedAt = performanceStart();
+        performanceCount("timerFitCalls");
+        try {
         var viewport = syncViewportSize();
         var w = viewport.width;
         var h = viewport.height;
@@ -791,6 +884,10 @@
           }
         }
         timeEl.style.fontSize = Math.floor(low) + "px";
+        performanceCount("timerFitSearches");
+        } finally {
+          performanceEnd("fitTimerText", performanceStartedAt);
+        }
       }
 
       function scheduleViewportFit() {
@@ -1060,6 +1157,7 @@
         var savedAtWall;
         var remoteVersion;
         if (!remote || !window.localStorage || window.location.protocol === "file:") return;
+        performanceCount("snapshotCalls");
         savedAtWall = new Date().getTime();
         remoteVersion = Number(remote.version);
         if (lastLegacySnapshotSavedAt
@@ -1076,6 +1174,7 @@
           }));
           lastLegacySnapshotSavedAt = savedAtWall;
           lastLegacySnapshotVersion = remoteVersion;
+          performanceCount("snapshotWrites");
         } catch (error) {}
       }
 
@@ -1088,6 +1187,7 @@
             protocolRevision: protocolRevision,
             protocols: legacyProtocols
           }));
+          performanceCount("protocolSnapshotWrites");
         } catch (error) {}
       }
 
@@ -1446,6 +1546,9 @@
         scroll.appendChild(table);
         slot.appendChild(title);
         slot.appendChild(scroll);
+        performanceCount("protocolTablesBuilt");
+        performanceCount("protocolRowsBuilt", list.rows.length);
+        performanceCount("protocolRouteCellsBuilt", list.rows.length * list.routeCount);
         return {
           index: entry.index,
           list: list,
@@ -1479,6 +1582,7 @@
         var i;
         var j;
         protocolLayoutEl.innerHTML = "";
+        performanceCount("protocolStructureRebuilds");
         protocolViews = {};
         protocolSizeKey = "";
         for (i = 0; i < columns.length; i += 1) {
@@ -1751,6 +1855,7 @@
         view.lastPhase = position.phase;
         view.lastScheduleKey = scheduleKey;
         view.dataRevision = protocolRevision;
+        performanceCount(fullUpdate ? "protocolFullUpdates" : "protocolFastUpdates");
         return fullUpdate;
       }
 
@@ -1795,6 +1900,9 @@
       }
 
       function render() {
+        var performanceStartedAt = performanceStart();
+        performanceCount("renderCalls");
+        try {
         var view = currentDisplay();
         var online = new Date().getTime() - lastContact < 5000;
         setBodyFlag("break-active", view.isBreak);
@@ -1808,9 +1916,13 @@
         if (timeEl.innerHTML !== label) {
           rememberFitText(label);
           timeEl.innerHTML = label;
+          performanceCount("timerLabelChanges");
           fitTimerText();
         }
         return view;
+        } finally {
+          performanceEnd("render", performanceStartedAt);
+        }
       }
 
       function nextRenderDelay(view) {
@@ -1841,6 +1953,24 @@
         pollTimer = window.setTimeout(requestState, delay);
       }
 
+      function updatePerformanceOverlay() {
+        var snapshot;
+        var renderTiming;
+        var fitTiming;
+        if (!performanceOverlay) return;
+        snapshot = performanceSnapshot();
+        renderTiming = snapshot.timings.render || {};
+        fitTiming = snapshot.timings.fitTimerText || {};
+        performanceOverlay.firstChild.nodeValue = [
+          "PERF " + Math.round(snapshot.sampleAgeMs / 1000) + "s",
+          "render " + (snapshot.counters.renderCalls || 0) + " avg " + (renderTiming.averageMs || 0) + "ms",
+          "fit " + (snapshot.counters.timerFitCalls || 0) + " search " + (snapshot.counters.timerFitSearches || 0) + " avg " + (fitTiming.averageMs || 0) + "ms",
+          "xhr " + (snapshot.counters.stateRequests || 0) + " bytes " + (snapshot.counters.stateResponseBytes || 0),
+          "protocol full/fast " + (snapshot.counters.protocolFullUpdates || 0) + "/" + (snapshot.counters.protocolFastUpdates || 0),
+          "lag max " + ((snapshot.timings.eventLoopLag || {}).maxMs || 0) + "ms"
+        ].join("\n");
+      }
+
       function registerOfflineServiceWorker() {
         if (!("serviceWorker" in navigator) || window.location.protocol === "file:" || !window.isSecureContext) return;
         if (!window.addEventListener) return;
@@ -1868,6 +1998,7 @@
 
       function requestState() {
         var xhr = new XMLHttpRequest();
+        performanceCount("stateRequests");
         var reportedScreen = window.screen
           ? String(window.screen.width || 0) + "x" + String(window.screen.height || 0)
           : "";
@@ -1898,7 +2029,12 @@
             return;
           }
           try {
+            var parsePerformanceStartedAt = performanceStart();
+            if (performanceDiagnosticsEnabled) {
+              performanceCount("stateResponseBytes", String(xhr.responseText || "").length);
+            }
             remote = JSON.parse(xhr.responseText);
+            performanceEnd("stateResponseJsonParse", parsePerformanceStartedAt);
           } catch (error) {
             scheduleRequest(1000);
             return;
@@ -1959,6 +2095,18 @@
       restoreLegacySnapshot();
       requestState();
       scheduleRender(render());
+      if (performanceDiagnosticsEnabled) {
+        var expectedPerformanceProbeAt = legacyPerformanceNow() + 1000;
+        window.setInterval(function () {
+          var measuredAt = legacyPerformanceNow();
+          var lag = Math.max(0, measuredAt - expectedPerformanceProbeAt);
+          performanceCount("eventLoopLagSamples");
+          performanceEnd("eventLoopLag", measuredAt - lag);
+          expectedPerformanceProbeAt = measuredAt + 1000;
+        }, 1000);
+        updatePerformanceOverlay();
+        window.setInterval(updatePerformanceOverlay, 5000);
+      }
       window.setInterval(function () {
         abortStaleRequest();
       }, 3000);

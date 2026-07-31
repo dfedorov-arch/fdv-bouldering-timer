@@ -27,6 +27,67 @@ const DIAGNOSTICS_BROADCAST_MS = 2500;
 const PRIMARY_PIN_MAX_FAILURES = 5;
 const PRIMARY_PIN_BLOCK_STEPS_MS = [5000, 30000, 300000];
 const AUDIO_TEST_RATE_LIMIT_MS = 1000;
+const performanceDiagnosticsEnabled = process.argv.includes("--performance-diagnostics")
+  || process.env.FDV_PERFORMANCE_DIAGNOSTICS === "1";
+const performanceDiagnostics = {
+  startedAt: performance.now(),
+  resetAt: performance.now(),
+  counters: Object.create(null),
+  timings: Object.create(null)
+};
+
+function performanceCount(name, amount = 1) {
+  if (!performanceDiagnosticsEnabled) return;
+  performanceDiagnostics.counters[name] = (performanceDiagnostics.counters[name] || 0) + amount;
+}
+
+function performanceStart() {
+  return performanceDiagnosticsEnabled ? performance.now() : null;
+}
+
+function performanceEnd(name, startedAt) {
+  if (!performanceDiagnosticsEnabled || startedAt === null) return;
+  const duration = Math.max(0, performance.now() - startedAt);
+  const timing = performanceDiagnostics.timings[name] || { count: 0, totalMs: 0, maxMs: 0 };
+  timing.count += 1;
+  timing.totalMs += duration;
+  timing.maxMs = Math.max(timing.maxMs, duration);
+  performanceDiagnostics.timings[name] = timing;
+}
+
+function performanceSnapshot() {
+  const now = performance.now();
+  const timings = Object.fromEntries(Object.entries(performanceDiagnostics.timings).map(([name, timing]) => [name, {
+    count: timing.count,
+    totalMs: Number(timing.totalMs.toFixed(3)),
+    averageMs: Number((timing.totalMs / Math.max(1, timing.count)).toFixed(3)),
+    maxMs: Number(timing.maxMs.toFixed(3))
+  }]));
+  return {
+    enabled: performanceDiagnosticsEnabled,
+    ageMs: Math.round(now - performanceDiagnostics.startedAt),
+    sampleAgeMs: Math.round(now - performanceDiagnostics.resetAt),
+    counters: { ...performanceDiagnostics.counters },
+    timings,
+    gauges: {
+      clients: clients.size,
+      eventClients: eventClients.size,
+      diagnosticEventClients: diagnosticEventClients.size,
+      commandResults: commandResults.size,
+      primaryPinFailures: primaryPinFailures.size,
+      startListRevision: startListDataRevision,
+      startListCount: timerState.startLists.filter(Boolean).length,
+      startListRows: timerState.startLists.reduce((sum, list) => sum + (list?.rows?.length || 0), 0)
+    }
+  };
+}
+
+function resetPerformanceDiagnostics() {
+  performanceDiagnostics.counters = Object.create(null);
+  performanceDiagnostics.timings = Object.create(null);
+  performanceDiagnostics.resetAt = performance.now();
+  return performanceSnapshot();
+}
 const defaultConfig = {
   httpPort: 8008,
   httpsPort: 8443,
@@ -915,9 +976,15 @@ function startListVisibleForClient(clientId) {
 }
 
 function sanitizeStartLists(value) {
+  performanceCount("startListSanitizations");
+  const performanceStartedAt = performanceStart();
+  try {
   const source = Array.isArray(value) ? value.slice(0, 4) : [null];
   const lists = source.map((list) => list ? startListDomain.sanitize(list) : null);
   return lists.length ? lists : [null];
+  } finally {
+    performanceEnd("sanitizeStartLists", performanceStartedAt);
+  }
 }
 
 function hasStartLists(value) {
@@ -969,6 +1036,9 @@ function legacyProtocolRevision(clientId) {
 }
 
 function legacyPublicState(options = {}) {
+  performanceCount("legacyPublicStateCalls");
+  const performanceStartedAt = performanceStart();
+  try {
   const state = publicState({
     ...options,
     includeClients: false
@@ -987,6 +1057,9 @@ function legacyPublicState(options = {}) {
     protocolRevision: revision,
     legacyProtocols
   };
+  } finally {
+    performanceEnd("legacyPublicState", performanceStartedAt);
+  }
 }
 
 function elapsedSeconds(now = monoNow()) {
@@ -1062,6 +1135,9 @@ function shouldIncludeDiagnostics(clientId, requestedDiagnostics = false) {
 }
 
 function publicState(options = {}) {
+  performanceCount("publicStateCalls");
+  const performanceStartedAt = performanceStart();
+  try {
   finalizeScheduledCountdown();
   finalizeOneShot();
   const sentAt = wallNow();
@@ -1111,6 +1187,9 @@ function publicState(options = {}) {
     serverSentAt: sentAt,
     now: sentAt
   };
+  } finally {
+    performanceEnd("publicState", performanceStartedAt);
+  }
 }
 
 function broadcastState() {
@@ -1118,6 +1197,10 @@ function broadcastState() {
     try {
       const state = publicState({ clientId: eventClient.clientId, includeClients: false });
       const payload = `event: state\ndata: ${JSON.stringify(state)}\n\n`;
+      performanceCount("sseStateMessages");
+      if (performanceDiagnosticsEnabled) {
+        performanceCount("sseStateBytes", Buffer.byteLength(payload));
+      }
       res.write(payload);
     } catch (error) {
       clearInterval(eventClient.keepAlive);
@@ -1175,11 +1258,21 @@ function sendEvent(eventName, data, predicate = () => true) {
 }
 
 function sendJson(res, status, payload) {
-  res.writeHead(status, {
+  const performanceStartedAt = performanceStart();
+  const body = JSON.stringify(payload);
+  performanceCount("jsonResponses");
+  const headers = {
     "content-type": "application/json; charset=utf-8",
     "cache-control": "no-store"
-  });
-  res.end(JSON.stringify(payload));
+  };
+  if (performanceDiagnosticsEnabled) {
+    const bodyBytes = Buffer.byteLength(body);
+    performanceCount("jsonResponseBytes", bodyBytes);
+    headers["content-length"] = bodyBytes;
+  }
+  res.writeHead(status, headers);
+  res.end(body);
+  performanceEnd("sendJson", performanceStartedAt);
 }
 
 function readJson(req) {
@@ -1237,6 +1330,17 @@ function shouldServeLegacyViewer(req, requestUrl) {
 
 function handleRequest(req, res) {
   const requestUrl = new URL(req.url, `http://localhost:${port}`);
+
+  if (requestUrl.pathname === "/api/performance" && req.method === "GET") {
+    if (!performanceDiagnosticsEnabled) {
+      sendJson(res, 404, { error: "Performance diagnostics are disabled" });
+      return;
+    }
+    sendJson(res, 200, requestUrl.searchParams.get("reset") === "1"
+      ? resetPerformanceDiagnostics()
+      : performanceSnapshot());
+    return;
+  }
 
   if (requestUrl.pathname === "/api/state" && req.method === "GET") {
     const receivedAt = wallNow();
@@ -1688,6 +1792,17 @@ if (restoredFromSnapshot) {
   scheduleSnapshotWrite(true);
 }
 setInterval(() => broadcastDiagnostics(true), DIAGNOSTICS_BROADCAST_MS);
+if (performanceDiagnosticsEnabled) {
+  let expectedPerformanceProbeAt = performance.now() + 1000;
+  setInterval(() => {
+    const measuredAt = performance.now();
+    const lag = Math.max(0, measuredAt - expectedPerformanceProbeAt);
+    performanceCount("eventLoopLagSamples");
+    performanceEnd("eventLoopLag", measuredAt - lag);
+    expectedPerformanceProbeAt = measuredAt + 1000;
+  }, 1000);
+  console.log("Performance diagnostics enabled: GET /api/performance");
+}
 
 function flushSnapshotAndExit(exitCode = 0) {
   try {

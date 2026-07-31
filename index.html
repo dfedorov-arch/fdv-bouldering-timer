@@ -2896,6 +2896,72 @@
     };
 
     const audioKinds = ["start", "end", "minute", "warn", "festival60", "festival30", "festival10", "festival5"];
+    const performanceDiagnosticsEnabled = new URLSearchParams(window.location.search).get("perf") === "1";
+    const performanceDiagnostics = {
+      startedAt: performance.now(),
+      counters: Object.create(null),
+      timings: Object.create(null),
+      resetAt: performance.now()
+    };
+
+    function performanceCount(name, amount = 1) {
+      if (!performanceDiagnosticsEnabled) return;
+      performanceDiagnostics.counters[name] = (performanceDiagnostics.counters[name] || 0) + amount;
+    }
+
+    function performanceStart() {
+      return performanceDiagnosticsEnabled ? performance.now() : null;
+    }
+
+    function performanceEnd(name, startedAt) {
+      if (!performanceDiagnosticsEnabled || startedAt === null) return;
+      const duration = Math.max(0, performance.now() - startedAt);
+      const timing = performanceDiagnostics.timings[name] || { count: 0, totalMs: 0, maxMs: 0 };
+      timing.count += 1;
+      timing.totalMs += duration;
+      timing.maxMs = Math.max(timing.maxMs, duration);
+      performanceDiagnostics.timings[name] = timing;
+    }
+
+    function performanceSnapshot() {
+      const now = performance.now();
+      const timings = Object.fromEntries(Object.entries(performanceDiagnostics.timings).map(([name, timing]) => [name, {
+        count: timing.count,
+        totalMs: Number(timing.totalMs.toFixed(3)),
+        averageMs: Number((timing.totalMs / Math.max(1, timing.count)).toFixed(3)),
+        maxMs: Number(timing.maxMs.toFixed(3))
+      }]));
+      return {
+        enabled: performanceDiagnosticsEnabled,
+        ageMs: Math.round(now - performanceDiagnostics.startedAt),
+        sampleAgeMs: Math.round(now - performanceDiagnostics.resetAt),
+        counters: { ...performanceDiagnostics.counters },
+        timings,
+        gauges: {
+          signalTimers: signalTimers.length,
+          transitionSignalTimers: transitionSignalTimers.length,
+          scheduledAudioNodes: scheduledAudioNodes.length,
+          scheduledSignalKeys: scheduledSignalKeys.size,
+          playedSignalKeys: playedSignalKeys.size,
+          scheduledPhaseSignalKeys: scheduledPhaseSignalKeys.size,
+          startListCount: state.startLists.filter(Boolean).length,
+          startListRows: state.startLists.reduce((sum, list) => sum + (list?.rows?.length || 0), 0)
+        }
+      };
+    }
+
+    function resetPerformanceDiagnostics() {
+      performanceDiagnostics.counters = Object.create(null);
+      performanceDiagnostics.timings = Object.create(null);
+      performanceDiagnostics.resetAt = performance.now();
+      return performanceSnapshot();
+    }
+
+    window.FDVPerformanceDiagnostics = {
+      enabled: performanceDiagnosticsEnabled,
+      snapshot: performanceSnapshot,
+      reset: resetPerformanceDiagnostics
+    };
     let audioSources = { start: "", end: "", minute: "", warn: "", festival60: "", festival30: "", festival10: "", festival5: "" };
     let audioBuffers = { start: null, end: null, minute: null, warn: null, festival60: null, festival30: null, festival10: null, festival5: null };
     let soundProfiles = [];
@@ -3100,7 +3166,11 @@
     const runtimeCommandTypes = new Set(["start", "pause", "stopCountdown", "reset", "seek", "seekCycle"]);
 
     function scheduleFitTimer() {
-      if (timerFitQueued) return;
+      performanceCount("timerFitRequests");
+      if (timerFitQueued) {
+        performanceCount("timerFitCoalesced");
+        return;
+      }
       timerFitQueued = true;
       requestAnimationFrame(fitTimerText);
     }
@@ -3337,6 +3407,9 @@
     }
 
     function saveOfflineSnapshot() {
+      performanceCount("offlineSnapshotCalls");
+      const performanceStartedAt = performanceStart();
+      try {
       const localStandalone = isLocalStandalonePage();
       if (!localStandalone) {
         if (offlineReloadMode && !standaloneMode) return;
@@ -3382,8 +3455,15 @@
             startListFinalCycle: state.startListFinalCycle
           }
         };
-        safeStorageSet("localStorage", offlineSnapshotKey, JSON.stringify(snapshot));
+        const serializedSnapshot = JSON.stringify(snapshot);
+        performanceCount("offlineSnapshotBytes", serializedSnapshot.length);
+        if (safeStorageSet("localStorage", offlineSnapshotKey, serializedSnapshot)) {
+          performanceCount("offlineSnapshotWrites");
+        }
       } catch (error) {}
+      } finally {
+        performanceEnd("saveOfflineSnapshot", performanceStartedAt);
+      }
     }
 
     function restoreOfflineReloadSnapshot(options = {}) {
@@ -3532,6 +3612,9 @@
     }
 
     function fitTimerText() {
+      performanceCount("timerFitRuns");
+      const performanceStartedAt = performanceStart();
+      try {
       timerFitQueued = false;
       const wrap = els.time.closest(".timer-wrap");
       if (!wrap) return;
@@ -3559,6 +3642,9 @@
         const correction = Math.min(maxWidth / fittedRect.width, maxHeight / fittedRect.height);
         targetSize = Math.max(48, Math.floor(targetSize * correction) - 1);
         els.time.style.setProperty("--timer-font-size", `${targetSize}px`);
+      }
+      } finally {
+        performanceEnd("fitTimerText", performanceStartedAt);
       }
     }
 
@@ -4683,6 +4769,9 @@
     }
 
     function applyServerState(remote, options = {}) {
+      performanceCount("serverStateFullApplies");
+      const performanceStartedAt = performanceStart();
+      try {
       if (!remote || typeof remote !== "object") return;
       reconcileServerStateIdentity(remote);
       markServerContact();
@@ -4807,9 +4896,15 @@
       if (diagnosticsIncluded) renderBrowserList(remoteClients);
       render();
       saveOfflineSnapshot();
+      } finally {
+        performanceEnd("applyServerState", performanceStartedAt);
+      }
     }
 
     function applyServerRuntimeClockState(remote) {
+      performanceCount("serverStateClockApplies");
+      const performanceStartedAt = performanceStart();
+      try {
       if (!remote || typeof remote !== "object" || standaloneMode) return;
       const nextActiveSettings = remote.activeSettings || state.activeSettings;
       const settingsChanged = JSON.stringify(nextActiveSettings || {}) !== JSON.stringify(state.activeSettings || {});
@@ -4851,6 +4946,9 @@
       syncButtons();
       render();
       saveOfflineSnapshot();
+      } finally {
+        performanceEnd("applyServerRuntimeClockState", performanceStartedAt);
+      }
     }
 
     function reportStateApplyError(error, source, requestRecovery = false) {
@@ -4894,6 +4992,8 @@
 
     async function syncFromServer(options = {}) {
       if (syncRequestInFlight) return false;
+      performanceCount("stateRequests");
+      const requestPerformanceStartedAt = performanceStart();
       syncRequestInFlight = true;
       const requestGeneration = syncRequestGeneration;
       const controller = new AbortController();
@@ -4915,7 +5015,15 @@
         timing.date1 = Date.now();
         timing.perf1 = performance.now();
         if (!response.ok) throw new Error("Server state failed");
+        if (performanceDiagnosticsEnabled) {
+          const contentLength = Number(response.headers.get("content-length"));
+          if (Number.isFinite(contentLength) && contentLength >= 0) {
+            performanceCount("stateResponseBytes", contentLength);
+          }
+        }
+        const parsePerformanceStartedAt = performanceStart();
         remote = await response.json();
+        performanceEnd("stateResponseJsonParse", parsePerformanceStartedAt);
         if (requestGeneration !== syncRequestGeneration) return false;
         markServerContact();
         if (standaloneMode) {
@@ -4965,6 +5073,7 @@
       } finally {
         window.clearTimeout(timeout);
         if (requestGeneration === syncRequestGeneration) syncRequestInFlight = false;
+        performanceEnd("syncFromServer", requestPerformanceStartedAt);
       }
     }
 
@@ -5023,7 +5132,13 @@
       eventSource.addEventListener("state", (event) => {
         if (generation !== eventStreamGeneration) return;
         try {
+          performanceCount("sseStateEvents");
+          if (performanceDiagnosticsEnabled) {
+            performanceCount("sseStateBytes", String(event.data || "").length);
+          }
+          const parsePerformanceStartedAt = performanceStart();
           const remote = JSON.parse(event.data);
+          performanceEnd("sseStateJsonParse", parsePerformanceStartedAt);
           markSseEvent();
           if (standaloneMode) {
             pendingServerState = remote;
@@ -5476,8 +5591,11 @@
     }
 
     function normalizeStartLists(value) {
+      performanceCount("startListNormalizations");
+      const performanceStartedAt = performanceStart();
       const source = Array.isArray(value) ? value.slice(0, 4) : [null];
       const lists = source.map((list) => list ? window.FDVStartList.sanitize(list) : null);
+      performanceEnd("normalizeStartLists", performanceStartedAt);
       return lists.length ? lists : [null];
     }
 
@@ -5710,6 +5828,9 @@
     }
 
     function fitStartListPanelWidth() {
+      performanceCount("startListWidthFitRuns");
+      const performanceStartedAt = performanceStart();
+      try {
       const columns = [...els.startListLayout.querySelectorAll(".start-list-column")];
       if (!columns.length) return 0;
       const minimumColumnWidth = 280;
@@ -5754,6 +5875,9 @@
       els.startListPanel.style.width = `${Math.min(panelLimit, widths.reduce((sum, width) => sum + width, borderWidth))}px`;
       return [...els.startListLayout.querySelectorAll(".start-list-scroll")].reduce((maximum, scroll) =>
         Math.max(maximum, scroll.scrollWidth - scroll.clientWidth), 0);
+      } finally {
+        performanceEnd("fitStartListPanelWidth", performanceStartedAt);
+      }
     }
 
     function scheduleStartListPanelWidthFit() {
@@ -6167,6 +6291,9 @@
     function renderStartList() {
       loadStoredStartListScrollPositions();
       updateStartListVisibility();
+      performanceCount("startListRenderCalls");
+      const performanceStartedAt = performanceStart();
+      try {
       if (!document.body.classList.contains("start-list-visible")) return;
       ensureStartListStructure();
       const position = currentStartListPosition();
@@ -6225,6 +6352,9 @@
         const previousScroll = { top: scroll.scrollTop, left: scroll.scrollLeft };
         const tableColumnCount = list.headers.length + list.routeCount;
         const tableColumns = Array.from({ length: tableColumnCount }, () => "<col>").join("");
+        performanceCount("startListTableRebuilds");
+        performanceCount("startListRowsBuilt", list.rows.length);
+        performanceCount("startListRouteCellsBuilt", list.rows.length * list.routeCount);
         scroll.innerHTML = `<table class="start-list-table"><colgroup>${tableColumns}</colgroup><thead><tr>${list.headers.map((header) => `<th>${escapeHtml(header)}</th>`).join("")}${routeHeaders}</tr></thead><tbody>${body}</tbody></table>`;
         const highlightedRows = [...scroll.querySelectorAll("tbody tr.is-active, tbody tr.is-ready")];
         const highlightedIndexes = highlightedRows
@@ -6275,6 +6405,9 @@
       if (applyStartListVerticalDensity()) reanchorStartListScrolls();
       fitStartListPanelWidth();
       scheduleStartListPanelWidthFit();
+      } finally {
+        performanceEnd("renderStartList", performanceStartedAt);
+      }
     }
 
     async function readStartListFile(file, routeCount) {
@@ -7462,6 +7595,9 @@
     function render() {
       lastRenderAt = performance.now();
       scheduleDisplayBoundary();
+      performanceCount("renderCalls");
+      const performanceStartedAt = performanceStart();
+      try {
       if (resumeSnapPending && shouldKeepDisplayFresh()) {
         setElementClass(document.body, "warning-active", false);
         syncAudioTestButtons();
@@ -7644,6 +7780,9 @@
 
       if (state.running && remaining <= 6) {
         scheduleFinalWarnings(segment);
+      }
+      } finally {
+        performanceEnd("render", performanceStartedAt);
       }
     }
 
@@ -9063,6 +9202,17 @@
       registerOfflineServiceWorker();
       startSync();
       window.setInterval(saveOfflineSnapshot, 2000);
+    }
+    if (performanceDiagnosticsEnabled) {
+      let expectedPerformanceProbeAt = performance.now() + 1000;
+      window.setInterval(() => {
+        const measuredAt = performance.now();
+        const lag = Math.max(0, measuredAt - expectedPerformanceProbeAt);
+        performanceCount("eventLoopLagSamples");
+        performanceEnd("eventLoopLag", measuredAt - lag);
+        expectedPerformanceProbeAt = measuredAt + 1000;
+      }, 1000);
+      console.info("Performance diagnostics enabled. Use FDVPerformanceDiagnostics.snapshot().");
     }
     window.setInterval(refreshServerAvailability, 500);
     requestScreenWakeLock();
