@@ -27,6 +27,7 @@ sound=true
 sound_in_other_browsers=false
 festival_announcements=true
 flashing=true
+no_sound_warm=false
 
 # Name of a subfolder inside beeps.
 sound_profile=FSR_2026

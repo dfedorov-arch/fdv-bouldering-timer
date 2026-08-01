@@ -5,7 +5,11 @@ const os = require("os");
 const path = require("path");
 const crypto = require("crypto");
 const { performance } = require("perf_hooks");
-const { createTimerDomain } = require("./lib/timer-domain");
+const {
+  clockContinuityCorrectionMs,
+  createTimerDomain,
+  runningElapsedAfterRestore
+} = require("./lib/timer-domain");
 const { createTimerTransitions } = require("./lib/timer-transitions");
 const startListDomain = require("./lib/start-list");
 
@@ -16,12 +20,14 @@ const runtimeStatePath = path.join(runtimeStateDir, "timer-state.json");
 const beepsPath = path.join(root, "beeps");
 const fontsPath = path.join(root, "fonts");
 const offlineAudioPath = path.join(root, "lib", "offline-audio.js");
-const BUILD_NUMBER = 355;
+const BUILD_NUMBER = 356;
 const serverInstanceId = crypto.randomUUID();
 const SNAPSHOT_SCHEMA_VERSION = 1;
 const SNAPSHOT_MAX_AGE_MS = 12 * 60 * 60 * 1000;
 const PRIMARY_RESTORE_GRACE_MS = 10000;
 const MANUAL_START_AUDIO_LEAD_MS = 600;
+const CLOCK_CONTINUITY_GAP_MS = 3000;
+const CLOCK_CONTINUITY_MISMATCH_MS = 100;
 const COMMAND_CACHE_MAX = 256;
 const DIAGNOSTICS_BROADCAST_MS = 2500;
 const PRIMARY_PIN_MAX_FAILURES = 5;
@@ -57,6 +63,7 @@ function performanceEnd(name, startedAt) {
 
 function performanceSnapshot() {
   const now = performance.now();
+  const sampledAtWallMs = wallNow();
   const timings = Object.fromEntries(Object.entries(performanceDiagnostics.timings).map(([name, timing]) => [name, {
     count: timing.count,
     totalMs: Number(timing.totalMs.toFixed(3)),
@@ -69,6 +76,13 @@ function performanceSnapshot() {
     sampleAgeMs: Math.round(now - performanceDiagnostics.resetAt),
     counters: { ...performanceDiagnostics.counters },
     timings,
+    clock: {
+      sampledAtWallMs,
+      monotonicNowMs: Number(monoNow().toFixed(3)),
+      running: timerState.running,
+      elapsedSeconds: Number(elapsedSeconds().toFixed(6)),
+      serverInstanceId
+    },
     gauges: {
       clients: clients.size,
       eventClients: eventClients.size,
@@ -104,6 +118,7 @@ const defaultConfig = {
   soundInOtherBrowsers: false,
   festivalAnnouncements: true,
   flashing: true,
+  noSoundWarm: false,
   soundProfile: "FSR_2026",
   timerFontFile: "Roboto-Variable.ttf",
   timerFont: "Arial, sans-serif",
@@ -274,6 +289,10 @@ function monoNow() {
   return performance.now();
 }
 
+function systemUptimeNow() {
+  return os.uptime() * 1000;
+}
+
 function clampNumber(value, min, max, fallback) {
   const number = Number(value);
   if (!Number.isFinite(number)) return fallback;
@@ -305,6 +324,7 @@ const config = {
   soundInOtherBrowsers: boolParam(params, "sound_in_other_browsers", defaultConfig.soundInOtherBrowsers),
   festivalAnnouncements: boolParam(params, "festival_announcements", defaultConfig.festivalAnnouncements),
   flashing: boolParam(params, "flashing", defaultConfig.flashing),
+  noSoundWarm: boolParam(params, "no_sound_warm", defaultConfig.noSoundWarm),
   timerFontFile: initialTimerFontFile,
   timerFontUrl: fontFileUrl(initialTimerFontFile),
   timerFont: textParam(params, "timer_font", defaultConfig.timerFont),
@@ -422,6 +442,9 @@ let nextAudioTestId = 1;
 let stateTransitionTimer = null;
 let snapshotWriteTimer = null;
 let timerStartedAtMono = 0;
+let timerClockContinuityWallAt = wallNow();
+let timerClockContinuityMonoAt = monoNow();
+let timerClockContinuityUptimeAt = systemUptimeNow();
 let diagnosticsBroadcastTimer = null;
 let startListDataRevision = 1;
 let lastDiagnosticsBroadcastAt = 0;
@@ -579,6 +602,45 @@ function clearTimerStartedAt() {
   timerStartedAtMono = 0;
 }
 
+function repairTimerClockContinuity() {
+  const currentWall = wallNow();
+  const currentMono = monoNow();
+  const currentUptime = systemUptimeNow();
+  const wallDelta = currentWall - timerClockContinuityWallAt;
+  const monotonicDelta = currentMono - timerClockContinuityMonoAt;
+  const uptimeDelta = currentUptime - timerClockContinuityUptimeAt;
+  if (!timerState.running || !timerStartedAtMono || timerState.startedAt > currentWall) {
+    timerClockContinuityWallAt = currentWall;
+    timerClockContinuityMonoAt = currentMono;
+    timerClockContinuityUptimeAt = currentUptime;
+    return 0;
+  }
+  if (wallDelta >= 0 && monotonicDelta >= 0 && uptimeDelta >= 0 && uptimeDelta < CLOCK_CONTINUITY_GAP_MS) return 0;
+  timerClockContinuityWallAt = currentWall;
+  timerClockContinuityMonoAt = currentMono;
+  timerClockContinuityUptimeAt = currentUptime;
+  const correction = clockContinuityCorrectionMs(
+    wallDelta,
+    monotonicDelta,
+    uptimeDelta,
+    CLOCK_CONTINUITY_GAP_MS,
+    CLOCK_CONTINUITY_MISMATCH_MS
+  );
+  if (!correction) return 0;
+  timerStartedAtMono -= correction;
+  performanceCount("timerClockContinuityRepairs");
+  console.warn(`FDV_SERVER_CLOCK_REPAIR ${JSON.stringify({
+    serverInstanceId,
+    wallDeltaMs: Number(wallDelta.toFixed(3)),
+    monotonicDeltaMs: Number(monotonicDelta.toFixed(3)),
+    uptimeDeltaMs: Number(uptimeDelta.toFixed(3)),
+    wallClockAdjustmentMs: Number((wallDelta - uptimeDelta).toFixed(3)),
+    correctionMs: Number(correction.toFixed(3)),
+    repairedAtWallMs: currentWall
+  })}`);
+  return correction;
+}
+
 function elapsedSecondsAtWall(targetWallNow = wallNow()) {
   if (!timerState.running) return timerState.elapsedBeforePause;
   if (timerState.startedAt > targetWallNow) return 0;
@@ -598,6 +660,7 @@ function snapshotPayload() {
   return {
     schemaVersion: SNAPSHOT_SCHEMA_VERSION,
     savedAtWall,
+    savedAtUptimeMs: systemUptimeNow(),
     runningElapsedAtSave: timerState.running ? elapsedSeconds() : timerState.elapsedBeforePause,
     timerState: {
       ...timerState
@@ -722,12 +785,24 @@ function restoreTimerSnapshot() {
     if (timerState.running) {
       const savedStart = Number(snapshot.timerState.startedAt || 0);
       const savedElapsed = Math.max(0, numberOrDefault(snapshot.runningElapsedAtSave, 0));
+      const savedAtUptimeMs = snapshot.savedAtUptimeMs;
+      const currentUptimeMs = systemUptimeNow();
       if (savedStart > savedAtWall && now < savedStart) {
         setTimerStartedAt(savedStart);
       } else if (savedStart > savedAtWall && now >= savedStart) {
         setTimerStartedFromElapsed((now - savedStart) / 1000, now);
       } else {
-        setTimerStartedFromElapsed(savedElapsed + Math.max(0, age) / 1000, now);
+        setTimerStartedFromElapsed(
+          runningElapsedAfterRestore(
+            savedStart,
+            savedAtWall,
+            savedElapsed,
+            now,
+            savedAtUptimeMs,
+            currentUptimeMs
+          ),
+          now
+        );
       }
     } else {
       timerStartedAtMono = 0;
@@ -1035,6 +1110,14 @@ function legacyProtocolRevision(clientId) {
   return `${serverInstanceId}:${startListDataRevision}:${startListIndexesForClient(clientId).join(",")}`;
 }
 
+function modernStartListRevision() {
+  return `${serverInstanceId}:${startListDataRevision}`;
+}
+
+function cleanStartListRevision(value) {
+  return String(value || "").slice(0, 200);
+}
+
 function legacyPublicState(options = {}) {
   performanceCount("legacyPublicStateCalls");
   const performanceStartedAt = performanceStart();
@@ -1062,9 +1145,12 @@ function legacyPublicState(options = {}) {
   }
 }
 
-function elapsedSeconds(now = monoNow()) {
+function elapsedSeconds(now = null) {
   if (!timerState.running) return timerState.elapsedBeforePause;
-  if (timerStartedAtMono) return Math.max(0, (now - timerStartedAtMono) / 1000);
+  repairTimerClockContinuity();
+  const hasExplicitNow = now !== null && now !== undefined && Number.isFinite(Number(now));
+  const currentMono = hasExplicitNow ? Number(now) : monoNow();
+  if (timerStartedAtMono) return Math.max(0, (currentMono - timerStartedAtMono) / 1000);
   return Math.max(0, (wallNow() - timerState.startedAt) / 1000);
 }
 
@@ -1148,16 +1234,21 @@ function publicState(options = {}) {
   const ownAudioOffset = clientId ? clientAudioOffsets.get(clientId) ?? clients.get(clientId)?.audioUserOffset ?? 0 : 0;
   const ownManualLegacy = clientId ? manualLegacyClients.has(clientId) : false;
   const ownLegacyRedirect = clientId ? legacyRedirectPending.has(clientId) : false;
+  const startListRevision = modernStartListRevision();
+  const includeStartLists = cleanStartListRevision(options.startListRevision) !== startListRevision;
   const {
     primaryPinHash: _primaryPinHash,
     primaryPinSalt: _primaryPinSalt,
     primaryPinClientId: _primaryPinClientId,
     primaryPinValue: _primaryPinValue,
     startListDisplaySelections: _startListDisplaySelections,
+    startLists,
     ...publicTimerState
   } = timerState;
   return {
     ...publicTimerState,
+    ...(includeStartLists ? { startLists } : {}),
+    startListRevision,
     serverInstanceId,
     startedAt: publicStartedAt(sentAt, elapsed),
     config: {
@@ -1195,13 +1286,18 @@ function publicState(options = {}) {
 function broadcastState() {
   for (const [res, eventClient] of eventClients) {
     try {
-      const state = publicState({ clientId: eventClient.clientId, includeClients: false });
+      const state = publicState({
+        clientId: eventClient.clientId,
+        includeClients: false,
+        startListRevision: eventClient.startListRevision
+      });
       const payload = `event: state\ndata: ${JSON.stringify(state)}\n\n`;
       performanceCount("sseStateMessages");
       if (performanceDiagnosticsEnabled) {
         performanceCount("sseStateBytes", Buffer.byteLength(payload));
       }
       res.write(payload);
+      eventClient.startListRevision = state.startListRevision;
     } catch (error) {
       clearInterval(eventClient.keepAlive);
       eventClients.delete(res);
@@ -1355,7 +1451,12 @@ function handleRequest(req, res) {
         clientId,
         protocolRevision: requestUrl.searchParams.get("protocolRevision") || ""
       })
-      : publicState({ receivedAt, clientId, includeClients });
+      : publicState({
+        receivedAt,
+        clientId,
+        includeClients,
+        startListRevision: requestUrl.searchParams.get("startListRevision") || ""
+      });
     sendJson(res, 200, responseState);
     if (clientId) legacyRedirectPending.delete(clientId);
     return;
@@ -1363,6 +1464,11 @@ function handleRequest(req, res) {
 
   if (requestUrl.pathname === "/api/events" && req.method === "GET") {
     const eventClientId = registerClient(req, requestUrl.searchParams);
+    const eventClient = {
+      keepAlive: null,
+      clientId: eventClientId,
+      startListRevision: cleanStartListRevision(requestUrl.searchParams.get("startListRevision"))
+    };
     res.writeHead(200, {
       "content-type": "text/event-stream; charset=utf-8",
       "cache-control": "no-store",
@@ -1370,7 +1476,13 @@ function handleRequest(req, res) {
       "x-accel-buffering": "no"
     });
     res.write("retry: 1000\n\n");
-    res.write(`event: state\ndata: ${JSON.stringify(publicState({ clientId: eventClientId, includeClients: false }))}\n\n`);
+    const initialState = publicState({
+      clientId: eventClientId,
+      includeClients: false,
+      startListRevision: eventClient.startListRevision
+    });
+    res.write(`event: state\ndata: ${JSON.stringify(initialState)}\n\n`);
+    eventClient.startListRevision = initialState.startListRevision;
     const keepAlive = setInterval(() => {
       try {
         if (eventClientId && clients.has(eventClientId)) {
@@ -1379,7 +1491,8 @@ function handleRequest(req, res) {
         res.write(`event: ping\ndata: ${wallNow()}\n\n`);
       } catch (error) {}
     }, 15000);
-    eventClients.set(res, { keepAlive, clientId: eventClientId });
+    eventClient.keepAlive = keepAlive;
+    eventClients.set(res, eventClient);
     req.on("close", () => {
       clearInterval(keepAlive);
       eventClients.delete(res);
@@ -1419,12 +1532,18 @@ function handleRequest(req, res) {
     readJson(req).then((body) => {
       const clientId = registerClient(req, body);
       const now = wallNow();
+      const actionPublicState = () => publicState({
+        receivedAt: now,
+        clientId,
+        includeClients: shouldIncludeDiagnostics(clientId),
+        startListRevision: body.startListRevision
+      });
       const type = body.type;
       const isRuntimeCommand = runtimeCommandTypes.has(type);
       const commandId = cleanCommandId(body.commandId);
       if (actionRequiresPrimary(type) && !primaryControlAllowed(clientId)) {
         sendJson(res, 403, {
-          ...publicState({ receivedAt: now, clientId, includeClients: shouldIncludeDiagnostics(clientId) }),
+          ...actionPublicState(),
           actionDenied: true
         });
         return;
@@ -1442,7 +1561,7 @@ function handleRequest(req, res) {
       const instanceConflict = Boolean(baseServerInstanceId && baseServerInstanceId !== serverInstanceId);
       if (isRuntimeCommand && (instanceConflict || (Number.isFinite(baseVersion) && baseVersion !== timerState.version))) {
         const conflictState = {
-          ...publicState({ receivedAt: now, clientId, includeClients: shouldIncludeDiagnostics(clientId) }),
+          ...actionPublicState(),
           commandConflict: true,
           instanceConflict,
           expectedVersion: timerState.version,
@@ -1512,7 +1631,7 @@ function handleRequest(req, res) {
           : body.clientId || null;
         if (!primaryActionAllowed(clientId, nextPrimaryClientId)) {
           sendJson(res, 403, {
-            ...publicState({ receivedAt: now, clientId, includeClients: shouldIncludeDiagnostics(clientId) }),
+            ...actionPublicState(),
             actionDenied: true
           });
           return;
@@ -1527,7 +1646,7 @@ function handleRequest(req, res) {
           if (!verifyPrimaryPin(clientId, cleanPin)) {
             const entry = primaryPinFailures.get(clientId || "") || {};
             sendJson(res, 403, {
-              ...publicState({ receivedAt: now, clientId, includeClients: shouldIncludeDiagnostics(clientId) }),
+              ...actionPublicState(),
               primaryPinRequired: true,
               primaryPinBlockedUntil: entry.blockedUntil || 0
             });
@@ -1544,7 +1663,7 @@ function handleRequest(req, res) {
         const currentPrimary = timerState.primaryClientId === clientId;
         if (!currentPrimary) {
           sendJson(res, 403, {
-            ...publicState({ receivedAt: now, clientId, includeClients: shouldIncludeDiagnostics(clientId) }),
+            ...actionPublicState(),
             primaryPinDenied: true
           });
           return;
@@ -1557,7 +1676,7 @@ function handleRequest(req, res) {
           const cleanPin = cleanPrimaryPin(pin);
           if (!cleanPin) {
             sendJson(res, 400, {
-              ...publicState({ receivedAt: now, clientId, includeClients: shouldIncludeDiagnostics(clientId) }),
+              ...actionPublicState(),
               primaryPinInvalidFormat: true
             });
             return;
@@ -1689,7 +1808,7 @@ function handleRequest(req, res) {
         const rateLimit = consumeAudioTestRateLimit(now);
         if (!rateLimit.allowed) {
           sendJson(res, 429, {
-            ...publicState({ receivedAt: now, clientId, includeClients: shouldIncludeDiagnostics(clientId) }),
+            ...actionPublicState(),
             audioTestRateLimited: true,
             audioTestRetryAfterMs: rateLimit.retryAfterMs
           });
@@ -1725,11 +1844,7 @@ function handleRequest(req, res) {
       if (timerState.version !== previousVersion) {
         scheduleSnapshotWrite(isRuntimeCommand);
       }
-      const state = publicState({
-        receivedAt: now,
-        clientId,
-        includeClients: shouldIncludeDiagnostics(clientId)
-      });
+      const state = actionPublicState();
       rememberCommandResult(commandId, 200, state);
       sendJson(res, 200, state);
       broadcastState();

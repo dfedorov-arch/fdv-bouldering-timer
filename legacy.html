@@ -477,6 +477,7 @@
       var activeRequestStartedAt = 0;
       var pollTimer = null;
       var renderTimer = null;
+      var renderTargetServerTime = 0;
       var lastFitKey = "";
       var legacyFullscreenUnavailable = false;
       var legacyFullscreenAttemptPending = false;
@@ -510,14 +511,69 @@
       var legacySnapshotSaveIntervalMs = 5000;
       var storedClientId = "";
       var storedFitText = "";
-      var performanceDiagnosticsEnabled = queryValue("perf") === "1";
+      var performanceDiagnosticsValue = queryValue("perf");
+      var performanceDiagnosticsLevel = performanceDiagnosticsValue === "3" ? 3 : performanceDiagnosticsValue === "2" ? 2 : performanceDiagnosticsValue === "1" ? 1 : 0;
+      var performanceDiagnosticsEnabled = performanceDiagnosticsLevel > 0;
+      var performanceLongRunDiagnostics = performanceDiagnosticsLevel === 3;
+      var performanceAggregateDiagnostics = performanceDiagnosticsEnabled && !performanceLongRunDiagnostics;
       var performanceDiagnostics = {
         startedAt: legacyPerformanceNow(),
         resetAt: legacyPerformanceNow(),
         counters: {},
         timings: {}
       };
+      var performanceDisplayBoundaryEvents = [];
+      var performanceDisplayBoundaryEventLimit = 16;
       var performanceOverlay = null;
+      var performanceConsoleQueue = [];
+      var performanceConsoleTimer = 0;
+      var performanceLastDisplayBoundaryPhaseKey = "";
+
+      function queuePerformanceConsoleRecord(prefix, payload) {
+        if (!performanceDiagnosticsEnabled || !prefix || !payload) return;
+        performanceConsoleQueue.push({ prefix: prefix, payload: payload });
+        if (performanceConsoleTimer) return;
+        performanceConsoleTimer = window.setTimeout(function () {
+          var queued = performanceConsoleQueue.slice(0);
+          var index;
+          performanceConsoleQueue.length = 0;
+          performanceConsoleTimer = 0;
+          if (!window.console || !window.console.log) return;
+          for (index = 0; index < queued.length; index += 1) {
+            window.console.log(queued[index].prefix + " " + JSON.stringify(queued[index].payload));
+          }
+        }, 0);
+      }
+
+      function isPerformanceTransitionBoundary(event, previousPhaseKey, phaseKey) {
+        if (!event) return false;
+        if (previousPhaseKey && previousPhaseKey !== phaseKey) return true;
+        return event.beforeLabel === "00:01" && event.afterLabel !== "00:00";
+      }
+
+      function queuePerformanceTransition(event, previousPhaseKey, phaseKey) {
+        queuePerformanceConsoleRecord("FDV_TRANSITION", {
+          v: 1,
+          level: performanceDiagnosticsLevel,
+          clientId: clientId,
+          mode: "legacy",
+          platform: window.navigator && window.navigator.platform ? String(window.navigator.platform) : "",
+          serverInstanceId: state && state.serverInstanceId ? String(state.serverInstanceId) : "",
+          previousPhaseKey: previousPhaseKey,
+          phaseKey: phaseKey,
+          targetServerTimeMs: event.targetServerTimeMs,
+          callbackServerTimeMs: event.callbackServerTimeMs,
+          renderCompletedServerTimeMs: event.renderCompletedServerTimeMs,
+          callbackLatenessMs: event.callbackLatenessMs,
+          commitLatenessMs: event.commitLatenessMs,
+          renderDurationMs: event.renderDurationMs,
+          beforeLabel: event.beforeLabel,
+          afterLabel: event.afterLabel,
+          phase: event.phase,
+          cycle: event.cycle,
+          visibilityState: event.visibilityState
+        });
+      }
 
       function legacyPerformanceNow() {
         return window.performance && window.performance.now
@@ -526,19 +582,19 @@
       }
 
       function performanceCount(name, amount) {
-        if (!performanceDiagnosticsEnabled) return;
+        if (!performanceAggregateDiagnostics) return;
         performanceDiagnostics.counters[name] = (performanceDiagnostics.counters[name] || 0)
           + (amount === undefined ? 1 : amount);
       }
 
       function performanceStart() {
-        return performanceDiagnosticsEnabled ? legacyPerformanceNow() : null;
+        return performanceAggregateDiagnostics ? legacyPerformanceNow() : null;
       }
 
       function performanceEnd(name, startedAt) {
         var duration;
         var timing;
-        if (!performanceDiagnosticsEnabled || startedAt === null) return;
+        if (!performanceAggregateDiagnostics || startedAt === null) return;
         duration = Math.max(0, legacyPerformanceNow() - startedAt);
         timing = performanceDiagnostics.timings[name] || { count: 0, totalMs: 0, maxMs: 0 };
         timing.count += 1;
@@ -547,11 +603,54 @@
         performanceDiagnostics.timings[name] = timing;
       }
 
+      function performanceMeasure(name, durationMs) {
+        var duration;
+        var timing;
+        if (!performanceAggregateDiagnostics || !isFinite(Number(durationMs))) return;
+        duration = Math.max(0, Number(durationMs));
+        timing = performanceDiagnostics.timings[name] || { count: 0, totalMs: 0, maxMs: 0 };
+        timing.count += 1;
+        timing.totalMs += duration;
+        timing.maxMs = Math.max(timing.maxMs, duration);
+        performanceDiagnostics.timings[name] = timing;
+      }
+
+      function roundBoundaryMetric(value) {
+        value = Number(value);
+        return isFinite(value) ? Math.round(value * 1000) / 1000 : null;
+      }
+
+      function recordDisplayBoundary(event) {
+        var phaseKey;
+        var previousPhaseKey;
+        var isTransition;
+        if (!performanceDiagnosticsEnabled || !event) return;
+        phaseKey = String(event.cycle) + ":" + String(event.phase || "");
+        previousPhaseKey = performanceLastDisplayBoundaryPhaseKey;
+        performanceLastDisplayBoundaryPhaseKey = phaseKey;
+        isTransition = isPerformanceTransitionBoundary(event, previousPhaseKey, phaseKey);
+        if (performanceLongRunDiagnostics && !isTransition) return;
+        performanceDisplayBoundaryEvents.push(event);
+        if (performanceDisplayBoundaryEvents.length > performanceDisplayBoundaryEventLimit) {
+          performanceDisplayBoundaryEvents.splice(0, performanceDisplayBoundaryEvents.length - performanceDisplayBoundaryEventLimit);
+        }
+        performanceCount("displayBoundaryCallbacks");
+        performanceMeasure("displayBoundaryCallbackLateness", event.callbackLatenessMs);
+        performanceMeasure("displayBoundaryCommitLateness", event.commitLatenessMs);
+        performanceMeasure("displayBoundaryRender", event.renderDurationMs);
+        if (event.commitLatenessMs >= 100) performanceCount("displayBoundaryLate100ms");
+        if (event.commitLatenessMs >= 500) performanceCount("displayBoundaryLate500ms");
+        if (event.commitLatenessMs >= 1000) performanceCount("displayBoundaryLate1000ms");
+        if (performanceLongRunDiagnostics) queuePerformanceTransition(event, previousPhaseKey, phaseKey);
+      }
+
       function performanceSnapshot() {
         var counters = {};
         var timings = {};
         var name;
         var timing;
+        var sampledAtWallMs = new Date().getTime();
+        var estimatedServerNowMs = serverNow();
         for (name in performanceDiagnostics.counters) {
           if (Object.prototype.hasOwnProperty.call(performanceDiagnostics.counters, name)) {
             counters[name] = performanceDiagnostics.counters[name];
@@ -569,10 +668,46 @@
         }
         return {
           enabled: performanceDiagnosticsEnabled,
+          level: performanceDiagnosticsLevel,
+          longRun: performanceLongRunDiagnostics,
           ageMs: Math.round(legacyPerformanceNow() - performanceDiagnostics.startedAt),
           sampleAgeMs: Math.round(legacyPerformanceNow() - performanceDiagnostics.resetAt),
           counters: counters,
           timings: timings,
+          identity: {
+            clientId: clientId,
+            mode: "legacy",
+            primary: false,
+            standalone: false
+          },
+          clock: {
+            sampledAtWallMs: sampledAtWallMs,
+            estimatedServerNowMs: estimatedServerNowMs,
+            offsetFromWallMs: estimatedServerNowMs - sampledAtWallMs,
+            rate: 1,
+            syncErrorMs: null,
+            syncLatencyMs: clockSamples.length ? clockSamples[clockSamples.length - 1].latency : null,
+            syncJitterMs: null,
+            syncSamples: clockSamples.length,
+            serverInstanceId: state && state.serverInstanceId ? String(state.serverInstanceId) : "",
+            serverAvailable: sampledAtWallMs - lastContact < 5000,
+            lastContactAgeMs: Math.max(0, sampledAtWallMs - lastContact)
+          },
+          audio: {
+            userOffsetMs: 0,
+            allowed: false,
+            forcedByDiagnostics: false,
+            unlocked: false,
+            contextState: "unsupported",
+            scheduledSignals: [],
+            playedSignals: [],
+            scheduledNodes: []
+          },
+          display: {
+            label: timeEl ? String(timeEl.innerHTML || "") : "",
+            visibilityState: document.visibilityState || (document.hidden ? "hidden" : "visible"),
+            boundaryEvents: performanceDisplayBoundaryEvents.slice(0)
+          },
           gauges: {
             clockSamples: clockSamples.length,
             protocolCount: legacyProtocols.length,
@@ -585,6 +720,8 @@
       function resetPerformanceDiagnostics() {
         performanceDiagnostics.counters = {};
         performanceDiagnostics.timings = {};
+        performanceDisplayBoundaryEvents.length = 0;
+        performanceLastDisplayBoundaryPhaseKey = "";
         performanceDiagnostics.resetAt = legacyPerformanceNow();
         return performanceSnapshot();
       }
@@ -609,11 +746,13 @@
       var protocolLayoutEl = document.getElementById("protocolLayout");
       window.FDVLegacyPerformanceDiagnostics = {
         enabled: performanceDiagnosticsEnabled,
+        level: performanceDiagnosticsLevel,
+        longRun: performanceLongRunDiagnostics,
         snapshot: performanceSnapshot,
         reset: resetPerformanceDiagnostics
       };
 
-      if (performanceDiagnosticsEnabled) {
+      if (performanceDiagnosticsEnabled && !performanceLongRunDiagnostics) {
         performanceOverlay = document.createElement("pre");
         performanceOverlay.style.cssText = "position:fixed;z-index:9999;left:4px;top:4px;max-width:55%;margin:0;padding:4px;background:#000;color:#7ff;font:11px monospace;white-space:pre-wrap;pointer-events:none;opacity:.85";
         performanceOverlay.appendChild(document.createTextNode("Performance diagnostics enabled"));
@@ -1925,7 +2064,7 @@
         }
       }
 
-      function nextRenderDelay(view) {
+      function nextRenderBoundaryDelay(view) {
         var seconds;
         var fraction;
 
@@ -1933,19 +2072,68 @@
           seconds = Number(view.seconds);
           if (seconds > 0 && isFinite(seconds)) {
             fraction = seconds - Math.floor(seconds);
-            return Math.max(30, Math.min(1025, (fraction > 0.001 ? fraction * 1000 : 1000) + 25));
+            return Math.max(5, Math.min(1000, fraction > 0.001 ? fraction * 1000 : 1000));
           }
         }
-        return 250;
+        return null;
+      }
+
+      function nextRenderDelay(view) {
+        var boundaryDelay = nextRenderBoundaryDelay(view);
+        return boundaryDelay === null ? 250 : boundaryDelay + 25;
       }
 
       function scheduleRender(view) {
+        var delay = nextRenderDelay(view);
+        var boundaryDelay;
         if (renderTimer) window.clearTimeout(renderTimer);
-        renderTimer = window.setTimeout(renderLoop, nextRenderDelay(view));
+        if (performanceDiagnosticsEnabled) {
+          boundaryDelay = nextRenderBoundaryDelay(view);
+          renderTargetServerTime = boundaryDelay === null ? 0 : serverNow() + boundaryDelay;
+        } else {
+          renderTargetServerTime = 0;
+        }
+        renderTimer = window.setTimeout(renderLoop, delay);
       }
 
       function renderLoop() {
-        scheduleRender(render());
+        var targetServerTime = renderTargetServerTime;
+        var callbackServerTime;
+        var beforeLabel;
+        var renderStartedAt;
+        var view;
+        var renderCompletedAt;
+        var renderCompletedServerTime;
+        renderTimer = null;
+        renderTargetServerTime = 0;
+        if (!performanceDiagnosticsEnabled) {
+          scheduleRender(render());
+          return;
+        }
+        callbackServerTime = serverNow();
+        beforeLabel = String(timeEl.innerHTML || "");
+        renderStartedAt = legacyPerformanceNow();
+        view = render();
+        renderCompletedAt = legacyPerformanceNow();
+        renderCompletedServerTime = serverNow();
+        if (targetServerTime) {
+          recordDisplayBoundary({
+            targetServerTimeMs: roundBoundaryMetric(targetServerTime),
+            callbackServerTimeMs: roundBoundaryMetric(callbackServerTime),
+            callbackLatenessMs: roundBoundaryMetric(callbackServerTime - targetServerTime),
+            guardMs: 25,
+            renderCompletedServerTimeMs: roundBoundaryMetric(renderCompletedServerTime),
+            commitLatenessMs: roundBoundaryMetric(renderCompletedServerTime - targetServerTime),
+            renderDurationMs: roundBoundaryMetric(renderCompletedAt - renderStartedAt),
+            beforeLabel: beforeLabel,
+            afterLabel: String(timeEl.innerHTML || ""),
+            phase: view && view.phase ? String(view.phase) : "",
+            cycle: 0,
+            visibilityState: document.visibilityState || (document.hidden ? "hidden" : "visible"),
+            serverInstanceId: state && state.serverInstanceId ? String(state.serverInstanceId) : ""
+          });
+        }
+        scheduleRender(view);
       }
 
       function scheduleRequest(delay) {
@@ -1969,6 +2157,9 @@
           "protocol full/fast " + (snapshot.counters.protocolFullUpdates || 0) + "/" + (snapshot.counters.protocolFastUpdates || 0),
           "lag max " + ((snapshot.timings.eventLoopLag || {}).maxMs || 0) + "ms"
         ].join("\n");
+        if (window.console && window.console.log) {
+          window.console.log("FDV_PERFORMANCE_SNAPSHOT " + JSON.stringify(snapshot));
+        }
       }
 
       function registerOfflineServiceWorker() {
@@ -2096,16 +2287,18 @@
       requestState();
       scheduleRender(render());
       if (performanceDiagnosticsEnabled) {
-        var expectedPerformanceProbeAt = legacyPerformanceNow() + 1000;
-        window.setInterval(function () {
-          var measuredAt = legacyPerformanceNow();
-          var lag = Math.max(0, measuredAt - expectedPerformanceProbeAt);
-          performanceCount("eventLoopLagSamples");
-          performanceEnd("eventLoopLag", measuredAt - lag);
-          expectedPerformanceProbeAt = measuredAt + 1000;
-        }, 1000);
-        updatePerformanceOverlay();
-        window.setInterval(updatePerformanceOverlay, 5000);
+        if (!performanceLongRunDiagnostics) {
+          var expectedPerformanceProbeAt = legacyPerformanceNow() + 1000;
+          window.setInterval(function () {
+            var measuredAt = legacyPerformanceNow();
+            var lag = Math.max(0, measuredAt - expectedPerformanceProbeAt);
+            performanceCount("eventLoopLagSamples");
+            performanceEnd("eventLoopLag", measuredAt - lag);
+            expectedPerformanceProbeAt = measuredAt + 1000;
+          }, 1000);
+          updatePerformanceOverlay();
+          window.setInterval(updatePerformanceOverlay, 5000);
+        }
       }
       window.setInterval(function () {
         abortStaleRequest();

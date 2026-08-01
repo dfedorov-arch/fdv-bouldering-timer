@@ -2077,6 +2077,28 @@
       transition: opacity .18s ease, background .18s ease, color .18s ease;
     }
 
+    .performance-export-button {
+      position: fixed;
+      right: max(12px, env(safe-area-inset-right));
+      bottom: max(12px, env(safe-area-inset-bottom));
+      z-index: 40;
+      min-height: 42px;
+      padding: 9px 13px;
+      border: 1px solid rgba(255, 200, 87, .72);
+      border-radius: 10px;
+      color: #0e1116;
+      background: rgba(255, 200, 87, .94);
+      box-shadow: 0 5px 18px rgba(0, 0, 0, .28);
+      font: inherit;
+      font-size: 13px;
+      font-weight: 800;
+      line-height: 1.15;
+    }
+
+    .performance-export-button[hidden] {
+      display: none;
+    }
+
     body.fullscreen .exit-fullscreen-button {
       display: flex;
     }
@@ -2543,6 +2565,8 @@
     </section>
   </main>
 
+  <button id="performanceExportBtn" class="performance-export-button" type="button" hidden>Скачать лог</button>
+
   <script>
     if (window.location.protocol === "file:") {
       document.write('<script src="lib/offline-audio.js"><\/script>');
@@ -2589,7 +2613,7 @@
       timeline: []
     };
 
-    const pageBuildNumber = 355;
+    const pageBuildNumber = 356;
     const projectUrl = "https://github.com/dfedorov-arch/fdv-bouldering-timer";
     const buildLinkConfirmDelayMs = 550;
     const offlineSnapshotKey = "fdvBoulderingTimerOfflineSnapshot";
@@ -2597,6 +2621,10 @@
     const startListEditorPreferenceKey = "fdvBoulderingTimerStartListEditorOpen";
     const startListScrollPreferenceKey = "fdvBoulderingTimerStartListScrollPositions";
     const offlineSnapshotMaxAgeMs = 12 * 60 * 60 * 1000;
+    const offlineSnapshotSafetyIntervalMs = 5000;
+    let lastOfflineSnapshotContentKey = "";
+    let lastOfflineSnapshotSavedAt = 0;
+    let offlineSnapshotSafetyTimer = 0;
     const mobileResumeSyncEnabled = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
     const iosAudioWorkaroundEnabled = /iPad|iPhone|iPod/i.test(navigator.userAgent)
       || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
@@ -2892,29 +2920,335 @@
       progressBar: document.getElementById("progressBar"),
       schedule: document.getElementById("schedule"),
       startListPanel: document.getElementById("startListPanel"),
-      browserList: document.getElementById("browserList")
+      browserList: document.getElementById("browserList"),
+      performanceExportBtn: document.getElementById("performanceExportBtn")
     };
 
     const audioKinds = ["start", "end", "minute", "warn", "festival60", "festival30", "festival10", "festival5"];
-    const performanceDiagnosticsEnabled = new URLSearchParams(window.location.search).get("perf") === "1";
+    const performanceDiagnosticsValue = new URLSearchParams(window.location.search).get("perf");
+    const performanceDiagnosticsLevel = performanceDiagnosticsValue === "4" ? 4 : performanceDiagnosticsValue === "3" ? 3 : performanceDiagnosticsValue === "2" ? 2 : performanceDiagnosticsValue === "1" ? 1 : 0;
+    const performanceDiagnosticsEnabled = performanceDiagnosticsLevel > 0;
+    const performanceSoundForced = performanceDiagnosticsLevel >= 2;
+    const performanceLongRunDiagnostics = performanceDiagnosticsLevel >= 3;
+    const performanceAudioKeepaliveExperiment = performanceDiagnosticsLevel === 4;
+    const performanceAggregateDiagnostics = performanceDiagnosticsEnabled && !performanceLongRunDiagnostics;
     const performanceDiagnostics = {
       startedAt: performance.now(),
       counters: Object.create(null),
       timings: Object.create(null),
       resetAt: performance.now()
     };
+    const performanceDisplayBoundaryEvents = [];
+    const performanceDisplayBoundaryEventLimit = 16;
+    const performanceAudioScheduleEvents = [];
+    const performanceAudioScheduleEventLimit = 16;
+    const performancePendingAudioPlans = new Map();
+    const performancePendingPrewarmPlans = new Map();
+    const performanceConsoleQueue = [];
+    const performanceMobileRecords = [];
+    const performanceMobileRecordLimit = 4000;
+    let performanceConsoleTimer = 0;
+    let performanceMobileRecordsDropped = 0;
+    let performanceLastRenderedPhaseKey = "";
+    let pendingPerformanceServerRestart = null;
+    let performanceObservedAudioContext = null;
+
+    function performancePlatform() {
+      return navigator.userAgentData?.platform || navigator.platform || "";
+    }
+
+    function performanceAudioClockSample() {
+      const sampledAtPerformanceMs = performance.now();
+      const contextTimeSeconds = Number(audioContext?.currentTime);
+      const contextTimeMs = Number.isFinite(contextTimeSeconds) ? contextTimeSeconds * 1000 : null;
+      const baseLatencySeconds = Number(audioContext?.baseLatency);
+      const outputLatencySeconds = Number(audioContext?.outputLatency);
+      let outputContextTimeMs = null;
+      let outputPerformanceTimeMs = null;
+      try {
+        const outputTimestamp = audioContext?.getOutputTimestamp?.();
+        const outputContextSeconds = Number(outputTimestamp?.contextTime);
+        const outputPerformanceMs = Number(outputTimestamp?.performanceTime);
+        if (Number.isFinite(outputContextSeconds)) outputContextTimeMs = outputContextSeconds * 1000;
+        if (Number.isFinite(outputPerformanceMs)) outputPerformanceTimeMs = outputPerformanceMs;
+      } catch (error) {}
+      const round = (value) => Number.isFinite(Number(value)) ? Number(Number(value).toFixed(3)) : null;
+      return {
+        audioClockSampledAtPerformanceMs: round(sampledAtPerformanceMs),
+        audioContextTimeMs: round(contextTimeMs),
+        audioClockOffsetFromPerformanceMs: contextTimeMs === null ? null : round(contextTimeMs - sampledAtPerformanceMs),
+        audioBaseLatencyMs: Number.isFinite(baseLatencySeconds) ? round(baseLatencySeconds * 1000) : null,
+        audioOutputLatencyMs: Number.isFinite(outputLatencySeconds) ? round(outputLatencySeconds * 1000) : null,
+        audioOutputContextTimeMs: round(outputContextTimeMs),
+        audioOutputPerformanceTimeMs: round(outputPerformanceTimeMs),
+        audioOutputTimestampAgeMs: outputPerformanceTimeMs === null ? null : round(sampledAtPerformanceMs - outputPerformanceTimeMs),
+        audioOutputContextLagMs: contextTimeMs === null || outputContextTimeMs === null
+          ? null
+          : round(contextTimeMs - outputContextTimeMs)
+      };
+    }
+
+    function retainPerformanceMobileRecord(prefix, payload) {
+      if (!performanceDiagnosticsEnabled || !prefix || !payload) return;
+      performanceMobileRecords.push({ prefix, payload });
+      if (performanceMobileRecords.length <= performanceMobileRecordLimit) return;
+      const overflow = performanceMobileRecords.length - performanceMobileRecordLimit;
+      performanceMobileRecords.splice(0, overflow);
+      performanceMobileRecordsDropped += overflow;
+    }
+
+    function queuePerformanceConsoleRecord(prefix, payload) {
+      if (!performanceDiagnosticsEnabled || !prefix || !payload) return;
+      retainPerformanceMobileRecord(prefix, payload);
+      performanceConsoleQueue.push({ prefix, payload });
+      if (performanceConsoleTimer) return;
+      performanceConsoleTimer = window.setTimeout(() => {
+        performanceConsoleTimer = 0;
+        const queued = performanceConsoleQueue.splice(0);
+        queued.forEach((item) => console.info(`${item.prefix} ${JSON.stringify(item.payload)}`));
+      }, 0);
+    }
+
+    function performanceConsoleIdentity() {
+      return {
+        v: 1,
+        level: performanceDiagnosticsLevel,
+        clientId,
+        mode: "modern",
+        platform: performancePlatform(),
+        serverInstanceId: lastServerInstanceId
+      };
+    }
+
+    function recordPerformanceAudioClock(stage, details = {}) {
+      if (performanceDiagnosticsLevel < 2) return;
+      queuePerformanceConsoleRecord("FDV_AUDIO_CLOCK", {
+        ...performanceConsoleIdentity(),
+        stage,
+        ...details,
+        loggedAtServerTimeMs: Number(serverNow().toFixed(3)),
+        audioContextState: audioContext?.state || "unavailable",
+        ...performanceAudioClockSample()
+      });
+    }
+
+    function performancePrewarmPlanKey(segment, targetServerTimeMs, kind) {
+      if (!performanceLongRunDiagnostics || !segment || !Number.isFinite(Number(targetServerTimeMs))) return "";
+      return `${segment.cycle}:${segment.type}:${kind}:${Math.round(Number(targetServerTimeMs))}`;
+    }
+
+    function recordPerformancePrewarmLifecycle(stage, plan, details = {}) {
+      if (!performanceLongRunDiagnostics || !plan) return;
+      recordPerformanceAudioClock(stage, {
+        planKey: plan.planKey,
+        kind: plan.kind,
+        cycle: plan.cycle,
+        phase: plan.phase,
+        targetServerTimeMs: plan.targetServerTimeMs,
+        canonicalTargetServerTimeMs: plan.canonicalTargetServerTimeMs,
+        audioUserOffsetMs: plan.audioUserOffsetMs,
+        boundaryServerTimeMs: plan.boundaryServerTimeMs,
+        scheduledAtServerTimeMs: plan.scheduledAtServerTimeMs,
+        targetDelayMs: plan.targetDelayMs,
+        visibilityState: document.visibilityState || (document.hidden ? "hidden" : "visible"),
+        ...details
+      });
+    }
+
+    function finishPerformancePrewarmPlan(planKey, stage, details = {}) {
+      if (!performanceLongRunDiagnostics || !planKey) return;
+      const plan = performancePendingPrewarmPlans.get(planKey);
+      if (!plan) return;
+      performancePendingPrewarmPlans.delete(planKey);
+      recordPerformancePrewarmLifecycle(stage, plan, details);
+    }
+
+    function finalizeClearedPerformancePrewarmPlans(cancellationReason, cancelledAtServerTimeMs = serverNow()) {
+      if (!performanceLongRunDiagnostics || !performancePendingPrewarmPlans.size) return;
+      performancePendingPrewarmPlans.forEach((plan, planKey) => {
+        performancePendingPrewarmPlans.delete(planKey);
+        recordPerformancePrewarmLifecycle("prewarm-cancelled", plan, {
+          actualServerTimeMs: Number(Number(cancelledAtServerTimeMs).toFixed(3)),
+          latenessMs: Number((Number(cancelledAtServerTimeMs) - plan.targetServerTimeMs).toFixed(3)),
+          cancellationReason
+        });
+      });
+    }
+
+    function recordPerformanceAudioNodeTarget(item) {
+      if (performanceDiagnosticsLevel < 2 || !item?.signalKey || !item?.targetDetails) return;
+      if (!shouldLogPerformanceAudioSchedule({
+        stage: "node-target-check",
+        kind: item.kind,
+        signalKey: item.signalKey
+      })) return;
+      const callbackServerTimeMs = serverNow();
+      const targetServerTimeMs = Number(item.targetDetails.targetServerTimeMs);
+      const scheduledAudioContextTimeMs = Number(item.start) * 1000;
+      const observedAudioContextTimeMs = Number(audioContext?.currentTime) * 1000;
+      const callbackLatenessMs = callbackServerTimeMs - targetServerTimeMs;
+      const expectedAudioContextTimeMs = scheduledAudioContextTimeMs + callbackLatenessMs;
+      recordPerformanceAudioClock("node-target-check", {
+        kind: item.kind || "",
+        signalKey: item.signalKey,
+        targetServerTimeMs: Number.isFinite(targetServerTimeMs) ? Number(targetServerTimeMs.toFixed(3)) : null,
+        scheduledAudioContextTimeMs: Number.isFinite(scheduledAudioContextTimeMs)
+          ? Number(scheduledAudioContextTimeMs.toFixed(3))
+          : null,
+        observedAudioContextTimeMs: Number.isFinite(observedAudioContextTimeMs)
+          ? Number(observedAudioContextTimeMs.toFixed(3))
+          : null,
+        callbackServerTimeMs: Number(callbackServerTimeMs.toFixed(3)),
+        callbackLatenessMs: Number.isFinite(callbackLatenessMs) ? Number(callbackLatenessMs.toFixed(3)) : null,
+        audioContextProgressErrorMs: Number.isFinite(observedAudioContextTimeMs) && Number.isFinite(expectedAudioContextTimeMs)
+          ? Number((observedAudioContextTimeMs - expectedAudioContextTimeMs).toFixed(3))
+          : null
+      });
+    }
+
+    function observePerformanceAudioContext(reason = "created") {
+      if (!performanceDiagnosticsEnabled || !audioContext || performanceObservedAudioContext === audioContext) return;
+      performanceObservedAudioContext = audioContext;
+      recordPerformanceAudioClock("context-observed", { reason });
+      audioContext.addEventListener("statechange", () => {
+        recordPerformanceAudioClock("context-statechange", { reason });
+      });
+    }
+
+    function shouldLogPerformanceAudioSchedule(event) {
+      if (!event || performanceDiagnosticsLevel < 2) return false;
+      if (!performanceLongRunDiagnostics) return true;
+      return event.stage === "offset"
+        || event.stage === "cancelled"
+        || event.stage === "expired"
+        || event.stage === "suppressed"
+        || String(event.signalKey || "").startsWith("rotationBoundary:")
+        || event.kind === "warn";
+    }
+
+    function queuePerformanceAudioSchedule(event) {
+      if (!shouldLogPerformanceAudioSchedule(event)) return;
+      queuePerformanceConsoleRecord("FDV_AUDIO_SCHEDULE", {
+        ...performanceConsoleIdentity(),
+        stage: event.stage || "",
+        kind: event.kind || "",
+        signalKey: event.signalKey || "",
+        targetServerTimeMs: event.targetServerTimeMs ?? null,
+        canonicalTargetServerTimeMs: event.canonicalTargetServerTimeMs ?? null,
+        audioUserOffsetMs: event.audioUserOffsetMs ?? null,
+        previousAudioUserOffsetMs: event.previousAudioUserOffsetMs ?? null,
+        nextSignalTargetServerTimeMs: event.nextSignalTargetServerTimeMs ?? null,
+        lateGraceMs: event.lateGraceMs ?? null,
+        preserveOnTransition: event.preserveOnTransition ?? null,
+        suppressionReason: event.suppressionReason || "",
+        cancellationReason: event.cancellationReason || "",
+        scheduledAtServerTimeMs: event.scheduledAtServerTimeMs ?? null,
+        leadMs: event.leadMs ?? null,
+        estimatedServerStartMs: event.estimatedServerStartMs ?? null,
+        scheduledStopServerTimeMs: event.scheduledStopServerTimeMs ?? null,
+        scheduledDurationMs: event.scheduledDurationMs ?? null,
+        nodeStarted: event.nodeStarted ?? null,
+        targetErrorMs: event.targetErrorMs ?? null,
+        actualServerTimeMs: event.actualServerTimeMs ?? null,
+        latenessMs: event.latenessMs ?? null,
+        bufferAttemptCount: event.bufferAttemptCount ?? null,
+        bufferLastFailure: event.bufferLastFailure || "",
+        loggedAtServerTimeMs: Number(serverNow().toFixed(3)),
+        audioContextState: audioContext?.state || "unavailable",
+        ...performanceAudioClockSample(),
+        clockRate: Number(serverClockRate.toFixed(9)),
+        syncErrorMs: syncQuality.error,
+        syncLatencyMs: syncQuality.latency,
+        syncJitterMs: syncQuality.jitter
+      });
+    }
+
+    function queuePerformanceTransition(event, previousPhaseKey, phaseKey) {
+      queuePerformanceConsoleRecord("FDV_TRANSITION", {
+        ...performanceConsoleIdentity(),
+        previousPhaseKey,
+        phaseKey,
+        targetServerTimeMs: event.targetServerTimeMs,
+        canonicalTargetServerTimeMs: event.canonicalTargetServerTimeMs ?? event.targetServerTimeMs,
+        callbackServerTimeMs: event.callbackServerTimeMs,
+        renderCompletedServerTimeMs: event.renderCompletedServerTimeMs,
+        callbackLatenessMs: event.callbackLatenessMs,
+        commitLatenessMs: event.commitLatenessMs,
+        renderDurationMs: event.renderDurationMs,
+        beforeLabel: event.beforeLabel,
+        afterLabel: event.afterLabel,
+        phase: event.phase,
+        cycle: event.cycle,
+        renderSource: event.renderSource || "unknown",
+        visibilityState: event.visibilityState,
+        clockRate: Number(serverClockRate.toFixed(9)),
+        syncErrorMs: syncQuality.error,
+        syncLatencyMs: syncQuality.latency,
+        syncJitterMs: syncQuality.jitter
+      });
+    }
+
+    function queuePerformanceServerInstanceChange(event) {
+      queuePerformanceConsoleRecord("FDV_SERVER_INSTANCE", {
+        ...performanceConsoleIdentity(),
+        previousServerInstanceId: event.previousServerInstanceId,
+        observedAtServerTimeMs: event.observedAtServerTimeMs,
+        previousStartedAtMs: event.previousStartedAtMs,
+        startedAtMs: event.startedAtMs,
+        timelineShiftMs: event.timelineShiftMs,
+        previousElapsedMs: event.previousElapsedMs,
+        elapsedMs: event.elapsedMs,
+        expectedElapsedMs: event.expectedElapsedMs,
+        elapsedDiscontinuityMs: event.elapsedDiscontinuityMs,
+        previousPhaseKey: event.previousPhaseKey,
+        phaseKey: event.phaseKey,
+        version: event.version
+      });
+    }
+
+    function recordPerformanceServerInstanceChange(remote) {
+      if (!pendingPerformanceServerRestart) return;
+      const previous = pendingPerformanceServerRestart;
+      pendingPerformanceServerRestart = null;
+      const elapsedMs = Number(remote?.elapsed) * 1000;
+      const expectedElapsedMs = previous.previousElapsedMs
+        + Math.max(0, performance.now() - previous.observedAtPerformanceMs);
+      const startedAtMs = Number(state.serverStartedAt || 0);
+      const timelineShiftMs = previous.previousStartedAtMs > 0 && startedAtMs > 0
+        ? startedAtMs - previous.previousStartedAtMs
+        : null;
+      const nextSegment = state.running && !state.countdownOnly && Number.isFinite(elapsedMs)
+        ? getCurrentSegment(elapsedMs / 1000)
+        : null;
+      queuePerformanceServerInstanceChange({
+        previousServerInstanceId: previous.previousServerInstanceId,
+        observedAtServerTimeMs: Number(serverNow().toFixed(3)),
+        previousStartedAtMs: previous.previousStartedAtMs || null,
+        startedAtMs: startedAtMs || null,
+        timelineShiftMs: Number.isFinite(timelineShiftMs) ? Number(timelineShiftMs.toFixed(3)) : null,
+        previousElapsedMs: Number(previous.previousElapsedMs.toFixed(3)),
+        elapsedMs: Number.isFinite(elapsedMs) ? Number(elapsedMs.toFixed(3)) : null,
+        expectedElapsedMs: Number(expectedElapsedMs.toFixed(3)),
+        elapsedDiscontinuityMs: Number.isFinite(elapsedMs)
+          ? Number((elapsedMs - expectedElapsedMs).toFixed(3))
+          : null,
+        previousPhaseKey: previous.previousPhaseKey,
+        phaseKey: nextSegment ? `${nextSegment.cycle}:${nextSegment.type}` : "",
+        version: Number(remote?.version || 0)
+      });
+    }
 
     function performanceCount(name, amount = 1) {
-      if (!performanceDiagnosticsEnabled) return;
+      if (!performanceAggregateDiagnostics) return;
       performanceDiagnostics.counters[name] = (performanceDiagnostics.counters[name] || 0) + amount;
     }
 
     function performanceStart() {
-      return performanceDiagnosticsEnabled ? performance.now() : null;
+      return performanceAggregateDiagnostics ? performance.now() : null;
     }
 
     function performanceEnd(name, startedAt) {
-      if (!performanceDiagnosticsEnabled || startedAt === null) return;
+      if (!performanceAggregateDiagnostics || startedAt === null) return;
       const duration = Math.max(0, performance.now() - startedAt);
       const timing = performanceDiagnostics.timings[name] || { count: 0, totalMs: 0, maxMs: 0 };
       timing.count += 1;
@@ -2923,20 +3257,222 @@
       performanceDiagnostics.timings[name] = timing;
     }
 
+    function performanceMeasure(name, durationMs) {
+      if (!performanceAggregateDiagnostics || !Number.isFinite(Number(durationMs))) return;
+      const duration = Math.max(0, Number(durationMs));
+      const timing = performanceDiagnostics.timings[name] || { count: 0, totalMs: 0, maxMs: 0 };
+      timing.count += 1;
+      timing.totalMs += duration;
+      timing.maxMs = Math.max(timing.maxMs, duration);
+      performanceDiagnostics.timings[name] = timing;
+    }
+
+    function recordDisplayBoundary(event) {
+      if (!performanceDiagnosticsEnabled || !event) return;
+      performanceDisplayBoundaryEvents.push(event);
+      if (performanceDisplayBoundaryEvents.length > performanceDisplayBoundaryEventLimit) {
+        performanceDisplayBoundaryEvents.splice(0, performanceDisplayBoundaryEvents.length - performanceDisplayBoundaryEventLimit);
+      }
+      performanceCount("displayBoundaryCallbacks");
+      performanceMeasure("displayBoundaryCallbackLateness", event.callbackLatenessMs);
+      performanceMeasure("displayBoundaryCommitLateness", event.commitLatenessMs);
+      performanceMeasure("displayBoundaryRender", event.renderDurationMs);
+      if (event.commitLatenessMs >= 100) performanceCount("displayBoundaryLate100ms");
+      if (event.commitLatenessMs >= 500) performanceCount("displayBoundaryLate500ms");
+      if (event.commitLatenessMs >= 1000) performanceCount("displayBoundaryLate1000ms");
+    }
+
+    function recordPerformanceRenderedPhase(segment, event) {
+      if (!performanceLongRunDiagnostics || !segment || !event) return;
+      const phaseKey = `${segment.cycle}:${segment.type}`;
+      const previousPhaseKey = performanceLastRenderedPhaseKey;
+      performanceLastRenderedPhaseKey = phaseKey;
+      if (!previousPhaseKey || previousPhaseKey === phaseKey) return;
+      queuePerformanceTransition({
+        ...event,
+        phase: segment.type,
+        cycle: segment.cycle,
+        visibilityState: document.visibilityState || (document.hidden ? "hidden" : "visible")
+      }, previousPhaseKey, phaseKey);
+    }
+
+    function recordPerformanceAudioSchedule(event) {
+      if (!performanceDiagnosticsEnabled || !event) return;
+      const normalizedEvent = {
+        audioUserOffsetMs: Number(audioUserOffsetMs.toFixed(3)),
+        ...event
+      };
+      const signalKey = String(normalizedEvent.signalKey || "");
+      if (signalKey && normalizedEvent.stage === "plan") {
+        performancePendingAudioPlans.set(signalKey, { ...normalizedEvent });
+      } else if (signalKey && ["node", "fallback", "suppressed", "cancelled", "expired"].includes(normalizedEvent.stage)) {
+        performancePendingAudioPlans.delete(signalKey);
+      }
+      if (performanceLongRunDiagnostics && !shouldLogPerformanceAudioSchedule(normalizedEvent)) return;
+      performanceAudioScheduleEvents.push(normalizedEvent);
+      if (performanceAudioScheduleEvents.length > performanceAudioScheduleEventLimit) {
+        performanceAudioScheduleEvents.splice(0, performanceAudioScheduleEvents.length - performanceAudioScheduleEventLimit);
+      }
+      performanceCount("audioScheduleEvents");
+      if (Number.isFinite(Number(normalizedEvent.targetErrorMs))) {
+        performanceMeasure("audioScheduleTargetError", Math.abs(Number(normalizedEvent.targetErrorMs)));
+      }
+      if (normalizedEvent.stage === "fallback" && Number.isFinite(Number(normalizedEvent.latenessMs))) {
+        performanceMeasure("audioFallbackLateness", Math.max(0, Number(normalizedEvent.latenessMs)));
+      }
+      if (normalizedEvent.stage === "expired") performanceCount("audioExpiredSignals");
+      queuePerformanceAudioSchedule(normalizedEvent);
+    }
+
+    function updatePerformancePendingAudioPlan(signalKey, details) {
+      if (!performanceDiagnosticsEnabled || !signalKey || !details) return;
+      const pendingPlan = performancePendingAudioPlans.get(signalKey);
+      if (!pendingPlan) return;
+      Object.assign(pendingPlan, details);
+    }
+
+    function shouldExpirePerformanceAudioPlan(plan, preserveTransition, currentServerTimeMs) {
+      if (!plan || (preserveTransition && plan.preserveOnTransition)) return false;
+      const targetServerTimeMs = Number(plan.targetServerTimeMs);
+      const lateGraceMs = Number(plan.lateGraceMs);
+      const currentTimeMs = Number(currentServerTimeMs);
+      if (!Number.isFinite(targetServerTimeMs) || !Number.isFinite(lateGraceMs) || !Number.isFinite(currentTimeMs)) return false;
+      return currentTimeMs - targetServerTimeMs > Math.max(0, lateGraceMs);
+    }
+
+    function finalizeClearedPerformanceAudioPlans(preserveTransition, currentServerTimeMs = serverNow()) {
+      if (!performanceDiagnosticsEnabled || !performancePendingAudioPlans.size) return;
+      performancePendingAudioPlans.forEach((plan, signalKey) => {
+        if (preserveTransition && plan.preserveOnTransition) return;
+        performancePendingAudioPlans.delete(signalKey);
+        if (!shouldExpirePerformanceAudioPlan(plan, preserveTransition, currentServerTimeMs)) return;
+        recordPerformanceAudioSchedule({
+          ...plan,
+          stage: "expired",
+          actualServerTimeMs: Number(Number(currentServerTimeMs).toFixed(3)),
+          latenessMs: Number((Number(currentServerTimeMs) - Number(plan.targetServerTimeMs)).toFixed(3)),
+          suppressionReason: "scheduler-window-missed"
+        });
+      });
+    }
+
+    function performanceAudioTarget(signalKey) {
+      const normalizedSignalKey = String(signalKey || "");
+      if (!normalizedSignalKey) return null;
+      const parts = normalizedSignalKey.split(":");
+      const targetText = parts.pop();
+      if (!targetText) return null;
+      const targetServerTimeMs = Number(targetText);
+      return Number.isFinite(targetServerTimeMs) ? targetServerTimeMs : null;
+    }
+
+    function performanceAudioTargetDetails(signalKey, explicitDetails = null) {
+      const explicitTarget = Number(explicitDetails?.targetServerTimeMs);
+      const hasExplicitTarget = explicitDetails !== null && Number.isFinite(explicitTarget);
+      const targetServerTimeMs = hasExplicitTarget ? explicitTarget : performanceAudioTarget(signalKey);
+      if (targetServerTimeMs === null) return null;
+      const explicitCanonicalTarget = Number(explicitDetails?.canonicalTargetServerTimeMs);
+      const hasExplicitCanonicalTarget = explicitDetails !== null && Number.isFinite(explicitCanonicalTarget);
+      const explicitOffset = Number(explicitDetails?.audioUserOffsetMs);
+      const hasExplicitOffset = explicitDetails !== null && Number.isFinite(explicitOffset);
+      const explicitNextTarget = Number(explicitDetails?.nextSignalTargetServerTimeMs);
+      const hasExplicitNextTarget = explicitDetails?.nextSignalTargetServerTimeMs !== null
+        && explicitDetails?.nextSignalTargetServerTimeMs !== undefined
+        && Number.isFinite(explicitNextTarget);
+      const canonicalTargetServerTimeMs = hasExplicitCanonicalTarget
+        ? explicitCanonicalTarget
+        : targetServerTimeMs - (hasExplicitOffset ? explicitOffset : audioUserOffsetMs);
+      return {
+        targetServerTimeMs: Number(targetServerTimeMs.toFixed(3)),
+        canonicalTargetServerTimeMs: Number(canonicalTargetServerTimeMs.toFixed(3)),
+        audioUserOffsetMs: Number((hasExplicitOffset
+          ? explicitOffset
+          : targetServerTimeMs - canonicalTargetServerTimeMs).toFixed(3)),
+        nextSignalTargetServerTimeMs: hasExplicitNextTarget
+          ? Number(explicitNextTarget.toFixed(3))
+          : null
+      };
+    }
+
     function performanceSnapshot() {
       const now = performance.now();
+      const sampledAtWallMs = Date.now();
+      const estimatedServerNowMs = serverTimeAnchor + ((now - serverPerfAnchor) * serverClockRate);
       const timings = Object.fromEntries(Object.entries(performanceDiagnostics.timings).map(([name, timing]) => [name, {
         count: timing.count,
         totalMs: Number(timing.totalMs.toFixed(3)),
         averageMs: Number((timing.totalMs / Math.max(1, timing.count)).toFixed(3)),
         maxMs: Number(timing.maxMs.toFixed(3))
       }]));
+      const signalDetails = (keys) => [...keys].slice(-100).map((key) => {
+        const parts = String(key).split(":");
+        const targetServerTimeMs = Number(parts.pop());
+        return Number.isFinite(targetServerTimeMs) ? {
+          id: parts.join(":"),
+          key,
+          targetServerTimeMs,
+          canonicalTargetServerTimeMs: targetServerTimeMs - audioUserOffsetMs
+        } : { id: key, key, targetServerTimeMs: null, canonicalTargetServerTimeMs: null };
+      });
+      const audioContextNow = Number(audioContext?.currentTime);
       return {
         enabled: performanceDiagnosticsEnabled,
+        level: performanceDiagnosticsLevel,
+        longRun: performanceLongRunDiagnostics,
+        audioKeepaliveExperiment: performanceAudioKeepaliveExperiment,
         ageMs: Math.round(now - performanceDiagnostics.startedAt),
         sampleAgeMs: Math.round(now - performanceDiagnostics.resetAt),
         counters: { ...performanceDiagnostics.counters },
         timings,
+        identity: {
+          clientId,
+          mode: "modern",
+          primary: isPrimaryClient,
+          standalone: standaloneMode
+        },
+        clock: {
+          sampledAtWallMs,
+          estimatedServerNowMs: Number(estimatedServerNowMs.toFixed(3)),
+          offsetFromWallMs: Number((estimatedServerNowMs - sampledAtWallMs).toFixed(3)),
+          rate: serverClockRate,
+          syncErrorMs: Number.isFinite(Number(syncQuality.error)) ? Number(syncQuality.error) : null,
+          syncLatencyMs: Number.isFinite(Number(syncQuality.latency)) ? Number(syncQuality.latency) : null,
+          syncJitterMs: Number.isFinite(Number(syncQuality.jitter)) ? Number(syncQuality.jitter) : null,
+          syncSamples: Number(syncQuality.samples) || 0,
+          serverInstanceId: lastServerInstanceId,
+          serverAvailable,
+          lastContactAgeMs: Math.max(0, Number((now - lastServerContactAt).toFixed(3)))
+        },
+        audio: {
+          userOffsetMs: audioUserOffsetMs,
+          allowed: canPlaySound(),
+          forcedByDiagnostics: performanceSoundForced,
+          noSoundWarm,
+          unlocked: audioUnlocked,
+          contextState: audioContext?.state || "unavailable",
+          clock: performanceAudioClockSample(),
+          scheduledSignals: signalDetails(scheduledSignalKeys),
+          playedSignals: signalDetails(playedSignalKeys),
+          scheduledNodes: scheduledAudioNodes.slice(-100).map((item) => ({
+            signalKey: item.signalKey || "",
+            started: Boolean(item.started),
+            estimatedServerStartMs: Number.isFinite(audioContextNow) && Number.isFinite(Number(item.start))
+              ? Number((estimatedServerNowMs + ((Number(item.start) - audioContextNow) * 1000)).toFixed(3))
+              : null,
+            estimatedServerStopMs: Number.isFinite(audioContextNow) && Number.isFinite(Number(item.stop))
+              ? Number((estimatedServerNowMs + ((Number(item.stop) - audioContextNow) * 1000)).toFixed(3))
+              : null,
+            scheduledDurationMs: Number.isFinite(Number(item.scheduledDurationMs))
+              ? Number(Number(item.scheduledDurationMs).toFixed(3))
+              : null
+          })),
+          scheduleEvents: performanceAudioScheduleEvents.slice()
+        },
+        display: {
+          label: lastDisplayTimeLabel,
+          visibilityState: document.visibilityState || (document.hidden ? "hidden" : "visible"),
+          boundaryEvents: performanceDisplayBoundaryEvents.slice()
+        },
         gauges: {
           signalTimers: signalTimers.length,
           transitionSignalTimers: transitionSignalTimers.length,
@@ -2944,8 +3480,10 @@
           scheduledSignalKeys: scheduledSignalKeys.size,
           playedSignalKeys: playedSignalKeys.size,
           scheduledPhaseSignalKeys: scheduledPhaseSignalKeys.size,
+          pendingPrewarmPlans: performancePendingPrewarmPlans.size,
           startListCount: state.startLists.filter(Boolean).length,
-          startListRows: state.startLists.reduce((sum, list) => sum + (list?.rows?.length || 0), 0)
+          startListRows: state.startLists.reduce((sum, list) => sum + (list?.rows?.length || 0), 0),
+          startListDataRevision
         }
       };
     }
@@ -2953,14 +3491,62 @@
     function resetPerformanceDiagnostics() {
       performanceDiagnostics.counters = Object.create(null);
       performanceDiagnostics.timings = Object.create(null);
+      performanceDisplayBoundaryEvents.length = 0;
+      performanceAudioScheduleEvents.length = 0;
+      performanceMobileRecords.length = 0;
+      performanceMobileRecordsDropped = 0;
+      performanceLastRenderedPhaseKey = "";
       performanceDiagnostics.resetAt = performance.now();
       return performanceSnapshot();
     }
 
+    function downloadPerformanceDiagnostics() {
+      if (!performanceDiagnosticsEnabled) return false;
+      const exportedAt = new Date();
+      const header = {
+        v: 1,
+        exportedAt: exportedAt.toISOString(),
+        location: window.location.href,
+        userAgent: navigator.userAgent,
+        platform: performancePlatform(),
+        recordCount: performanceMobileRecords.length,
+        droppedRecordCount: performanceMobileRecordsDropped,
+        ...performanceAudioClockSample()
+      };
+      const lines = [
+        `FDV_MOBILE_EXPORT ${JSON.stringify(header)}`,
+        ...performanceMobileRecords.map((item) => `${item.prefix} ${JSON.stringify(item.payload)}`),
+        `FDV_PERFORMANCE_SNAPSHOT ${JSON.stringify(performanceSnapshot())}`
+      ];
+      const blob = new Blob([`${lines.join("\n")}\n`], { type: "text/plain;charset=utf-8" });
+      const objectUrl = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      const host = String(window.location.hostname || "fdv-timer").replace(/[^a-z0-9.-]+/gi, "-");
+      link.href = objectUrl;
+      link.download = `${host}-${Date.now()}.txt`;
+      link.hidden = true;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+      if (els.performanceExportBtn) {
+        els.performanceExportBtn.textContent = language === "ru" ? "Лог сохранён" : "Log saved";
+        window.setTimeout(() => {
+          els.performanceExportBtn.textContent = language === "ru" ? "Скачать лог" : "Download log";
+        }, 1500);
+      }
+      return true;
+    }
+
     window.FDVPerformanceDiagnostics = {
       enabled: performanceDiagnosticsEnabled,
+      level: performanceDiagnosticsLevel,
+      soundForced: performanceSoundForced,
+      longRun: performanceLongRunDiagnostics,
+      audioKeepaliveExperiment: performanceAudioKeepaliveExperiment,
       snapshot: performanceSnapshot,
-      reset: resetPerformanceDiagnostics
+      reset: resetPerformanceDiagnostics,
+      download: downloadPerformanceDiagnostics
     };
     let audioSources = { start: "", end: "", minute: "", warn: "", festival60: "", festival30: "", festival10: "", festival5: "" };
     let audioBuffers = { start: null, end: null, minute: null, warn: null, festival60: null, festival30: null, festival10: null, festival5: null };
@@ -2978,10 +3564,12 @@
     let audioContext;
     let buffersLoading = null;
     let audioLoadGeneration = 0;
+    let audioScheduleGeneration = 0;
     let lastSegmentIndex = -1;
     let signalTimers = [];
     let transitionSignalTimers = [];
     let scheduledAudioNodes = [];
+    let performanceAudioKeepalive = null;
     let scheduledFinalSignalKey = "";
     let scheduledSignalKeys = new Set();
     let playedSignalKeys = new Set();
@@ -2995,6 +3583,8 @@
     let pendingServerClockRateCount = 0;
     let lastServerInstanceId = "";
     let lastServerVersion = 0;
+    let lastStartListServerRevision = "";
+    let startListPayloadRecoveryScheduled = false;
     let syncTimer = null;
     let isPrimaryClient = false;
     let isViewerClient = false;
@@ -3012,6 +3602,7 @@
     let lastRemoteRunning = false;
     let lastStartListRenderKey = "";
     let lastStartListStructureKey = "";
+    let startListDataRevision = 0;
     let lastStartListScrollAnchors = [];
     let pendingStartListScrollRestores = [];
     let storedStartListScrollRestoreLoaded = false;
@@ -3028,6 +3619,16 @@
       "[data-start-list-incident-action=\"stop\"]"
     ].join(",");
     let startListWidthFitFrame = 0;
+    let startListWidthFitQueuedKey = "";
+    let startListWidthFitLastKey = "";
+    let startListWidthFitSettleRequested = false;
+    let startListWidthFitForceRequested = false;
+    let startListWidthFitPass = 0;
+    let startListWidthFitPreviousLayoutKey = "";
+    let startListRenderFrame = 0;
+    let startListRenderTimer = 0;
+    let startListRenderQueued = false;
+    let startListRenderQueuedAt = 0;
     let measuredBrowserScrollbarWidth = null;
     let startListEditorOpen = safeStorageGet("sessionStorage", startListEditorPreferenceKey) === "1";
     state.startListEnabled = startListEditorOpen;
@@ -3048,6 +3649,7 @@
     let serverClockRateGateReason = "";
     let lastResumeSyncAt = 0;
     let pageHiddenAt = 0;
+    let signalsInvalidatedWhileHidden = false;
     let suppressPhaseSignalsUntil = 0;
     let resumeSnapPending = false;
     let resumeSnapStartedAt = 0;
@@ -3081,6 +3683,7 @@
     let lastAudioChipToggleAt = 0;
     let lastAudioChipToggleClientId = "";
     let testAudioEverywhere = false;
+    let noSoundWarm = false;
     let lastAudioTestId = "";
     let audioTestCooldownUntil = 0;
     let audioTestButtonsDisabledReason = null;
@@ -3140,17 +3743,24 @@
     const trustedClockAnchorIntervalMs = 60000;
     const staleSignalGraceMs = 500;
     const signalLateGraceMs = {
-      rotationBoundary: 1500,
+      rotationBoundary: 1200,
       start: 1500,
-      end: 1500,
+      end: 1200,
       minute: 2000,
-      warn: 700,
+      warn: 300,
       festival: 2000,
       default: 500,
-      noncritical: 0
+      prewarm: 500,
+      warm: 250
     };
     const audioScheduleAheadSeconds = 2.8;
     const audioPrewarmSeconds = 2;
+    const performanceAudioKeepaliveLeadSeconds = 10;
+    const performanceAudioKeepaliveTailSeconds = 0.35;
+    const performanceAudioKeepaliveGain = 0.00005;
+    const performanceAudioKeepaliveFrequency = 440;
+    const warningSeparationGuardMs = 20;
+    const syntheticWarningDurationMs = 220;
     const seekEndGuardSeconds = 0.9;
     const manualStartWatchdogDelayMs = 250;
     const audioTestCooldownMs = 1000;
@@ -3162,6 +3772,7 @@
     const renderIdleIntervalMs = 1000;
     const renderRunningIntervalMs = 250;
     const displayBoundaryGuardMs = 8;
+    const startListCriticalReserveMs = 750;
     const progressUpdateIntervalMs = 250;
     const runtimeCommandTypes = new Set(["start", "pause", "stopCountdown", "reset", "seek", "seekCycle"]);
 
@@ -3206,7 +3817,7 @@
     function refreshStartListScreenMode() {
       lastStartListStructureKey = "";
       lastStartListRenderKey = "";
-      renderStartList();
+      scheduleStartListRender();
     }
 
     function isLocalStandalonePage() {
@@ -3351,8 +3962,8 @@
       }
     }
 
-    function rescheduleStandaloneSignals() {
-      clearSignalTimers();
+    function rescheduleStandaloneSignals(options = {}) {
+      clearSignalTimers(false, Boolean(options.forceStopAudio));
       lastSegmentIndex = -1;
       if (!state.running || state.countdownOnly) return;
       const elapsed = elapsedSeconds();
@@ -3362,14 +3973,56 @@
       const duration = segment.end - segment.start;
       lastSegmentIndex = `${segment.cycle}:${segment.type}`;
       scheduleSegmentSignals(segment, remaining, duration, false);
+      const recentPhaseScheduled = options.includeRecentPhaseSignal
+        ? scheduleRecentPhaseSignalAfterResume(segment)
+        : false;
       if (isBeforeScheduledStart() && !state.activeSettings.oneShot) {
         scheduleBufferedSignalAt(segment, state.serverStartedAt, "start", true);
       }
+      if (options.reason) {
+        recordPerformanceAudioClock("page-audio-reschedule", {
+          reason: options.reason,
+          cycle: segment.cycle,
+          phase: segment.type,
+          recentPhaseScheduled,
+          audioScheduleGeneration
+        });
+      }
+    }
+
+    function recentPhaseSignalGraceMs(segment) {
+      if (!segment) return 0;
+      return segment.type === "rotation" && segment.cycle === 1 && segment.start === 0
+        ? signalLateGraceMs.start
+        : signalLateGraceMs.rotationBoundary;
+    }
+
+    function scheduleRecentPhaseSignalAfterResume(segment) {
+      if (!state.running || state.countdownOnly || !segment) return false;
+      const targetServerTime = Number(serverTimeForElapsed(segment.start));
+      const lateGraceMs = recentPhaseSignalGraceMs(segment);
+      if (!Number.isFinite(targetServerTime) || !shouldScheduleServerSignal(targetServerTime, lateGraceMs)) return false;
+      const phaseKey = `${segment.cycle}:${segment.type}`;
+      const signalKey = `rotationBoundary:${phaseKey}:${Math.round(targetServerTime)}`;
+      if (lastPhaseSignalKey === phaseKey || playedSignalKeys.has(signalKey)) return false;
+      scheduleBufferedSignalAt(segment, targetServerTime, segment.type === "break" ? "end" : "start", true, true, null, {
+        signalKey,
+        category: "rotationBoundary",
+        lateGraceMs,
+        preserveOnTransition: true,
+        allowAfterSegment: true,
+        onPlay: () => {
+          lastPhaseSignalKey = phaseKey;
+          scheduledPhaseSignalKeys.delete(phaseKey);
+        }
+      });
+      return true;
     }
 
     function enterStandaloneMode() {
       if (serverAvailable || standaloneMode) return;
       standaloneMode = true;
+      lastStartListServerRevision = "";
       pendingServerState = null;
       state.activeSettings ||= activeSettingsFromDraft();
       rescheduleStandaloneSignals();
@@ -3406,6 +4059,68 @@
       refreshStandaloneBrowserList();
     }
 
+    function offlineSnapshotContentKey(localStandalone) {
+      return JSON.stringify({
+        localStandalone,
+        standaloneMode,
+        serverStateIdentity: standaloneMode ? "" : `${lastServerInstanceId}:${lastServerVersion}`,
+        startListServerRevision: standaloneMode ? "" : lastStartListServerRevision,
+        config: lastStartupConfig,
+        language,
+        primarySoundEnabled: standaloneMode ? els.soundToggle.checked : primarySoundEnabled,
+        globalSoundEnabled: standaloneMode ? els.soundToggle.checked : globalSoundEnabled,
+        instancesSoundEnabled,
+        instancesFullscreenEnabled,
+        audioUserOffsetMs,
+        draftSettings: draftSettings(),
+        startListDataRevision,
+        state: {
+          running: state.running,
+          completed: state.completed,
+          countdownOnly: state.countdownOnly,
+          waitingForManualStart: state.waitingForManualStart,
+          serverStartedAt: standaloneMode ? state.serverStartedAt : null,
+          elapsedBeforePause: state.elapsedBeforePause,
+          activePreset: state.activePreset,
+          runtimePreset: state.runtimePreset,
+          activeSettings: state.activeSettings,
+          soundProfile: state.soundProfile,
+          flashing: state.flashing,
+          festivalAnnouncements: state.festivalAnnouncements,
+          primaryClientId: state.primaryClientId,
+          primaryPinSet: state.primaryPinSet,
+          startListParallel: state.startListParallel,
+          startListEnabled: state.startListEnabled,
+          startListVisible: state.startListVisible,
+          startListFinalCycle: state.startListFinalCycle
+        }
+      });
+    }
+
+    function offlineSnapshotWriteReason(contentKey, previousContentKey, savedAtWall, previousSavedAtWall, safetyIntervalMs) {
+      if (!previousContentKey || contentKey !== previousContentKey) return "changed";
+      const age = Number(savedAtWall) - Number(previousSavedAtWall);
+      if (!Number.isFinite(age) || age < 0 || age >= safetyIntervalMs) return "safety";
+      return "";
+    }
+
+    function scheduleOfflineSnapshotSafetyWrite(reset = false) {
+      if (isLocalStandalonePage()) return;
+      if (reset && offlineSnapshotSafetyTimer) {
+        window.clearTimeout(offlineSnapshotSafetyTimer);
+        offlineSnapshotSafetyTimer = 0;
+      }
+      if (offlineSnapshotSafetyTimer) return;
+      const elapsed = lastOfflineSnapshotSavedAt ? Date.now() - lastOfflineSnapshotSavedAt : 0;
+      const delay = Number.isFinite(elapsed) && elapsed >= 0
+        ? Math.max(1000, offlineSnapshotSafetyIntervalMs - elapsed)
+        : offlineSnapshotSafetyIntervalMs;
+      offlineSnapshotSafetyTimer = window.setTimeout(() => {
+        offlineSnapshotSafetyTimer = 0;
+        saveOfflineSnapshot();
+      }, delay);
+    }
+
     function saveOfflineSnapshot() {
       performanceCount("offlineSnapshotCalls");
       const performanceStartedAt = performanceStart();
@@ -3416,13 +4131,27 @@
         if (!serverAvailable && !standaloneMode) return;
       }
       try {
+        const savedAtWall = Date.now();
+        const contentKey = offlineSnapshotContentKey(localStandalone);
+        const writeReason = offlineSnapshotWriteReason(
+          contentKey,
+          lastOfflineSnapshotContentKey,
+          savedAtWall,
+          lastOfflineSnapshotSavedAt,
+          offlineSnapshotSafetyIntervalMs
+        );
+        if (!writeReason) {
+          performanceCount("offlineSnapshotSkipsUnchanged");
+          scheduleOfflineSnapshotSafetyWrite();
+          return;
+        }
         const snapshot = {
           schemaVersion: 1,
           localStandalone,
           clientId,
           standaloneMode,
           pageBuildNumber,
-          savedAtWall: Date.now(),
+          savedAtWall,
           serverNow: serverNow(),
           serverClockRate,
           config: lastStartupConfig,
@@ -3432,6 +4161,7 @@
           instancesSoundEnabled,
           instancesFullscreenEnabled,
           audioUserOffsetMs,
+          startListServerRevision: standaloneMode ? "" : lastStartListServerRevision,
           draftSettings: draftSettings(),
           state: {
             running: state.running,
@@ -3458,7 +4188,16 @@
         const serializedSnapshot = JSON.stringify(snapshot);
         performanceCount("offlineSnapshotBytes", serializedSnapshot.length);
         if (safeStorageSet("localStorage", offlineSnapshotKey, serializedSnapshot)) {
+          lastOfflineSnapshotContentKey = contentKey;
+          lastOfflineSnapshotSavedAt = savedAtWall;
           performanceCount("offlineSnapshotWrites");
+          performanceCount(writeReason === "changed"
+            ? "offlineSnapshotChangedWrites"
+            : "offlineSnapshotSafetyWrites");
+          scheduleOfflineSnapshotSafetyWrite(true);
+        } else {
+          performanceCount("offlineSnapshotWriteFailures");
+          scheduleOfflineSnapshotSafetyWrite();
         }
       } catch (error) {}
       } finally {
@@ -3500,6 +4239,10 @@
           ? clientId
           : snapshotPrimaryClientId;
 
+        const restoredStartLists = normalizeStartLists(snapshot.state.startLists);
+        lastStartListServerRevision = !localStandalone && Array.isArray(snapshot.state.startLists)
+          ? String(snapshot.startListServerRevision || "").slice(0, 200)
+          : "";
         Object.assign(state, {
           running: Boolean(snapshot.state.running),
           completed: Boolean(snapshot.state.completed),
@@ -3516,15 +4259,17 @@
           festivalAnnouncements: snapshot.state.festivalAnnouncements !== false,
           primaryClientId: restoredPrimaryClientId,
           primaryPinSet: Boolean(snapshot.state.primaryPinSet),
-          startLists: normalizeStartLists(snapshot.state.startLists),
+          startLists: restoredStartLists,
           startListParallel: Boolean(snapshot.state.startListParallel)
-            && normalizeStartLists(snapshot.state.startLists).length === 2,
+            && restoredStartLists.length === 2,
           startListEnabled: Object.prototype.hasOwnProperty.call(snapshot.state, "startListEnabled")
             ? Boolean(snapshot.state.startListEnabled)
             : snapshot.state.startListVisible !== false,
-          startListVisible: snapshot.state.startListVisible !== false && hasStartLists(normalizeStartLists(snapshot.state.startLists)),
+          startListVisible: snapshot.state.startListVisible !== false && hasStartLists(restoredStartLists),
           startListFinalCycle: Math.max(0, Math.round(Number(snapshot.state.startListFinalCycle) || 0))
         });
+        startListDataRevision += 1;
+        lastStartListRenderKey = "";
         startListEditorOpen = state.startListEnabled;
         els.startListToggle.checked = startListEditorOpen;
         isPrimaryClient = state.primaryClientId === clientId;
@@ -3568,6 +4313,9 @@
           rescheduleStandaloneSignals();
           refreshStandaloneBrowserList();
         }
+        lastOfflineSnapshotContentKey = offlineSnapshotContentKey(localStandalone);
+        lastOfflineSnapshotSavedAt = savedAtWall;
+        scheduleOfflineSnapshotSafetyWrite(true);
         return true;
       } catch (error) {
         return false;
@@ -3694,12 +4442,29 @@
       audioUnlocked = true;
       try {
         audioContext ||= new (window.AudioContext || window.webkitAudioContext)();
+        observePerformanceAudioContext("unlock");
+        recordPerformanceAudioClock("unlock-request", { shouldPrime });
         const unlockSource = audioContext.createBufferSource();
         unlockSource.buffer = audioContext.createBuffer(1, 1, 22050);
         unlockSource.connect(audioContext.destination);
         unlockSource.start(0);
         if (audioContext.state !== "running" && audioContext.state !== "closed") {
-          await audioContext.resume();
+          const resumeStartedAt = performance.now();
+          recordPerformanceAudioClock("resume-request", { reason: "unlock" });
+          try {
+            await audioContext.resume();
+            recordPerformanceAudioClock("resume-resolved", {
+              reason: "unlock",
+              resumeDurationMs: Number((performance.now() - resumeStartedAt).toFixed(3))
+            });
+          } catch (error) {
+            recordPerformanceAudioClock("resume-rejected", {
+              reason: "unlock",
+              resumeDurationMs: Number((performance.now() - resumeStartedAt).toFixed(3)),
+              errorName: error?.name || "Error"
+            });
+            throw error;
+          }
         }
         if (shouldPrime) {
           const gain = audioContext.createGain();
@@ -3710,6 +4475,7 @@
           osc.stop(audioContext.currentTime + 0.03);
         }
         loadAudioBuffers()?.catch(() => {});
+        recordPerformanceAudioClock("unlock-complete", { shouldPrime });
       } catch (error) {}
       if (refreshDiagnostics) {
         refreshStandaloneBrowserList();
@@ -4089,12 +4855,26 @@
     }
 
     function reconcileServerStateIdentity(remote) {
+      const previousInstanceId = lastServerInstanceId;
       const identity = window.FDVClientActionTransport.reconcileServerStateIdentity(
         lastServerInstanceId,
         lastServerVersion,
         remote
       );
       if (identity.instanceChanged) {
+        if (identity.serverRestarted && performanceDiagnosticsEnabled && !pendingPerformanceServerRestart) {
+          const previousElapsedMs = elapsedSeconds() * 1000;
+          const previousSegment = state.running && !state.countdownOnly
+            ? getCurrentSegment(previousElapsedMs / 1000)
+            : null;
+          pendingPerformanceServerRestart = {
+            previousServerInstanceId: previousInstanceId,
+            previousStartedAtMs: Number(state.serverStartedAt || 0),
+            previousElapsedMs,
+            previousPhaseKey: previousSegment ? `${previousSegment.cycle}:${previousSegment.type}` : "",
+            observedAtPerformanceMs: performance.now()
+          };
+        }
         lastServerInstanceId = identity.instanceId;
         lastServerVersion = 0;
         trustedServerClockAnchor = null;
@@ -4204,6 +4984,7 @@
         lastSseAge: Math.max(0, performance.now() - lastSseEventAt),
         sseRestarts,
         stateVersion: lastServerVersion || "",
+        startListRevision: lastStartListServerRevision,
         displayStatus: diagnosticDisplayStatusKey()
       };
     }
@@ -4460,7 +5241,7 @@
       pickSpeechVoice();
       updateParameterLabels();
       updateStartListControls();
-      render();
+      render("language");
       renderBrowserList(lastKnownClients);
       refreshStandaloneBrowserList();
     }
@@ -4534,6 +5315,7 @@
       presets.final.rotationMinutes = finiteNumber(config.finalRotationMinutes, presets.final.rotationMinutes);
       presets.final.finalRoundFormat = config.finalRoundFormat === "new" ? "new" : "old";
       presets.final.finalRestRotations = clampNumber(config.finalRestRotations, 1, 9, presets.final.finalRestRotations);
+      noSoundWarm = config.noSoundWarm === true;
       if (startupConfigApplied) return;
       startupConfigApplied = true;
       state.flashing = config.flashing !== false;
@@ -4768,6 +5550,48 @@
       };
     }
 
+    function remoteStartListPayloadStatus(remote, knownRevision) {
+      if (!remote || typeof remote !== "object") return "recover";
+      if (Object.prototype.hasOwnProperty.call(remote, "startLists")) {
+        return Array.isArray(remote.startLists) ? "replace" : "recover";
+      }
+      const remoteRevision = String(remote.startListRevision || "");
+      return remoteRevision && remoteRevision === String(knownRevision || "")
+        ? "preserve"
+        : "recover";
+    }
+
+    function scheduleStartListPayloadRecovery() {
+      if (startListPayloadRecoveryScheduled || standaloneMode) return;
+      startListPayloadRecoveryScheduled = true;
+      window.setTimeout(async () => {
+        startListPayloadRecoveryScheduled = false;
+        if (syncRequestInFlight) {
+          scheduleStartListPayloadRecovery();
+          return;
+        }
+        await syncFromServer({ forceApply: true, forceStartLists: true, skipBurst: true });
+      }, 100);
+    }
+
+    function applyRemoteStartListPayload(remote) {
+      const payloadStatus = remoteStartListPayloadStatus(remote, lastStartListServerRevision);
+      if (payloadStatus === "replace") {
+        replaceCanonicalStartLists(normalizeStartLists(remote.startLists));
+        lastStartListServerRevision = String(remote.startListRevision || "").slice(0, 200);
+        performanceCount("startListPayloadFullApplies");
+        return true;
+      }
+      if (payloadStatus === "preserve") {
+        performanceCount("startListPayloadReuses");
+        return false;
+      }
+      lastStartListServerRevision = "";
+      performanceCount("startListPayloadRecoveryRequests");
+      scheduleStartListPayloadRecovery();
+      return false;
+    }
+
     function applyServerState(remote, options = {}) {
       performanceCount("serverStateFullApplies");
       const performanceStartedAt = performanceStart();
@@ -4800,13 +5624,8 @@
       state.runtimePreset = Object.prototype.hasOwnProperty.call(remote, "runtimePreset")
         ? remote.runtimePreset || ""
         : state.activeSettings.oneShot ? "final" : state.activePreset || "classic";
-      const nextStartLists = normalizeStartLists(remote.startLists);
-      if (JSON.stringify(nextStartLists) !== JSON.stringify(state.startLists)) {
-        rememberStartListScrollPositions(nextStartLists);
-        lastStartListRenderKey = "";
-      }
-      state.startLists = nextStartLists;
-      state.startListParallel = Boolean(remote.startListParallel) && nextStartLists.length === 2;
+      applyRemoteStartListPayload(remote);
+      state.startListParallel = Boolean(remote.startListParallel) && state.startLists.length === 2;
       state.startListEnabled = Boolean(remote.startListEnabled);
       state.startListIndexes = Array.isArray(remote.startListIndexes)
         ? [...new Set(remote.startListIndexes.map(Number).filter((index) => Number.isInteger(index) && index >= 0 && index < 4))]
@@ -4828,9 +5647,19 @@
       const remoteClients = Array.isArray(remote.clients) ? remote.clients : [];
       const diagnosticsIncluded = remote.diagnosticsIncluded !== false && Array.isArray(remote.clients);
       const ownClient = remoteClients.find((client) => client.id === clientId);
+      const previousAudioUserOffsetMs = audioUserOffsetMs;
       const nextAudioOffset = Number(ownClient?.audioUserOffset ?? remote.audioUserOffset ?? 0);
       const audioOffsetChanged = nextAudioOffset !== audioUserOffsetMs;
       audioUserOffsetMs = nextAudioOffset;
+      if (audioOffsetChanged) {
+        recordPerformanceAudioSchedule({
+          stage: "offset",
+          kind: "config",
+          signalKey: `audioOffset:${clientId}:${Math.round(serverNow())}`,
+          previousAudioUserOffsetMs: Number(previousAudioUserOffsetMs.toFixed(3)),
+          audioUserOffsetMs: Number(audioUserOffsetMs.toFixed(3))
+        });
+      }
 
       if (remote.draftSettings) {
         setInputsFromDraft(remote.draftSettings);
@@ -4868,6 +5697,8 @@
       applyViewerFullscreenPreference();
       scheduleFitTimer();
 
+      if (options.replaceAudioSchedule) clearSignalTimers(false, true);
+
       if (!state.running) {
         clearSignalTimers();
         lastSegmentIndex = -1;
@@ -4884,8 +5715,20 @@
           lastSegmentIndex = `${segment.cycle}:${segment.type}`;
           const waitingForStart = state.serverStartedAt > serverNow() + 80;
           scheduleSegmentSignals(segment, remaining, duration, waitingForStart ? false : Boolean(options.includePhaseSignal));
+          const recentPhaseScheduled = options.includeRecentPhaseSignal && !waitingForStart
+            ? scheduleRecentPhaseSignalAfterResume(segment)
+            : false;
           if (waitingForStart && !state.activeSettings.oneShot) {
             scheduleBufferedSignalAt(segment, state.serverStartedAt, "start", true);
+          }
+          if (options.resumeAudioSchedule) {
+            recordPerformanceAudioClock("page-audio-reschedule", {
+              reason: "server-sync",
+              cycle: segment.cycle,
+              phase: segment.type,
+              recentPhaseScheduled,
+              audioScheduleGeneration
+            });
           }
         }
       }
@@ -4894,7 +5737,8 @@
       lastRemoteRunning = state.running;
       syncButtons();
       if (diagnosticsIncluded) renderBrowserList(remoteClients);
-      render();
+      render("state-update");
+      recordPerformanceServerInstanceChange(remote);
       saveOfflineSnapshot();
       } finally {
         performanceEnd("applyServerState", performanceStartedAt);
@@ -4921,13 +5765,8 @@
       state.runtimePreset = Object.prototype.hasOwnProperty.call(remote, "runtimePreset")
         ? remote.runtimePreset || ""
         : state.activeSettings.oneShot ? "final" : state.activePreset || "classic";
-      const nextStartLists = normalizeStartLists(remote.startLists);
-      if (JSON.stringify(nextStartLists) !== JSON.stringify(state.startLists)) {
-        rememberStartListScrollPositions(nextStartLists);
-        lastStartListRenderKey = "";
-      }
-      state.startLists = nextStartLists;
-      state.startListParallel = Boolean(remote.startListParallel) && nextStartLists.length === 2;
+      applyRemoteStartListPayload(remote);
+      state.startListParallel = Boolean(remote.startListParallel) && state.startLists.length === 2;
       state.startListEnabled = Boolean(remote.startListEnabled);
       state.startListIndexes = Array.isArray(remote.startListIndexes)
         ? [...new Set(remote.startListIndexes.map(Number).filter((index) => Number.isInteger(index) && index >= 0 && index < 4))]
@@ -4944,7 +5783,7 @@
       if (settingsChanged) buildTimeline(state.activeSettings);
       lastRemoteRunning = state.running;
       syncButtons();
-      render();
+      render("state-clock");
       saveOfflineSnapshot();
       } finally {
         performanceEnd("applyServerRuntimeClockState", performanceStartedAt);
@@ -5006,6 +5845,7 @@
         };
         const params = new URLSearchParams({
           ...clientDiagnostics(),
+          startListRevision: options.forceStartLists ? "" : lastStartListServerRevision,
           diagnostics: (isPrimaryClient || !state.primaryClientId) ? "1" : "0"
         });
         const response = await fetch(`/api/state?${params}`, {
@@ -5051,7 +5891,7 @@
             && !lastRemoteRunning
             && Boolean(remote.running)
             && Number(remote.elapsedBeforePause || 0) === 0
-            && Number(remote.elapsed || 0) < 2;
+            && Number(remote.elapsed || 0) * 1000 <= signalLateGraceMs.start;
           applyServerState(remote, { ...options, rescheduleSignals: true, includePhaseSignal: isRemoteStart, timing });
         } else if (options.forceApply) {
           applyServerState(remote, { ...options, rescheduleSignals: true, includePhaseSignal: false, timing });
@@ -5117,7 +5957,10 @@
 
     function startEventStream() {
       if (!window.EventSource || eventSource) return;
-      const params = new URLSearchParams({ clientId });
+      const params = new URLSearchParams({
+        clientId,
+        startListRevision: lastStartListServerRevision
+      });
       const generation = ++eventStreamGeneration;
       eventSource = new EventSource(`/api/events?${params}`);
       eventSource.onopen = () => {
@@ -5159,7 +6002,7 @@
             && !lastRemoteRunning
             && Boolean(remote.running)
             && Number(remote.elapsedBeforePause || 0) === 0
-            && Number(remote.elapsed || 0) < 2;
+            && Number(remote.elapsed || 0) * 1000 <= signalLateGraceMs.start;
           applyServerState(remote, {
             rescheduleSignals: identity.versionChanged,
             includePhaseSignal: isRemoteStart
@@ -5294,7 +6137,7 @@
       resumeSnapPending = false;
       document.body.classList.remove("resume-sync-pending");
       lastDisplayTimeLabel = "";
-      if (renderAfter) render();
+      if (renderAfter) render("resume");
     }
 
     function beginResumeSnapPending() {
@@ -5310,6 +6153,22 @@
     function markResumeDisplayStale() {
       if (!mobileResumeSyncEnabled || standaloneMode || !shouldKeepDisplayFresh()) return;
       beginResumeSnapPending();
+    }
+
+    function invalidateSignalsForPageSuspension(reason = "page-hidden") {
+      const pendingSignalTimers = signalTimers.length + transitionSignalTimers.length;
+      const pendingAudioNodes = scheduledAudioNodes.length;
+      const activeHtmlAudioCount = activeHtmlAudio.length;
+      if (state.running) signalsInvalidatedWhileHidden = true;
+      clearSignalTimers(false, true);
+      recordPerformanceAudioClock("page-audio-invalidated", {
+        reason,
+        pendingSignalTimers,
+        pendingAudioNodes,
+        activeHtmlAudioCount,
+        needsReschedule: signalsInvalidatedWhileHidden,
+        audioScheduleGeneration
+      });
     }
 
     function holdClockRateForResume() {
@@ -5331,21 +6190,42 @@
     async function resumeClientSync(options = {}) {
       const now = Date.now();
       const resetStaleSignals = Boolean(options.resetStaleSignals);
+      const invalidatedWhileHidden = signalsInvalidatedWhileHidden;
+      const refreshAudioSchedule = resetStaleSignals || invalidatedWhileHidden;
+      const includeRecentPhaseSignal = invalidatedWhileHidden;
       if (!resetStaleSignals && resumeSnapPending) clearResumeSnapPending(false);
       if (!resetStaleSignals) pageHiddenAt = 0;
       requestScreenWakeLock();
-      if (!resetStaleSignals && resumeSyncInProgress) return;
-      if (!resetStaleSignals && now - lastResumeSyncAt < 1200) return;
+      if (!refreshAudioSchedule && resumeSyncInProgress) return;
+      if (!refreshAudioSchedule && now - lastResumeSyncAt < 1200) return;
       const resumeSnap = resetStaleSignals && beginResumeSnapPending();
       syncRequestGeneration += 1;
       syncRequestInFlight = false;
-      if (resetStaleSignals) {
+      if (refreshAudioSchedule) {
         resumeSyncInProgress = true;
-        clearSignalTimers(false, true);
-        reanchorServerClockModel("resume-held");
-        holdClockRateForResume();
-        lastSegmentIndex = -1;
+        signalsInvalidatedWhileHidden = false;
+        if (resetStaleSignals) {
+          reanchorServerClockModel("resume-held");
+          holdClockRateForResume();
+        }
         suppressPhaseSignalsUntil = now + 2500;
+        if (!options.signalsAlreadyRescheduled) {
+          rescheduleStandaloneSignals({
+            forceStopAudio: true,
+            includeRecentPhaseSignal,
+            reason: "resume-local-clock"
+          });
+        } else if (includeRecentPhaseSignal && state.running && !state.countdownOnly) {
+          const segment = getCurrentSegment(elapsedSeconds());
+          const recentPhaseScheduled = scheduleRecentPhaseSignalAfterResume(segment);
+          recordPerformanceAudioClock("page-audio-reschedule", {
+            reason: "repaired-local-clock",
+            cycle: segment?.cycle ?? null,
+            phase: segment?.type || "",
+            recentPhaseScheduled,
+            audioScheduleGeneration
+          });
+        }
       } else {
         clearResumeSnapPending(false);
       }
@@ -5353,20 +6233,21 @@
       pageHiddenAt = 0;
       restartEventStream();
       syncDiagnosticsStream();
-      let synchronized = false;
       try {
-        synchronized = await syncFromServer({
+        await syncFromServer({
           forceApply: true,
           forceClockCorrection: true,
           resetClockSamples: true,
           preserveClockRate: true,
-          resumeSnap
+          resumeSnap,
+          rescheduleSignals: refreshAudioSchedule,
+          replaceAudioSchedule: refreshAudioSchedule,
+          includePhaseSignal: false,
+          includeRecentPhaseSignal,
+          resumeAudioSchedule: refreshAudioSchedule
         });
       } finally {
-        if (resetStaleSignals) resumeSyncInProgress = false;
-      }
-      if (resetStaleSignals && !synchronized && state.running && !state.countdownOnly) {
-        rescheduleStandaloneSignals();
+        if (refreshAudioSchedule) resumeSyncInProgress = false;
       }
       window.setTimeout(() => syncFromServer({ forceApply: true, preserveClockRate: resetStaleSignals }), 600);
     }
@@ -5374,9 +6255,35 @@
     function checkClockContinuity() {
       const repaired = repairServerClockAfterSuspension();
       if (repaired && !standaloneMode && window.location.protocol !== "file:") {
-        resumeClientSync({ resetStaleSignals: true });
+        resumeClientSync({ resetStaleSignals: true, signalsAlreadyRescheduled: true });
       }
       return repaired;
+    }
+
+    function resumeLocalPageAfterSuspension() {
+      const invalidatedWhileHidden = signalsInvalidatedWhileHidden;
+      const clockRepaired = repairServerClockAfterSuspension();
+      signalsInvalidatedWhileHidden = false;
+      if (invalidatedWhileHidden && !clockRepaired) {
+        suppressPhaseSignalsUntil = Date.now() + 2500;
+        rescheduleStandaloneSignals({
+          forceStopAudio: true,
+          includeRecentPhaseSignal: true,
+          reason: "resume-local-page"
+        });
+      } else if (invalidatedWhileHidden && state.running && !state.countdownOnly) {
+        const segment = getCurrentSegment(elapsedSeconds());
+        const recentPhaseScheduled = scheduleRecentPhaseSignalAfterResume(segment);
+        recordPerformanceAudioClock("page-audio-reschedule", {
+          reason: "repaired-local-page",
+          cycle: segment?.cycle ?? null,
+          phase: segment?.type || "",
+          recentPhaseScheduled,
+          audioScheduleGeneration
+        });
+      }
+      requestScreenWakeLock();
+      refreshStandaloneBrowserList();
     }
 
     function setElementText(element, value) {
@@ -5599,13 +6506,23 @@
       return lists.length ? lists : [null];
     }
 
+    function replaceCanonicalStartLists(nextLists, options = {}) {
+      const changed = JSON.stringify(nextLists) !== JSON.stringify(state.startLists);
+      if (!changed) return false;
+      if (options.rememberScroll !== false) rememberStartListScrollPositions(nextLists);
+      state.startLists = nextLists;
+      startListDataRevision += 1;
+      lastStartListRenderKey = "";
+      return true;
+    }
+
     function clearStartListIncidentsForNewRound() {
-      state.startLists = normalizeStartLists(state.startLists).map((list) => {
+      const nextStartLists = normalizeStartLists(state.startLists).map((list) => {
         if (!list?.incidents?.length) return list;
         const { incidents: _incidents, ...cleanList } = list;
         return cleanList;
       });
-      lastStartListRenderKey = "";
+      replaceCanonicalStartLists(nextStartLists, { rememberScroll: false });
     }
 
     function hasStartLists(value = state.startLists) {
@@ -5626,19 +6543,19 @@
     }
 
     function rememberStartListScrollPositions(nextLists) {
-      const normalized = normalizeStartLists(nextLists);
+      const lists = Array.isArray(nextLists) ? nextLists : state.startLists;
       els.startListLayout.querySelectorAll("[data-start-list-index]").forEach((slot) => {
         const index = Number(slot.dataset.startListIndex);
         const scroll = slot.querySelector("[data-start-list-scroll]");
-        if (!scroll || !normalized[index]) return;
-        if (startListExclusionsChanged(state.startLists[index], normalized[index])) {
+        if (!scroll || !lists[index]) return;
+        if (startListExclusionsChanged(state.startLists[index], lists[index])) {
           pendingStartListScrollRestores[index] = null;
           lastStartListScrollAnchors[index] = null;
           return;
         }
         const pending = pendingStartListScrollRestores[index];
         pendingStartListScrollRestores[index] = {
-          listKey: JSON.stringify(normalized[index]),
+          listKey: JSON.stringify(lists[index]),
           top: pending?.top ?? scroll.scrollTop,
           left: pending?.left ?? scroll.scrollLeft
         };
@@ -5683,7 +6600,7 @@
         stored = [];
       }
       if (!Array.isArray(stored)) return;
-      normalizeStartLists(state.startLists).forEach((list, index) => {
+      state.startLists.forEach((list, index) => {
         const position = stored[index];
         if (!list || position?.listKey !== JSON.stringify(list)) return;
         const top = Number(position.top);
@@ -5697,8 +6614,7 @@
     }
 
     function visibleStartListEntries() {
-      const lists = normalizeStartLists(state.startLists);
-      state.startLists = lists;
+      const lists = state.startLists;
       if (standaloneMode || isPrimaryClient) return lists.map((list, index) => ({ list, index }));
       const selectedIndexes = new Set(state.startListIndexes || []);
       return lists
@@ -5763,7 +6679,7 @@
         if (!existingIndexes.has(index)) lastStartListScrollAnchors[index] = null;
       });
       lastStartListRenderKey = "";
-      fitStartListPanelWidth();
+      scheduleStartListPanelWidthFit({ settle: true });
     }
 
     function browserScrollbarWidth() {
@@ -5832,7 +6748,7 @@
       const performanceStartedAt = performanceStart();
       try {
       const columns = [...els.startListLayout.querySelectorAll(".start-list-column")];
-      if (!columns.length) return 0;
+      if (!columns.length) return null;
       const minimumColumnWidth = 280;
       const maximumContentWidth = Math.min(window.innerWidth * 0.5, 700);
       const nativeScrollbarWidth = browserScrollbarWidth();
@@ -5873,23 +6789,98 @@
       });
       els.startListPanel.style.maxWidth = `${panelLimit}px`;
       els.startListPanel.style.width = `${Math.min(panelLimit, widths.reduce((sum, width) => sum + width, borderWidth))}px`;
-      return [...els.startListLayout.querySelectorAll(".start-list-scroll")].reduce((maximum, scroll) =>
+      const scrolls = [...els.startListLayout.querySelectorAll(".start-list-scroll")];
+      const overflow = scrolls.reduce((maximum, scroll) =>
         Math.max(maximum, scroll.scrollWidth - scroll.clientWidth), 0);
+      const scrollGeometry = [];
+      scrolls.forEach((scroll) => {
+        scrollGeometry.push(scroll.clientWidth, scroll.clientHeight);
+      });
+      const layoutKey = [
+        Math.round(els.startListPanel.getBoundingClientRect().width),
+        ...columns.map((column) => Math.round(column.getBoundingClientRect().width)),
+        ...scrollGeometry
+      ].join(":");
+      return { overflow, layoutKey };
       } finally {
         performanceEnd("fitStartListPanelWidth", performanceStartedAt);
       }
     }
 
-    function scheduleStartListPanelWidthFit() {
-      if (startListWidthFitFrame) cancelAnimationFrame(startListWidthFitFrame);
-      let pass = 0;
+    function startListWidthFitInputKey() {
+      const viewport = window.visualViewport;
+      return [
+        window.innerWidth,
+        window.innerHeight,
+        Math.round(viewport?.width || 0),
+        Math.round(viewport?.height || 0),
+        lastStartListStructureKey,
+        startListDataRevision,
+        currentStartListDensity(),
+        document.body.classList.contains("start-list-visible"),
+        window.matchMedia?.("(max-width: 560px) and (orientation: portrait)")?.matches === true,
+        els.startListLayout.dataset.columns || "0"
+      ].join(":");
+    }
+
+    function scheduleStartListPanelWidthFit({ settle = false, force = false } = {}) {
+      performanceCount("startListWidthFitRequests");
+      const requestedKey = startListWidthFitInputKey();
+      startListWidthFitSettleRequested ||= settle;
+      startListWidthFitForceRequested ||= force;
+      if (startListWidthFitFrame) {
+        if (requestedKey !== startListWidthFitQueuedKey) {
+          startListWidthFitPass = 0;
+          startListWidthFitPreviousLayoutKey = "";
+        }
+        startListWidthFitQueuedKey = requestedKey;
+        performanceCount("startListWidthFitCoalesced");
+        return;
+      }
+      if (!force && requestedKey === startListWidthFitLastKey) {
+        performanceCount("startListWidthFitSkips");
+        startListWidthFitSettleRequested = false;
+        return;
+      }
+      startListWidthFitQueuedKey = requestedKey;
+      startListWidthFitPass = 0;
+      startListWidthFitPreviousLayoutKey = "";
+
       const settleWidth = () => {
         startListWidthFitFrame = 0;
-        const overflow = fitStartListPanelWidth();
-        pass += 1;
-        if (pass < 2 || (overflow > 0 && pass < 6)) {
-          startListWidthFitFrame = requestAnimationFrame(settleWidth);
+        if (!document.body.classList.contains("start-list-visible") || els.startListPanel.hidden) {
+          startListWidthFitSettleRequested = false;
+          startListWidthFitForceRequested = false;
+          return;
         }
+        const currentKey = startListWidthFitInputKey();
+        const forceRun = startListWidthFitForceRequested;
+        if (!forceRun && startListWidthFitPass === 0 && currentKey === startListWidthFitLastKey) {
+          performanceCount("startListWidthFitSkips");
+          startListWidthFitSettleRequested = false;
+          return;
+        }
+        startListWidthFitForceRequested = false;
+        startListWidthFitQueuedKey = currentKey;
+        const result = fitStartListPanelWidth();
+        if (!result) {
+          startListWidthFitSettleRequested = false;
+          return;
+        }
+        startListWidthFitPass += 1;
+        startListWidthFitLastKey = currentKey;
+        const layoutChanged = Boolean(startListWidthFitPreviousLayoutKey
+          && result.layoutKey !== startListWidthFitPreviousLayoutKey);
+        const needsConfirmationPass = startListWidthFitSettleRequested && startListWidthFitPass === 1;
+        startListWidthFitPreviousLayoutKey = result.layoutKey;
+        if (startListWidthFitSettleRequested
+          && startListWidthFitPass < 3
+          && (needsConfirmationPass || layoutChanged)) {
+          performanceCount("startListWidthFitSettlePasses");
+          startListWidthFitFrame = requestAnimationFrame(settleWidth);
+          return;
+        }
+        startListWidthFitSettleRequested = false;
       };
       startListWidthFitFrame = requestAnimationFrame(settleWidth);
     }
@@ -5983,7 +6974,7 @@
             pendingStartListScrollRestores[index] = null;
           }
         });
-        scheduleStartListPanelWidthFit();
+        scheduleStartListPanelWidthFit({ settle: true });
       }
       if (!visible) {
         applyStartListVerticalDensity();
@@ -6288,6 +7279,51 @@
       await commitStartLists(nextLists);
     }
 
+    function startListRenderHasSafeWindow() {
+      if (!state.running && !state.countdownOnly) return true;
+      const targetServerTime = nextDisplayBoundaryServerTime();
+      if (!Number.isFinite(targetServerTime)) return true;
+      return targetServerTime - serverNow() >= startListCriticalReserveMs;
+    }
+
+    function queueStartListRenderAfterPaint() {
+      if (!startListRenderQueued || startListRenderFrame || startListRenderTimer) return;
+      startListRenderFrame = requestAnimationFrame(() => {
+        startListRenderFrame = 0;
+        startListRenderTimer = window.setTimeout(() => {
+          startListRenderTimer = 0;
+          if (!startListRenderQueued) return;
+          if (!startListRenderHasSafeWindow()) {
+            performanceCount("startListCriticalWindowDeferrals");
+            const targetServerTime = nextDisplayBoundaryServerTime();
+            const waitMs = Number.isFinite(targetServerTime)
+              ? Math.max(16, Math.min(1000, targetServerTime - serverNow() + displayBoundaryGuardMs + 32))
+              : 16;
+            startListRenderTimer = window.setTimeout(() => {
+              startListRenderTimer = 0;
+              queueStartListRenderAfterPaint();
+            }, waitMs);
+            return;
+          }
+          startListRenderQueued = false;
+          performanceCount("startListDeferredRuns");
+          performanceMeasure("startListRenderQueueDelay", performance.now() - startListRenderQueuedAt);
+          renderStartList();
+        }, 0);
+      });
+    }
+
+    function scheduleStartListRender() {
+      performanceCount("startListRenderRequests");
+      if (startListRenderQueued) {
+        performanceCount("startListRenderCoalesced");
+        return;
+      }
+      startListRenderQueued = true;
+      startListRenderQueuedAt = performance.now();
+      queueStartListRenderAfterPaint();
+    }
+
     function renderStartList() {
       loadStoredStartListScrollPositions();
       updateStartListVisibility();
@@ -6300,11 +7336,15 @@
       const settings = state.running || state.elapsedBeforePause > 0 || state.completed
         ? activeSettings()
         : activeSettingsFromDraft();
-      const renderKey = `${language}:${position.cycle}:${position.phase}:${settings.finalRoundFormat || "old"}:${settings.finalRestRotations || 3}:${(state.startListIndexes || []).join(",")}:${JSON.stringify(state.startLists)}`;
-      if (renderKey === lastStartListRenderKey) return;
+      const renderKey = `${language}:${position.cycle}:${position.phase}:${settings.finalRoundFormat || "old"}:${settings.finalRestRotations || 3}:${(state.startListIndexes || []).join(",")}:${startListDataRevision}`;
+      if (renderKey === lastStartListRenderKey) {
+        performanceCount("startListRenderSkips");
+        return;
+      }
       lastStartListRenderKey = renderKey;
       const settleInitialAutoScroll = startListInitialAutoScrollPending;
       startListInitialAutoScrollPending = false;
+      let rebuiltTables = false;
       state.startLists.forEach((list, index) => {
         const slot = els.startListLayout.querySelector(`[data-start-list-index="${index}"]`);
         const scroll = slot?.querySelector("[data-start-list-scroll]");
@@ -6327,35 +7367,69 @@
         const excludedParticipants = window.FDVStartList.normalizeExcludedParticipants(list.excludedParticipants, list.rows.length);
         const schedule = startListSchedule(list);
         const canManageIncidents = Boolean(slot.querySelector("[data-start-list-incident-menu]")) && controlsAvailable();
-        const routeHeaders = Array.from({ length: list.routeCount }, (_, routeIndex) => {
-          const routeStatus = window.FDVStartList.routeState(routeIndex, position.cycle, incidents);
-          const routeTitle = t("startListRouteMenu");
-          const routeAriaLabel = `${routeTitle}: ${routeIndex + 1}`;
-          const routeLabel = list.routeCount === 1 ? (language === "en" ? "R" : "T") : routeIndex + 1;
-          return `<th class="route-cell${routeStatus ? ` route-${routeStatus}` : ""}" title="${escapeHtml(routeTitle)}"><button class="start-list-route-button" type="button" data-start-list-route="${routeIndex}" aria-label="${escapeHtml(routeAriaLabel)}"${canManageIncidents ? "" : " disabled"}>${routeLabel}</button></th>`;
-        }).join("");
-        const body = list.rows.map((row, participantIndex) => {
-          const excluded = excludedParticipants.includes(participantIndex);
-          const calculationParticipantIndex = window.FDVStartList.participantScheduleIndex(participantIndex, excludedParticipants, list.rows.length);
-          const rowStatus = excluded ? "" : window.FDVStartList.rowStatus(calculationParticipantIndex, list.routeCount, position.cycle, position.phase, incidents, schedule);
-          const exclusionTitle = excluded ? t("startListRestoreParticipant") : t("startListExcludeParticipant");
-          const cells = list.headers.map((_, columnIndex) => {
-            const exclusionControl = canManageIncidents && columnIndex === 0;
-            return `<td${exclusionControl ? ` data-start-list-participant-exclusion="${participantIndex}" tabindex="0" role="button" title="${escapeHtml(exclusionTitle)}" aria-label="${escapeHtml(exclusionTitle)}"` : ""}>${escapeHtml(row[columnIndex] || "")}</td>`;
-          }).join("");
-          const routes = Array.from({ length: list.routeCount }, (_, routeIndex) => {
-            const marker = excluded ? "" : window.FDVStartList.marker(calculationParticipantIndex, routeIndex, position.cycle, position.phase, incidents, schedule);
-            return `<td class="route-cell" data-start-list-route-cell="${routeIndex}">${marker ? `<span class="route-marker ${marker}" aria-label="${escapeHtml(startListMarkerLabel(marker))}"></span>` : ""}</td>`;
-          }).join("");
-          return `<tr data-participant-index="${participantIndex}" class="${excluded ? "is-excluded" : rowStatus ? `is-${rowStatus}` : ""}">${cells}${routes}</tr>`;
-        }).join("");
         const previousScroll = { top: scroll.scrollTop, left: scroll.scrollLeft };
-        const tableColumnCount = list.headers.length + list.routeCount;
-        const tableColumns = Array.from({ length: tableColumnCount }, () => "<col>").join("");
-        performanceCount("startListTableRebuilds");
-        performanceCount("startListRowsBuilt", list.rows.length);
-        performanceCount("startListRouteCellsBuilt", list.rows.length * list.routeCount);
-        scroll.innerHTML = `<table class="start-list-table"><colgroup>${tableColumns}</colgroup><thead><tr>${list.headers.map((header) => `<th>${escapeHtml(header)}</th>`).join("")}${routeHeaders}</tr></thead><tbody>${body}</tbody></table>`;
+        const tableKey = `${language}:${index}:${startListDataRevision}:${canManageIncidents}`;
+        const table = scroll.querySelector(".start-list-table");
+        const rebuildTable = !table || scroll.dataset.startListTableKey !== tableKey;
+        if (rebuildTable) {
+          const routeHeaders = Array.from({ length: list.routeCount }, (_, routeIndex) => {
+            const routeStatus = window.FDVStartList.routeState(routeIndex, position.cycle, incidents);
+            const routeTitle = t("startListRouteMenu");
+            const routeAriaLabel = `${routeTitle}: ${routeIndex + 1}`;
+            const routeLabel = list.routeCount === 1 ? (language === "en" ? "R" : "T") : routeIndex + 1;
+            return `<th class="route-cell${routeStatus ? ` route-${routeStatus}` : ""}" data-start-list-route-header="${routeIndex}" title="${escapeHtml(routeTitle)}"><button class="start-list-route-button" type="button" data-start-list-route="${routeIndex}" aria-label="${escapeHtml(routeAriaLabel)}"${canManageIncidents ? "" : " disabled"}>${routeLabel}</button></th>`;
+          }).join("");
+          const body = list.rows.map((row, participantIndex) => {
+            const excluded = excludedParticipants.includes(participantIndex);
+            const calculationParticipantIndex = window.FDVStartList.participantScheduleIndex(participantIndex, excludedParticipants, list.rows.length);
+            const rowStatus = excluded ? "" : window.FDVStartList.rowStatus(calculationParticipantIndex, list.routeCount, position.cycle, position.phase, incidents, schedule);
+            const exclusionTitle = excluded ? t("startListRestoreParticipant") : t("startListExcludeParticipant");
+            const cells = list.headers.map((_, columnIndex) => {
+              const exclusionControl = canManageIncidents && columnIndex === 0;
+              return `<td${exclusionControl ? ` data-start-list-participant-exclusion="${participantIndex}" tabindex="0" role="button" title="${escapeHtml(exclusionTitle)}" aria-label="${escapeHtml(exclusionTitle)}"` : ""}>${escapeHtml(row[columnIndex] || "")}</td>`;
+            }).join("");
+            const routes = Array.from({ length: list.routeCount }, (_, routeIndex) => {
+              const marker = excluded ? "" : window.FDVStartList.marker(calculationParticipantIndex, routeIndex, position.cycle, position.phase, incidents, schedule);
+              return `<td class="route-cell" data-start-list-route-cell="${routeIndex}" data-start-list-marker="${marker}">${marker ? `<span class="route-marker ${marker}" aria-label="${escapeHtml(startListMarkerLabel(marker))}"></span>` : ""}</td>`;
+            }).join("");
+            return `<tr data-participant-index="${participantIndex}" class="${excluded ? "is-excluded" : rowStatus ? `is-${rowStatus}` : ""}">${cells}${routes}</tr>`;
+          }).join("");
+          const tableColumnCount = list.headers.length + list.routeCount;
+          const tableColumns = Array.from({ length: tableColumnCount }, () => "<col>").join("");
+          performanceCount("startListTableRebuilds");
+          performanceCount("startListRowsBuilt", list.rows.length);
+          performanceCount("startListRouteCellsBuilt", list.rows.length * list.routeCount);
+          scroll.innerHTML = `<table class="start-list-table"><colgroup>${tableColumns}</colgroup><thead><tr>${list.headers.map((header) => `<th>${escapeHtml(header)}</th>`).join("")}${routeHeaders}</tr></thead><tbody>${body}</tbody></table>`;
+          scroll.dataset.startListTableKey = tableKey;
+          rebuiltTables = true;
+        } else {
+          performanceCount("startListDynamicUpdates");
+          scroll.querySelectorAll("[data-start-list-route-header]").forEach((header) => {
+            const routeIndex = Number(header.dataset.startListRouteHeader);
+            const routeStatus = window.FDVStartList.routeState(routeIndex, position.cycle, incidents);
+            const nextClassName = `route-cell${routeStatus ? ` route-${routeStatus}` : ""}`;
+            if (header.className !== nextClassName) header.className = nextClassName;
+          });
+          scroll.querySelectorAll("tbody tr[data-participant-index]").forEach((row) => {
+            const participantIndex = Number(row.dataset.participantIndex);
+            if (!Number.isInteger(participantIndex) || participantIndex < 0 || participantIndex >= list.rows.length) return;
+            const excluded = excludedParticipants.includes(participantIndex);
+            const calculationParticipantIndex = window.FDVStartList.participantScheduleIndex(participantIndex, excludedParticipants, list.rows.length);
+            const rowStatus = excluded ? "" : window.FDVStartList.rowStatus(calculationParticipantIndex, list.routeCount, position.cycle, position.phase, incidents, schedule);
+            const nextClassName = excluded ? "is-excluded" : rowStatus ? `is-${rowStatus}` : "";
+            if (row.className !== nextClassName) row.className = nextClassName;
+            row.querySelectorAll("[data-start-list-route-cell]").forEach((cell) => {
+              const routeIndex = Number(cell.dataset.startListRouteCell);
+              const marker = excluded ? "" : window.FDVStartList.marker(calculationParticipantIndex, routeIndex, position.cycle, position.phase, incidents, schedule);
+              if ((cell.dataset.startListMarker || "") === marker) return;
+              cell.dataset.startListMarker = marker;
+              cell.innerHTML = marker
+                ? `<span class="route-marker ${marker}" aria-label="${escapeHtml(startListMarkerLabel(marker))}"></span>`
+                : "";
+              performanceCount("startListMarkersChanged");
+            });
+          });
+        }
         const highlightedRows = [...scroll.querySelectorAll("tbody tr.is-active, tbody tr.is-ready")];
         const highlightedIndexes = highlightedRows
           .map((row) => Number(row.dataset.participantIndex))
@@ -6403,8 +7477,9 @@
         }
       });
       if (applyStartListVerticalDensity()) reanchorStartListScrolls();
-      fitStartListPanelWidth();
-      scheduleStartListPanelWidthFit();
+      if (rebuiltTables) {
+        scheduleStartListPanelWidthFit({ settle: true });
+      }
       } finally {
         performanceEnd("renderStartList", performanceStartedAt);
       }
@@ -6500,16 +7575,13 @@
       const lists = normalizeStartLists(value);
       if (standaloneMode) {
         const keepParallelLayout = state.startLists.length === 2 && lists.length === 2;
-        if (JSON.stringify(lists) !== JSON.stringify(state.startLists)) {
-          rememberStartListScrollPositions(lists);
-        }
-        state.startLists = lists;
+        replaceCanonicalStartLists(lists);
         if (!keepParallelLayout) state.startListParallel = false;
         state.startListVisible = state.startListEnabled && hasStartLists(lists);
         lastStartListStructureKey = "";
         lastStartListRenderKey = "";
         updateStartListControls();
-        renderStartList();
+        scheduleStartListRender();
         saveOfflineSnapshot();
         return;
       }
@@ -6523,7 +7595,7 @@
         lastStartListStructureKey = "";
         lastStartListRenderKey = "";
         updateStartListControls();
-        renderStartList();
+        scheduleStartListRender();
         saveOfflineSnapshot();
         return;
       }
@@ -6806,6 +7878,7 @@
     }
 
     function canPlaySound() {
+      if (performanceSoundForced) return true;
       if (standaloneMode) return els.soundToggle.checked;
       if (isPrimaryClient) return primarySoundEnabled;
       if (isSameComputerAsPrimary) return false;
@@ -6840,15 +7913,13 @@
     }
 
     function speak(text) {
-      if (!canPlaySound()) return;
+      if (!canPlaySound()) return false;
       if (!("speechSynthesis" in window)) {
-        beep("minute");
-        return;
+        return beep("minute");
       }
       const voice = pickSpeechVoice();
       if (!voice) {
-        beep("minute");
-        return;
+        return beep("minute");
       }
       const utterance = new SpeechSynthesisUtterance(text);
       utterance.lang = language === "en" ? "en-US" : "ru-RU";
@@ -6858,8 +7929,9 @@
       utterance.volume = 1;
       try {
         window.speechSynthesis.speak(utterance);
+        return true;
       } catch (error) {
-        beep("minute");
+        return beep("minute");
       }
     }
 
@@ -6875,6 +7947,7 @@
       const source = soundSource(kind);
       if (!source || !canPlaySound()) return false;
       try {
+        const scheduleGeneration = audioScheduleGeneration;
         const audio = new Audio(source);
         audio.preload = "auto";
         if (kind === "warn") audio.volume = 0.82;
@@ -6884,6 +7957,7 @@
         }, { once: true });
         audio.play().catch(() => {
           activeHtmlAudio = activeHtmlAudio.filter((item) => item !== audio);
+          if (scheduleGeneration !== audioScheduleGeneration) return;
           beepSynthetic(kind);
         });
         return true;
@@ -6923,7 +7997,7 @@
       }
     }
 
-    function playBuffer(kind, delaySeconds = 0, preserveOnTransition = false, signalKey = "", onStarted = null) {
+    function playBuffer(kind, delaySeconds = 0, preserveOnTransition = false, signalKey = "", onStarted = null, performanceTargetDetails = null) {
       if (!canPlaySound() || !audioContext || audioContext.state !== "running") return false;
       const buffer = soundBuffer(kind);
       if (!buffer) return false;
@@ -6932,17 +8006,65 @@
       source.buffer = buffer;
       source.connect(gain).connect(audioContext.destination);
       const start = Math.max(audioContext.currentTime, audioContext.currentTime + Math.max(0, delaySeconds));
+      const targetDetails = performanceAudioTargetDetails(signalKey, performanceTargetDetails);
+      const estimatedServerStartMs = serverNow() + ((start - audioContext.currentTime) * 1000);
       gain.gain.setValueAtTime(kind === "warn" ? 0.82 : 1, start);
-      const item = { node: source, start, preserveOnTransition, signalKey, started: false, playedTimer: null };
+      let stop = start + buffer.duration + 0.02;
+      const nextSignalTargetServerTimeMs = Number(performanceTargetDetails?.nextSignalTargetServerTimeMs);
+      const calibratedTargetServerTimeMs = Number(performanceTargetDetails?.targetServerTimeMs);
+      if (kind === "warn"
+        && Number.isFinite(nextSignalTargetServerTimeMs)
+        && Number.isFinite(calibratedTargetServerTimeMs)
+        && nextSignalTargetServerTimeMs > calibratedTargetServerTimeMs) {
+        const availableDurationSeconds = Math.max(0.05,
+          (nextSignalTargetServerTimeMs - calibratedTargetServerTimeMs - warningSeparationGuardMs) / 1000);
+        const limitedStop = start + availableDurationSeconds;
+        if (limitedStop < stop) {
+          const fadeAt = Math.max(start, limitedStop - 0.01);
+          gain.gain.setValueAtTime(0.82, fadeAt);
+          gain.gain.linearRampToValueAtTime(0, limitedStop);
+          stop = limitedStop;
+        }
+      }
+      const scheduledDurationMs = Math.max(0, (stop - start) * 1000);
+      const scheduledStopServerTimeMs = estimatedServerStartMs + scheduledDurationMs;
+      if (targetDetails) {
+        recordPerformanceAudioSchedule({
+          stage: "node",
+          kind,
+          signalKey,
+          ...targetDetails,
+          estimatedServerStartMs: Number(estimatedServerStartMs.toFixed(3)),
+          scheduledStopServerTimeMs: Number(scheduledStopServerTimeMs.toFixed(3)),
+          scheduledDurationMs: Number(scheduledDurationMs.toFixed(3)),
+          targetErrorMs: Number((estimatedServerStartMs - targetDetails.targetServerTimeMs).toFixed(3)),
+          scheduledAtServerTimeMs: Number(serverNow().toFixed(3))
+        });
+      }
+      const item = {
+        node: source,
+        kind,
+        start,
+        stop,
+        preserveOnTransition,
+        signalKey,
+        targetDetails,
+        estimatedServerStartMs,
+        scheduledStopServerTimeMs,
+        scheduledDurationMs,
+        started: false,
+        playedTimer: null
+      };
       const markStarted = () => {
         if (item.started) return;
         item.started = true;
+        if (performanceDiagnosticsLevel >= 2) recordPerformanceAudioNodeTarget(item);
         if (signalKey) markSignalPlayed(signalKey);
         onStarted?.();
       };
       item.playedTimer = window.setTimeout(markStarted, Math.max(0, (start - audioContext.currentTime) * 1000));
       source.start(start);
-      source.stop(start + buffer.duration + 0.02);
+      source.stop(stop);
       scheduledAudioNodes.push(item);
       source.onended = () => {
         if (item.playedTimer) window.clearTimeout(item.playedTimer);
@@ -6955,30 +8077,26 @@
     }
 
     function scheduleDiagnosticSound(kind, targetServerTime) {
+      const scheduleGeneration = audioScheduleGeneration;
       if (standaloneMode && iosAudioWorkaroundEnabled && audioKinds.includes(kind)) {
-        scheduleServerTimeoutAt(targetServerTime, () => beep(kind), {
+        scheduleServerTimeoutAt(targetServerTime, () => {
+          if (scheduleGeneration === audioScheduleGeneration) beep(kind);
+        }, {
           lateGraceMs: lateGraceForSignal(kind)
         });
         return;
       }
       const delaySeconds = Math.max(0, (targetServerTime - serverNow()) / 1000);
-      const buffer = soundBuffer(kind);
-      if (audioContext && buffer) {
-        const source = audioContext.createBufferSource();
-        const gain = audioContext.createGain();
-        source.buffer = buffer;
-        source.connect(gain).connect(audioContext.destination);
-        const start = audioContext.currentTime + delaySeconds;
-        gain.gain.setValueAtTime(kind === "warn" ? 0.82 : 1, start);
-        source.start(start);
-        source.stop(start + buffer.duration + 0.02);
-        return;
-      }
-
-      window.setTimeout(() => beep(kind), delaySeconds * 1000);
+      if (audioContext?.state === "running" && beep(kind, delaySeconds, true)) return;
+      scheduleServerTimeoutAt(targetServerTime, () => {
+        if (scheduleGeneration === audioScheduleGeneration) beep(kind);
+      }, {
+        lateGraceMs: lateGraceForSignal(kind)
+      });
     }
 
     async function handleAudioTest(command) {
+      const scheduleGeneration = audioScheduleGeneration;
       const testId = String(command?.id || "");
       if (!testId || testId === lastAudioTestId) return;
       const everywhere = Boolean(command.everywhere);
@@ -6995,6 +8113,8 @@
         await loadAudioBuffers();
       } catch (error) {}
 
+      if (scheduleGeneration !== audioScheduleGeneration) return;
+
       const testAudioOffset = window.FDVClientActionTransport.resolveAudioTestOffset(command, clientId, audioUserOffsetMs);
       const baseServerTime = Number(command.serverTime) + testAudioOffset;
       if (!Number.isFinite(baseServerTime)) return;
@@ -7003,7 +8123,7 @@
       offsets.forEach((offset) => scheduleDiagnosticSound(kind, baseServerTime + offset));
     }
 
-    function beep(kind, delaySeconds = 0, scheduled = false, signalKey = "", preserveOnTransition = false, onStarted = null) {
+    function beep(kind, delaySeconds = 0, scheduled = false, signalKey = "", preserveOnTransition = false, onStarted = null, performanceTargetDetails = null) {
       if (!canPlaySound()) return false;
       if (standaloneMode && iosAudioWorkaroundEnabled && audioKinds.includes(kind) && delaySeconds === 0) {
         const played = playImmediateGestureAudio(kind);
@@ -7011,7 +8131,7 @@
         if (played) onStarted?.();
         return played;
       }
-      if (audioKinds.includes(kind) && playBuffer(kind, delaySeconds, preserveOnTransition, signalKey, onStarted)) {
+      if (audioKinds.includes(kind) && playBuffer(kind, delaySeconds, preserveOnTransition, signalKey, onStarted, performanceTargetDetails)) {
         return true;
       }
       if (delaySeconds === 0 && audioKinds.includes(kind) && playHtmlAudio(kind)) {
@@ -7019,12 +8139,23 @@
         onStarted?.();
         return true;
       }
-      return beepSynthetic(kind, delaySeconds, scheduled, signalKey, preserveOnTransition, onStarted);
+      return beepSynthetic(kind, delaySeconds, scheduled, signalKey, preserveOnTransition, onStarted, performanceTargetDetails);
     }
 
-    function beepSynthetic(kind, delaySeconds = 0, scheduled = false, signalKey = "", preserveOnTransition = false, onStarted = null) {
+    function stopActiveHtmlAudio() {
+      activeHtmlAudio.forEach((audio) => {
+        try {
+          audio.pause();
+          audio.currentTime = 0;
+        } catch (error) {}
+      });
+      activeHtmlAudio = [];
+    }
+
+    function beepSynthetic(kind, delaySeconds = 0, scheduled = false, signalKey = "", preserveOnTransition = false, onStarted = null, performanceTargetDetails = null) {
       if (!canPlaySound()) return false;
       audioContext ||= new (window.AudioContext || window.webkitAudioContext)();
+      if (scheduled && audioContext.state !== "running") return false;
       const plans = {
         finish: [{ offset: 0, frequency: 220, duration: .36 }],
         minute: [
@@ -7044,8 +8175,25 @@
         prewarm: [{ offset: 0, frequency: 440, duration: .08, volume: .004 }]
       };
 
-      const now = audioContext.currentTime + Math.max(0, delaySeconds);
       const plan = plans[kind] || plans.start;
+      const now = audioContext.currentTime + Math.max(0, delaySeconds);
+      const targetDetails = performanceAudioTargetDetails(signalKey, performanceTargetDetails);
+      const estimatedServerStartMs = serverNow() + ((now - audioContext.currentTime) * 1000);
+      const scheduledDurationMs = Math.max(...plan.map(({ offset, duration }) => offset + duration + 0.02)) * 1000;
+      const scheduledStopServerTimeMs = estimatedServerStartMs + scheduledDurationMs;
+      if (targetDetails) {
+        recordPerformanceAudioSchedule({
+          stage: "node",
+          kind,
+          signalKey,
+          ...targetDetails,
+          estimatedServerStartMs: Number(estimatedServerStartMs.toFixed(3)),
+          scheduledStopServerTimeMs: Number(scheduledStopServerTimeMs.toFixed(3)),
+          scheduledDurationMs: Number(scheduledDurationMs.toFixed(3)),
+          targetErrorMs: Number((estimatedServerStartMs - targetDetails.targetServerTimeMs).toFixed(3)),
+          scheduledAtServerTimeMs: Number(serverNow().toFixed(3))
+        });
+      }
       plan.forEach(({ offset, frequency, duration, volume = .22, type = "sine", attack = .02 }, index) => {
         const start = now + offset;
         const osc = audioContext.createOscillator();
@@ -7058,10 +8206,24 @@
         osc.connect(gain).connect(audioContext.destination);
         const itemSignalKey = index === 0 ? signalKey : "";
         const itemOnStarted = index === 0 ? onStarted : null;
-        const item = { node: osc, start, preserveOnTransition, signalKey: itemSignalKey, started: false, playedTimer: null };
+        const item = {
+          node: osc,
+          kind,
+          start,
+          stop: start + duration + 0.02,
+          preserveOnTransition,
+          signalKey: itemSignalKey,
+          targetDetails: index === 0 ? targetDetails : null,
+          estimatedServerStartMs: index === 0 ? estimatedServerStartMs : null,
+          scheduledStopServerTimeMs: index === 0 ? scheduledStopServerTimeMs : null,
+          scheduledDurationMs: index === 0 ? scheduledDurationMs : null,
+          started: false,
+          playedTimer: null
+        };
         const markStarted = () => {
           if (item.started) return;
           item.started = true;
+          if (performanceDiagnosticsLevel >= 2) recordPerformanceAudioNodeTarget(item);
           if (itemSignalKey) markSignalPlayed(itemSignalKey);
           itemOnStarted?.();
         };
@@ -7069,19 +8231,42 @@
         osc.stop(start + duration + 0.02);
         if (scheduled) {
           item.playedTimer = window.setTimeout(markStarted, Math.max(0, (start - audioContext.currentTime) * 1000));
-          scheduledAudioNodes.push(item);
-          osc.onended = () => {
-            if (item.playedTimer) window.clearTimeout(item.playedTimer);
-            scheduledAudioNodes = scheduledAudioNodes.filter((entry) => entry.node !== osc);
-            if (itemSignalKey && !scheduledAudioNodes.some((entry) => entry.signalKey === itemSignalKey)) {
-              scheduledSignalKeys.delete(itemSignalKey);
-            }
-          };
         } else if (index === 0) {
           markStarted();
         }
+        scheduledAudioNodes.push(item);
+        osc.onended = () => {
+          if (item.playedTimer) window.clearTimeout(item.playedTimer);
+          scheduledAudioNodes = scheduledAudioNodes.filter((entry) => entry.node !== osc);
+          if (itemSignalKey && !scheduledAudioNodes.some((entry) => entry.signalKey === itemSignalKey)) {
+            scheduledSignalKeys.delete(itemSignalKey);
+          }
+        };
       });
       return true;
+    }
+
+    function recordCancelledAudioNode(item, cancellationReason, cancelledAtServerTime = serverNow()) {
+      if (!item?.signalKey || !item.targetDetails) return;
+      recordPerformanceAudioSchedule({
+        stage: "cancelled",
+        kind: item.kind || "",
+        signalKey: item.signalKey,
+        ...item.targetDetails,
+        estimatedServerStartMs: Number.isFinite(Number(item.estimatedServerStartMs))
+          ? Number(Number(item.estimatedServerStartMs).toFixed(3))
+          : null,
+        scheduledStopServerTimeMs: Number.isFinite(Number(item.scheduledStopServerTimeMs))
+          ? Number(Number(item.scheduledStopServerTimeMs).toFixed(3))
+          : null,
+        scheduledDurationMs: Number.isFinite(Number(item.scheduledDurationMs))
+          ? Number(Number(item.scheduledDurationMs).toFixed(3))
+          : null,
+        nodeStarted: Boolean(item.started),
+        actualServerTimeMs: Number(Number(cancelledAtServerTime).toFixed(3)),
+        latenessMs: Number((Number(cancelledAtServerTime) - item.targetDetails.targetServerTimeMs).toFixed(3)),
+        cancellationReason
+      });
     }
 
     function flash() {
@@ -7096,23 +8281,214 @@
       flash();
     }
 
+    function stopPerformanceAudioKeepalive(reason = "stopped") {
+      const active = performanceAudioKeepalive;
+      if (!active) return;
+      performanceAudioKeepalive = null;
+      active.stopReason = reason;
+      if (!active.node) {
+        recordPerformanceAudioClock("keepalive-end", {
+          phaseKey: active.phaseKey,
+          cycle: active.cycle,
+          phase: active.phase,
+          stopReason: reason,
+          started: false,
+          boundaryServerTimeMs: active.boundaryServerTimeMs
+        });
+        return;
+      }
+      try {
+        active.node.stop(0);
+      } catch (error) {
+        active.finish?.();
+      }
+    }
+
+    function startPerformanceAudioKeepalive(segment, boundaryServerTimeMs, desiredStartServerTimeMs) {
+      if (!performanceAudioKeepaliveExperiment || !canPlaySound() || !state.running) return;
+      const phaseKey = `${segment.cycle}:${segment.type}`;
+      if (performanceAudioKeepalive?.phaseKey === phaseKey) return;
+      stopPerformanceAudioKeepalive("phase-replaced");
+
+      const request = {
+        node: null,
+        phaseKey,
+        cycle: segment.cycle,
+        phase: segment.type,
+        desiredStartServerTimeMs,
+        boundaryServerTimeMs,
+        stopReason: "boundary",
+        finished: false,
+        finish: null
+      };
+      performanceAudioKeepalive = request;
+
+      const begin = () => {
+        if (performanceAudioKeepalive !== request || !state.running || !canPlaySound()) return;
+        const current = getCurrentSegment(elapsedSeconds());
+        if (!current || current.cycle !== segment.cycle || current.type !== segment.type) {
+          stopPerformanceAudioKeepalive("segment-changed-before-start");
+          return;
+        }
+        if (!audioContext || audioContext.state !== "running") {
+          stopPerformanceAudioKeepalive("audio-context-not-running");
+          return;
+        }
+        try {
+          const startedAtServerTimeMs = serverNow();
+          const start = audioContext.currentTime;
+          const durationSeconds = Math.max(0.05,
+            (boundaryServerTimeMs - startedAtServerTimeMs) / 1000 + performanceAudioKeepaliveTailSeconds);
+          const oscillator = audioContext.createOscillator();
+          const gain = audioContext.createGain();
+          oscillator.type = "sine";
+          oscillator.frequency.setValueAtTime(performanceAudioKeepaliveFrequency, start);
+          gain.gain.setValueAtTime(performanceAudioKeepaliveGain, start);
+          oscillator.connect(gain).connect(audioContext.destination);
+          request.node = oscillator;
+          request.gain = gain;
+          request.startedAtServerTimeMs = startedAtServerTimeMs;
+          request.scheduledStopAudioContextTime = start + durationSeconds;
+          request.finish = () => {
+            if (request.finished) return;
+            request.finished = true;
+            if (performanceAudioKeepalive === request) performanceAudioKeepalive = null;
+            const endedAtServerTimeMs = serverNow();
+            recordPerformanceAudioClock("keepalive-end", {
+              phaseKey,
+              cycle: segment.cycle,
+              phase: segment.type,
+              stopReason: request.stopReason,
+              started: true,
+              boundaryServerTimeMs: Number(boundaryServerTimeMs.toFixed(3)),
+              endedAtServerTimeMs: Number(endedAtServerTimeMs.toFixed(3)),
+              boundaryLatenessMs: Number((endedAtServerTimeMs - boundaryServerTimeMs).toFixed(3))
+            });
+          };
+          oscillator.onended = request.finish;
+          oscillator.start(start);
+          oscillator.stop(start + durationSeconds);
+          recordPerformanceAudioClock("keepalive-start", {
+            phaseKey,
+            cycle: segment.cycle,
+            phase: segment.type,
+            desiredStartServerTimeMs: Number(desiredStartServerTimeMs.toFixed(3)),
+            startedAtServerTimeMs: Number(startedAtServerTimeMs.toFixed(3)),
+            startLatenessMs: Number((startedAtServerTimeMs - desiredStartServerTimeMs).toFixed(3)),
+            boundaryServerTimeMs: Number(boundaryServerTimeMs.toFixed(3)),
+            scheduledDurationMs: Number((durationSeconds * 1000).toFixed(3)),
+            gain: performanceAudioKeepaliveGain,
+            frequencyHz: performanceAudioKeepaliveFrequency
+          });
+        } catch (error) {
+          recordPerformanceAudioClock("keepalive-rejected", {
+            phaseKey,
+            cycle: segment.cycle,
+            phase: segment.type,
+            errorName: error?.name || "Error"
+          });
+          stopPerformanceAudioKeepalive("start-rejected");
+        }
+      };
+
+      try {
+        audioContext ||= new (window.AudioContext || window.webkitAudioContext)();
+        observePerformanceAudioContext("keepalive");
+        if (audioContext.state === "suspended") {
+          const resumeStartedAt = performance.now();
+          recordPerformanceAudioClock("keepalive-resume-request", { phaseKey });
+          audioContext.resume().then(() => {
+            recordPerformanceAudioClock("keepalive-resume-resolved", {
+              phaseKey,
+              resumeDurationMs: Number((performance.now() - resumeStartedAt).toFixed(3))
+            });
+            begin();
+          }).catch((error) => {
+            recordPerformanceAudioClock("keepalive-resume-rejected", {
+              phaseKey,
+              resumeDurationMs: Number((performance.now() - resumeStartedAt).toFixed(3)),
+              errorName: error?.name || "Error"
+            });
+            if (performanceAudioKeepalive === request) stopPerformanceAudioKeepalive("resume-rejected");
+          });
+          return;
+        }
+        begin();
+      } catch (error) {
+        recordPerformanceAudioClock("keepalive-rejected", {
+          phaseKey,
+          cycle: segment.cycle,
+          phase: segment.type,
+          errorName: error?.name || "Error"
+        });
+        if (performanceAudioKeepalive === request) stopPerformanceAudioKeepalive("context-creation-rejected");
+      }
+    }
+
+    function schedulePerformanceAudioKeepalive(segment) {
+      if (!performanceAudioKeepaliveExperiment || !state.running || !canPlaySound()) return;
+      const boundaryServerTimeMs = Number(serverTimeForElapsed(segment.end));
+      if (!Number.isFinite(boundaryServerTimeMs)) return;
+      const desiredStartServerTimeMs = Number(serverTimeForElapsed(
+        Math.max(segment.start, segment.end - performanceAudioKeepaliveLeadSeconds)
+      ));
+      if (!Number.isFinite(desiredStartServerTimeMs)) return;
+      if (desiredStartServerTimeMs <= serverNow() + 35) {
+        startPerformanceAudioKeepalive(segment, boundaryServerTimeMs, desiredStartServerTimeMs);
+        return;
+      }
+      scheduleSegmentTimeoutAt(segment, desiredStartServerTimeMs, () => {
+        startPerformanceAudioKeepalive(segment, boundaryServerTimeMs, desiredStartServerTimeMs);
+      }, { lateGraceMs: 1000 });
+    }
+
+    function playSoundWarmTone(kind) {
+      if (noSoundWarm && (kind === "warm" || kind === "prewarm")) {
+        recordPerformanceAudioClock("prewarm-muted", { kind });
+        return false;
+      }
+      return beep(kind);
+    }
+
     function wakeAudioOutput(kind = "prewarm") {
       if (!canPlaySound()) return;
       try {
+        const scheduleGeneration = audioScheduleGeneration;
         audioContext ||= new (window.AudioContext || window.webkitAudioContext)();
+        observePerformanceAudioContext("prewarm");
+        recordPerformanceAudioClock("prewarm-request", { kind });
         if (audioContext.state === "suspended") {
-          audioContext.resume().then(() => beep(kind)).catch(() => {});
+          const resumeStartedAt = performance.now();
+          recordPerformanceAudioClock("resume-request", { reason: kind });
+          audioContext.resume().then(() => {
+            recordPerformanceAudioClock("resume-resolved", {
+              reason: kind,
+              resumeDurationMs: Number((performance.now() - resumeStartedAt).toFixed(3))
+            });
+            if (scheduleGeneration !== audioScheduleGeneration) return;
+            playSoundWarmTone(kind);
+          }).catch((error) => {
+            recordPerformanceAudioClock("resume-rejected", {
+              reason: kind,
+              resumeDurationMs: Number((performance.now() - resumeStartedAt).toFixed(3)),
+              errorName: error?.name || "Error"
+            });
+          });
           return;
         }
-        beep(kind);
+        recordPerformanceAudioClock("prewarm-direct", { kind });
+        playSoundWarmTone(kind);
       } catch (error) {}
     }
 
     function immediateStartSignal() {
       if (!canPlaySound()) return;
+      const scheduleGeneration = audioScheduleGeneration;
       const delay = Math.max(0, audioUserOffsetMs / 1000);
       if (delay > 0) {
-        transitionSignalTimers.push(window.setTimeout(() => beep("start"), delay * 1000));
+        transitionSignalTimers.push(window.setTimeout(() => {
+          if (scheduleGeneration === audioScheduleGeneration) beep("start");
+        }, delay * 1000));
         flash();
         return;
       }
@@ -7124,6 +8500,7 @@
 
     function shouldUseManualStartAudioLead() {
       if (standaloneMode) return false;
+      if (performanceSoundForced) return true;
       return Boolean(primarySoundEnabled || instancesSoundEnabled || globalSoundEnabled);
     }
 
@@ -7133,13 +8510,40 @@
 
     function scheduleManualStartWatchdog(targetServerTime) {
       if (!canPlaySound() || !Number.isFinite(targetServerTime) || targetServerTime <= 0) return;
+      const scheduleGeneration = audioScheduleGeneration;
       const signalKey = manualStartSignalKey(targetServerTime);
-      scheduleServerTimeoutAt(audioServerTime(targetServerTime) + manualStartWatchdogDelayMs, () => {
+      const soundTargetServerTime = audioServerTime(targetServerTime);
+      const suppressLateWatchdog = () => {
         if (playedSignalKeys.has(signalKey)) return;
+        markSignalPlayed(signalKey);
+        const suppressedAtServerTime = serverNow();
+        recordPerformanceAudioSchedule({
+          stage: "suppressed",
+          kind: "start",
+          signalKey,
+          targetServerTimeMs: Number(soundTargetServerTime.toFixed(3)),
+          canonicalTargetServerTimeMs: Number(targetServerTime.toFixed(3)),
+          audioUserOffsetMs: Number((soundTargetServerTime - targetServerTime).toFixed(3)),
+          actualServerTimeMs: Number(suppressedAtServerTime.toFixed(3)),
+          latenessMs: Number((suppressedAtServerTime - soundTargetServerTime).toFixed(3)),
+          suppressionReason: "manual-start-past-target"
+        });
+      };
+      scheduleServerTimeoutAt(soundTargetServerTime + manualStartWatchdogDelayMs, () => {
+        if (scheduleGeneration !== audioScheduleGeneration) return;
+        if (playedSignalKeys.has(signalKey)) return;
+        if (serverNow() - soundTargetServerTime > signalLateGraceMs.start) {
+          suppressLateWatchdog();
+          return;
+        }
         markSignalPlayed(signalKey);
         beep("start");
         flash();
-      }, { lateGraceMs: signalLateGraceMs.start, preserveOnTransition: true });
+      }, {
+        lateGraceMs: Math.max(0, signalLateGraceMs.start - manualStartWatchdogDelayMs),
+        preserveOnTransition: true,
+        onStale: suppressLateWatchdog
+      });
     }
 
     function scheduleSignal(segment, delaySeconds, kind, withFlash = true) {
@@ -7176,7 +8580,7 @@
       if (kind === "warn") return signalLateGraceMs.warn;
       if (kind === "minute") return signalLateGraceMs.minute;
       if (kind && kind.startsWith("festival")) return signalLateGraceMs.festival;
-      if (kind === "warm" || kind === "prewarm") return signalLateGraceMs.noncritical;
+      if (kind === "warm" || kind === "prewarm") return signalLateGraceMs[kind];
       return signalLateGraceMs[kind] ?? signalLateGraceMs.default;
     }
 
@@ -7196,17 +8600,85 @@
       return Boolean(soundTargetServerTime) && delayUntilServerTime(soundTargetServerTime) <= audioScheduleAheadSeconds;
     }
 
+    function warningPlaybackDurationMs(kind) {
+      if (kind !== "warn") return null;
+      const bufferDurationSeconds = Number(soundBuffer(kind)?.duration);
+      if (Number.isFinite(bufferDurationSeconds) && bufferDurationSeconds > 0) {
+        return bufferDurationSeconds * 1000;
+      }
+      return soundSource(kind) ? null : syntheticWarningDurationMs;
+    }
+
+    function warningFallbackSuppressionReason(kind, fallbackServerTime, nextSignalTargetServerTime, playbackDurationMs) {
+      if (kind !== "warn"
+        || nextSignalTargetServerTime === null
+        || !Number.isFinite(Number(nextSignalTargetServerTime))) return "";
+      if (playbackDurationMs === null || !Number.isFinite(Number(playbackDurationMs))) {
+        return "warning-duration-unavailable";
+      }
+      return Number(fallbackServerTime) + Number(playbackDurationMs) + warningSeparationGuardMs > Number(nextSignalTargetServerTime)
+        ? "warning-overlap-risk"
+        : "";
+    }
+
+    function fallbackPlaybackSuppressionReason(soundAllowed, playbackAccepted) {
+      if (playbackAccepted) return "";
+      return soundAllowed ? "playback-rejected" : "sound-not-allowed";
+    }
+
     function scheduleSignalAt(segment, targetServerTime, kind, withFlash = true) {
+      const scheduleGeneration = audioScheduleGeneration;
       const soundTargetServerTime = audioServerTime(targetServerTime);
       if (kind === "warm" || kind === "prewarm") {
-        scheduleServerTimeoutAt(soundTargetServerTime, () => wakeAudioOutput(kind), { lateGraceMs: lateGraceForSignal(kind) });
+        const planKey = performancePrewarmPlanKey(segment, soundTargetServerTime, kind);
+        const scheduledAtServerTimeMs = planKey ? serverNow() : null;
+        const plan = planKey ? {
+          planKey,
+          kind,
+          cycle: segment.cycle,
+          phase: segment.type,
+          targetServerTimeMs: Number(Number(soundTargetServerTime).toFixed(3)),
+          canonicalTargetServerTimeMs: Number(Number(targetServerTime).toFixed(3)),
+          audioUserOffsetMs: Number((Number(soundTargetServerTime) - Number(targetServerTime)).toFixed(3)),
+          boundaryServerTimeMs: Number(Number(serverTimeForElapsed(segment.end)).toFixed(3)),
+          scheduledAtServerTimeMs: Number(Number(scheduledAtServerTimeMs).toFixed(3)),
+          targetDelayMs: Number((Number(soundTargetServerTime) - Number(scheduledAtServerTimeMs)).toFixed(3))
+        } : null;
+        scheduleServerTimeoutAt(soundTargetServerTime, () => {
+          if (scheduleGeneration !== audioScheduleGeneration) return;
+          const firedAtServerTimeMs = serverNow();
+          wakeAudioOutput(kind);
+          finishPerformancePrewarmPlan(planKey, "prewarm-fire", {
+            actualServerTimeMs: Number(firedAtServerTimeMs.toFixed(3)),
+            latenessMs: Number((firedAtServerTimeMs - Number(soundTargetServerTime)).toFixed(3))
+          });
+        }, {
+          lateGraceMs: lateGraceForSignal(kind),
+          onStale: () => {
+            const staleAtServerTimeMs = serverNow();
+            finishPerformancePrewarmPlan(planKey, "prewarm-stale", {
+              actualServerTimeMs: Number(staleAtServerTimeMs.toFixed(3)),
+              latenessMs: Number((staleAtServerTimeMs - Number(soundTargetServerTime)).toFixed(3)),
+              suppressionReason: "scheduler-window-missed"
+            });
+          }
+        });
+        if (plan) {
+          performancePendingPrewarmPlans.set(planKey, plan);
+          recordPerformancePrewarmLifecycle("prewarm-plan", plan);
+        }
         return;
       }
       scheduleBufferedSignalAt(segment, targetServerTime, kind, withFlash);
     }
 
     function scheduleBufferedSignalAt(segment, targetServerTime, kind, withFlash = true, scheduleImmediately = false, fallback = null, options = {}) {
+      const scheduleGeneration = audioScheduleGeneration;
       const soundTargetServerTime = audioServerTime(targetServerTime);
+      const appliedAudioOffsetMs = soundTargetServerTime - targetServerTime;
+      const nextSignalTargetServerTime = Number.isFinite(Number(options.nextSignalTargetServerTime))
+        ? audioServerTime(Number(options.nextSignalTargetServerTime))
+        : null;
       const signalKey = options.signalKey || `${segment.cycle}:${segment.type}:${kind}:${Math.round(soundTargetServerTime)}`;
       const lateGraceMs = options.lateGraceMs ?? lateGraceForSignal(kind, options.category || "");
       const preserveOnTransition = Boolean(options.preserveOnTransition);
@@ -7214,13 +8686,95 @@
       if (scheduledSignalKeys.has(signalKey) || playedSignalKeys.has(signalKey)) return;
       scheduledSignalKeys.add(signalKey);
       let scheduledByBuffer = false;
+      let bufferAttemptCount = 0;
+      let bufferLastFailure = "not-attempted";
+      recordPerformanceAudioSchedule({
+        stage: "plan",
+        kind,
+        signalKey,
+        targetServerTimeMs: Number(soundTargetServerTime.toFixed(3)),
+        canonicalTargetServerTimeMs: Number(targetServerTime.toFixed(3)),
+        audioUserOffsetMs: Number(appliedAudioOffsetMs.toFixed(3)),
+        nextSignalTargetServerTimeMs: nextSignalTargetServerTime === null
+          ? null
+          : Number(nextSignalTargetServerTime.toFixed(3)),
+        lateGraceMs,
+        preserveOnTransition,
+        bufferAttemptCount,
+        bufferLastFailure,
+        scheduledAtServerTimeMs: Number(serverNow().toFixed(3)),
+        leadMs: Number((soundTargetServerTime - serverNow()).toFixed(3))
+      });
+      const recordSuppressedSignal = (suppressionReason, suppressedAtServerTime) => {
+        recordPerformanceAudioSchedule({
+          stage: "suppressed",
+          kind,
+          signalKey,
+          targetServerTimeMs: Number(soundTargetServerTime.toFixed(3)),
+          canonicalTargetServerTimeMs: Number(targetServerTime.toFixed(3)),
+          audioUserOffsetMs: Number(appliedAudioOffsetMs.toFixed(3)),
+          nextSignalTargetServerTimeMs: nextSignalTargetServerTime === null
+            ? null
+            : Number(nextSignalTargetServerTime.toFixed(3)),
+          actualServerTimeMs: Number(Number(suppressedAtServerTime).toFixed(3)),
+          latenessMs: Number((Number(suppressedAtServerTime) - soundTargetServerTime).toFixed(3)),
+          bufferAttemptCount,
+          bufferLastFailure,
+          suppressionReason
+        });
+      };
+      const suppressSignal = (suppressionReason, suppressedAtServerTime = serverNow()) => {
+        if (scheduledByBuffer || !markSignalPlayed(signalKey)) return;
+        recordSuppressedSignal(suppressionReason, suppressedAtServerTime);
+      };
       const cancelFallback = scheduleServerTimeoutAt(soundTargetServerTime, () => {
+        if (scheduleGeneration !== audioScheduleGeneration) return;
         if (scheduledByBuffer) return;
+        const fallbackServerTime = serverNow();
+        const warningSuppressionReason = warningFallbackSuppressionReason(
+          kind,
+          fallbackServerTime,
+          nextSignalTargetServerTime,
+          warningPlaybackDurationMs(kind)
+        );
+        if (warningSuppressionReason) {
+          suppressSignal(warningSuppressionReason, fallbackServerTime);
+          return;
+        }
         if (!markSignalPlayed(signalKey)) return;
+        const playbackServerTime = serverNow();
+        const soundAllowed = canPlaySound();
+        let playbackAccepted = false;
+        try {
+          playbackAccepted = fallback ? fallback() !== false : beep(kind);
+        } catch (error) {}
+        const playbackSuppressionReason = fallbackPlaybackSuppressionReason(soundAllowed, playbackAccepted);
+        if (playbackSuppressionReason) {
+          recordSuppressedSignal(playbackSuppressionReason, playbackServerTime);
+          options.onPlay?.();
+          return;
+        }
+        recordPerformanceAudioSchedule({
+          stage: "fallback",
+          kind,
+          signalKey,
+          targetServerTimeMs: Number(soundTargetServerTime.toFixed(3)),
+          canonicalTargetServerTimeMs: Number(targetServerTime.toFixed(3)),
+          audioUserOffsetMs: Number(appliedAudioOffsetMs.toFixed(3)),
+          nextSignalTargetServerTimeMs: nextSignalTargetServerTime === null
+            ? null
+            : Number(nextSignalTargetServerTime.toFixed(3)),
+          actualServerTimeMs: Number(playbackServerTime.toFixed(3)),
+          latenessMs: Number((playbackServerTime - soundTargetServerTime).toFixed(3)),
+          bufferAttemptCount,
+          bufferLastFailure
+        });
         options.onPlay?.();
-        if (fallback) fallback();
-        else beep(kind);
-      }, { lateGraceMs, preserveOnTransition });
+      }, {
+        lateGraceMs,
+        preserveOnTransition,
+        onStale: () => suppressSignal("past-target")
+      });
       if (withFlash) {
         const flashScheduler = allowAfterSegment
           ? scheduleServerTimeoutAt
@@ -7229,19 +8783,66 @@
       }
 
       const tryScheduleBuffer = () => {
-        if (standaloneMode && iosAudioWorkaroundEnabled) return false;
-        if (scheduledByBuffer || !soundBuffer(kind)) return false;
+        if (scheduleGeneration !== audioScheduleGeneration) {
+          bufferLastFailure = "schedule-invalidated";
+          updatePerformancePendingAudioPlan(signalKey, { bufferLastFailure });
+          return false;
+        }
+        bufferAttemptCount += 1;
+        updatePerformancePendingAudioPlan(signalKey, { bufferAttemptCount });
+        if (standaloneMode && iosAudioWorkaroundEnabled) {
+          bufferLastFailure = "ios-html-audio";
+          updatePerformancePendingAudioPlan(signalKey, { bufferLastFailure });
+          return false;
+        }
+        if (scheduledByBuffer) {
+          bufferLastFailure = "already-scheduled";
+          updatePerformancePendingAudioPlan(signalKey, { bufferLastFailure });
+          return false;
+        }
+        if (!soundBuffer(kind)) {
+          bufferLastFailure = "buffer-unavailable";
+          updatePerformancePendingAudioPlan(signalKey, { bufferLastFailure });
+          return false;
+        }
         const current = getCurrentSegment(elapsedSeconds());
-        if (!state.running || !current) return false;
-        if (!allowAfterSegment && (current.cycle !== segment.cycle || current.type !== segment.type)) return false;
+        if (!state.running) {
+          bufferLastFailure = "timer-not-running";
+          updatePerformancePendingAudioPlan(signalKey, { bufferLastFailure });
+          return false;
+        }
+        if (!current) {
+          bufferLastFailure = "segment-unavailable";
+          updatePerformancePendingAudioPlan(signalKey, { bufferLastFailure });
+          return false;
+        }
+        if (!allowAfterSegment && (current.cycle !== segment.cycle || current.type !== segment.type)) {
+          bufferLastFailure = "segment-changed";
+          updatePerformancePendingAudioPlan(signalKey, { bufferLastFailure });
+          return false;
+        }
 
         const nextDelay = delayUntilServerTime(soundTargetServerTime);
-        if (nextDelay <= 0.08) return false;
+        if (nextDelay <= 0.08) {
+          bufferLastFailure = "too-late";
+          updatePerformancePendingAudioPlan(signalKey, { bufferLastFailure });
+          return false;
+        }
         const scheduled = beep(kind, nextDelay, true, signalKey, preserveOnTransition, () => {
           options.onPlay?.();
+        }, {
+          targetServerTimeMs: soundTargetServerTime,
+          canonicalTargetServerTimeMs: targetServerTime,
+          audioUserOffsetMs: appliedAudioOffsetMs,
+          nextSignalTargetServerTimeMs: nextSignalTargetServerTime
         });
-        if (!scheduled) return false;
+        if (!scheduled) {
+          bufferLastFailure = audioContext?.state === "running" ? "beep-rejected" : "audio-context-not-running";
+          updatePerformancePendingAudioPlan(signalKey, { bufferLastFailure });
+          return false;
+        }
         scheduledByBuffer = true;
+        bufferLastFailure = "";
         cancelFallback();
         return true;
       };
@@ -7255,14 +8856,20 @@
         }
       }
 
-      scheduleSegmentTimeoutAt(segment, soundTargetServerTime - audioScheduleAheadSeconds * 1000, () => {
+      const bufferPromotionScheduler = preserveOnTransition && allowAfterSegment
+        ? scheduleServerTimeoutAt
+        : (target, callback, scheduleOptions) => scheduleSegmentTimeoutAt(segment, target, callback, scheduleOptions);
+      bufferPromotionScheduler(soundTargetServerTime - audioScheduleAheadSeconds * 1000, () => {
         if (tryScheduleBuffer()) return;
         if (audioContext && !soundBuffer(kind)) {
           loadAudioBuffers()?.then(() => {
             tryScheduleBuffer();
           });
         }
-      }, { lateGraceMs: Math.max(lateGraceMs, 1000) });
+      }, {
+        lateGraceMs: Math.max(lateGraceMs, 1000),
+        preserveOnTransition
+      });
     }
 
     function nextPhaseSignalKey(segment) {
@@ -7301,6 +8908,17 @@
     }
 
     function clearSignalTimers(preserveTransition = false, forceStopAudio = false) {
+      if (forceStopAudio) {
+        audioScheduleGeneration += 1;
+        stopActiveHtmlAudio();
+      }
+      finalizeClearedPerformanceAudioPlans(preserveTransition);
+      finalizeClearedPerformancePrewarmPlans(forceStopAudio
+        ? "forced-audio-stop"
+        : preserveTransition ? "segment-reschedule" : "signal-clear");
+      if (performanceAudioKeepaliveExperiment && (!preserveTransition || forceStopAudio)) {
+        stopPerformanceAudioKeepalive(forceStopAudio ? "forced-audio-stop" : "signal-clear");
+      }
       signalTimers.forEach((timer) => window.clearTimeout(timer));
       signalTimers = [];
       if (!preserveTransition) {
@@ -7323,6 +8941,9 @@
         }
         if (item.playedTimer && !item.started) window.clearTimeout(item.playedTimer);
         try { node.stop(0); } catch (error) {}
+        recordCancelledAudioNode(item, forceStopAudio
+          ? "forced-audio-stop"
+          : preserveTransition ? "segment-reschedule" : "signal-clear");
         return false;
       });
       scheduledFinalSignalKey = "";
@@ -7333,13 +8954,7 @@
 
     function applySoundPreferenceChange() {
       if (!canPlaySound()) {
-        activeHtmlAudio.forEach((audio) => {
-          try {
-            audio.pause();
-            audio.currentTime = 0;
-          } catch (error) {}
-        });
-        activeHtmlAudio = [];
+        stopActiveHtmlAudio();
       }
 
       clearSignalTimers(false, !canPlaySound());
@@ -7361,11 +8976,23 @@
     }
 
     function scheduleSegmentSignals(segment, remaining, duration, includePhase = true) {
+      if (document.hidden) {
+        if (state.running) signalsInvalidatedWhileHidden = true;
+        clearSignalTimers(false, true);
+        return;
+      }
       clearSignalTimers(true);
       if (!state.running) return;
+      schedulePerformanceAudioKeepalive(segment);
 
       const phaseSignalKey = `${segment.cycle}:${segment.type}`;
-      if (includePhase && duration - remaining < 2 && lastPhaseSignalKey !== phaseSignalKey && !scheduledPhaseSignalKeys.has(phaseSignalKey)) {
+      const phaseElapsedSeconds = duration - remaining;
+      if (includePhase
+        && Date.now() >= suppressPhaseSignalsUntil
+        && phaseElapsedSeconds >= 0
+        && phaseElapsedSeconds * 1000 <= signalLateGraceMs.start
+        && lastPhaseSignalKey !== phaseSignalKey
+        && !scheduledPhaseSignalKeys.has(phaseSignalKey)) {
         lastPhaseSignalKey = phaseSignalKey;
         signal(segment.type === "break" ? "end" : "start");
       }
@@ -7407,16 +9034,19 @@
 
     function scheduleFestivalAnnouncements(segment, remaining) {
       if (!state.festivalAnnouncements || state.runtimePreset !== "festival" || segment.type !== "rotation") return;
+      const scheduleGeneration = audioScheduleGeneration;
       festivalAnnouncements.forEach((announcement) => {
         if (remaining <= announcement.remaining) return;
         const targetServerTime = serverTimeForElapsed(segment.end - announcement.remaining);
         if (soundSource(announcement.kind)) {
           scheduleBufferedSignalAt(segment, targetServerTime, announcement.kind, false, false, () => {
-            if (!playHtmlAudio(announcement.kind)) speak(announcement[language]);
+            return playHtmlAudio(announcement.kind) || speak(announcement[language]);
           });
           return;
         }
-        scheduleServerTimeoutAt(audioServerTime(targetServerTime), () => speak(announcement[language]), {
+        scheduleServerTimeoutAt(audioServerTime(targetServerTime), () => {
+          if (scheduleGeneration === audioScheduleGeneration) speak(announcement[language]);
+        }, {
           lateGraceMs: signalLateGraceMs.festival
         });
       });
@@ -7465,6 +9095,9 @@
       let activeTimer = null;
       const preserveOnTransition = typeof options === "boolean" ? options : Boolean(options.preserveOnTransition);
       const lateGraceMs = typeof options === "object" ? options.lateGraceMs ?? staleSignalGraceMs : staleSignalGraceMs;
+      const onStale = typeof options === "object" && typeof options.onStale === "function"
+        ? options.onStale
+        : null;
       const timerList = preserveOnTransition ? transitionSignalTimers : signalTimers;
       const forgetTimer = () => {
         if (!activeTimer) return;
@@ -7482,7 +9115,10 @@
             arm();
             return;
           }
-          if (!isServerSignalCurrent(targetServerTime, lateGraceMs)) return;
+          if (!isServerSignalCurrent(targetServerTime, lateGraceMs)) {
+            onStale?.();
+            return;
+          }
           callback();
         }, wait * 1000);
         timerList.push(activeTimer);
@@ -7498,17 +9134,36 @@
     }
 
     function scheduleFinalWarnings(segment) {
+      if (document.hidden) {
+        if (state.running) signalsInvalidatedWhileHidden = true;
+        return;
+      }
       const finalSignalKey = `${segment.cycle}:${segment.type}:final`;
       if (scheduledFinalSignalKey === finalSignalKey) return;
       scheduledFinalSignalKey = finalSignalKey;
 
       const remaining = segment.end - elapsedSeconds();
+      if (performanceDiagnosticsLevel >= 2) {
+        const firstWarningTargetServerTime = Number(serverTimeForElapsed(segment.end - 5));
+        recordPerformanceAudioClock("warning-batch-plan", {
+          cycle: segment.cycle,
+          phase: segment.type,
+          remainingMs: Number((remaining * 1000).toFixed(3)),
+          firstTargetServerTimeMs: Number.isFinite(firstWarningTargetServerTime)
+            ? Number(firstWarningTargetServerTime.toFixed(3))
+            : null
+        });
+      }
       if (remaining > 5.8) {
         scheduleSignalAt(segment, serverTimeForElapsed(segment.end - 5.8), "warm", false);
       }
       [5, 4, 3, 2, 1].forEach((second) => {
         if (remaining <= second) return;
-        scheduleBufferedSignalAt(segment, serverTimeForElapsed(segment.end - second), "warn", true, true);
+        const targetServerTime = serverTimeForElapsed(segment.end - second);
+        const nextSignalTargetServerTime = serverTimeForElapsed(segment.end - Math.max(0, second - 1));
+        scheduleBufferedSignalAt(segment, targetServerTime, "warn", true, true, null, {
+          nextSignalTargetServerTime
+        });
       });
     }
 
@@ -7569,8 +9224,38 @@
       displayBoundaryTimer = window.setTimeout(() => {
         displayBoundaryTimer = null;
         displayBoundaryTargetServerTime = 0;
+        if (!performanceAggregateDiagnostics) {
+          checkClockContinuity();
+          render("boundary");
+          return;
+        }
+        const scheduledTargetServerTime = targetServerTime;
+        const beforeLabel = lastDisplayTimeLabel;
+        const callbackServerTimeBeforeRepair = serverNow();
         checkClockContinuity();
-        render();
+        const callbackServerTime = serverNow();
+        const renderStartedAt = performance.now();
+        render("boundary");
+        const renderCompletedAt = performance.now();
+        const renderCompletedServerTime = serverNow();
+        const segment = getCurrentSegment(elapsedSeconds());
+        recordDisplayBoundary({
+          targetServerTimeMs: Number(scheduledTargetServerTime.toFixed(3)),
+          callbackServerTimeBeforeRepairMs: Number(callbackServerTimeBeforeRepair.toFixed(3)),
+          callbackServerTimeMs: Number(callbackServerTime.toFixed(3)),
+          callbackLatenessMs: Number((callbackServerTime - scheduledTargetServerTime).toFixed(3)),
+          guardMs: displayBoundaryGuardMs,
+          clockRepairDeltaMs: Number((callbackServerTime - callbackServerTimeBeforeRepair).toFixed(3)),
+          renderCompletedServerTimeMs: Number(renderCompletedServerTime.toFixed(3)),
+          commitLatenessMs: Number((renderCompletedServerTime - scheduledTargetServerTime).toFixed(3)),
+          renderDurationMs: Number((renderCompletedAt - renderStartedAt).toFixed(3)),
+          beforeLabel,
+          afterLabel: lastDisplayTimeLabel,
+          phase: segment?.type || (state.countdownOnly ? "start" : ""),
+          cycle: Number(segment?.cycle || 0),
+          visibilityState: document.visibilityState || (document.hidden ? "hidden" : "visible"),
+          serverInstanceId: lastServerInstanceId
+        });
       }, delayMs);
     }
 
@@ -7592,9 +9277,15 @@
       setElementText(els.cycleMeta, `${t("cycle")} ${normalizedCycle}`);
     }
 
-    function render() {
+    function render(renderSource = "direct") {
+      const transitionRenderStartedAt = performanceLongRunDiagnostics ? performance.now() : null;
+      const transitionRenderStartedServerTime = performanceLongRunDiagnostics ? serverNow() : null;
+      const transitionBeforeLabel = performanceLongRunDiagnostics ? lastDisplayTimeLabel : "";
       lastRenderAt = performance.now();
       scheduleDisplayBoundary();
+      if (performanceLongRunDiagnostics && (!state.running || state.countdownOnly)) {
+        performanceLastRenderedPhaseKey = "";
+      }
       performanceCount("renderCalls");
       const performanceStartedAt = performanceStart();
       try {
@@ -7611,7 +9302,6 @@
       const segment = getCurrentSegment(elapsed);
       const settings = activeSettings();
       const isReady = !state.running && !state.completed && state.elapsedBeforePause === 0;
-      renderStartList();
       syncAudioTestButtons();
       syncButtonsWhenScheduledStartStateChanges();
       setElementClass(document.body, "warning-active", false);
@@ -7778,17 +9468,37 @@
         scheduleSegmentSignals(segment, remaining, duration, true);
       }
 
-      if (state.running && remaining <= 6) {
+      if (state.running && !document.hidden && remaining <= 6) {
         scheduleFinalWarnings(segment);
+      }
+      if (performanceLongRunDiagnostics && performanceLastRenderedPhaseKey !== segmentKey) {
+        const transitionRenderCompletedAt = performance.now();
+        const transitionRenderCompletedServerTime = serverNow();
+        const transitionTargetServerTime = serverTimeForElapsed(segment.start);
+        if (Number.isFinite(transitionTargetServerTime)) {
+          recordPerformanceRenderedPhase(segment, {
+            targetServerTimeMs: Number(transitionTargetServerTime.toFixed(3)),
+            canonicalTargetServerTimeMs: Number(transitionTargetServerTime.toFixed(3)),
+            callbackServerTimeMs: Number(transitionRenderStartedServerTime.toFixed(3)),
+            renderCompletedServerTimeMs: Number(transitionRenderCompletedServerTime.toFixed(3)),
+            callbackLatenessMs: Number((transitionRenderStartedServerTime - transitionTargetServerTime).toFixed(3)),
+            commitLatenessMs: Number((transitionRenderCompletedServerTime - transitionTargetServerTime).toFixed(3)),
+            renderDurationMs: Number((transitionRenderCompletedAt - transitionRenderStartedAt).toFixed(3)),
+            beforeLabel: transitionBeforeLabel,
+            afterLabel: lastDisplayTimeLabel,
+            renderSource
+          });
+        }
       }
       } finally {
         performanceEnd("render", performanceStartedAt);
+        scheduleStartListRender();
       }
     }
 
     function tick() {
       checkClockContinuity();
-      render();
+      render("periodic");
       const interval = document.hidden || (!state.running && !state.countdownOnly)
         ? renderIdleIntervalMs
         : renderRunningIntervalMs;
@@ -7800,7 +9510,7 @@
       checkClockContinuity();
       if (performance.now() - lastRenderAt < 3000) return;
       lastDisplayTimeLabel = "";
-      render();
+      render("watchdog");
       scheduleDisplayBoundary(true);
     }
 
@@ -8321,7 +10031,7 @@
       lastSegmentIndex = -1;
       lastPhaseSignalKey = "";
       clearSignalTimers();
-      render();
+      render("seek-cycle");
       saveOfflineSnapshot();
     }
 
@@ -8344,7 +10054,7 @@
       state.elapsedBeforePause = elapsed;
       pendingSeekElapsed = elapsed;
       clearSignalTimers();
-      render();
+      render("seek");
     }
 
     function startScrub(event) {
@@ -8628,7 +10338,17 @@
       editingAudioClientId = "";
       testAudioEverywhere = false;
       if (standaloneMode) {
+        const previousAudioUserOffsetMs = audioUserOffsetMs;
         audioUserOffsetMs = offset;
+        if (audioUserOffsetMs !== previousAudioUserOffsetMs) {
+          recordPerformanceAudioSchedule({
+            stage: "offset",
+            kind: "config",
+            signalKey: `audioOffset:${clientId}:${Math.round(serverNow())}`,
+            previousAudioUserOffsetMs: Number(previousAudioUserOffsetMs.toFixed(3)),
+            audioUserOffsetMs: Number(audioUserOffsetMs.toFixed(3))
+          });
+        }
         const ownClient = lastKnownClients.find((item) => item.id === targetClientId);
         if (ownClient) ownClient.audioUserOffset = offset;
         rescheduleStandaloneSignals();
@@ -8682,7 +10402,7 @@
       if (standaloneMode) state.startListVisible = startListEditorOpen && hasStartLists();
       safeStorageSet("sessionStorage", startListEditorPreferenceKey, startListEditorOpen ? "1" : "0");
       updateStartListVisibility();
-      renderStartList();
+      scheduleStartListRender();
       renderBrowserList(lastKnownClients);
       if (standaloneMode) {
         saveOfflineSnapshot();
@@ -9061,6 +10781,7 @@
 
     document.addEventListener("visibilitychange", () => {
       if (document.visibilityState !== "visible") {
+        invalidateSignalsForPageSuspension("visibility-hidden");
         refreshTrustedClockAnchor(true);
         pageHiddenAt = Date.now();
         clockContinuityWallAt = pageHiddenAt;
@@ -9070,22 +10791,28 @@
         return;
       }
       if (window.location.protocol === "file:") {
-        repairServerClockAfterSuspension();
-        requestScreenWakeLock();
-        refreshStandaloneBrowserList();
+        resumeLocalPageAfterSuspension();
         return;
       }
       const clockRepaired = repairServerClockAfterSuspension();
-      resumeClientSync({ resetStaleSignals: clockRepaired || shouldResetSignalsOnResume() });
+      resumeClientSync({
+        resetStaleSignals: clockRepaired || shouldResetSignalsOnResume(),
+        signalsAlreadyRescheduled: clockRepaired
+      });
     });
 
     window.addEventListener("pagehide", () => {
+      invalidateSignalsForPageSuspension("pagehide");
       persistStartListScrollPositions();
       pageHiddenAt = Date.now();
       clockContinuityWallAt = pageHiddenAt;
       clockContinuityPerfAt = performance.now();
       markResumeDisplayStale();
       saveOfflineSnapshot();
+    });
+
+    document.addEventListener("freeze", () => {
+      invalidateSignalsForPageSuspension("freeze");
     });
 
     window.addEventListener("beforeinstallprompt", (event) => {
@@ -9103,12 +10830,14 @@
     ["pageshow", "focus", "online"].forEach((eventName) => {
       window.addEventListener(eventName, (event) => {
         if (isLocalStandalonePage()) {
-          repairServerClockAfterSuspension();
-          refreshStandaloneBrowserList();
+          resumeLocalPageAfterSuspension();
           return;
         }
         const clockRepaired = repairServerClockAfterSuspension();
-        resumeClientSync({ resetStaleSignals: clockRepaired || shouldResetSignalsOnResume(event) });
+        resumeClientSync({
+          resetStaleSignals: clockRepaired || shouldResetSignalsOnResume(event),
+          signalsAlreadyRescheduled: clockRepaired
+        });
       });
     });
 
@@ -9118,8 +10847,7 @@
       if (applyStartListVerticalDensity()) {
         reanchorStartListScrolls();
       }
-      fitStartListPanelWidth();
-      scheduleStartListPanelWidthFit();
+      scheduleStartListPanelWidthFit({ settle: true });
       scheduleFitTimer();
     });
 
@@ -9151,9 +10879,11 @@
     function scheduleOrientationFits() {
       applyPhoneOrientationLayout();
       scheduleFitTimer();
+      scheduleStartListPanelWidthFit({ settle: true });
       [120, 360, 800].forEach((delay) => window.setTimeout(() => {
         applyPhoneOrientationLayout();
         scheduleFitTimer();
+        scheduleStartListPanelWidthFit({ settle: true });
       }, delay));
     }
 
@@ -9201,18 +10931,31 @@
     if (!fileMode) {
       registerOfflineServiceWorker();
       startSync();
-      window.setInterval(saveOfflineSnapshot, 2000);
+      scheduleOfflineSnapshotSafetyWrite();
     }
     if (performanceDiagnosticsEnabled) {
-      let expectedPerformanceProbeAt = performance.now() + 1000;
-      window.setInterval(() => {
-        const measuredAt = performance.now();
-        const lag = Math.max(0, measuredAt - expectedPerformanceProbeAt);
-        performanceCount("eventLoopLagSamples");
-        performanceEnd("eventLoopLag", measuredAt - lag);
-        expectedPerformanceProbeAt = measuredAt + 1000;
-      }, 1000);
-      console.info("Performance diagnostics enabled. Use FDVPerformanceDiagnostics.snapshot().");
+      if (els.performanceExportBtn) {
+        els.performanceExportBtn.hidden = false;
+        els.performanceExportBtn.textContent = language === "ru" ? "Скачать лог" : "Download log";
+        els.performanceExportBtn.addEventListener("click", downloadPerformanceDiagnostics);
+      }
+      const reportPerformanceSnapshot = () => {
+        console.info(`FDV_PERFORMANCE_SNAPSHOT ${JSON.stringify(performanceSnapshot())}`);
+      };
+      console.info(`Performance diagnostics enabled (perf=${performanceDiagnosticsLevel}${performanceSoundForced ? ", sound forced locally" : ""}${performanceLongRunDiagnostics ? ", sparse transition logging" : ""}${performanceAudioKeepaliveExperiment ? ", experimental audio keepalive" : ""}). Use FDVPerformanceDiagnostics.snapshot().`);
+      recordPerformanceAudioClock("diagnostics-start");
+      if (!performanceLongRunDiagnostics) {
+        let expectedPerformanceProbeAt = performance.now() + 1000;
+        window.setInterval(() => {
+          const measuredAt = performance.now();
+          const lag = Math.max(0, measuredAt - expectedPerformanceProbeAt);
+          performanceCount("eventLoopLagSamples");
+          performanceEnd("eventLoopLag", measuredAt - lag);
+          expectedPerformanceProbeAt = measuredAt + 1000;
+        }, 1000);
+        reportPerformanceSnapshot();
+        window.setInterval(reportPerformanceSnapshot, 5000);
+      }
     }
     window.setInterval(refreshServerAvailability, 500);
     requestScreenWakeLock();

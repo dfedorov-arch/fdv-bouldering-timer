@@ -1059,6 +1059,7 @@
           <li>Дополнительный браузер на том же компьютере, что и основной, автоматически не дублирует звук.</li>
           <li><strong>Мигание</strong> включает визуальную вспышку вместе с предупреждающими сигналами сразу во всех подключённых современных браузерах; в автономном режиме настройка действует только в текущем браузере.</li>
           <li>Выключение звука отменяет уже запланированные аудиосигналы.</li>
+          <li><code>no_sound_warm=true</code> в <code>params.txt</code> отключает тихие технические тоны предварительного прогрева во всех современных браузерах. Беззвучная попытка заранее возобновить аудиоконтекст сохраняется; сигналы старта, перехода, минуты и последних пяти секунд не изменяются.</li>
         </ul>
         <p>Используются сигнал начала ротации или перерыва, минутное предупреждение и последние пять секунд. В «Фестивале» чекбокс «Объявления времени» управляет дополнительными сигналами за 60, 30, 10 и 5 минут.</p>
         <h3>Звуковые профили</h3>
@@ -1226,6 +1227,7 @@ xattr -dr com.apple.quarantine "/полный/путь/к/fdv-bouldering-timer-v
             <tr><td><code>sound_in_other_browsers</code></td><td>Начальное состояние звука экранов</td><td>false</td></tr>
             <tr><td><code>festival_announcements</code></td><td>Начальное состояние фестивальных объявлений времени</td><td>true</td></tr>
             <tr><td><code>flashing</code></td><td>Начальное состояние мигания</td><td>true</td></tr>
+            <tr><td><code>no_sound_warm</code></td><td>Отключить тихие технические тоны прогрева; пустое значение сохраняет прогрев со звуком</td><td>пусто / true</td></tr>
             <tr><td><code>sound_profile</code></td><td>Название подкаталога звукового профиля внутри <code>beeps</code></td><td>FSR_2026</td></tr>
             <tr><td><code>timer_font_file</code></td><td>Файл основного шрифта таймера внутри каталога <code>fonts</code></td><td>Roboto-Variable.ttf</td></tr>
             <tr><td><code>timer_font</code></td><td>Резервный список системных шрифтов</td><td>Arial, sans-serif</td></tr>
@@ -1517,6 +1519,7 @@ xattr -dr com.apple.quarantine "/полный/путь/к/fdv-bouldering-timer-v
           <li>Sound in other browsers enables signals on connected displays.</li>
           <li>Flashing enables visual feedback with warning signals in all connected modern browsers; in standalone mode it applies only to the current browser.</li>
           <li>Disabling sound cancels already scheduled audio.</li>
+          <li><code>no_sound_warm=true</code> in <code>params.txt</code> disables the quiet technical warm-up tones in every modern browser. The silent early attempt to resume the audio context remains active; start, transition, minute, and final-five-second signals are unchanged.</li>
         </ul>
         <h3>Sound profiles</h3>
         <p>Choose a profile in the panel or with <code>sound_profile</code> in <code>params.txt</code>. Every subfolder in <code>beeps</code> is a profile.</p>
@@ -1584,6 +1587,7 @@ xattr -dr com.apple.quarantine "/full/path/to/fdv-bouldering-timer-v1.0.7-macos-
             <tr><td><code>sound</code></td><td>Initial sound state</td><td>true</td></tr>
             <tr><td><code>sound_in_other_browsers</code></td><td>Initial remote display sound</td><td>false</td></tr>
             <tr><td><code>flashing</code></td><td>Initial flashing state</td><td>true</td></tr>
+            <tr><td><code>no_sound_warm</code></td><td>Disable quiet technical warm-up tones; a blank value keeps audible warm-up enabled</td><td>blank / true</td></tr>
             <tr><td><code>sound_profile</code></td><td>Profile subfolder in beeps</td><td>FSR_2026</td></tr>
             <tr><td><code>timer_font_file</code></td><td>Primary timer font file inside the <code>fonts</code> folder</td><td>Roboto-Variable.ttf</td></tr>
             <tr><td><code>timer_font</code></td><td>Fallback system font list</td><td>Arial, sans-serif</td></tr>

@@ -63,7 +63,7 @@ test("start-list switch follows the primary switch and supports four dynamic pro
   assert.match(index, /scroll\.offsetWidth - scroll\.clientWidth/);
   assert.match(index, /const completedFinalAttempt = state\.runtimePreset === "final"[\s\S]*?state\.running && !state\.countdownOnly/);
   assert.doesNotMatch(index, /class="start-list-heading"/);
-  assert.match(index, /startListEditorOpen = els\.startListToggle\.checked;[\s\S]*?safeStorageSet\("sessionStorage", startListEditorPreferenceKey[\s\S]*?updateStartListVisibility\(\);\s*renderStartList\(\);/);
+  assert.match(index, /startListEditorOpen = els\.startListToggle\.checked;[\s\S]*?safeStorageSet\("sessionStorage", startListEditorPreferenceKey[\s\S]*?updateStartListVisibility\(\);\s*scheduleStartListRender\(\);/);
   assert.match(index, /startListEditorOpen = safeStorageGet\("sessionStorage", startListEditorPreferenceKey\) === "1";\s*state\.startListEnabled = startListEditorOpen;\s*els\.startListToggle\.checked = startListEditorOpen/);
   assert.match(index, /safeStorageSet\("sessionStorage", startListEditorPreferenceKey, startListEditorOpen \? "1" : "0"\)/);
   assert.match(index, /state\.startListEnabled = Boolean\(remote\.startListEnabled\)[\s\S]*?startListEditorOpen = state\.startListEnabled[\s\S]*?els\.startListToggle\.checked = startListEditorOpen/);
@@ -84,6 +84,51 @@ test("start-list switch follows the primary switch and supports four dynamic pro
   assert.doesNotMatch(index, /accept="[^"]*(?:application\/|text\/)/);
   assert.match(index, /if \(\/\\\.xlsx\$\/i\.test\(file\.name\)\)[\s\S]*?loadXlsxLibrary\(\)[\s\S]*?sheet_to_json[\s\S]*?FDVStartList\.parseRows/);
   assert.match(index, /function loadXlsxLibrary\(\)[\s\S]*?FDV_XLSX_LIBRARY_SOURCE[\s\S]*?lib\/vendor\/xlsx\.mini\.min\.js/);
+});
+
+test("modern start-list rendering trusts canonical data and uses a revision key", () => {
+  assert.match(index, /let startListDataRevision = 0;/);
+  assert.match(index, /function replaceCanonicalStartLists\(nextLists, options = \{\}\)[\s\S]*?startListDataRevision \+= 1;/);
+  assert.match(index, /function applyRemoteStartListPayload\(remote\)[\s\S]*?replaceCanonicalStartLists\(normalizeStartLists\(remote\.startLists\)\);/);
+  assert.equal((index.match(/applyRemoteStartListPayload\(remote\);/g) || []).length, 2);
+  assert.match(index, /function visibleStartListEntries\(\) \{\s*const lists = state\.startLists;/);
+  assert.match(index, /const renderKey = `[^`]*\$\{startListDataRevision\}`;/);
+  assert.match(index, /renderKey === lastStartListRenderKey[\s\S]*?performanceCount\("startListRenderSkips"\)/);
+  assert.doesNotMatch(index, /function visibleStartListEntries\(\)[\s\S]*?normalizeStartLists\(state\.startLists\)[\s\S]*?function startListColumns/);
+  assert.doesNotMatch(index, /const renderKey = `[^`]*JSON\.stringify\(state\.startLists\)/);
+});
+
+test("modern start-list payload is reused only for an exact non-empty server revision", () => {
+  const payloadStatus = inlineFunction("remoteStartListPayloadStatus");
+  assert.equal(payloadStatus({ startLists: [], startListRevision: "instance:2" }, "instance:1"), "replace");
+  assert.equal(payloadStatus({ startLists: null, startListRevision: "instance:2" }, "instance:2"), "recover");
+  assert.equal(payloadStatus({ startListRevision: "instance:2" }, "instance:2"), "preserve");
+  assert.equal(payloadStatus({ startListRevision: "instance:2" }, "instance:1"), "recover");
+  assert.equal(payloadStatus({ startListRevision: "" }, ""), "recover");
+  assert.equal(payloadStatus(null, "instance:2"), "recover");
+  assert.match(index, /startListRevision: options\.forceStartLists \? "" : lastStartListServerRevision/);
+  assert.match(index, /new EventSource\(`\/api\/events\?\$\{params\}`\)/);
+  assert.match(index, /lastStartListServerRevision = "";\s*performanceCount\("startListPayloadRecoveryRequests"\);\s*scheduleStartListPayloadRecovery\(\);/);
+});
+
+test("protocol rendering yields to timer paint and sound scheduling", () => {
+  assert.match(index, /const startListCriticalReserveMs = 750;/);
+  assert.match(index, /function startListRenderHasSafeWindow\(\)[\s\S]*?nextDisplayBoundaryServerTime\(\)[\s\S]*?targetServerTime - serverNow\(\) >= startListCriticalReserveMs/);
+  assert.match(index, /function queueStartListRenderAfterPaint\(\)[\s\S]*?requestAnimationFrame\(\(\) => \{[\s\S]*?window\.setTimeout\(\(\) => \{[\s\S]*?startListRenderHasSafeWindow\(\)/);
+  assert.match(index, /performanceCount\("startListCriticalWindowDeferrals"\)/);
+  assert.match(index, /function scheduleStartListRender\(\)[\s\S]*?startListRenderQueued[\s\S]*?performanceCount\("startListRenderCoalesced"\)[\s\S]*?queueStartListRenderAfterPaint\(\)/);
+  assert.doesNotMatch(index, /function render\([^)]*\) \{[\s\S]*?const isReady[^;]*;\s*renderStartList\(\);/);
+  assert.match(index, /function render\([^)]*\)[\s\S]*?scheduleSegmentSignals\(segment, remaining, duration, true\);[\s\S]*?finally \{\s*performanceEnd\("render", performanceStartedAt\);\s*scheduleStartListRender\(\);/);
+});
+
+test("phase changes update protocol nodes without rebuilding table structure", () => {
+  assert.match(index, /const tableKey = `\$\{language\}:\$\{index\}:\$\{startListDataRevision\}:\$\{canManageIncidents\}`/);
+  assert.match(index, /const rebuildTable = !table \|\| scroll\.dataset\.startListTableKey !== tableKey/);
+  assert.match(index, /if \(rebuildTable\) \{[\s\S]*?performanceCount\("startListTableRebuilds"\)[\s\S]*?scroll\.dataset\.startListTableKey = tableKey;[\s\S]*?\} else \{\s*performanceCount\("startListDynamicUpdates"\)/);
+  assert.match(index, /data-start-list-route-header="\$\{routeIndex\}"/);
+  assert.match(index, /data-start-list-marker="\$\{marker\}"/);
+  assert.match(index, /cell\.dataset\.startListMarker = marker;[\s\S]*?performanceCount\("startListMarkersChanged"\)/);
+  assert.match(index, /if \(rebuiltTables\) \{\s*scheduleStartListPanelWidthFit\(\{ settle: true \}\);/);
 });
 
 test("cycle plaque becomes an editable synchronized cycle selector while stopped", () => {
@@ -130,9 +175,13 @@ test("start-list width uses stable intrinsic content measurements and reserves s
   assert.match(index, /width: measuredContentWidth \? Math\.max\(minimumColumnWidth, contentWidth\) : minimumColumnWidth/);
   assert.match(index, /Math\.min\(window\.innerWidth \* 0\.72, 1400\) \+ scrollbarAllowance/);
   assert.match(index, /els\.startListPanel\.style\.maxWidth = `\$\{panelLimit\}px`/);
-  assert.match(index, /function scheduleStartListPanelWidthFit\(\)[\s\S]*?const overflow = fitStartListPanelWidth\(\)[\s\S]*?pass < 2 \|\| \(overflow > 0 && pass < 6\)[\s\S]*?requestAnimationFrame\(settleWidth\)/);
+  assert.match(index, /function startListWidthFitInputKey\(\)[\s\S]*?window\.innerWidth[\s\S]*?lastStartListStructureKey[\s\S]*?startListDataRevision[\s\S]*?currentStartListDensity\(\)/);
+  assert.match(index, /function scheduleStartListPanelWidthFit\(\{ settle = false, force = false \} = \{\}\)[\s\S]*?startListWidthFitCoalesced[\s\S]*?requestedKey === startListWidthFitLastKey[\s\S]*?const result = fitStartListPanelWidth\(\)[\s\S]*?result\.layoutKey !== startListWidthFitPreviousLayoutKey[\s\S]*?startListWidthFitPass < 3/);
+  assert.match(index, /return \{ overflow, layoutKey \}/);
   assert.match(index, /scroll\.scrollWidth - scroll\.clientWidth/);
-  assert.match(index, /fitStartListPanelWidth\(\);\s*scheduleStartListPanelWidthFit\(\);/);
+  assert.equal((index.match(/fitStartListPanelWidth\(\)/g) || []).length, 2);
+  assert.match(index, /window\.addEventListener\("resize", \(\) => \{[\s\S]*?scheduleStartListPanelWidthFit\(\{ settle: true \}\);[\s\S]*?scheduleFitTimer\(\)/);
+  assert.match(index, /function scheduleOrientationFits\(\)[\s\S]*?scheduleStartListPanelWidthFit\(\{ settle: true \}\);[\s\S]*?\[120, 360, 800\][\s\S]*?scheduleStartListPanelWidthFit\(\{ settle: true \}\)/);
 });
 
 test("modern start lists raise vertical density only when their highlighted range does not fit", () => {
@@ -245,8 +294,8 @@ test("start-list route incident controls render pause, stop, resume and cancella
   assert.match(index, /start-list-incident-close::before[\s\S]*?content: "×";[\s\S]*?transform: translateY\(1px\);/);
   assert.match(index, /start-list-incident-remove::before,[\s\S]*?start-list-incident-remove::after[\s\S]*?width: 13px;[\s\S]*?height: 3px;/);
   assert.match(index, /start-list-incident-remove::before \{ transform: translate\(-50%, -50%\) rotate\(45deg\); \}[\s\S]*?start-list-incident-remove::after \{ transform: translate\(-50%, -50%\) rotate\(-45deg\); \}/);
-  assert.match(index, /function rememberStartListScrollPositions\(nextLists\)[\s\S]*?querySelectorAll\("\[data-start-list-index\]"\)[\s\S]*?const pending = pendingStartListScrollRestores\[index\][\s\S]*?listKey: JSON\.stringify\(normalized\[index\]\)[\s\S]*?top: pending\?\.top \?\? scroll\.scrollTop[\s\S]*?left: pending\?\.left \?\? scroll\.scrollLeft/);
-  assert.match(index, /JSON\.stringify\(nextStartLists\) !== JSON\.stringify\(state\.startLists\)[\s\S]*?rememberStartListScrollPositions\(nextStartLists\);[\s\S]*?lastStartListRenderKey = "";/);
+  assert.match(index, /function rememberStartListScrollPositions\(nextLists\)[\s\S]*?querySelectorAll\("\[data-start-list-index\]"\)[\s\S]*?const pending = pendingStartListScrollRestores\[index\][\s\S]*?listKey: JSON\.stringify\(lists\[index\]\)[\s\S]*?top: pending\?\.top \?\? scroll\.scrollTop[\s\S]*?left: pending\?\.left \?\? scroll\.scrollLeft/);
+  assert.match(index, /function replaceCanonicalStartLists\(nextLists, options = \{\}\)[\s\S]*?JSON\.stringify\(nextLists\) !== JSON\.stringify\(state\.startLists\)[\s\S]*?rememberStartListScrollPositions\(nextLists\)[\s\S]*?state\.startLists = nextLists;[\s\S]*?startListDataRevision \+= 1;[\s\S]*?lastStartListRenderKey = "";/);
   assert.match(index, /pendingScroll\?\.listKey === JSON\.stringify\(list\)[\s\S]*?pendingStartListScrollRestores\[index\] !== pendingScroll\) return;[\s\S]*?scroll\.scrollTop = pendingScroll\.top;[\s\S]*?scroll\.scrollLeft = pendingScroll\.left;/);
   assert.match(index, /function ensureStartListStructure\(\)[\s\S]*?rememberStartListScrollPositions\(state\.startLists\);[\s\S]*?existingIndexes\.has\(index\)[\s\S]*?lastStartListScrollAnchors\[index\] = null/);
   assert.match(index, /const previousScroll = \{ top: scroll\.scrollTop, left: scroll\.scrollLeft \};[\s\S]*?else \{[\s\S]*?scroll\.scrollTop = previousScroll\.top;[\s\S]*?scroll\.scrollLeft = previousScroll\.left;/);
@@ -257,13 +306,13 @@ test("start-list route incident controls render pause, stop, resume and cancella
   assert.match(index, /function loadStoredStartListScrollPositions\(\)[\s\S]*?standaloneMode \|\| isPrimaryClient[\s\S]*?position\?\.listKey !== JSON\.stringify\(list\)[\s\S]*?pendingStartListScrollRestores\[index\]/);
   assert.match(index, /function renderStartList\(\) \{\s*loadStoredStartListScrollPositions\(\);\s*updateStartListVisibility\(\);/);
   assert.match(index, /els\.startListLayout\.addEventListener\("scroll", scheduleStartListScrollPersistence, true\)/);
-  assert.match(index, /window\.addEventListener\("pagehide", \(\) => \{\s*persistStartListScrollPositions\(\);/);
+  assert.match(index, /window\.addEventListener\("pagehide", \(\) => \{\s*invalidateSignalsForPageSuspension\("pagehide"\);\s*persistStartListScrollPositions\(\);/);
   assert.match(index, /function scheduleStartListAnchorScroll\(scroll, anchor, left, settleLayout = false\)[\s\S]*?Math\.floor\(\(scroll\.clientHeight - headerHeight\) \/ sampleRowHeight\) - 1[\s\S]*?prioritizedScrollAnchor\(anchor, highlightedIndexes, visibleRowCount\)[\s\S]*?scroll\.scrollTop = Math\.max\(0, scroll\.scrollTop \+ rowRect\.top - scrollRect\.top - headerHeight\)[\s\S]*?settleLayout && pass < 6[\s\S]*?requestAnimationFrame\(applyAnchor\)/);
   assert.match(index, /const titleBar = `<div class="start-list-title-bar" data-start-list-title hidden><\/div>`;[\s\S]*?\$\{controls\}\$\{titleBar\}\$\{incidentMenu\}<div class="start-list-scroll"/);
   assert.match(index, /titleBar\.textContent = list\.title \|\| "";[\s\S]*?titleBar\.hidden = !list\.title/);
   assert.match(index, /const settleInitialAutoScroll = startListInitialAutoScrollPending;[\s\S]*?startListInitialAutoScrollPending = false;[\s\S]*?scheduleStartListAnchorScroll\(scroll, anchor, previousScroll\.left, settleInitialAutoScroll\)/);
   assert.match(index, /function formatRoutePauseState\(incident, cycle\)[\s\S]*?activeInDisplayedCycle[\s\S]*?routeIncidentPausedFrom/);
-  assert.match(index, /function clearStartListIncidentsForNewRound\(\)[\s\S]*?incidents: _incidents[\s\S]*?lastStartListRenderKey = ""/);
+  assert.match(index, /function clearStartListIncidentsForNewRound\(\)[\s\S]*?incidents: _incidents[\s\S]*?replaceCanonicalStartLists\(nextStartLists/);
   assert.match(index, /function resetStandaloneTimer\([\s\S]*?clearStartListIncidentsForNewRound\(\)/);
   assert.match(index, /function startTimerByTime\([\s\S]*?if \(standaloneMode\)[\s\S]*?clearStartListIncidentsForNewRound\(\)/);
   assert.match(server, /const clearIncidentsForNewRound = type === "reset"[\s\S]*?type === "start"[\s\S]*?body\.startMode === "scheduled"[\s\S]*?clearStartListIncidents\(\)/);
@@ -283,7 +332,7 @@ test("the leftmost row cell toggles a participant's protocol exclusion", () => {
   assert.match(index, /participantScheduleIndex\(participantIndex, excludedParticipants, list\.rows\.length\)/);
   assert.match(index, /rebaseIncidents\(list\?\.incidents, list\?\.excludedParticipants, list\?\.rows\?\.length\)/);
   assert.match(index, /function startListExclusionsChanged\(currentList, nextList\)[\s\S]*?normalizeExcludedParticipants[\s\S]*?currentExcluded[\s\S]*?nextExcluded/);
-  assert.match(index, /startListExclusionsChanged\(state\.startLists\[index\], normalized\[index\]\)[\s\S]*?pendingStartListScrollRestores\[index\] = null;[\s\S]*?lastStartListScrollAnchors\[index\] = null/);
+  assert.match(index, /startListExclusionsChanged\(state\.startLists\[index\], lists\[index\]\)[\s\S]*?pendingStartListScrollRestores\[index\] = null;[\s\S]*?lastStartListScrollAnchors\[index\] = null/);
 });
 
 test("incident cycle hover and focus outline the matching route cell", () => {
@@ -410,7 +459,7 @@ test("diagnostic roles and statuses are translated from stable keys", () => {
   assert.match(index, /displayStatus: diagnosticDisplayStatusKey\(\)/);
   assert.match(index, /diagnosticStatusLabel\(client\.displayStatus\)/);
   assert.match(index, /diagnosticRoleLabel\(client\.role\)/);
-  assert.match(index, /render\(\);\s*renderBrowserList\(lastKnownClients\);\s*refreshStandaloneBrowserList\(\);/);
+  assert.match(index, /render\("language"\);\s*renderBrowserList\(lastKnownClients\);\s*refreshStandaloneBrowserList\(\);/);
   assert.match(server, /return running \? "roundRunning" : "pause";/);
   assert.match(server, /role: client\.legacyViewer \? "screen"[\s\S]*?\? "primary" : "screen"/);
   assert.doesNotMatch(server, /role: client\.legacyViewer \? "Экран"/);
@@ -478,8 +527,8 @@ test("timer fitting avoids a resize feedback loop and repeated binary-search lay
 
 test("a delayed boundary callback renders current server time and rearms itself", () => {
   assert.match(index, /displayBoundaryTimer = window\.setTimeout\(\(\) => \{/);
-  assert.match(index, /checkClockContinuity\(\);\s*render\(\);/);
-  assert.match(index, /function render\(\) \{\s*lastRenderAt = performance\.now\(\);\s*scheduleDisplayBoundary\(\);/);
+  assert.match(index, /checkClockContinuity\(\);\s*render\("boundary"\);/);
+  assert.match(index, /function render\(renderSource = "direct"\)[\s\S]*?lastRenderAt = performance\.now\(\);\s*scheduleDisplayBoundary\(\);/);
 });
 
 test("timer time remains derived from the synchronized server clock", () => {
@@ -496,7 +545,9 @@ test("a suspended performance clock is repaired without replacing the server clo
   assert.match(index, /\(Number\.isFinite\(savedServerNow\) \? savedServerNow : savedAtWall\)\s*\+ age;/);
   assert.doesNotMatch(index, /age \* restoredRate/);
   assert.match(index, /syncSamples = \[\];\s*resetServerClockRateConfirmation\(\);/);
-  assert.match(index, /if \(resetStaleSignals && !synchronized && state\.running && !state\.countdownOnly\)/);
+  assert.match(index, /const refreshAudioSchedule = resetStaleSignals \|\| invalidatedWhileHidden/);
+  assert.match(index, /rescheduleStandaloneSignals\(\{[\s\S]*?forceStopAudio:\s*true,[\s\S]*?includeRecentPhaseSignal/);
+  assert.match(index, /await syncFromServer\(\{[\s\S]*?replaceAudioSchedule:\s*refreshAudioSchedule/);
 });
 
 test("iOS audio falls back when its decoded-buffer context is not running", () => {
@@ -515,14 +566,32 @@ test("standalone iOS reuses gesture-authorized HTML audio for every manual start
 test("all standalone iOS signals keep the authorized media element and server scheduler", () => {
   assert.match(index, /immediateGestureAudio\.src = source;\s*immediateGestureAudioSource = source;/);
   assert.match(index, /standaloneMode && iosAudioWorkaroundEnabled && audioKinds\.includes\(kind\) && delaySeconds === 0/);
-  assert.match(index, /if \(standaloneMode && iosAudioWorkaroundEnabled\) return false;\s*if \(scheduledByBuffer/);
-  assert.match(index, /scheduleServerTimeoutAt\(targetServerTime, \(\) => beep\(kind\)/);
+  assert.match(index, /if \(standaloneMode && iosAudioWorkaroundEnabled\) \{\s*bufferLastFailure = "ios-html-audio";\s*updatePerformancePendingAudioPlan\(signalKey, \{ bufferLastFailure \}\);\s*return false;\s*\}[\s\S]*?if \(scheduledByBuffer\)/);
+  assert.match(index, /scheduleServerTimeoutAt\(targetServerTime, \(\) => \{[\s\S]*?scheduleGeneration === audioScheduleGeneration[\s\S]*?beep\(kind\)/);
 });
 
 test("a short mobile sleep cannot leave rendering permanently frozen", () => {
   assert.match(index, /function markResumeDisplayStale\(\) \{[\s\S]*?beginResumeSnapPending\(\);/);
   assert.match(index, /if \(!resetStaleSignals && resumeSnapPending\) clearResumeSnapPending\(false\);/);
   assert.doesNotMatch(index, /!resetStaleSignals && \(resumeSyncInProgress \|\| resumeSnapPending\)/);
+});
+
+test("page suspension invalidates stale audio and rebuilds only semantically current signals", () => {
+  assert.match(index, /let audioScheduleGeneration = 0;/);
+  assert.match(index, /let signalsInvalidatedWhileHidden = false;/);
+  assert.match(index, /function stopActiveHtmlAudio\(\)[\s\S]*?audio\.pause\(\)[\s\S]*?audio\.currentTime = 0[\s\S]*?activeHtmlAudio = \[\]/);
+  assert.match(index, /function clearSignalTimers\([^)]*\) \{[\s\S]*?if \(forceStopAudio\) \{\s*audioScheduleGeneration \+= 1;\s*stopActiveHtmlAudio\(\)/);
+  assert.match(index, /function beepSynthetic\([^)]*\)[\s\S]*?scheduledAudioNodes\.push\(item\);\s*osc\.onended/);
+  assert.match(index, /scheduleGeneration !== audioScheduleGeneration[\s\S]*?bufferLastFailure = "schedule-invalidated"/);
+  assert.match(index, /document\.addEventListener\("visibilitychange"[\s\S]*?invalidateSignalsForPageSuspension\("visibility-hidden"\)/);
+  assert.match(index, /window\.addEventListener\("pagehide"[\s\S]*?invalidateSignalsForPageSuspension\("pagehide"\)/);
+  assert.match(index, /document\.addEventListener\("freeze"[\s\S]*?invalidateSignalsForPageSuspension\("freeze"\)/);
+  assert.match(index, /function resumeClientSync\([^)]*\)[\s\S]*?const invalidatedWhileHidden = signalsInvalidatedWhileHidden[\s\S]*?rescheduleStandaloneSignals\([\s\S]*?await syncFromServer/);
+  assert.match(index, /function scheduleRecentPhaseSignalAfterResume\([^)]*\)[\s\S]*?shouldScheduleServerSignal\(targetServerTime, lateGraceMs\)[\s\S]*?rotationBoundary:/);
+  assert.match(index, /if \(includePhase\s*&& Date\.now\(\) >= suppressPhaseSignalsUntil/);
+  assert.match(index, /if \(document\.hidden\) \{\s*if \(state\.running\) signalsInvalidatedWhileHidden = true;\s*clearSignalTimers\(false, true\);\s*return;/);
+  assert.match(index, /function scheduleFinalWarnings\(segment\) \{\s*if \(document\.hidden\) \{\s*if \(state\.running\) signalsInvalidatedWhileHidden = true;\s*return;/);
+  assert.match(index, /if \(state\.running && !document\.hidden && remaining <= 6\) \{\s*scheduleFinalWarnings\(segment\);/);
 });
 
 test("server response application errors stay separate from network availability", () => {

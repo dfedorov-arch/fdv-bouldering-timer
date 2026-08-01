@@ -1,0 +1,96 @@
+{
+  "schemaVersion": 1,
+  "recordedAt": "2026-07-31T08:22:43.000Z",
+  "baselineFile": "bce8a92-four-120x5-incidents.json",
+  "sourceCommit": "bce8a9258f1b8462bf3371e7f434ab4cd2ee0d3e",
+  "instrumentation": "uncommitted working tree after optimization 01; canonical modern start lists and revision-based render key",
+  "scenario": {
+    "id": "four-120x5-incidents",
+    "listCount": 4,
+    "participantsPerList": 120,
+    "routeCount": 5,
+    "incidentsPerList": 100,
+    "timer": { "rotationSeconds": 8, "breakSeconds": 3 }
+  },
+  "sampleDurationMs": 15000,
+  "environment": {
+    "clients": "two modern tabs and one Legacy tab in the Codex in-app browser on one Windows computer",
+    "server": "isolated temporary copy, Node.js, performance diagnostics enabled",
+    "measurementNote": "Counters include page startup and automatic per-client protocol assignment; the same limitation applies when interpreting table rebuild counts.",
+    "limitations": [
+      "Logical sound targets were compared; physical speaker output was not measured.",
+      "Clock offset spread is comparable because all tabs share one computer wall clock.",
+      "CPU and heap usage were not sampled."
+    ]
+  },
+  "invariants": {
+    "displayLabelsMatched": true,
+    "displayLabel": "00:02",
+    "clockOffsetSpreadAllClientsMs": 9.95,
+    "clockOffsetSpreadModernClientsMs": 0.15,
+    "comparableLogicalSoundTargets": 5,
+    "maxCanonicalSoundTargetSpreadMs": 1,
+    "allClientsReportedServerAvailable": true,
+    "browserConsoleErrors": 0
+  },
+  "modernClients": [
+    {
+      "id": "modern-1",
+      "sampleAgeMs": 15024,
+      "clock": { "offsetFromWallMs": -1.45, "syncErrorMs": 3.85 },
+      "dom": { "tables": 4, "rows": 480 },
+      "counters": {
+        "renderCalls": 93,
+        "startListRenderCalls": 93,
+        "startListRenderSkips": 82,
+        "startListNormalizations": 22,
+        "startListTableRebuilds": 22,
+        "startListRowsBuilt": 2640,
+        "startListRouteCellsBuilt": 13200
+      },
+      "timings": {
+        "render": { "count": 93, "totalMs": 692.2, "averageMs": 7.443, "maxMs": 125 },
+        "renderStartList": { "count": 93, "totalMs": 680.7, "averageMs": 7.319, "maxMs": 124.4 },
+        "normalizeStartLists": { "count": 22, "totalMs": 19.3, "averageMs": 0.877, "maxMs": 5.3 }
+      }
+    },
+    {
+      "id": "modern-2",
+      "sampleAgeMs": 15023,
+      "clock": { "offsetFromWallMs": -1.3, "syncErrorMs": 3.9 },
+      "dom": { "tables": 4, "rows": 480 },
+      "counters": {
+        "renderCalls": 86,
+        "startListRenderCalls": 86,
+        "startListRenderSkips": 73,
+        "startListNormalizations": 18,
+        "startListTableRebuilds": 22,
+        "startListRowsBuilt": 2640,
+        "startListRouteCellsBuilt": 13200
+      },
+      "timings": {
+        "render": { "count": 86, "totalMs": 691.3, "averageMs": 8.038, "maxMs": 137 },
+        "renderStartList": { "count": 86, "totalMs": 680.5, "averageMs": 7.913, "maxMs": 137 },
+        "normalizeStartLists": { "count": 18, "totalMs": 12.8, "averageMs": 0.711, "maxMs": 1.9 }
+      }
+    }
+  ],
+  "comparison": {
+    "startListNormalizations": {
+      "before": [209, 211],
+      "after": [22, 18],
+      "reductionPercent": [89.5, 91.5]
+    },
+    "normalizeStartListsTotalMs": {
+      "before": [148.1, 164.4],
+      "after": [19.3, 12.8],
+      "reductionPercent": [87.0, 92.2]
+    },
+    "interpretation": "Whole-list sanitation is no longer proportional to frequent render calls. Remaining sanitation occurs at server payload and mutation boundaries."
+  },
+  "fieldChecks": {
+    "physicalSoundSync": "not-measured",
+    "networkDisconnectRecovery": "covered-by-pre-optimization-browser-baseline",
+    "serverRestartRecovery": "covered-by-server-integration-test"
+  }
+}

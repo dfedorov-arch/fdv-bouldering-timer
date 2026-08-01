@@ -1,0 +1,81 @@
+{
+  "schemaVersion": 1,
+  "recordedAt": "2026-07-31T19:04:03.3296525Z",
+  "baselineFile": "bce8a92-four-120x5-incidents.json",
+  "sourceCommit": "bce8a9258f1b8462bf3371e7f434ab4cd2ee0d3e",
+  "instrumentation": "uncommitted working tree after optimization 02; keyed and coalesced modern protocol-width fitting",
+  "scenario": {
+    "id": "four-120x5-incidents",
+    "listCount": 4,
+    "participantsPerList": 120,
+    "routeCount": 5,
+    "incidentsPerList": 100,
+    "timer": { "rotationSeconds": 8, "breakSeconds": 3 }
+  },
+  "environment": {
+    "client": "one modern client in the Codex in-app browser on Windows",
+    "server": "isolated temporary copy, Node.js, performance diagnostics enabled",
+    "defaultViewport": { "width": 1280, "height": 720 },
+    "resizeViewport": { "width": 980, "height": 700 }
+  },
+  "initialLayout": {
+    "tables": 4,
+    "rows": 480,
+    "fitRequests": 14,
+    "fitRequestsCoalesced": 8,
+    "fitSkips": 1,
+    "fitSettlePasses": 4,
+    "fitRuns": 5,
+    "fitTiming": { "count": 5, "totalMs": 6.3, "averageMs": 1.26, "maxMs": 4.5 },
+    "tableRebuilds": 5
+  },
+  "comparison": {
+    "fitRunsPerModernClient": {
+      "before": [16, 16],
+      "after": 5,
+      "reductionPercent": 68.75
+    },
+    "interpretation": "Structural, visibility, and render requests now share one animation-frame queue. Intentional horizontal overflow no longer triggers six repeated fits."
+  },
+  "resizeChecks": [
+    {
+      "viewport": [980, 700],
+      "panelWidth": 740,
+      "columnWidths": [369, 369],
+      "scrollOverflowPixels": [35, 35, 36, 36],
+      "tables": 4,
+      "rows": 480
+    },
+    {
+      "viewport": [1280, 720],
+      "panelWidth": 813,
+      "columnWidths": [406, 406],
+      "tables": 4,
+      "rows": 480
+    }
+  ],
+  "finalCountersAfterTwoResizes": {
+    "fitRequests": 17,
+    "fitRequestsCoalesced": 8,
+    "fitSkips": 2,
+    "fitSettlePasses": 8,
+    "fitRuns": 11,
+    "tableRebuilds": 5,
+    "dynamicUpdates": 76
+  },
+  "invariants": {
+    "tableAndRowCountsPreserved": true,
+    "widthRecomputedAtBothViewportSizes": true,
+    "steadyStateDynamicUpdatesDidNotRequestFits": true,
+    "serverAvailable": true,
+    "browserConsoleErrors": 0,
+    "maximumObservedDisplayCommitLatenessMs": 172.775,
+    "maximumObservedDisplayRenderDurationMsAtThatBoundary": 0.1,
+    "displayLatenessNote": "The single over-100 ms callback occurred with perf=1 console snapshots enabled; the render itself took 0.1 ms and no protocol fit ran on steady-state phase updates."
+  },
+  "limitations": [
+    "This comparison uses the same deterministic scenario but one current browser instead of the two-browser baseline collection.",
+    "Physical sound was not measured in this layout-only run; synchronization and sound behavior are covered by the separate multi-OS perf=3 field logs.",
+    "Browser diagnostic console serialization remains enabled and can perturb callback latency."
+  ]
+}
