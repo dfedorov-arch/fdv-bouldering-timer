@@ -23,6 +23,7 @@ function requirePath(relativePath) {
 
 const builds = new Map([
   ["index.html", matchBuild("index.html", /const pageBuildNumber = (\d+);/)],
+  ["legacy.html", matchBuild("legacy.html", /var legacyBuildNumber = (\d+);/)],
   ["serve-bouldering-timer.js", matchBuild("serve-bouldering-timer.js", /const BUILD_NUMBER = (\d+);/)],
   ["sw.js", matchBuild("sw.js", /const BUILD_NUMBER = (\d+);/)],
   ["lib/offline-audio.js", matchBuild("lib/offline-audio.js", /"buildNumber":(\d+)/)]
@@ -91,6 +92,10 @@ if (!buildScript.includes('"$ROOT_DIR/manifest.webmanifest"')
   throw new Error("Portable release script does not copy PWA manifest and icons");
 }
 const legacy = read("legacy.html");
+const releaseBuild = [...uniqueBuilds][0];
+if (!legacy.includes(`src="lib/start-list-display.js?v=${releaseBuild}"`)) {
+  throw new Error(`legacy.html start-list display cache key does not match build ${releaseBuild}`);
+}
 if (!legacy.includes('href="favicon.ico"') || !legacy.includes('href="app-icon.svg"')) {
   throw new Error("Legacy page does not include ICO and SVG favicons");
 }

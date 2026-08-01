@@ -465,10 +465,10 @@
   </div>
   <div id="protocolPane"><div id="protocolLayout"></div></div>
 
-  <script src="lib/start-list-display.js?v=355"></script>
+  <script src="lib/start-list-display.js?v=356"></script>
   <script>
     (function () {
-      var legacyBuildNumber = 355;
+      var legacyBuildNumber = 356;
       var state = null;
       var serverOffset = 0;
       var lastContact = 0;
@@ -479,6 +479,9 @@
       var renderTimer = null;
       var renderTargetServerTime = 0;
       var lastFitKey = "";
+      var timerFitCanvas = null;
+      var timerFitContext = null;
+      var timerFitContextResolved = false;
       var legacyFullscreenUnavailable = false;
       var legacyFullscreenAttemptPending = false;
       var clockSamples = [];
@@ -979,14 +982,28 @@
 
       function rememberFitText(value) {
         var next = wideTimerText(value);
-        if (next === storedFitText) return;
+        if (next === storedFitText) return false;
         storedFitText = next;
         try {
           sessionStorage.setItem("boulderingTimerLegacyFitText", storedFitText);
         } catch (error) {}
+        return true;
       }
 
-      function fitTimerText(force) {
+      function timerFitMeasureContext() {
+        if (timerFitContextResolved) return timerFitContext;
+        timerFitContextResolved = true;
+        timerFitCanvas = document.createElement("canvas");
+        timerFitContext = timerFitCanvas.getContext ? timerFitCanvas.getContext("2d") : null;
+        performanceCount("timerFitCanvasCreates");
+        return timerFitContext;
+      }
+
+      function invalidateTimerFit() {
+        lastFitKey = "";
+      }
+
+      function fitTimerText() {
         var performanceStartedAt = performanceStart();
         performanceCount("timerFitCalls");
         try {
@@ -999,14 +1016,17 @@
         var low = 48;
         var high = Math.min(1800, Math.max(220, w, h * 1.45));
         var i, mid, testW, testH;
-        var canvas = document.createElement("canvas");
-        var ctx = canvas.getContext ? canvas.getContext("2d") : null;
+        var ctx;
         var text = fitSampleText(timeEl.textContent || timeEl.innerHTML);
         var fw = timeEl.currentStyle ? timeEl.currentStyle.fontWeight : (window.getComputedStyle ? getComputedStyle(timeEl).fontWeight : "900");
         var ff = timeEl.currentStyle ? timeEl.currentStyle.fontFamily : (window.getComputedStyle ? getComputedStyle(timeEl).fontFamily : "Arial, sans-serif");
         var fitKey = w + "x" + h + "|" + text + "|" + fw + "|" + ff;
-        if (!force && fitKey === lastFitKey) return;
+        if (fitKey === lastFitKey) {
+          performanceCount("timerFitSkips");
+          return;
+        }
         lastFitKey = fitKey;
+        ctx = timerFitMeasureContext();
         if (!ctx) {
           timeEl.style.fontSize = Math.floor(Math.min(maxH, maxW / Math.max(1, text.length * 0.62))) + "px";
           return;
@@ -1030,11 +1050,11 @@
       }
 
       function scheduleViewportFit() {
-        fitTimerText(true);
+        fitTimerText();
         updateProtocolSlotHeights();
-        window.setTimeout(function () { fitTimerText(true); updateProtocolSlotHeights(); }, 100);
-        window.setTimeout(function () { fitTimerText(true); updateProtocolSlotHeights(); }, 300);
-        window.setTimeout(function () { fitTimerText(true); updateProtocolSlotHeights(); }, 700);
+        window.setTimeout(function () { fitTimerText(); updateProtocolSlotHeights(); }, 100);
+        window.setTimeout(function () { fitTimerText(); updateProtocolSlotHeights(); }, 300);
+        window.setTimeout(function () { fitTimerText(); updateProtocolSlotHeights(); }, 700);
       }
 
       function fullscreenWanted() {
@@ -1229,7 +1249,8 @@
         appliedFontKey = key;
         if (!fontUrl) {
           timeEl.style.fontFamily = fallback || "Arial, Helvetica, sans-serif";
-          fitTimerText(true);
+          invalidateTimerFit();
+          fitTimerText();
           return;
         }
 
@@ -1241,14 +1262,15 @@
         }
         style.innerHTML = "@font-face{font-family:\"FDV Legacy Timer\";src:url(\"" + cssUrl(fontUrl) + "\");font-weight:100 900;font-style:normal;font-display:swap;}";
         timeEl.style.fontFamily = "\"FDV Legacy Timer\", " + (cssString(fallback) || "Arial, Helvetica, sans-serif");
-        fitTimerText(true);
+        invalidateTimerFit();
+        fitTimerText();
         if (window.FontFace) {
           try {
             var ff = new FontFace("FDV Legacy Timer", "url(" + cssUrl(fontUrl) + ")");
-            ff.load().then(function () { fitTimerText(true); });
+            ff.load().then(function () { invalidateTimerFit(); fitTimerText(); });
           } catch (e) {}
         } else {
-          window.setTimeout(fitTimerText, 500);
+          window.setTimeout(function () { invalidateTimerFit(); fitTimerText(); }, 500);
         }
       }
 
@@ -2040,6 +2062,7 @@
 
       function render() {
         var performanceStartedAt = performanceStart();
+        var fitTextChanged;
         performanceCount("renderCalls");
         try {
         var view = currentDisplay();
@@ -2053,10 +2076,10 @@
         timeEl.style.color = view.isBreak ? timerColors.breakText : view.warning ? timerColors.warningText : timerColors.rotationText;
         var label = formatTime(view.seconds);
         if (timeEl.innerHTML !== label) {
-          rememberFitText(label);
+          fitTextChanged = rememberFitText(label);
           timeEl.innerHTML = label;
           performanceCount("timerLabelChanges");
-          fitTimerText();
+          if (fitTextChanged) fitTimerText();
         }
         return view;
         } finally {

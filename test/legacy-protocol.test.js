@@ -13,7 +13,7 @@ const displayCore = fs.readFileSync(path.join(root, "lib", "start-list-display.j
 test("Legacy start-list display core remains parseable by ES5-era browsers", () => {
   assert.doesNotMatch(displayCore, /\b(?:const|let|class)\b|=>|\?\.|\.\.\.|`/);
   assert.match(displayCore, /root\.FDVStartListDisplay = api/);
-  assert.match(legacy, /src="lib\/start-list-display\.js\?v=355"/);
+  assert.match(legacy, /src="lib\/start-list-display\.js\?v=356"/);
 });
 
 test("Legacy requests protocol data conditionally and stores it separately from timer snapshots", () => {
@@ -98,6 +98,17 @@ test("Legacy avoids repeated synchronous storage and class writes during timer t
   assert.match(legacy, /legacySnapshotSaveIntervalMs = 5000/);
   assert.match(legacy, /remoteVersion === lastLegacySnapshotVersion[\s\S]*?savedAtWall - lastLegacySnapshotSavedAt < legacySnapshotSaveIntervalMs/);
   assert.match(legacy, /if \(document\.body\.className !== nextClassName\) document\.body\.className = nextClassName/);
+});
+
+test("Legacy fits timer text only when its width class or viewport changes", () => {
+  assert.match(legacy, /var timerFitCanvas = null;[\s\S]*?var timerFitContextResolved = false;/);
+  assert.match(legacy, /function timerFitMeasureContext\(\) \{[\s\S]*?if \(timerFitContextResolved\) return timerFitContext;[\s\S]*?document\.createElement\("canvas"\)/);
+  assert.match(legacy, /function rememberFitText\(value\) \{[\s\S]*?if \(next === storedFitText\) return false;[\s\S]*?return true;/);
+  assert.match(legacy, /fitTextChanged = rememberFitText\(label\);[\s\S]*?timeEl\.innerHTML = label;[\s\S]*?if \(fitTextChanged\) fitTimerText\(\);/);
+  assert.match(legacy, /if \(fitKey === lastFitKey\) \{\s*performanceCount\("timerFitSkips"\);\s*return;/);
+  assert.match(legacy, /function invalidateTimerFit\(\) \{\s*lastFitKey = "";\s*\}/);
+  assert.match(legacy, /ff\.load\(\)\.then\(function \(\) \{ invalidateTimerFit\(\); fitTimerText\(\); \}\)/);
+  assert.doesNotMatch(legacy, /fitTimerText\(true\)/);
 });
 
 test("diagnostics keep protocol selectors available after a client enters Legacy mode", () => {

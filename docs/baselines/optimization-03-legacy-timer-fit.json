@@ -1,0 +1,89 @@
+{
+  "schemaVersion": 1,
+  "recordedAt": "2026-08-01T09:38:00.000Z",
+  "sourceCommit": "2afedd258afa567b0943c38c493da4f47de6e4ca",
+  "instrumentation": "uncommitted working tree after optimization 03; Legacy timer-fit gating and reusable measurement canvas",
+  "scenario": {
+    "id": "legacy-timer-fit",
+    "timer": { "rotationSeconds": 8, "breakSeconds": 3 },
+    "protocols": 0
+  },
+  "environment": {
+    "client": "Codex in-app browser on Windows",
+    "server": "isolated temporary copy, Node.js, performance diagnostics enabled",
+    "mode": "legacy.html?perf=1"
+  },
+  "steadyState": {
+    "start": {
+      "sampleAgeSeconds": 30,
+      "renderCalls": 60,
+      "timerFitCalls": 19,
+      "timerFitSearches": 3
+    },
+    "end": {
+      "sampleAgeSeconds": 115,
+      "renderCalls": 225,
+      "timerFitCalls": 19,
+      "timerFitSearches": 3
+    },
+    "delta": {
+      "renderCalls": 165,
+      "timerFitCalls": 0,
+      "timerFitSearches": 0
+    }
+  },
+  "resizeChecks": {
+    "defaultFontSizePx": 481,
+    "smallViewport": { "width": 800, "height": 500, "fontSizePx": 300 },
+    "resetFontSizePx": 481,
+    "additionalFitCalls": 24,
+    "additionalFitSearches": 2,
+    "derivedCachedSkips": 22
+  },
+  "weakVmFieldValidation": {
+    "sourceLogs": [
+      "console-export-2026-7-24_10-0-54.log",
+      "console-export-2026-7-24_10-1-2.log"
+    ],
+    "durationSeconds": 85,
+    "legacy": {
+      "renderCalls": 184,
+      "timerLabelChanges": 82,
+      "timerFitCalls": 14,
+      "timerFitSearches": 3,
+      "timerFitCanvasCreates": 1,
+      "timerFitSkips": 11,
+      "maximumRenderDurationMs": 4,
+      "averageBoundaryCommitLatenessMs": 27.846,
+      "maximumBoundaryCommitLatenessMs": 48.5,
+      "maximumEventLoopLagMs": 62
+    },
+    "modern": {
+      "protocolCount": 4,
+      "protocolRows": 254,
+      "earlyMaximumRenderDurationMs": 4,
+      "earlyMaximumBoundaryCommitLatenessMs": 14.5
+    },
+    "alignedDisplayBoundaries": {
+      "count": 8,
+      "averageCommitSpreadMs": 17,
+      "maximumCommitSpreadMs": 19,
+      "expectedGuardDifferenceMs": 17
+    }
+  },
+  "invariants": {
+    "ordinarySecondChangesDidNotRequestTimerFit": true,
+    "ordinarySecondChangesDidNotRunBinarySearch": true,
+    "resizeRecomputedFontAtBothSizes": true,
+    "timerContinuedAcrossResize": true,
+    "weakVmLegacySearchCountStableAfterStartup": true,
+    "crossClientSpreadMatchesIntentionalBoundaryGuards": true,
+    "browserConsoleErrors": 0
+  },
+  "limitations": [
+    "This focused comparison uses one Legacy client without protocols; protocol-layout invalidation remains covered by automated tests.",
+    "The diagnostic overlay updates every five seconds, so resize counts are compared after both settling windows completed.",
+    "The weak-VM Modern console export truncated complete snapshots after ten seconds; the eight overlapping early boundary records remain complete and directly comparable.",
+    "Physical sound was not re-measured because this Legacy-only change does not touch audio code."
+  ]
+}

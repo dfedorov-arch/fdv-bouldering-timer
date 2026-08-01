@@ -12,6 +12,10 @@ const optimizedBaseline = JSON.parse(fs.readFileSync(
   path.join(__dirname, "..", "docs", "baselines", "optimization-01-canonical-start-lists.json"),
   "utf8"
 ));
+const legacyFitBaseline = JSON.parse(fs.readFileSync(
+  path.join(__dirname, "..", "docs", "baselines", "optimization-03-legacy-timer-fit.json"),
+  "utf8"
+));
 
 test("baseline scenarios generate deterministic maximum-size protocols", () => {
   const scenario = baseline.createScenario("four-120x5-incidents");
@@ -111,4 +115,25 @@ test("first optimization report preserves synchronization and reduces render-pat
     assert.ok(reduction >= 85);
   });
   assert.equal(optimizedBaseline.fieldChecks.physicalSoundSync, "not-measured");
+});
+
+test("Legacy timer-fit report proves steady seconds avoid measurement work", () => {
+  assert.equal(legacyFitBaseline.scenario.id, "legacy-timer-fit");
+  assert.ok(legacyFitBaseline.steadyState.delta.renderCalls >= 100);
+  assert.equal(legacyFitBaseline.steadyState.delta.timerFitCalls, 0);
+  assert.equal(legacyFitBaseline.steadyState.delta.timerFitSearches, 0);
+  assert.equal(legacyFitBaseline.resizeChecks.additionalFitSearches, 2);
+  assert.ok(legacyFitBaseline.resizeChecks.derivedCachedSkips > 0);
+  assert.equal(legacyFitBaseline.invariants.resizeRecomputedFontAtBothSizes, true);
+  assert.equal(legacyFitBaseline.invariants.timerContinuedAcrossResize, true);
+  assert.equal(legacyFitBaseline.weakVmFieldValidation.legacy.timerFitSearches, 3);
+  assert.equal(legacyFitBaseline.weakVmFieldValidation.legacy.maximumRenderDurationMs, 4);
+  assert.ok(legacyFitBaseline.weakVmFieldValidation.alignedDisplayBoundaries.count >= 8);
+  assert.equal(
+    legacyFitBaseline.weakVmFieldValidation.alignedDisplayBoundaries.averageCommitSpreadMs,
+    legacyFitBaseline.weakVmFieldValidation.alignedDisplayBoundaries.expectedGuardDifferenceMs
+  );
+  assert.equal(legacyFitBaseline.invariants.weakVmLegacySearchCountStableAfterStartup, true);
+  assert.equal(legacyFitBaseline.invariants.crossClientSpreadMatchesIntentionalBoundaryGuards, true);
+  assert.equal(legacyFitBaseline.invariants.browserConsoleErrors, 0);
 });
