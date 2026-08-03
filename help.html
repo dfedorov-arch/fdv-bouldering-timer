@@ -255,9 +255,7 @@
       padding: 48px;
       border-radius: 8px;
       color: #fff;
-      background:
-        linear-gradient(90deg, rgba(12, 17, 24, .96), rgba(12, 17, 24, .64)),
-        url("help-assets/overview.jpg") center / cover;
+      background: radial-gradient(circle at 75% 35%, #27445b 0, #17232e 42%, #10161d 75%);
       box-shadow: var(--shadow);
     }
 
@@ -685,9 +683,7 @@
     }
 
     #helpEn .hero {
-      background:
-        linear-gradient(90deg, rgba(12, 17, 24, .96), rgba(12, 17, 24, .64)),
-        url("help-assets/overview-en.png") center / cover;
+      background: radial-gradient(circle at 75% 35%, #27445b 0, #17232e 42%, #10161d 75%);
     }
 
     .help-language-toggle:hover,
@@ -714,11 +710,12 @@
         <a href="#formats">3. Форматы</a>
         <a href="#scheduled-start">4. Запуск по времени</a>
         <a href="#controls">5. Команды и клавиши</a>
-        <a href="#screens">6. Экраны</a>
-        <a href="#sound">7. Звук и мигание</a>
-        <a href="#transfer">8. Перенос и запуск</a>
-        <a href="#settings">9. Параметры</a>
-        <a href="#troubleshooting">10. Проблемы</a>
+        <a href="#start-lists">6. Стартовые списки</a>
+        <a href="#screens">7. Экраны</a>
+        <a href="#sound">8. Звук и мигание</a>
+        <a href="#transfer">9. Перенос и запуск</a>
+        <a href="#settings">10. Параметры</a>
+        <a href="#troubleshooting">11. Проблемы</a>
       </nav>
       <div class="toc-files">
         <a href="index.html">Открыть таймер</a>
@@ -756,6 +753,7 @@
           </li>
           <li><a href="#scheduled-start">Обратный отсчёт и запуск по времени</a></li>
           <li><a href="#controls">Кнопки и горячие клавиши</a></li>
+          <li><a href="#start-lists">Стартовые списки</a></li>
           <li>
             <a href="#screens">Подключение экранов</a>
             <ul>
@@ -822,10 +820,6 @@
         <span class="chapter-kicker">Глава 2</span>
         <h2>Интерфейс</h2>
         <p>На компьютере панель управления находится слева, поле таймера — справа. Панель прокручивается отдельно, поэтому крупный таймер остаётся на месте даже при длинном списке браузеров.</p>
-        <figure>
-          <img src="help-assets/overview.jpg" alt="Основной интерфейс таймера болдеринга">
-          <figcaption>Основной браузер: формат, параметры, настройки экранов, команды и список подключений.</figcaption>
-        </figure>
         <h3>Панель управления</h3>
         <ul>
           <li><strong>Формат</strong> — готовые режимы «Классика», «Фестиваль» и «Финал».</li>
@@ -874,7 +868,7 @@
             <li>Время ротации задаётся в минутах; отдельного перерыва таймера в этом формате нет.</li>
             <li>«Старый» формат раунда проводит всех участников сначала по первой трассе, затем по второй и далее.</li>
             <li>«Новый» формат переводит участника на следующую трассу после заданного количества полных ротаций отдыха; значение по умолчанию — 3. После трассы в цикле 1 участник готовится в цикле 4 и выходит на следующую трассу в цикле 5.</li>
-            <li>Выбор формата раунда влияет только на продвижение загруженного стартового протокола.</li>
+            <li>Выбор формата раунда влияет только на продвижение загруженного стартового списка.</li>
             <li>После ротации таймер останавливается на <code>00:00</code>; в обычном основном интерфейсе это состояние дополнительно отмечается как завершённое.</li>
             <li>Для следующего финального запуска достаточно снова нажать «Старт» или <kbd>Z</kbd> / <kbd>Я</kbd>.</li>
           </ul>
@@ -958,10 +952,34 @@
         <a class="back-to-toc" href="#contents">↑ К оглавлению</a>
       </section>
 
-      <section id="screens" class="panel">
+      <section id="start-lists" class="panel">
         <span class="chapter-kicker">Глава 6</span>
+        <h2>Стартовые списки</h2>
+        <p class="lead">Таймер может одновременно показывать до четырёх списков участников. В интерфейсе и диагностике они обозначаются как LIST 1–4; внутренний формат файлов при этом не изменился.</p>
+        <h3>6.1. Загрузка и отображение</h3>
+        <ol>
+          <li>Включите раздел «Стартовые списки» и нажмите «Добавить список».</li>
+          <li>Загрузите файл XLSX/XLS либо текстовый файл поддерживаемого формата. Таблица появится справа от таймера.</li>
+          <li>Для каждого подключённого экрана нажмите нужные плашки LIST. Серый цвет означает, что область или список недоступны, тёмно-зелёный — список доступен, но скрыт, голубой — показан.</li>
+          <li>Если на экране выбраны ровно два списка, отдельная голубая кнопка переключает одну и две колонки. Оранжевый контур означает раскладку, отличающуюся от стандартной.</li>
+        </ol>
+        <p>Ширина колонки определяется таблицей, а строка управления при необходимости сжимается за счёт кнопки «Загрузить список…». Заголовок таблицы может сокращаться многоточием; значения в строках участников не сокращаются и при необходимости создают горизонтальную прокрутку.</p>
+        <h3>6.2. Ход соревнования</h3>
+        <ul>
+          <li>Текущий участник, подготовка, отдых и результаты трасс подсвечиваются автоматически по циклу и выбранному формату.</li>
+          <li>Кнопка возле номера трассы открывает управление инцидентами: трассу можно приостановить и возобновить с выбранного, в том числе будущего, цикла.</li>
+          <li>Запланированные границы инцидента сразу показываются в описании и маркерами в таблице; они не исчезают до наступления выбранного цикла.</li>
+          <li>Участника или трассу можно исключить и позже восстановить. Подтверждения явно указывают, какой список изменяется.</li>
+          <li>На экранах таблицы доступны только для просмотра, прокручиваются автоматически и продолжают локально обновляться при краткой потере связи.</li>
+        </ul>
+        <p class="note">Два списка можно разместить в параллельных колонках или один под другим; раскладка переопределяется отдельно для каждого экрана.</p>
+        <a class="back-to-toc" href="#contents">↑ К оглавлению</a>
+      </section>
+
+      <section id="screens" class="panel">
+        <span class="chapter-kicker">Глава 7</span>
         <h2>Подключение и управление экранами</h2>
-        <h3>6.1. Подключение</h3>
+        <h3>7.1. Подключение</h3>
         <ol>
           <li>Подключите серверный компьютер и все экраны к одной локальной сети.</li>
           <li>Запустите таймер. В окне запуска найдите адрес Wi-Fi или Ethernet, например <code>http://192.168.1.68:8008/</code>.</li>
@@ -972,7 +990,7 @@
         </ol>
         <p class="success"><strong>Основной IP:</strong> даже если управляющий браузер открыт через <code>127.0.0.1</code>, приложение старается показать пригодный для других устройств сетевой IP. Только IP основного браузера кликабелен и копирует готовую ссылку.</p>
 
-        <h3 id="screen-control">6.2. Что можно делать из основного браузера</h3>
+        <h3 id="screen-control">7.2. Что можно делать из основного браузера</h3>
         <ul>
           <li>Одновременно запускать, ставить на паузу и сбрасывать таймер на всех экранах.</li>
           <li>Менять формат, параметры и язык интерфейса для подключённых браузеров.</li>
@@ -980,39 +998,40 @@
           <li>Включать «Полный экран в других браузерах». Если браузер блокирует удалённый переход, на экране потребуется тап.</li>
           <li>Просматривать состояние каждого браузера, тестировать его звук и настраивать индивидуальную временную поправку.</li>
           <li>Переключать отдельный экран в Legacy-режим кнопкой LEGACY в строке браузера.</li>
+          <li>Закреплять место браузера булавкой и менять порядок стрелками. Основной браузер всегда остаётся первым.</li>
+          <li>Если подключено не менее трёх браузеров, включать их номера кнопкой в правом верхнем углу карточки основного браузера. Номер появляется на карточке и в правом верхнем углу поля таймера соответствующего экрана.</li>
         </ul>
-        <p>Основной браузер расположен первым в списке и отмечен словом «этот». Сочетание <kbd>Ctrl+M</kbd> / <kbd>Ctrl+Ь</kbd> позволяет быстро переназначить роль при аварийной ситуации.</p>
+        <p>Основной браузер расположен первым и выделен более ярким контуром. Сочетание <kbd>Ctrl+M</kbd> / <kbd>Ctrl+Ь</kbd> позволяет быстро переназначить роль при аварийной ситуации.</p>
 
 
-        <h3 id="legacy-mode">6.3. Legacy-режим для старых экранов</h3>
+        <h3 id="legacy-mode">7.3. Legacy-режим для старых экранов</h3>
         <p>Legacy-экран предназначен для старых браузеров в телевизорах, планшетах и медиаплеерах, где обычная страница может работать нестабильно. Он открывается как <code>/legacy.html</code> без видимых служебных параметров в адресной строке.</p>
         <ul>
-          <li>Без выбранных протоколов на экране остаётся только крупное табло времени. Кнопками PROTOCOL 1–4 в основном браузере можно вывести на Legacy-экран полные таблицы выбранных протоколов без элементов управления.</li>
+          <li>Без выбранных списков на экране остаётся только крупное табло времени. Плашками LIST 1–4 в основном браузере можно вывести на Legacy-экран полные таблицы выбранных списков без элементов управления.</li>
           <li>Страница использует упрощённый JavaScript и обычные XHR-запросы к <code>/api/state</code>, поэтому не зависит от SSE, Fetch API, Web Audio, Wake Lock и других современных возможностей.</li>
           <li>Звук в Legacy-режиме не воспроизводится. Если нужны звуковые сигналы, оставьте звук на основном браузере или на обычном современном экране.</li>
           <li>Время считается локально по состоянию сервера и периодически уточняется по лучшим сетевым измерениям. Из-за упрощённой синхронизации точность может быть немного ниже, чем на обычном экране.</li>
-          <li>Протоколы загружаются только при изменении их ревизии. При временной потере сети Legacy-экран продолжает локально обновлять маркеры, подсветку и автопрокрутку по автономному таймеру, а после восстановления связи принимает авторитетное состояние сервера.</li>
+          <li>Списки загружаются только при изменении их ревизии. При временной потере сети Legacy-экран продолжает локально обновлять маркеры, подсветку и автопрокрутку по автономному таймеру, а после восстановления связи принимает авторитетное состояние сервера.</li>
+          <li>Если включена плашка TIME, под основным таймером показываются компактные часы сервера. Подсказка TAB в Legacy не сообщает Wake Lock, потому что старый браузер не позволяет надёжно определить его состояние.</li>
           <li>Размер цифр подбирается под экран, включая длинные значения фестиваля вроде <code>120:00</code>. После поворота устройства Legacy-экран несколько раз пересчитывает размер и центрирование.</li>
           <li>Повторное нажатие LEGACY из основного браузера возвращает экран на обычную страницу <code>/</code>.</li>
         </ul>
         <p class="note">Legacy-режим лучше использовать только для устройств, на которых обычный экран не работает или работает слишком тяжело. На современных телефонах, планшетах и компьютерах обычный экран точнее синхронизирует время и поддерживает звук.</p>
 
-        <h3 id="diagnostics">6.4. Диагностика подключений</h3>
-        <p>Строка браузера содержит название и версию, операционную систему, IP, роль, протокол и цветные индикаторы. Наведение на индикатор показывает подробности.</p>
-        <figure class="detail-shot">
-          <img src="help-assets/browser-diagnostics.png" alt="Строка браузера с диагностическими индикаторами NET, SYNC, AUDIO, WAKE, SSE и TAB">
-          <figcaption>Строка подключённого браузера: кнопка LEGACY и шесть диагностических индикаторов.</figcaption>
-        </figure>
+        <h3 id="diagnostics">7.4. Диагностика подключений</h3>
+        <p>Карточка браузера содержит порядковый номер, название и версию, операционную систему, IP, роль, транспорт и индикаторы. Наведение на плашку показывает подробности. Серый означает недоступность, тёмно-зелёный — доступную, но неактивную функцию, светло-зелёный — активное или нормальное состояние, жёлтый — предупреждение, красный — ошибку.</p>
+        <p class="note">Актуальный порядок индикаторов: LEGACY, AUDIO, TIME, NET, SYNC, SSE, TAB; ниже расположены LIST 1–4.</p>
         <table>
           <thead><tr><th>Индикатор</th><th>Назначение</th></tr></thead>
           <tbody>
-            <tr><td><span class="diag">LEGACY</span></td><td>Кнопка переключает выбранный экран между обычным табло и Legacy-страницей для старых браузеров. Зелёная плашка означает, что этот браузер сейчас открыт в Legacy-режиме.</td></tr>
-            <tr><td><span class="diag">NET</span></td><td>Состояние связи и задержка запроса. До 100 мс — зелёный, до 200 мс — жёлтый, выше — красный.</td></tr>
-            <tr><td><span class="diag">SYNC</span></td><td>Оценка ошибки синхронизации и разброс последних измерений. До 100 мс — зелёный, до 300 мс — жёлтый.</td></tr>
-            <tr><td><span class="diag">AUDIO</span></td><td>Разрешён ли звук, разблокирован ли он пользовательским касанием и какая задана индивидуальная поправка.</td></tr>
-            <tr><td><span class="diag">WAKE</span></td><td>Поддерживает ли браузер блокировку сна и активна ли она.</td></tr>
-            <tr><td><span class="diag">SSE</span></td><td>Работает ли постоянное соединение для мгновенной доставки команд.</td></tr>
-            <tr><td><span class="diag">TAB</span></td><td>Находится ли вкладка в видимом состоянии.</td></tr>
+            <tr><td><span class="diag">LEGACY</span></td><td>Переключает экран между обычной и облегчённой страницей. Тёмно-зелёный — переход доступен, светло-зелёный — Legacy включён. Оранжевый контур показывает ручной выбор Legacy на браузере, способном работать в обычном режиме.</td></tr>
+            <tr><td><span class="diag">AUDIO</span></td><td>Серый — звук недоступен, тёмно-зелёный — доступен, но выключен, красный — разрешён настройкой, но не разблокирован касанием. При работе также контролируется реальное продвижение аудиочасов: до 100 мс — зелёный, 100–250 мс — жёлтый, выше — красный.</td></tr>
+            <tr><td><span class="diag">TIME</span></td><td>Показывает или скрывает под таймером компактные часы сервера. Тёмно-зелёный — скрыты, светло-зелёный — показаны.</td></tr>
+            <tr><td><span class="diag">NET</span></td><td>Состояние связи и задержка запроса. До 100 мс — зелёный, 100–200 мс — жёлтый, выше 200 мс или отсутствие связи — красный.</td></tr>
+            <tr><td><span class="diag">SYNC</span></td><td>Оценка синхронизации часов и задержки отрисовки. Задержка до 100 мс — зелёная, 100–250 мс — жёлтая, выше 250 мс — красная. Подсказка основного браузера также сообщает обнаруженные аномалии часов сервера.</td></tr>
+            <tr><td><span class="diag">SSE</span></td><td>Постоянное соединение для мгновенной доставки команд: зелёный — подключено, красный — ожидалось, но потеряно, серый — технология недоступна или автономный режим.</td></tr>
+            <tr><td><span class="diag">TAB</span></td><td>Зелёный — вкладка видима, красный — скрыта. В обычном браузере подсказка также сообщает состояние Wake Lock.</td></tr>
+            <tr><td><span class="diag">LIST 1–4</span></td><td>Серый — область или список не добавлены, тёмно-зелёный — список доступен, но скрыт, голубой — показан на этом экране.</td></tr>
           </tbody>
         </table>
         <h3>Настройка AUDIO</h3>
@@ -1035,7 +1054,7 @@
           <li>Повторно нажмите AUDIO, чтобы сохранить поправку.</li>
         </ol>
 
-        <h3 id="network">6.5. Работа при временной потере сети</h3>
+        <h3 id="network">7.5. Работа при временной потере сети</h3>
         <p>Сервер хранит общую точку старта, но каждый браузер самостоятельно рассчитывает текущее время. Поэтому потеря Wi-Fi сама по себе не должна останавливать цифры.</p>
         <ul>
           <li>Команды обычно приходят через SSE; резервная синхронизация выполняется примерно раз в две секунды.</li>
@@ -1051,7 +1070,7 @@
       </section>
 
       <section id="sound" class="panel">
-        <span class="chapter-kicker">Глава 7</span>
+        <span class="chapter-kicker">Глава 8</span>
         <h2>Звук и мигание</h2>
         <ul>
           <li><strong>Звук</strong> в основном браузере управляет только звуком этого управляющего браузера.</li>
@@ -1091,7 +1110,7 @@
       </section>
 
       <section id="transfer" class="panel">
-        <span class="chapter-kicker">Глава 8</span>
+        <span class="chapter-kicker">Глава 9</span>
         <h2>Перенос и запуск на новом компьютере</h2>
         <p class="lead">Приложение переносимое: копируйте папку целиком, затем подготовьте Node.js, сеть и при необходимости новый сертификат.</p>
         <p class="success">Готовые архивы с portable Node.js для Windows, macOS и Linux опубликованы в <a href="https://github.com/dfedorov-arch/fdv-bouldering-timer/releases">GitHub Releases</a>. Выберите файл своей ОС и архитектуры. Для одиночного автономного запуска на любой ОС можно взять один файл <code>fdv-bouldering-timer-standalone.html</code>.</p>
@@ -1151,7 +1170,7 @@
           <p>Если после распаковки блокируется приложение сервера, файл запуска или встроенный <code>runtime/mac/bin/node</code>, снимите quarantine-атрибут с распакованной папки или с самого приложения:</p>
           <pre><code>xattr -dr com.apple.quarantine .
 xattr -dr com.apple.quarantine "FDV Bouldering Timer.app"
-xattr -dr com.apple.quarantine "/полный/путь/к/fdv-bouldering-timer-v1.0.7-macos-arm64"</code></pre>
+xattr -dr com.apple.quarantine "/полный/путь/к/fdv-bouldering-timer-macos-arm64"</code></pre>
           <p>Первый вариант выполняется из папки распакованного релиза. Второй снимает quarantine только с приложения. Третий удобен, если папка лежит в <code>Downloads</code> или на внешнем диске. Если появляется «Permission denied», выполните в Terminal из папки проекта:</p>
           <p><code>chmod +x fdv-bouldering-timer start-timer-mac.command create-https-certificate-mac.command</code></p>
           <p>Для portable Node.js выбирайте сборку своей архитектуры: <code>arm64</code> для Apple Silicon или <code>x64</code> для Intel.</p>
@@ -1196,14 +1215,14 @@ xattr -dr com.apple.quarantine "/полный/путь/к/fdv-bouldering-timer-v
           <li>Телефон открывает адрес Wi-Fi или Ethernet с указанным портом.</li>
           <li>Один браузер назначен основным, остальные видны как экраны.</li>
           <li>Работают «Старт», «Пауза», «Стоп» и соответствующие горячие клавиши.</li>
-          <li>AUDIO, WAKE, SSE и TAB показывают ожидаемое состояние.</li>
+          <li>LEGACY, AUDIO, TIME, NET, SYNC, SSE и TAB показывают ожидаемое состояние.</li>
           <li>Звуковые сигналы слышны только на нужных устройствах.</li>
         </ul>
         <a class="back-to-toc" href="#contents">↑ К оглавлению</a>
       </section>
 
       <section id="settings" class="panel">
-        <span class="chapter-kicker">Глава 9</span>
+        <span class="chapter-kicker">Глава 10</span>
         <h2>Файл params.txt</h2>
         <p>Файл задаёт начальные значения при старте сервера. После изменения остановите и снова запустите приложение.</p>
         <table>
@@ -1220,7 +1239,7 @@ xattr -dr com.apple.quarantine "/полный/путь/к/fdv-bouldering-timer-v
             <tr><td><code>festival_round_minutes</code></td><td>Фестивальный раунд, минуты</td><td>120</td></tr>
             <tr><td><code>festival_break_minutes</code></td><td>Фестивальный перерыв, минуты</td><td>30</td></tr>
             <tr><td><code>final_rotation_minutes</code></td><td>Ротация финала, минуты</td><td>4</td></tr>
-            <tr><td><code>final_round_format</code></td><td>Начальный формат продвижения протокола в финале</td><td>old / new</td></tr>
+            <tr><td><code>final_round_format</code></td><td>Начальный формат продвижения списка в финале</td><td>old / new</td></tr>
             <tr><td><code>final_rest_rotations</code></td><td>Число ротаций отдыха в новом формате финала</td><td>3</td></tr>
             <tr><td><code>primary_browser</code></td><td>Автоматически назначить первый браузер основным</td><td>false</td></tr>
             <tr><td><code>sound</code></td><td>Начальное состояние звука</td><td>true</td></tr>
@@ -1247,7 +1266,7 @@ xattr -dr com.apple.quarantine "/полный/путь/к/fdv-bouldering-timer-v
       </section>
 
       <section id="troubleshooting" class="panel">
-        <span class="chapter-kicker">Глава 10</span>
+        <span class="chapter-kicker">Глава 11</span>
         <h2>Устранение проблем</h2>
         <div class="trouble">
           <details open>
@@ -1264,7 +1283,7 @@ xattr -dr com.apple.quarantine "/полный/путь/к/fdv-bouldering-timer-v
           </details>
           <details>
             <summary>Экран погас или вкладка уснула</summary>
-            <div>Проверьте WAKE и TAB, отключите энергосбережение и автоблокировку, оставьте вкладку видимой. Некоторые мобильные ОС могут принудительно ограничивать браузер даже при активном Wake Lock.</div>
+            <div>Проверьте TAB и состояние Wake Lock в его подсказке, отключите энергосбережение и автоблокировку, оставьте вкладку видимой. Некоторые мобильные ОС могут принудительно ограничивать браузер даже при активном Wake Lock.</div>
           </details>
           <details>
             <summary>После переключения телефона на сотовую сеть команды не приходят</summary>
@@ -1306,11 +1325,12 @@ xattr -dr com.apple.quarantine "/полный/путь/к/fdv-bouldering-timer-v
         <a href="#en-formats">3. Formats</a>
         <a href="#en-scheduled-start">4. Scheduled start</a>
         <a href="#en-controls">5. Controls and keys</a>
-        <a href="#en-screens">6. Displays</a>
-        <a href="#en-sound">7. Sound and flashing</a>
-        <a href="#en-transfer">8. Moving and starting</a>
-        <a href="#en-settings">9. Settings</a>
-        <a href="#en-troubleshooting">10. Troubleshooting</a>
+        <a href="#en-start-lists">6. Start lists</a>
+        <a href="#en-screens">7. Displays</a>
+        <a href="#en-sound">8. Sound and flashing</a>
+        <a href="#en-transfer">9. Moving and starting</a>
+        <a href="#en-settings">10. Settings</a>
+        <a href="#en-troubleshooting">11. Troubleshooting</a>
       </nav>
       <div class="toc-files">
         <a href="index.html?lang=en">Open timer</a>
@@ -1340,6 +1360,7 @@ xattr -dr com.apple.quarantine "/полный/путь/к/fdv-bouldering-timer-v
           <li><a href="#en-formats">Competition formats</a></li>
           <li><a href="#en-scheduled-start">Countdown and scheduled start</a></li>
           <li><a href="#en-controls">Buttons and keyboard shortcuts</a></li>
+          <li><a href="#en-start-lists">Start lists</a></li>
           <li><a href="#en-screens">Connecting and controlling displays</a></li>
           <li><a href="#en-sound">Sound and flashing</a></li>
           <li><a href="#en-transfer">Moving and starting on another computer</a></li>
@@ -1372,7 +1393,6 @@ xattr -dr com.apple.quarantine "/полный/путь/к/fdv-bouldering-timer-v
         <span class="chapter-kicker">Chapter 2</span>
         <h2>Interface</h2>
         <p>On a desktop the control panel is on the left and the timer is on the right. The panel scrolls independently, so the large timer remains fixed.</p>
-        <figure><img src="help-assets/overview-en.png" alt="Main bouldering timer interface"><figcaption>Format, parameters, display settings, controls, and connected browser diagnostics.</figcaption></figure>
         <h3>Control panel</h3>
         <ul>
           <li><strong>Format</strong>: Classic, Festival, and Final.</li>
@@ -1400,7 +1420,7 @@ xattr -dr com.apple.quarantine "/полный/путь/к/fdv-bouldering-timer-v
         </div>
         <div class="platform">
           <h3>3.3. Final</h3>
-          <p>A one-shot format. Each Start runs one rotation and then waits for the operator. The Old protocol schedule sends every participant through route 1 before route 2; the New schedule moves a participant to the next route after a configurable number of complete rest rotations (3 by default). A participant on route 1 in cycle 1 prepares in cycle 4 and climbs the next route in cycle 5. This choice affects only a loaded start protocol.</p>
+          <p>A one-shot format. Each Start runs one rotation and then waits for the operator. The Old list schedule sends every participant through route 1 before route 2; the New schedule moves a participant to the next route after a configurable number of complete rest rotations (3 by default). A participant on route 1 in cycle 1 prepares in cycle 4 and climbs the next route in cycle 5. This choice affects only a loaded start list.</p>
         </div>
         <table class="comparison">
           <thead><tr><th>Property</th><th>Classic</th><th>Festival</th><th>Final</th></tr></thead>
@@ -1454,50 +1474,79 @@ xattr -dr com.apple.quarantine "/полный/путь/к/fdv-bouldering-timer-v
         <a class="back-to-toc" href="#en-contents">↑ Back to contents</a>
       </section>
 
-      <section id="en-screens" class="panel">
+      <section id="en-start-lists" class="panel">
         <span class="chapter-kicker">Chapter 6</span>
+        <h2>Start lists</h2>
+        <p class="lead">The timer can display up to four participant lists at once. The interface and diagnostics call them LIST 1–4; the underlying import file format is unchanged.</p>
+        <h3>6.1. Loading and display</h3>
+        <ol>
+          <li>Enable Start lists and press Add list.</li>
+          <li>Load a supported XLSX/XLS workbook or text file. The table appears beside the timer.</li>
+          <li>Use the LIST badges on each browser card to select what that display shows. Gray means unavailable, dark green means available but hidden, and cyan means visible.</li>
+          <li>When exactly two lists are visible, a separate cyan button switches between one and two columns. An orange outline marks a per-display layout that differs from the default.</li>
+        </ol>
+        <p>The column follows the table width. Its toolbar may compress the Load list… label, while participant data is never ellipsized; a horizontal scrollbar is provided when necessary.</p>
+        <h3>6.2. Competition progress</h3>
+        <ul>
+          <li>Climbing, preparation, rest, and route-result markers follow the current cycle and competition format automatically.</li>
+          <li>The route control opens incident management. A route can be suspended and restored from a selected current or future cycle.</li>
+          <li>Both planned incident boundaries are shown immediately in the description and table markers.</li>
+          <li>Participants and routes can be excluded and restored; confirmations identify the affected list.</li>
+          <li>Display tables are read-only, auto-scroll, and continue local updates through a short network interruption.</li>
+        </ul>
+        <p class="note">Two lists can use parallel columns or a stacked layout; the choice can be overridden independently for each display.</p>
+        <a class="back-to-toc" href="#en-contents">↑ Back to contents</a>
+      </section>
+
+      <section id="en-screens" class="panel">
+        <span class="chapter-kicker">Chapter 7</span>
         <h2>Connecting and controlling displays</h2>
-        <h3>6.1. Connecting</h3>
+        <h3>7.1. Connecting</h3>
         <ol>
           <li>Connect every device to the same local non-guest network.</li>
           <li>Open a Wi-Fi or Ethernet address printed by the launcher.</li>
           <li>Enable Primary browser on one controlling device.</li>
         </ol>
         <p>Other browsers become clean timer-only displays. They receive the same server state and continually correct their local time against the server. For older TV browsers, switch an individual display to Legacy mode from the browser list.</p>
-        <h3>6.2. Primary browser controls</h3>
+        <h3>7.2. Primary browser controls</h3>
         <ul>
           <li><strong>Sound in primary browser</strong> controls only that browser.</li>
           <li><strong>Sound in other browsers</strong> enables sound on remote displays.</li>
           <li><strong>Fullscreen in other browsers</strong> requests fullscreen; a tap may still be required.</li>
           <li>Browsers on the same computer as the primary do not duplicate its sound.</li>
           <li>Click LEGACY in a browser row to move that display to the simplified Legacy page.</li>
+          <li>Pin a browser to preserve its place after reconnection, and use the arrows to reorder displays. The primary browser always remains first.</li>
+          <li>With at least three browsers, the number button in the primary card shows matching numbers on cards and in the top-right corner of each display's timer area.</li>
         </ul>
 
-        <h3>6.3. Legacy mode for older displays</h3>
+        <h3>7.3. Legacy mode for older displays</h3>
         <p>Legacy mode is intended for old TV browsers, tablets, and media players where the normal page may be unstable. It opens as <code>/legacy.html</code> without visible service parameters in the address bar.</p>
         <ul>
-          <li>With no protocols selected, the page shows only the large timer. Use PROTOCOL 1–4 in the primary browser to show complete read-only protocol tables on a Legacy display.</li>
+          <li>With no lists selected, the page shows only the large timer. Use LIST 1–4 in the primary browser to show complete read-only list tables on a Legacy display.</li>
           <li>It uses simplified JavaScript and plain XHR requests to <code>/api/state</code>, so it does not depend on SSE, Fetch API, Web Audio, Wake Lock, or other modern browser features.</li>
           <li>Legacy mode does not play sound. Keep sound on the primary browser or on a normal modern display when audio signals are needed.</li>
           <li>The display calculates time locally from the server state and periodically refines its clock offset using the best network samples. Because synchronization is simplified, it may be slightly less precise than the normal display.</li>
-          <li>Protocol data is downloaded only when its revision changes. During a temporary network loss, the Legacy display continues updating markers, row highlighting, and auto-scroll from its offline timer, then reconciles with the authoritative server state after reconnecting.</li>
+          <li>List data is downloaded only when its revision changes. During a temporary network loss, the Legacy display continues updating markers, row highlighting, and auto-scroll from its offline timer, then reconciles with the authoritative server state after reconnecting.</li>
+          <li>When TIME is enabled, a compact server clock appears below the main timer. The Legacy TAB tooltip omits Wake Lock because an old browser cannot report it reliably.</li>
           <li>The digit size is fitted to the screen, including long Festival values such as <code>120:00</code>. After device rotation the Legacy page recalculates sizing and centering several times.</li>
           <li>Click LEGACY again from the primary browser to return that display to the normal <code>/</code> page.</li>
         </ul>
         <p class="note">Use Legacy mode only for devices where the normal display does not work or is too heavy. On modern phones, tablets, and computers the normal display has better synchronization and sound support.</p>
 
-        <h3>6.4. Diagnostics</h3>
-        <figure class="detail-shot"><img src="help-assets/browser-diagnostics-en.png" alt="Browser diagnostics with LEGACY button"><figcaption>The LEGACY button and the NET, SYNC, AUDIO, WAKE, SSE, and TAB badges summarize each connection.</figcaption></figure>
+        <h3>7.4. Diagnostics</h3>
+        <p>Gray means unavailable, dark green means available but inactive, light green means active or healthy, yellow is a warning, and red is a fault.</p>
+        <p class="note">Current badge order: LEGACY, AUDIO, TIME, NET, SYNC, SSE, TAB, followed by LIST 1–4.</p>
         <table>
           <thead><tr><th>Badge</th><th>Meaning</th></tr></thead>
           <tbody>
-            <tr><td>LEGACY</td><td>Switches the selected display between the normal timer display and the Legacy page for older browsers. A green badge means that this browser is currently in Legacy mode.</td></tr>
-            <tr><td>NET</td><td>Connection latency: green ≤100 ms, yellow ≤200 ms.</td></tr>
-            <tr><td>SYNC</td><td>Estimated timer synchronization error: green ≤100 ms, yellow ≤300 ms.</td></tr>
-            <tr><td>AUDIO</td><td>Sound permission, unlock status, and user sound offset.</td></tr>
-            <tr><td>WAKE</td><td>Wake Lock support and current state.</td></tr>
-            <tr><td>SSE</td><td>Instant server event connection.</td></tr>
-            <tr><td>TAB</td><td>Whether the tab is visible or backgrounded.</td></tr>
+            <tr><td>LEGACY</td><td>Switches between normal and simplified pages. Dark green means available and light green means enabled. An orange outline marks manual Legacy use on a browser capable of normal mode.</td></tr>
+            <tr><td>AUDIO</td><td>Gray means unavailable, dark green means available but disabled, and red means enabled but not unlocked by a tap. While active, real audio-clock progress is green below 100 ms, yellow at 100–250 ms, and red above 250 ms.</td></tr>
+            <tr><td>TIME</td><td>Shows a compact server clock below the timer: dark green when hidden and light green when shown.</td></tr>
+            <tr><td>NET</td><td>Connection latency: green ≤100 ms, yellow 100–200 ms, red above 200 ms or offline.</td></tr>
+            <tr><td>SYNC</td><td>Clock and render-delay estimate. Render delay is green below 100 ms, yellow at 100–250 ms, and red above 250 ms. The primary tooltip also reports server-clock anomalies.</td></tr>
+            <tr><td>SSE</td><td>Green when the instant event stream is connected, red when expected but lost, and gray when unavailable or standalone.</td></tr>
+            <tr><td>TAB</td><td>Green when visible and red when hidden. On a modern browser its tooltip also reports Wake Lock.</td></tr>
+            <tr><td>LIST 1–4</td><td>Gray when the area or list is missing, dark green when available but hidden, and cyan when shown.</td></tr>
           </tbody>
         </table>
         <h3>AUDIO adjustment</h3>
@@ -1506,13 +1555,13 @@ xattr -dr com.apple.quarantine "/полный/путь/к/fdv-bouldering-timer-v
           <figure class="detail-shot"><img src="help-assets/audio-test-en.png" alt="Sound test buttons"><figcaption>Test Start, End, one-minute, and five-second signals.</figcaption></figure>
         </div>
         <p>Click AUDIO, adjust the scale, test signals, then click AUDIO again to save. From the primary browser you can test everywhere sound is allowed. Sound test buttons are disabled while the timer is actively running, but remain available during the scheduled-start countdown and while paused.</p>
-        <h3>6.5. Temporary network loss</h3>
+        <h3>7.5. Temporary network loss</h3>
         <p>A display continues from the last known server timeline. After about 4.5 seconds without the server, the control panel shows a warning and NET, SYNC, and SSE turn red. Choose <strong>Standalone mode</strong> to control the timer in this browser only; other browsers will not be synchronized. Its browser list contains the current browser only: click AUDIO to adjust the −500 to +500 ms offset and test START, END, MINUTE, and WARNING. A past scheduled start restores Classic and Festival as if they started today at that time; in Final it schedules tomorrow. When the server returns, the standalone timer stays independent until you explicitly return to the server state. Standalone changes are discarded when returning.</p>
         <a class="back-to-toc" href="#en-contents">↑ Back to contents</a>
       </section>
 
       <section id="en-sound" class="panel">
-        <span class="chapter-kicker">Chapter 7</span>
+        <span class="chapter-kicker">Chapter 8</span>
         <h2>Sound and flashing</h2>
         <ul>
           <li>Sound in primary browser controls only the controlling browser.</li>
@@ -1541,7 +1590,7 @@ xattr -dr com.apple.quarantine "/полный/путь/к/fdv-bouldering-timer-v
       </section>
 
       <section id="en-transfer" class="panel">
-        <span class="chapter-kicker">Chapter 8</span>
+        <span class="chapter-kicker">Chapter 9</span>
         <h2>Moving and starting on another computer</h2>
         <p class="lead">Copy the entire project folder, prepare Node.js, connect the network, and recreate the certificate if required.</p>
         <p class="success">Ready-to-use packages with portable Node.js for Windows, macOS, and Linux are published in <a href="https://github.com/dfedorov-arch/fdv-bouldering-timer/releases">GitHub Releases</a>. Choose the asset matching your operating system and CPU architecture. For single-browser offline use on any OS, use the single-file <code>fdv-bouldering-timer-standalone.html</code>.</p>
@@ -1553,17 +1602,17 @@ xattr -dr com.apple.quarantine "/полный/путь/к/fdv-bouldering-timer-v
         <div class="platform"><h3>8.3. Windows</h3><ol><li>Check <code>params.txt</code>.</li><li>Run <span class="inline-app-name"><img class="inline-app-icon" src="help-assets/timer-launcher.png" alt=""><code>fdv-bouldering-timer.exe</code>. It displays local and network addresses, starts the server, and opens the browser.</li><li>Closing the window keeps the launcher in the notification area. Use <strong>Stop and exit</strong> to stop the server.</li><li>Use <code>start-timer-win.bat</code> as a fallback when the EXE is unavailable.</li><li>Allow Node.js on private networks in Windows Firewall.</li></ol></div>
         <div class="platform"><h3>8.4. macOS</h3><ol><li>Check <code>params.txt</code>.</li><li>Run <code>FDV Bouldering Timer.app</code> or the adjacent <code>fdv-bouldering-timer</code> file from the portable package.</li><li>The server app displays local and network addresses, starts the server, and opens the browser.</li><li>Closing the window stops the server. Use <strong>Restart server</strong> after changing ports or Node.js settings.</li><li>Use <code>start-timer-mac.command</code> as a fallback; keep Terminal open and stop with <kbd>Ctrl+C</kbd>.</li></ol><p>If blocked, right-click and choose Open first. If macOS still blocks the launch, open <strong>System Settings → Privacy &amp; Security</strong> and click <strong>Open Anyway</strong> / <strong>Allow</strong> for FDV Bouldering Timer in the security section.</p><p>If the server app, launcher, or bundled <code>runtime/mac/bin/node</code> is still blocked after extraction, clear the quarantine attribute on the extracted folder or on the app itself:</p><pre><code>xattr -dr com.apple.quarantine .
 xattr -dr com.apple.quarantine "FDV Bouldering Timer.app"
-xattr -dr com.apple.quarantine "/full/path/to/fdv-bouldering-timer-v1.0.7-macos-arm64"</code></pre><p>The first command is run from inside the extracted release folder. The second command clears quarantine only on the app. The full-path form is useful for Downloads or external drives. For Permission denied run <code>chmod +x fdv-bouldering-timer start-timer-mac.command create-https-certificate-mac.command</code>.</p></div>
+xattr -dr com.apple.quarantine "/full/path/to/fdv-bouldering-timer-macos-arm64"</code></pre><p>The first command is run from inside the extracted release folder. The second command clears quarantine only on the app. The full-path form is useful for Downloads or external drives. For Permission denied run <code>chmod +x fdv-bouldering-timer start-timer-mac.command create-https-certificate-mac.command</code>.</p></div>
         <div class="platform"><h3>8.5. Linux</h3><ol><li>Open a terminal in the timer folder.</li><li>Run <code>chmod +x fdv-bouldering-timer install-linux-launcher.sh start-timer-linux.sh create-https-certificate-linux.sh</code> when required.</li><li>Run <code>./fdv-bouldering-timer</code> to open the server app.</li><li>To add the app to the Ubuntu/GNOME applications menu with its icon, run <code>./install-linux-launcher.sh</code> once. Then launch <strong>FDV Bouldering Timer</strong> from the app menu and pin it to the Dock if needed.</li><li>Closing the server app window stops the server. Use <code>./start-timer-linux.sh</code> as a fallback; keep Terminal open and stop with <kbd>Ctrl+C</kbd>.</li></ol><p>Linux file managers may still show a generic icon for the executable itself. The app menu and Dock icon come from the installed <code>.desktop</code> entry created by <code>install-linux-launcher.sh</code>.</p><p>Linux portable releases are provided for x64 and arm64 glibc distributions. Alpine Linux/musl requires a compatible Node.js build.</p></div>
 
         <div class="platform"><h3>8.6. HTTP and HTTPS</h3><p>HTTP works immediately. For HTTPS run <code>create-https-certificate.bat</code> on Windows, <code>create-https-certificate-mac.command</code> on macOS, or <code>create-https-certificate-linux.sh</code> on Linux, then restart the server. Recreate the certificate after changing computer or local IP.</p><p class="warning">The certificate is self-signed, so browsers may show a warning on first use.</p></div>
         <h3>8.7. Verification</h3>
-        <ul class="checklist"><li>The local page opens through 127.0.0.1.</li><li>A phone opens the Wi-Fi or Ethernet address.</li><li>One browser is primary and other displays are listed.</li><li>Controls and shortcuts work.</li><li>NET, SYNC, AUDIO, WAKE, SSE, and TAB show expected states.</li><li>Only intended devices play sound.</li></ul>
+        <ul class="checklist"><li>The local page opens through 127.0.0.1.</li><li>A phone opens the Wi-Fi or Ethernet address.</li><li>One browser is primary and other displays are listed.</li><li>Controls and shortcuts work.</li><li>LEGACY, AUDIO, TIME, NET, SYNC, SSE, and TAB show expected states.</li><li>Only intended devices play sound.</li></ul>
         <a class="back-to-toc" href="#en-contents">↑ Back to contents</a>
       </section>
 
       <section id="en-settings" class="panel">
-        <span class="chapter-kicker">Chapter 9</span>
+        <span class="chapter-kicker">Chapter 10</span>
         <h2>The params.txt file</h2>
         <p>These values are read when the server starts. Restart after editing the file.</p>
         <table>
@@ -1581,7 +1630,7 @@ xattr -dr com.apple.quarantine "/full/path/to/fdv-bouldering-timer-v1.0.7-macos-
             <tr><td><code>festival_break_minutes</code></td><td>Festival break, minutes</td><td>30</td></tr>
             <tr><td><code>festival_announcements</code></td><td>Festival announcements enabled by default</td><td>true</td></tr>
             <tr><td><code>final_rotation_minutes</code></td><td>Final rotation, minutes</td><td>4</td></tr>
-            <tr><td><code>final_round_format</code></td><td>Initial Final protocol schedule</td><td>old / new</td></tr>
+            <tr><td><code>final_round_format</code></td><td>Initial Final list schedule</td><td>old / new</td></tr>
             <tr><td><code>final_rest_rotations</code></td><td>Rest rotations in the New Final schedule</td><td>3</td></tr>
             <tr><td><code>primary_browser</code></td><td>Make the first browser primary</td><td>false</td></tr>
             <tr><td><code>sound</code></td><td>Initial sound state</td><td>true</td></tr>
@@ -1606,13 +1655,13 @@ xattr -dr com.apple.quarantine "/full/path/to/fdv-bouldering-timer-v1.0.7-macos-
       </section>
 
       <section id="en-troubleshooting" class="panel">
-        <span class="chapter-kicker">Chapter 10</span>
+        <span class="chapter-kicker">Chapter 11</span>
         <h2>Troubleshooting</h2>
         <div class="trouble">
           <details open><summary>127.0.0.1 works but the network IP does not</summary><div>Use the same non-guest network, include the port, use a Wi-Fi or Ethernet address, allow Node.js through the firewall, disable VPN, and check router client isolation.</div></details>
           <details><summary>The wrong network address is shown</summary><div>VPN, Docker, and virtual adapters add addresses. Use one marked Wi-Fi or Ethernet by the launcher.</div></details>
           <details><summary>No sound or fullscreen on a phone</summary><div>Tap the page once, inspect AUDIO, check volume and silent mode. Fullscreen may require another tap.</div></details>
-          <details><summary>The screen turned off or the tab slept</summary><div>Inspect WAKE and TAB, disable power saving and auto-lock, and keep the tab visible.</div></details>
+          <details><summary>The screen turned off or the tab slept</summary><div>Inspect TAB and the Wake Lock state in its tooltip, disable power saving and auto-lock, and keep the tab visible.</div></details>
           <details><summary>Commands stop after switching to mobile data</summary><div>The server is local-network only. The display continues locally and receives commands after returning to Wi-Fi.</div></details>
           <details><summary>You accidentally closed the main browser tab</summary><div>Open the timer in a new tab. It will start as a timer-only screen, but pressing <kbd>Ctrl+M</kbd> makes it the main tab again and restores the controls. This does not affect the running timer, sound, or any other open screens.</div></details>
           <details><summary>A port is already in use</summary><div>Change <code>http_port</code> and <code>https_port</code>, or stop the other application using those ports.</div></details>

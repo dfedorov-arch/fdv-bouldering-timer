@@ -87,6 +87,7 @@ test("running restore keeps the absolute start when monotonic snapshot elapsed d
   assert.equal(runningElapsedAfterRestore(savedAt + 2_000, savedAt, 0, now), 3);
   assert.equal(runningElapsedAfterRestore(savedStart, savedAt, 20, now, 50_000, 55_000), 25);
   assert.equal(runningElapsedAfterRestore(savedStart, savedAt, 20, now, 55_000, 5_000), 125);
+  assert.equal(runningElapsedAfterRestore(savedStart, savedAt, 122.2, now, 50_000, 55_000), 125);
 });
 
 test("server clock continuity repair advances through a suspended monotonic clock", () => {

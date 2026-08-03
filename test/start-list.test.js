@@ -262,8 +262,8 @@ test("temporary route incident pauses the affected wave and shifts it after resu
   assert.equal(startList.marker(9, 2, 12, "rotation", pending), "");
 
   const resumed = [{ ...pending[0], resumeCycle: 18 }];
-  assert.equal(startList.marker(10, 2, 14, "rotation", resumed), "ready");
-  assert.equal(startList.rowStatus(10, 5, 14, "rotation", resumed), "ready");
+  assert.equal(startList.marker(10, 2, 14, "rotation", resumed), "paused");
+  assert.equal(startList.rowStatus(10, 5, 14, "rotation", resumed), "");
   assert.equal(startList.marker(10, 2, 17, "rotation", resumed), "paused");
   assert.equal(startList.marker(10, 2, 18, "rotation", resumed), "active");
   assert.equal(startList.marker(11, 2, 18, "rotation", resumed), "ready");
@@ -290,6 +290,18 @@ test("a pause with a future resume cycle remains editable while it is active", (
   assert.equal(startList.activePauseForRoute(1, [pause], 17), pause);
   assert.equal(startList.activePauseForRoute(1, [pause], 18), pause);
   assert.equal(startList.activePauseForRoute(1, [pause], 20), null);
+  assert.equal(startList.editablePauseForRoute(1, [pause], 21, 18), pause);
+  assert.equal(startList.editablePauseForRoute(1, [pause], 21, 20), null);
+  const unresolved = { ...pause, startCycle: 11, resumeCycle: null, participantIndex: 8 };
+  assert.equal(startList.editablePauseForRoute(1, [unresolved], 13, 12), unresolved);
+});
+
+test("a future pause keeps its marker after a future resume is scheduled", () => {
+  const pause = { kind: "pause", route: 2, startCycle: 14, resumeCycle: 16, participantIndex: 11, resolution: "resume" };
+  assert.equal(startList.marker(11, 1, 11, "rotation", [pause]), "paused");
+  assert.equal(startList.marker(11, 1, 13, "rotation", [pause]), "paused");
+  assert.equal(startList.marker(11, 1, 14, "rotation", [pause]), "paused");
+  assert.equal(startList.marker(11, 1, 16, "rotation", [pause]), "active");
 });
 
 test("an incident in an empty cycle targets the next participant on that route", () => {

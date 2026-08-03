@@ -2,59 +2,39 @@
 
 **Русский** | [English](#english)
 
-Сетевой таймер для проведения соревнований по болдерингу. Один компьютер управляет отсчётом, а телефоны, планшеты, телевизоры и другие компьютеры в локальной сети могут использоваться как синхронизированные экраны.
+Сетевой таймер для соревнований по болдерингу. Один браузер управляет соревнованием, а телефоны, планшеты, телевизоры и другие компьютеры в локальной сети работают как синхронные экраны.
 
-![Интерфейс FDV Bouldering Timer](help-assets/overview.jpg)
-
-[Скачать последнюю версию](https://github.com/dfedorov-arch/fdv-bouldering-timer/releases/latest) · [Открыть сайт проекта](https://dfedorov-arch.github.io/fdv-bouldering-timer/) · [Полное руководство](https://dfedorov-arch.github.io/fdv-bouldering-timer/help.html)
+[Скачать последнюю версию](https://github.com/dfedorov-arch/fdv-bouldering-timer/releases/latest) · [Сайт проекта](https://dfedorov-arch.github.io/fdv-bouldering-timer/) · [Полное руководство](https://dfedorov-arch.github.io/fdv-bouldering-timer/help.html)
 
 ## Возможности
 
 - Форматы **Классика**, **Фестиваль** и **Финал**.
-- Синхронизация нескольких экранов по локальной сети.
-- Legacy-экран для старых браузеров и телевизоров с упрощённым табло.
-- Продолжение отсчёта на экране при временной потере соединения.
-- Запуск сразу или по заданному времени.
-- Управление подключёнными браузерами и диагностика связи.
-- Импорт стартового списка и отображение продвижения участников по трассам в форматах «Классика» и «Финал».
-- Настраиваемые звуковые профили, цвета и локальные шрифты.
-- Интерфейс и руководство на русском и английском языках.
-- Работа по HTTP или HTTPS.
-- Portable-сборки для Windows, macOS и Linux со встроенным Node.js.
+- Немедленный или отложенный старт, пауза, перемотка по полосе прогресса и ручной выбор цикла на паузе.
+- Единое серверное время для всех экранов и точное планирование звуков.
+- Продолжение отсчёта при краткой потере сети; после возврата связи браузер снова принимает состояние сервера.
+- **Legacy**-экран для старых или слабых браузеров и телевизоров.
+- До четырёх **стартовых списков** с импортом XLSX, MXL, CSV, TSV и TXT.
+- Отдельный выбор списков и их раскладки для каждого экрана, включая Legacy.
+- Маркеры подготовки, лазания и завершения; исключение участника; приостановка, возобновление и остановка трассы.
+- Диагностика браузеров: `LEGACY`, `AUDIO`, `TIME`, `NET`, `SYNC`, `SSE`, `TAB` и `LIST 1–4`.
+- Закрепление и изменение порядка карточек, вывод номеров браузеров на экранах и дополнительные часы сервера.
+- Звуковые профили, поправка задержки звука, диагностика аудиочасов и тест сигналов.
+- Русский и английский интерфейс, HTTP/HTTPS, portable-сборки для Windows, macOS и Linux, а также однофайловый standalone-вариант.
 
 ## Быстрый запуск
 
-1. Откройте раздел [Releases](https://github.com/dfedorov-arch/fdv-bouldering-timer/releases/latest) и скачайте архив для своей системы и архитектуры.
-2. Распакуйте архив целиком.
-3. Запустите приложение сервера: в Windows `fdv-bouldering-timer.exe`, в macOS `FDV Bouldering Timer.app` или `fdv-bouldering-timer`, в Linux `fdv-bouldering-timer`. Скрипты `start-timer-*` остаются резервным способом.
-4. На компьютере сервера откройте `http://127.0.0.1:8008/`.
-5. На остальных экранах откройте сетевой адрес, показанный при запуске, например `http://192.168.1.68:8008/`.
+1. Скачайте архив для своей системы в [Releases](https://github.com/dfedorov-arch/fdv-bouldering-timer/releases/latest) и распакуйте его целиком.
+2. Запустите `fdv-bouldering-timer.exe` в Windows, `FDV Bouldering Timer.app` в macOS или `fdv-bouldering-timer` в Linux. Скрипты `start-timer-*` остаются резервным способом.
+3. На компьютере сервера откройте `http://127.0.0.1:8008/`, на других устройствах — напечатанный запускателем сетевой адрес.
+4. Включите **Основной браузер**, выберите формат и проверьте звук.
 
-Все устройства должны находиться в одной локальной сети. В Windows разрешите Node.js доступ к частной сети. В macOS при первом запуске может потребоваться открыть приложение через контекстное меню **Открыть**, разрешить запуск в **Системные настройки → Конфиденциальность и безопасность** или снять quarantine-атрибут с распакованной папки. В Linux для иконки в меню приложений выполните `./install-linux-launcher.sh` один раз.
+Все экраны должны находиться в одной локальной сети. Перед соревнованием проверьте каждый физический экран, звук и поведение при отключении Wi-Fi.
 
-Подробная первоначальная настройка, перенос на другой компьютер, HTTPS и диагностика описаны в [краткой инструкции](ReadMe.txt) и [полном руководстве](help.html).
+## Стартовые списки
 
-## Запуск из исходного кода
+Переключатель **Стартовые списки** открывает область таблиц. Кнопка `+` добавляет до четырёх независимых списков. Для двух списков можно выбрать одну или две колонки. Каждый удалённый экран может показывать свой набор и свою раскладку.
 
-Требуется актуальная версия Node.js LTS:
-
-```bash
-node serve-bouldering-timer.js
-```
-
-Основные параметры находятся в `params.txt`. Порты по умолчанию: `8008` для HTTP и `8443` для HTTPS.
-
-### Проверка изменений
-
-```bash
-node serve-bouldering-timer.js --generate-offline-audio
-node scripts/verify-release-inputs.js
-node --test test/*.test.js
-```
-
-Архитектурные границы и релизные проверки описаны в [docs/architecture.md](docs/architecture.md). Каталог `dist/` является автоматически создаваемым результатом сборки; его файлы не следует редактировать вручную.
-
-Полноценная portable-сборка требует заранее собранные графические launchers для всех платформ. Для диагностической локальной упаковки без приложений запуска необходимо явно указать `--without-launchers`; такой результат не является готовым релизом.
+Таблица показывает расчётное продвижение участников и не управляет временем таймера. Подробно о формате файлов, маркерах, инцидентах трасс и автопрокрутке см. в [полном руководстве](help.html#start-lists).
 
 ## Горячие клавиши
 
@@ -63,67 +43,81 @@ node --test test/*.test.js
 | `Z` / `Я` | Старт или продолжить |
 | `Ctrl+Q` / `Ctrl+Й` | Пауза |
 | `P` / `З` | Стоп |
-| `Ctrl+F` / `Ctrl+А` | Полный экран |
+| `Ctrl+F` / `Ctrl+А` | Экранный режим |
 | `Ctrl+M` / `Ctrl+Ь` | Назначить браузер основным |
 
 Пробел не управляет таймером.
 
-## Стартовый список
+## Запуск из исходного кода
 
-Переключатель «Стартовый протокол» после настройки основного браузера открывает и скрывает справа область списков. Зелёная кнопка `+` добавляет до четырёх независимых протоколов. Если протоколов ровно два, серая стрелка на втором переключает их между расположением друг под другом и рядом. При добавлении третьего стрелка исчезает: первый и второй располагаются слева, третий и четвёртый — справа. У каждого протокола есть собственные загрузка, количество трасс и компактная кнопка удаления. Крест в первой области очищает её, а во второй–четвёртой удаляет всю соответствующую область. Поддерживаются книги Excel `.xlsx`, табличные документы 1С `.mxl` и текстовые таблицы `.csv`, `.tsv`, `.txt`. В XLSX используется первый непустой лист. Если над строкой заголовков столбцов находится отдельная строка с одним текстовым значением, она распознаётся как название протокола и показывается над таблицей на всю её ширину. В текстовых файлах разделителем может быть точка с запятой, запятая или табуляция. Если ни один столбец не содержит последовательность циклов `1, 2, 3…`, приложение автоматически добавляет первым столбец `#`.
+Требуется актуальная LTS-версия Node.js:
 
-Участника можно временно исключить из расчёта, нажав крайнюю левую ячейку его строки. Исключённая строка остаётся в таблице, перечёркивается красной линией и теряет маркеры трасс; все следующие строки немедленно пересчитываются так, будто участника не было. Повторное нажатие возвращает участника в протокол.
+```bash
+node serve-bouldering-timer.js
+```
 
-Стартовый список всегда показывается в основном браузере. Для других подключённых браузеров, включая Legacy-экраны, его можно включить кнопками `PROTOCOL 1–4` в панели диагностики. Legacy загружает только выбранные таблицы и продолжает обновлять их по автономному таймеру при временной потере сети. Таблица только визуализирует продвижение и не изменяет состояние или ход таймера. Для нового протокола в формате «Финал» по умолчанию предлагаются 4 трассы, в остальных поддерживаемых форматах — 5.
+Начальные параметры находятся в `params.txt`. Порты по умолчанию: `8008` для HTTP и `8443` для HTTPS.
 
-В формате «Финал» досрочное нажатие «Стоп» завершает текущую попытку в протоколе так же, как окончание времени ротации. Для протокола доступны два формата раунда: «Старый» последовательно проводит всех участников по первой трассе, затем по второй и далее; «Новый» переводит участника на следующую трассу после настраиваемого количества полных ротаций отдыха (по умолчанию 3). Например, участник, лезущий первую трассу в цикле 1, готовится ко второй в цикле 4 и выходит на неё в цикле 5. Поэтому часть финала может одновременно показывать нескольких лезущих. Ширина каждой колонки протоколов подстраивается под фактическую ширину загруженных таблиц; горизонтальная прокрутка не появляется, пока таблицу можно разместить, расширив колонку не более чем до половины ширины экрана.
+### Проверка изменений
 
-Когда таймер остановлен или поставлен на паузу, номер в плашке «Цикл» можно изменить вручную. В «Классике» таймер переходит к началу выбранного цикла, а в «Финале» — к началу выбранной попытки. Во время работы таймера поле заблокировано.
+```bash
+node serve-bouldering-timer.js --generate-offline-audio
+node scripts/verify-release-inputs.js
+npm test
+npm run test:visual
+```
+
+Техническая карта документации: [docs/documentation-map.md](docs/documentation-map.md). Архитектура: [docs/architecture.md](docs/architecture.md). Расширенная диагностика: [docs/performance-diagnostics.md](docs/performance-diagnostics.md).
 
 ## Лицензия
 
-Проект распространяется по лицензии [MIT](LICENSE).
-
----
-
-<a id="english"></a>
+MIT. См. [LICENSE](LICENSE).
 
 ## English
 
-FDV Bouldering Timer is a networked competition timer. One computer controls the countdown while phones, tablets, TVs, and other computers on the local network act as synchronized displays.
-
-[Download the latest release](https://github.com/dfedorov-arch/fdv-bouldering-timer/releases/latest) · [Project website](https://dfedorov-arch.github.io/fdv-bouldering-timer/) · [Full user guide](https://dfedorov-arch.github.io/fdv-bouldering-timer/help.html?lang=en)
+A network-synchronized timer for bouldering competitions. One browser controls the event while phones, tablets, televisions, and computers on the same local network act as synchronized displays.
 
 ### Features
 
-- Classic, Festival, and Final competition formats.
-- Multiple synchronized displays over a local network.
-- Legacy display for older browsers and TV browsers.
-- Local countdown continuity during temporary connection loss.
-- Immediate or scheduled starts.
-- Connected-browser controls and connection diagnostics.
-- Start-list import and route-progress display in Classic and Final formats.
-- Configurable sound profiles, colors, and bundled local fonts.
-- Russian and English interface and documentation.
-- HTTP and HTTPS support.
-- Portable Windows, macOS, and Linux builds with bundled Node.js.
+- **Classic**, **Festival**, and **Final** competition formats.
+- Immediate or scheduled start, pause, progress scrubbing, and paused cycle selection.
+- Server-authoritative timing with local continuation during a short network outage.
+- Simplified **Legacy** display for old or weak browsers and televisions.
+- Up to four **start lists**, imported from XLSX, MXL, CSV, TSV, or TXT.
+- Per-display list selection and two-list layout, including Legacy screens.
+- Participant preparation/climbing/completion markers, exclusions, and route pause/resume/stop incidents.
+- Browser diagnostics: `LEGACY`, `AUDIO`, `TIME`, `NET`, `SYNC`, `SSE`, `TAB`, and `LIST 1–4`.
+- Pinned and reorderable browser cards, display numbers, and optional server-time clocks.
+- Sound profiles, per-browser audio correction, audio-clock diagnostics, and signal tests.
+- Russian and English UI, HTTP/HTTPS, portable packages for Windows/macOS/Linux, and a single-file standalone build.
 
 ### Quick start
 
-1. Open [Releases](https://github.com/dfedorov-arch/fdv-bouldering-timer/releases/latest) and download the archive for your operating system and architecture.
-2. Extract the complete archive.
-3. Run the server app: `fdv-bouldering-timer.exe` on Windows, `FDV Bouldering Timer.app` or `fdv-bouldering-timer` on macOS, and `fdv-bouldering-timer` on Linux. The `start-timer-*` scripts remain available as fallbacks.
-4. Open `http://127.0.0.1:8008/` on the server computer.
-5. Open the network address printed by the launcher on other displays, for example `http://192.168.1.68:8008/`.
+1. Download and extract the correct package from [Releases](https://github.com/dfedorov-arch/fdv-bouldering-timer/releases/latest).
+2. Start `fdv-bouldering-timer.exe` on Windows, `FDV Bouldering Timer.app` on macOS, or `fdv-bouldering-timer` on Linux.
+3. Open `http://127.0.0.1:8008/` on the server computer and the printed LAN address on every other display.
+4. Enable **Primary browser**, select the format, and verify sound and every physical display before the event.
 
-All devices must be connected to the same local network. On macOS, the first launch may require right-clicking the app and choosing **Open**, allowing it in **System Settings → Privacy & Security**, or clearing the quarantine attribute on the extracted folder. On Linux, run `./install-linux-launcher.sh` once to add the app-menu icon. See the [quick-start guide](ReadMe.txt) and the [full user guide](help.html?lang=en) for setup, migration, HTTPS, and troubleshooting.
+All devices must be on the same local network. See the [full guide](help.html?lang=en) for list imports, diagnostics, Legacy behavior, offline recovery, HTTPS, and troubleshooting.
 
-### Start list
+### Start lists
 
-The “Start protocol” switch below the primary-browser setting opens and hides the panel on the right. Its top row contains upload, route count, and a compact remove button. With exactly two protocols, a gray arrow on the second switches between stacked and side-by-side layouts. The timer accepts Excel `.xlsx` workbooks, 1C `.mxl` spreadsheet documents, and `.csv`, `.tsv`, and `.txt` text tables. The first non-empty XLSX worksheet is used. A single-cell text row above the column headers is recognized as an optional protocol title and displayed across the table. Semicolon, comma, and tab delimiters are detected automatically for text files. If no column contains the cycle sequence `1, 2, 3…`, a leading `#` column is added automatically.
+Enable **Start lists** to open the table area. Add up to four independent lists. When exactly two lists are open, choose a stacked or parallel layout. Every remote screen may show a different list subset and may override the two-list layout.
 
-A participant can be temporarily excluded from schedule calculations by clicking the leftmost cell in their row. The row remains visible with a red strike-through and no route markers, while every following row is recalculated immediately as if that participant were absent. Click the cell again to restore the participant.
+The lists visualize the calculated participant schedule; they never control timer timing. See [the full guide](help.html?lang=en#start-lists) for import rules, markers, exclusions, route incidents, and auto-scrolling.
 
-The list is always visible in the primary browser. Use the `PROTOCOL 1–4` diagnostic buttons to enable selected lists in other connected browsers, including Legacy displays. Legacy downloads only its selected tables and keeps advancing them from its offline timer during a temporary network loss. The table is display-only and does not alter timer state or timing. A new Final protocol defaults to 4 routes; other supported formats default to 5.
+### Development
 
-The project is available under the [MIT License](LICENSE).
+```bash
+node serve-bouldering-timer.js
+node serve-bouldering-timer.js --generate-offline-audio
+node scripts/verify-release-inputs.js
+npm test
+npm run test:visual
+```
+
+See [docs/documentation-map.md](docs/documentation-map.md), [docs/architecture.md](docs/architecture.md), and [docs/performance-diagnostics.md](docs/performance-diagnostics.md).
+
+### License
+
+MIT. See [LICENSE](LICENSE).

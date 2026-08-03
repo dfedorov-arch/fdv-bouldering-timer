@@ -59,7 +59,7 @@
       align-items: end;
       position: relative;
       isolation: isolate;
-      background: #10141a url("assets/overview-en.png") center / cover no-repeat;
+      background: radial-gradient(circle at 72% 35%, #22384a 0, #151d27 38%, #10141a 72%);
       border-bottom: 1px solid var(--line);
     }
     .hero::before {
@@ -178,8 +178,8 @@
       <h1>FDV Bouldering Timer</h1>
       <p class="lead">Таймер для соревнований по болдерингу с синхронизацией нескольких экранов по локальной сети.</p>
       <div class="actions">
-        <a class="button primary" href="https://github.com/dfedorov-arch/fdv-bouldering-timer/releases/latest">Скачать v1.0.6 ↓</a>
-        <a class="button" href="help.html">Открыть руководство</a>
+        <a class="button primary" href="https://github.com/dfedorov-arch/fdv-bouldering-timer/releases/latest">Скачать последнюю версию ↓</a>
+        <a class="button" href="../help.html">Открыть руководство</a>
       </div>
     </div>
   </section>
@@ -195,8 +195,8 @@
           <article class="feature"><span class="feature-icon">01</span><strong>Сетевая синхронизация</strong><p>Подключение нескольких экранов в локальной сети без облачного сервиса и учётных записей.</p></article>
           <article class="feature"><span class="feature-icon">02</span><strong>Надёжный отсчёт</strong><p>Экран продолжает считать время при кратковременной потере соединения и мягко синхронизируется после возврата сети.</p></article>
           <article class="feature"><span class="feature-icon">03</span><strong>Звуковые профили</strong><p>Готовые наборы сигналов и поддержка собственных файлов WAV или MP3.</p></article>
-          <article class="feature"><span class="feature-icon">04</span><strong>Управление экранами</strong><p>Список браузеров, диагностика связи, проверка звука и удалённое управление.</p></article>
-          <article class="feature"><span class="feature-icon">05</span><strong>Гибкое оформление</strong><p>Настраиваемые цвета и локальные шрифты с автоматическим подбором размера цифр.</p></article>
+          <article class="feature"><span class="feature-icon">04</span><strong>Стартовые списки</strong><p>До четырёх таблиц участников, инциденты трасс и отдельная раскладка LIST для каждого экрана.</p></article>
+          <article class="feature"><span class="feature-icon">05</span><strong>Диагностика экранов</strong><p>Сеть, синхронизация, звук, вкладка, серверные часы, порядок, закрепление и номера браузеров.</p></article>
           <article class="feature"><span class="feature-icon">06</span><strong>Готов к переносу</strong><p>Portable-сборки включают Node.js и запускаются на новом компьютере без отдельной установки среды.</p></article>
         </div>
       </div>
@@ -220,12 +220,12 @@
       <div class="section-inner">
         <div class="section-heading">
           <h2>Скачать</h2>
-          <p>Релиз v1.0.6 уже содержит portable Node.js. Выберите систему, распакуйте архив и запустите таймер.</p>
+          <p>Актуальный релиз уже содержит portable Node.js. Выберите систему и архитектуру, распакуйте архив и запустите таймер.</p>
         </div>
         <div class="downloads">
-          <a class="download" href="https://github.com/dfedorov-arch/fdv-bouldering-timer/releases/download/v1.0.6/fdv-bouldering-timer-v1.0.6-windows-x64.zip"><span class="os">WIN</span><h3>Windows</h3><p>64-разрядные компьютеры на Intel или AMD.</p><span>Скачать ZIP ↓</span></a>
-          <a class="download" href="https://github.com/dfedorov-arch/fdv-bouldering-timer/releases/tag/v1.0.6"><span class="os">MAC</span><h3>macOS</h3><p>Сборки arm64 для Apple Silicon и x64 для Intel.</p><span>Выбрать сборку →</span></a>
-          <a class="download" href="https://github.com/dfedorov-arch/fdv-bouldering-timer/releases/tag/v1.0.6"><span class="os">LINUX</span><h3>Linux</h3><p>Сборки для архитектур x64 и arm64.</p><span>Выбрать сборку →</span></a>
+          <a class="download" href="https://github.com/dfedorov-arch/fdv-bouldering-timer/releases/latest"><span class="os">WIN</span><h3>Windows</h3><p>64-разрядные компьютеры на Intel или AMD.</p><span>Выбрать ZIP →</span></a>
+          <a class="download" href="https://github.com/dfedorov-arch/fdv-bouldering-timer/releases/latest"><span class="os">MAC</span><h3>macOS</h3><p>Сборки arm64 для Apple Silicon и x64 для Intel.</p><span>Выбрать сборку →</span></a>
+          <a class="download" href="https://github.com/dfedorov-arch/fdv-bouldering-timer/releases/latest"><span class="os">LINUX</span><h3>Linux</h3><p>Сборки для архитектур x64 и arm64.</p><span>Выбрать сборку →</span></a>
         </div>
         <p class="note">Контрольные суммы SHA-256 опубликованы рядом с архивами релиза. Исходный код доступен по лицензии MIT.</p>
       </div>
@@ -246,10 +246,10 @@
     <section class="en-block" id="english" lang="en">
       <div class="section-inner en-copy">
         <h2>Bouldering timing across every screen</h2>
-        <p>FDV Bouldering Timer runs on one computer and synchronizes phones, tablets, TVs, and computers over a local network. It includes Classic, Festival, and Final formats, configurable sound profiles, browser diagnostics, scheduled starts, and portable builds for Windows, macOS, and Linux.</p>
+        <p>FDV Bouldering Timer runs on one computer and synchronizes phones, tablets, TVs, and computers over a local network. It includes Classic, Festival, and Final formats, up to four start lists with per-display layouts, configurable sound profiles, browser diagnostics, scheduled starts, and portable builds for Windows, macOS, and Linux.</p>
         <div class="actions">
           <a class="button primary" href="https://github.com/dfedorov-arch/fdv-bouldering-timer/releases/latest">Download latest release ↓</a>
-          <a class="button" href="help.html?lang=en">Read the user guide</a>
+          <a class="button" href="../help.html?lang=en">Read the user guide</a>
         </div>
       </div>
     </section>

@@ -45,6 +45,24 @@
     })();
   </script>
   <style>
+    @font-face {
+      font-family: "FDV LCD";
+      src: url("fonts/DSEG7Classic-Regular.woff2") format("woff2"),
+           url("fonts/DSEG7Classic-Regular.woff") format("woff");
+      font-style: normal;
+      font-weight: 400;
+      font-display: swap;
+    }
+
+    @font-face {
+      font-family: "FDV LCD";
+      src: url("fonts/DSEG7Classic-Bold.woff2") format("woff2"),
+           url("fonts/DSEG7Classic-Bold.woff") format("woff");
+      font-style: normal;
+      font-weight: 700;
+      font-display: swap;
+    }
+
     :root {
       color-scheme: dark;
       --bg: #0e1116;
@@ -71,6 +89,8 @@
     }
 
     * { box-sizing: border-box; }
+
+    [hidden] { display: none !important; }
 
     html, body { min-height: 100%; }
 
@@ -291,6 +311,45 @@
     .connections-heading {
       margin-bottom: 7px;
     }
+
+    .connections-heading-actions {
+      display: flex;
+      align-items: center;
+      gap: 3px;
+    }
+
+    .browser-numbers-toggle {
+      position: absolute;
+      top: 4px;
+      right: 3px;
+      z-index: 3;
+      width: 24px;
+      height: 22px;
+      min-height: 22px;
+      padding: 0;
+      border: 1px solid transparent;
+      border-radius: 5px;
+      color: #747e8d;
+      background: transparent;
+      font-size: 12px;
+      font-weight: 850;
+      line-height: 20px;
+    }
+
+    .browser-numbers-toggle:hover,
+    .browser-numbers-toggle:focus-visible {
+      color: #a9b2c1;
+      border-color: #596373;
+      outline: none;
+    }
+
+    .browser-numbers-toggle.active {
+      border-color: rgba(255, 200, 87, .88);
+      color: var(--yellow);
+      background: rgba(255, 200, 87, .08);
+    }
+
+    .browser-numbers-toggle[hidden] { display: none; }
 
     .section-title {
       margin: 0;
@@ -872,6 +931,7 @@
     }
 
     .browser-item {
+      position: relative;
       min-width: 0;
       display: grid;
       gap: 2px;
@@ -881,6 +941,118 @@
       background: rgba(16, 20, 27, .72);
       font-size: 12px;
       color: var(--muted);
+    }
+
+    .browser-item.primary-browser {
+      border-color: #667181;
+    }
+
+    .browser-item.primary-browser > strong {
+      padding-right: 27px;
+    }
+
+    .browser-item.has-order-controls > strong,
+    .browser-item.has-order-controls > strong + span,
+    .browser-item.has-order-controls > .diag-row:not(.start-list-diag-row) {
+      padding-right: 18px;
+    }
+
+    .browser-card-number {
+      position: absolute;
+      top: 7px;
+      left: -9px;
+      z-index: 2;
+      width: 25px;
+      height: 25px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: 1px solid rgba(255, 200, 87, .4);
+      border-radius: 7px;
+      color: rgba(255, 200, 87, .78);
+      background: rgba(63, 49, 13, .82);
+      box-shadow: 0 2px 7px rgba(0, 0, 0, .24);
+      font-size: 15px;
+      font-weight: 900;
+      line-height: 1;
+      pointer-events: none;
+    }
+
+    .browser-order-controls {
+      position: absolute;
+      top: 3px;
+      right: 1px;
+      display: grid;
+      grid-template-columns: 16px;
+      grid-template-rows: repeat(3, 16px);
+      row-gap: 2px;
+    }
+
+    .browser-order-button {
+      width: 16px;
+      height: 16px;
+      min-height: 16px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0;
+      border: 0;
+      border-radius: 3px;
+      color: #7f8998;
+      background: transparent;
+      font: inherit;
+      font-size: 12px;
+      line-height: 1;
+    }
+
+    .browser-order-button:not(:disabled):hover,
+    .browser-order-button:not(:disabled):focus-visible {
+      color: var(--text);
+      background: rgba(255, 255, 255, .08);
+      outline: 0;
+    }
+
+    .browser-order-button.pin.active {
+      color: var(--yellow);
+      background: transparent;
+    }
+
+    .browser-order-button svg {
+      width: 12px;
+      height: 12px;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 1.8;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .browser-number-badge {
+      position: absolute;
+      top: 12px;
+      right: 12px;
+      z-index: 2;
+      min-width: 52px;
+      height: 52px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0 9px;
+      border: 1px solid rgba(168, 177, 190, .3);
+      border-radius: 12px;
+      box-sizing: border-box;
+      color: rgba(228, 233, 240, .68);
+      background: rgba(94, 104, 118, .42);
+      font-size: 28px;
+      font-weight: 900;
+      line-height: 1;
+      pointer-events: none;
+    }
+
+    .browser-number-badge[hidden] { display: none; }
+
+    body.fullscreen .browser-number-badge {
+      right: 54px;
     }
 
     .browser-item strong {
@@ -914,6 +1086,8 @@
       font-size: 10px;
       font-weight: 750;
     }
+
+    .browser-copy-feedback:empty { display: none; }
 
     .browser-item.offline {
       opacity: .55;
@@ -959,6 +1133,11 @@
       background: #2d3542;
     }
 
+    .diag-chip.inactive {
+      color: #b9dfca;
+      background: #163626;
+    }
+
     .diag-chip.manual-legacy {
       color: #07130d;
       background: var(--green);
@@ -979,11 +1158,59 @@
     }
 
     .start-list-diag-row { margin-top: 4px; }
+    .start-list-diag-row .diag-chip {
+      flex: 0 0 38px;
+      width: 38px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding-left: 0;
+      padding-right: 0;
+    }
+    .start-list-client-layout-button {
+      position: relative;
+      margin-left: 3px;
+      overflow: hidden;
+      color: transparent;
+      background: var(--cyan);
+    }
+    .start-list-client-layout-button::before,
+    .start-list-client-layout-button::after {
+      content: "";
+      position: absolute;
+      top: 50%;
+      width: 2px;
+      height: 11px;
+      border-radius: 1px;
+      background: #061318;
+      transform: translate(-50%, -50%);
+    }
+    .start-list-client-layout-button[data-start-list-parallel="1"]::before {
+      left: calc(50% - 3px);
+    }
+    .start-list-client-layout-button[data-start-list-parallel="1"]::after {
+      left: calc(50% + 3px);
+    }
+    .start-list-client-layout-button[data-start-list-parallel="0"]::before {
+      left: 50%;
+    }
+    .start-list-client-layout-button[data-start-list-parallel="0"]::after {
+      display: none;
+    }
     .diag-chip.start-list-available {
-      color: #061318;
+      color: #b9dfca;
+      background: #163626;
+    }
+    .diag-chip.start-list-client-layout-button {
+      color: transparent;
       background: var(--cyan);
     }
     .diag-chip.start-list-selected {
+      color: #061318;
+      background: var(--cyan);
+    }
+    .diag-chip.start-list-layout-overridden,
+    .start-list-client-layout-button:active {
       box-shadow: 0 0 0 2px #ff9f43;
     }
 
@@ -1190,7 +1417,8 @@
 
     .start-list-add { position: relative; flex: 0 0 34px; width: 34px; padding: 0; color: var(--green); background: transparent; font-size: 0; line-height: 1; }
     .start-list-layout-toggle { position: relative; width: 34px; padding: 0; color: #8d97a5; background: transparent; font-size: 0; line-height: 1; }
-    .start-list-file-button { min-width: 0; flex: 1 1 auto; color: #041217; background: var(--cyan); cursor: pointer; white-space: nowrap; }
+    .start-list-file-button { min-width: 0; overflow: hidden; flex: 1 1 auto; color: #041217; background: var(--cyan); cursor: pointer; white-space: nowrap; }
+    .start-list-file-button span { display: block; width: 100%; max-width: 100%; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .start-list-file-button input { display: none; }
     .start-list-route-field { flex: 0 0 auto; display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 11px; white-space: nowrap; }
     .start-list-route-field input { width: 48px; min-height: 34px; padding-inline: 5px; text-align: center; }
@@ -1468,7 +1696,7 @@
     .start-list-table tr.is-excluded td::after {
       content: "";
       position: absolute;
-      z-index: 4;
+      z-index: 1;
       top: calc(50% - .5px);
       left: 0;
       right: -1px;
@@ -1526,7 +1754,7 @@
     .start-list-table tr.is-ready td { background: rgba(255, 200, 87, .22); }
     .route-marker { display: inline-block; width: 18px; height: 18px; vertical-align: middle; filter: drop-shadow(0 1px 1px rgba(0,0,0,.55)); }
     .route-marker.active { border: 2px solid #07140d; border-radius: 50%; background: var(--green); }
-    .route-marker.done { border: 2px solid #220707; background: #dc2f2f; transform: rotate(45deg) scale(.82); }
+    .route-marker.done { border: 2px solid #220707; background: #c83d3d; transform: rotate(45deg) scale(.82); }
     .route-marker.ready { width: 0; height: 0; border-left: 9px solid transparent; border-right: 9px solid transparent; border-bottom: 18px solid var(--yellow); filter: drop-shadow(0 0 1px #1b1400); }
     .route-marker.paused::before,
     .route-marker.paused::after { content: ""; position: absolute; top: 1px; bottom: 1px; width: 5px; border-radius: 1px; background: #8d97a5; }
@@ -1581,6 +1809,7 @@
     }
 
     .timer-wrap {
+      position: relative;
       display: grid;
       align-content: center;
       justify-items: center;
@@ -1632,6 +1861,9 @@
       text-shadow: 0 22px 55px rgba(0, 0, 0, .38);
       touch-action: manipulation;
       pointer-events: auto;
+      -webkit-user-select: none;
+      user-select: none;
+      -webkit-touch-callout: none;
     }
 
     .time-part {
@@ -1649,8 +1881,46 @@
       transform: translateY(-.04em);
     }
 
+    .server-clock-display {
+      position: absolute;
+      left: 50%;
+      bottom: 0;
+      isolation: isolate;
+      display: inline-grid;
+      place-items: center;
+      min-width: 6.4em;
+      margin: 0;
+      padding: .22em .38em .16em;
+      overflow: hidden;
+      border: 1px solid rgba(34, 43, 31, .55);
+      border-radius: clamp(7px, .8vw, 13px);
+      color: #252b24;
+      background: linear-gradient(180deg, #aeb49a 0%, #969e82 58%, #858d72 100%);
+      box-shadow:
+        inset 0 2px 5px rgba(255, 255, 255, .2),
+        inset 0 -4px 8px rgba(38, 45, 31, .24),
+        0 5px 14px rgba(0, 0, 0, .28);
+      font-family: "FDV LCD", "Courier New", monospace;
+      font-size: clamp(18px, min(2.6vw, 4vh), 40px);
+      font-weight: 700;
+      line-height: 1;
+      letter-spacing: .04em;
+      white-space: nowrap;
+      transform: translateX(-50%);
+    }
+
+    .server-clock-display::before {
+      content: "88:88:88";
+      position: absolute;
+      z-index: -1;
+      color: rgba(49, 57, 44, .09);
+    }
+
+    .server-clock-display[hidden] { display: none; }
+
     body.resume-sync-pending .phase,
     body.resume-sync-pending .time,
+    body.resume-sync-pending .server-clock-display,
     body.resume-sync-pending .meta,
     body.resume-sync-pending .progress,
     body.resume-sync-pending .schedule {
@@ -1685,9 +1955,14 @@
       border-color: var(--green);
       box-shadow: 0 0 0 1px rgba(45, 209, 139, .48), 0 0 12px rgba(45, 209, 139, .16);
     }
-    .cycle-chip.cycle-break {
+    .cycle-chip.cycle-break,
+    .cycle-chip.cycle-waiting {
       border-color: var(--yellow);
       box-shadow: 0 0 0 1px rgba(255, 200, 87, .48), 0 0 12px rgba(255, 200, 87, .16);
+    }
+    .cycle-chip.cycle-waiting {
+      min-width: 0;
+      padding-inline: 18px;
     }
     .cycle-input {
       width: calc(var(--cycle-digits, 1) * 1ch + var(--cycle-spinner-space, 20px));
@@ -1775,6 +2050,10 @@
       content: "";
       width: calc(var(--cycle-spinner-space) - var(--cycle-item-gap));
       flex: 0 0 calc(var(--cycle-spinner-space) - var(--cycle-item-gap));
+    }
+
+    .chip.cycle-chip.cycle-waiting::before {
+      display: none;
     }
 
     .phase,
@@ -2317,7 +2596,13 @@
       }
 
       body.start-list-visible.fullscreen .start-list-panel,
-      body.start-list-visible.viewer-mode .start-list-panel,
+      body.start-list-visible.viewer-mode .start-list-panel {
+        min-height: 0;
+        height: 100%;
+        overflow-x: hidden;
+        overflow-y: auto;
+      }
+
       body.start-list-visible.fullscreen .start-list-layout,
       body.start-list-visible.viewer-mode .start-list-layout,
       body.start-list-visible.fullscreen .start-list-column,
@@ -2325,15 +2610,15 @@
       body.start-list-visible.fullscreen .start-list-slot,
       body.start-list-visible.viewer-mode .start-list-slot {
         min-height: 0;
-        height: 100%;
-        overflow: hidden;
+        height: auto;
+        overflow: visible;
       }
 
       body.start-list-visible.fullscreen .start-list-column,
       body.start-list-visible.viewer-mode .start-list-column,
       body.start-list-visible.fullscreen .start-list-slot,
       body.start-list-visible.viewer-mode .start-list-slot {
-        flex: 1 1 0 !important;
+        flex: 0 0 auto !important;
       }
 
       body.start-list-visible.fullscreen .start-list-scroll,
@@ -2341,6 +2626,38 @@
         min-height: 0;
         max-height: none;
         flex: 1 1 auto;
+      }
+
+      body.start-list-visible.fullscreen .start-list-layout,
+      body.start-list-visible.viewer-mode .start-list-layout {
+        min-height: 100%;
+      }
+
+      body.start-list-visible.fullscreen .start-list-column,
+      body.start-list-visible.viewer-mode .start-list-column {
+        min-height: 100%;
+        height: 100%;
+      }
+
+      body.start-list-visible.fullscreen .start-list-slot,
+      body.start-list-visible.viewer-mode .start-list-slot {
+        min-height: 220px;
+        flex: 1 1 var(--start-list-mobile-slot-height, 220px) !important;
+        overflow: hidden;
+      }
+
+      body.start-list-visible.fullscreen .start-list-table,
+      body.start-list-visible.viewer-mode .start-list-table {
+        width: 100%;
+        table-layout: auto;
+      }
+
+      body.start-list-visible.fullscreen .start-list-table th:not(.route-cell),
+      body.start-list-visible.fullscreen .start-list-table td:not(.route-cell),
+      body.start-list-visible.viewer-mode .start-list-table th:not(.route-cell),
+      body.start-list-visible.viewer-mode .start-list-table td:not(.route-cell) {
+        overflow: hidden;
+        text-overflow: ellipsis;
       }
     }
 
@@ -2469,7 +2786,7 @@
           <span id="primaryPinStatus" aria-live="polite"></span>
         </div>
         <label id="startListToggleRow" class="switch-row">
-          <span id="startListToggleLabel">Стартовый протокол</span>
+          <span id="startListToggleLabel">Стартовые списки</span>
           <input id="startListToggle" type="checkbox">
         </label>
         <label class="switch-row">
@@ -2514,8 +2831,11 @@
         <div class="connections">
           <div class="connections-heading">
             <h2 id="browsersTitle" class="connections-title">Браузеры</h2>
-            <button class="section-toggle" type="button" data-section-toggle aria-controls="browserList" aria-expanded="true" aria-label="Скрыть" title="Скрыть"></button>
+            <div class="connections-heading-actions">
+              <button class="section-toggle" type="button" data-section-toggle aria-controls="browserList" aria-expanded="true" aria-label="Скрыть" title="Скрыть"></button>
+            </div>
           </div>
+          <button id="browserNumbersToggle" class="browser-numbers-toggle" type="button" aria-pressed="false" aria-label="Показать номера браузеров" title="Показать номера браузеров" hidden>№</button>
           <div id="browserList" class="browser-list"></div>
         </div>
       </section>
@@ -2534,6 +2854,7 @@
 
       <div class="stage-main">
         <div class="timer-column">
+          <div id="browserNumberBadge" class="browser-number-badge" aria-hidden="true" hidden></div>
           <div class="timer-wrap">
             <div id="phase" class="phase ready">Готовность</div>
             <div id="time" class="time" aria-label="04:00">
@@ -2541,6 +2862,7 @@
               <span class="time-separator">:</span>
               <span id="timeSeconds" class="time-part">00</span>
             </div>
+            <div id="serverClockDisplay" class="server-clock-display" aria-label="Время сервера" hidden>00:00:00</div>
             <div class="meta" aria-live="polite">
               <div id="cycleMeta" class="meta-item">Цикл 1</div>
               <div id="rotationMeta" class="meta-item">Ротация 04:00</div>
@@ -2604,6 +2926,11 @@
       primaryPinSet: false,
       ownPrimaryPinSaved: false,
       ownPrimaryPinValue: "",
+      showBrowserNumbers: false,
+      browserDisplayNumber: 0,
+      showServerTime: false,
+      serverTimezoneOffsetMinutes: new Date().getTimezoneOffset(),
+      clockDiagnostics: null,
       startLists: [null],
       startListParallel: false,
       startListEnabled: false,
@@ -2613,7 +2940,7 @@
       timeline: []
     };
 
-    const pageBuildNumber = 356;
+    const pageBuildNumber = 389;
     const projectUrl = "https://github.com/dfedorov-arch/fdv-bouldering-timer";
     const buildLinkConfirmDelayMs = 550;
     const offlineSnapshotKey = "fdvBoulderingTimerOfflineSnapshot";
@@ -2640,7 +2967,7 @@
         parameters: "Параметры", rotationMinutes: "Время ротации",
         roundMinutes: "Время раунда", breakSeconds: "Перерыв",
         finalRoundFormat: "Формат раунда",
-        finalRoundFormatHint: "Выбор имеет смысл, если вы загружаете стартовый протокол",
+        finalRoundFormatHint: "Выбор имеет смысл, если вы загружаете стартовый список",
         finalOld: "Старый",
         finalOldHint: "Все участники последовательно лезут каждую трассу",
         finalNew: "Новый",
@@ -2653,8 +2980,9 @@
         festivalAnnouncementsHint: "Объявления за 60, 30, 10 и 5 минут",
         primarySound: "Звук в основном браузере", otherSound: "Звук в других браузерах",
         otherFullscreen: "Полный экран в других браузерах", flashing: "Мигание",
-        startList: "Стартовый список", startListToggle: "Стартовый протокол", addStartList: "Добавить протокол", loadStartList: "Загрузить протокол", loadStartListNumber: "Загрузить протокол {number}", loadStartListCompact: "Загрузить…", startListRoutes: "Трасс",
-        startListMoveRight: "Расположить второй протокол справа", startListMoveLeft: "Вернуть второй протокол вниз",
+        startList: "Стартовый список", startListToggle: "Стартовые списки", addStartList: "Добавить список", loadStartList: "Загрузить список", loadStartListNumber: "Загрузить список {number}", loadStartListCompact: "Загрузить…", startListRoutes: "Трасс",
+        startListMoveRight: "Расположить второй список справа", startListMoveLeft: "Вернуть второй список вниз",
+        screenListsParallel: "Расположить два списка в две колонки", screenListsStacked: "Расположить два списка в одну колонку",
         startListHint: "XLSX, MXL, CSV, TSV или TXT с заголовками в первой строке", clearStartList: "Удалить",
         startListLoaded: "Участников: {rows}; столбцов: {columns}; трасс: {routes}", startListInvalid: "Не удалось прочитать таблицу: нужны заголовки и хотя бы одна строка участника",
         startListCycle: "Цикл {cycle}", startListRoute: "Трасса {route}", startListRouteMenu: "Меню трассы", cycleNumber: "Номер цикла",
@@ -2667,8 +2995,10 @@
         routeIncidentPausedUntilStop: "Приостановка с цикла {start} завершена остановкой на цикле {stop}",
         routeIncidentNoParticipant: "В выбранном цикле на этой трассе нет участника.",
         routeMarkerReady: "Готовится", routeMarkerActive: "На трассе", routeMarkerDone: "Закончил", routeMarkerPaused: "Техническая пауза", routeMarkerStopped: "Трасса остановлена",
-        startListExcludeParticipant: "Исключить участника из протокола?", startListRestoreParticipant: "Вернуть участника в протокол?",
+        startListExcludeParticipant: "Исключить участника из списка?", startListRestoreParticipant: "Вернуть участника в список?",
         controls: "Управление", start: "Старт", pause: "Пауза", reset: "Стоп", sectionHide: "Скрыть", sectionShow: "Показать",
+        showBrowserNumbers: "Показать номера браузеров", hideBrowserNumbers: "Скрыть номера браузеров", serverTime: "Время сервера",
+        pinBrowser: "Закрепить место браузера", unpinBrowser: "Открепить место браузера", moveBrowserUp: "Переместить браузер выше", moveBrowserDown: "Переместить браузер ниже",
         presetLockedHint: "Чтобы выбрать другой формат, сначала остановите таймер кнопкой «Стоп»",
         finalPresetLockedHint: 'Чтобы выбрать другой формат, сначала остановите таймер кнопкой "Стоп" и перейдите на Цикл 1',
         screen: "Экран", exitScreen: "Выйти из режима Экран", browsers: "Браузеры", ready: "Готов", readiness: "Готовность",
@@ -2733,7 +3063,7 @@
         parameters: "Parameters", rotationMinutes: "Rotation time",
         roundMinutes: "Round time", breakSeconds: "Break",
         finalRoundFormat: "Round format",
-        finalRoundFormatHint: "This choice matters when a start protocol is loaded",
+        finalRoundFormatHint: "This choice matters when a start list is loaded",
         finalOld: "Old",
         finalOldHint: "All participants climb each route sequentially",
         finalNew: "New",
@@ -2746,8 +3076,9 @@
         festivalAnnouncementsHint: "Announcements at 60, 30, 10 and 5 minutes remaining",
         primarySound: "Sound in primary browser", otherSound: "Sound in other browsers",
         otherFullscreen: "Fullscreen in other browsers", flashing: "Flashing",
-        startList: "Start list", startListToggle: "Start protocol", addStartList: "Add protocol", loadStartList: "Upload protocol", loadStartListNumber: "Upload protocol {number}", loadStartListCompact: "Upload…", startListRoutes: "Routes",
-        startListMoveRight: "Place the second protocol on the right", startListMoveLeft: "Move the second protocol back below",
+        startList: "Start list", startListToggle: "Start lists", addStartList: "Add list", loadStartList: "Upload list", loadStartListNumber: "Upload list {number}", loadStartListCompact: "Upload…", startListRoutes: "Routes",
+        startListMoveRight: "Place the second list on the right", startListMoveLeft: "Move the second list back below",
+        screenListsParallel: "Place the two lists in two columns", screenListsStacked: "Place the two lists in one column",
         startListHint: "XLSX, MXL, CSV, TSV or TXT with headers in the first row", clearStartList: "Remove",
         startListLoaded: "Participants: {rows}; columns: {columns}; routes: {routes}", startListInvalid: "Could not read the table: headers and at least one participant row are required",
         startListCycle: "Cycle {cycle}", startListRoute: "Route {route}", startListRouteMenu: "Route menu", cycleNumber: "Cycle number",
@@ -2760,8 +3091,10 @@
         routeIncidentPausedUntilStop: "Pause from cycle {start} ended with a stop at cycle {stop}",
         routeIncidentNoParticipant: "There is no participant on this route in the selected cycle.",
         routeMarkerReady: "Preparing", routeMarkerActive: "On route", routeMarkerDone: "Finished", routeMarkerPaused: "Technical pause", routeMarkerStopped: "Route stopped",
-        startListExcludeParticipant: "Exclude participant from the protocol?", startListRestoreParticipant: "Return participant to the protocol?",
+        startListExcludeParticipant: "Exclude participant from the list?", startListRestoreParticipant: "Return participant to the list?",
         controls: "Controls", start: "Start", pause: "Pause", reset: "Stop", sectionHide: "Hide", sectionShow: "Show",
+        showBrowserNumbers: "Show browser numbers", hideBrowserNumbers: "Hide browser numbers", serverTime: "Server time",
+        pinBrowser: "Pin browser position", unpinBrowser: "Unpin browser position", moveBrowserUp: "Move browser up", moveBrowserDown: "Move browser down",
         presetLockedHint: "To select another format, first stop the timer with the Stop button",
         finalPresetLockedHint: "To select another format, stop the timer with Stop and return to Cycle 1",
         screen: "Screen", exitScreen: "Exit screen mode", browsers: "Browsers", ready: "Ready", readiness: "Ready",
@@ -2854,9 +3187,13 @@
       controlsTitle: document.getElementById("controlsTitle"),
       controlsContent: document.getElementById("controlsContent"),
       browsersTitle: document.getElementById("browsersTitle"),
+      browserNumbersToggle: document.getElementById("browserNumbersToggle"),
+      browserNumberBadge: document.getElementById("browserNumberBadge"),
+      serverClockDisplay: document.getElementById("serverClockDisplay"),
       helpLink: document.getElementById("helpLink"),
       exitFullscreenBtn: document.getElementById("exitFullscreenBtn"),
       stage: document.querySelector(".stage"),
+      stageMain: document.querySelector(".stage-main"),
       buildInfo: document.getElementById("buildInfo"),
       buildSeparator: document.getElementById("buildSeparator"),
       buildProjectHint: document.getElementById("buildProjectHint"),
@@ -3075,19 +3412,49 @@
       });
     }
 
-    function recordPerformanceAudioNodeTarget(item) {
-      if (performanceDiagnosticsLevel < 2 || !item?.signalKey || !item?.targetDetails) return;
+    function sampleAudioNodeTiming(item) {
+      if (!item?.signalKey || !item?.targetDetails || !audioContext) return null;
+      const callbackServerTimeMs = serverNow();
+      const targetServerTimeMs = Number(item.targetDetails.targetServerTimeMs);
+      const scheduledAudioContextTimeMs = Number(item.start) * 1000;
+      const observedAudioContextTimeMs = Number(audioContext.currentTime) * 1000;
+      const callbackLatenessMs = callbackServerTimeMs - targetServerTimeMs;
+      const expectedAudioContextTimeMs = scheduledAudioContextTimeMs + callbackLatenessMs;
+      const audioContextProgressErrorMs = Number.isFinite(observedAudioContextTimeMs)
+        && Number.isFinite(expectedAudioContextTimeMs)
+        ? observedAudioContextTimeMs - expectedAudioContextTimeMs
+        : null;
+      if (Number.isFinite(audioContextProgressErrorMs)) {
+        lastAudioTimingErrorMs = Number(audioContextProgressErrorMs.toFixed(3));
+        lastAudioTimingAt = Date.now();
+        lastAudioTimingKind = String(item.kind || "");
+      }
+      return {
+        callbackServerTimeMs,
+        targetServerTimeMs,
+        scheduledAudioContextTimeMs,
+        observedAudioContextTimeMs,
+        callbackLatenessMs,
+        expectedAudioContextTimeMs,
+        audioContextProgressErrorMs
+      };
+    }
+
+    function recordPerformanceAudioNodeTarget(item, timingSample) {
+      if (performanceDiagnosticsLevel < 2 || !item?.signalKey || !item?.targetDetails || !timingSample) return;
       if (!shouldLogPerformanceAudioSchedule({
         stage: "node-target-check",
         kind: item.kind,
         signalKey: item.signalKey
       })) return;
-      const callbackServerTimeMs = serverNow();
-      const targetServerTimeMs = Number(item.targetDetails.targetServerTimeMs);
-      const scheduledAudioContextTimeMs = Number(item.start) * 1000;
-      const observedAudioContextTimeMs = Number(audioContext?.currentTime) * 1000;
-      const callbackLatenessMs = callbackServerTimeMs - targetServerTimeMs;
-      const expectedAudioContextTimeMs = scheduledAudioContextTimeMs + callbackLatenessMs;
+      const {
+        callbackServerTimeMs,
+        targetServerTimeMs,
+        scheduledAudioContextTimeMs,
+        observedAudioContextTimeMs,
+        callbackLatenessMs,
+        audioContextProgressErrorMs
+      } = timingSample;
       recordPerformanceAudioClock("node-target-check", {
         kind: item.kind || "",
         signalKey: item.signalKey,
@@ -3100,8 +3467,8 @@
           : null,
         callbackServerTimeMs: Number(callbackServerTimeMs.toFixed(3)),
         callbackLatenessMs: Number.isFinite(callbackLatenessMs) ? Number(callbackLatenessMs.toFixed(3)) : null,
-        audioContextProgressErrorMs: Number.isFinite(observedAudioContextTimeMs) && Number.isFinite(expectedAudioContextTimeMs)
-          ? Number((observedAudioContextTimeMs - expectedAudioContextTimeMs).toFixed(3))
+        audioContextProgressErrorMs: Number.isFinite(audioContextProgressErrorMs)
+          ? Number(audioContextProgressErrorMs.toFixed(3))
           : null
       });
     }
@@ -3625,6 +3992,7 @@
     let startListWidthFitForceRequested = false;
     let startListWidthFitPass = 0;
     let startListWidthFitPreviousLayoutKey = "";
+    let startListHorizontalDensity = 0;
     let startListRenderFrame = 0;
     let startListRenderTimer = 0;
     let startListRenderQueued = false;
@@ -3636,6 +4004,9 @@
     let startupConfigApplied = false;
     let audioUnlocked = false;
     let audioUserOffsetMs = 0;
+    let lastAudioTimingErrorMs = null;
+    let lastAudioTimingAt = 0;
+    let lastAudioTimingKind = "";
     let eventSource = null;
     let eventSourceConnected = false;
     let eventStreamGeneration = 0;
@@ -3692,6 +4063,10 @@
     let lastTimerFitContainerHeight = 0;
     let displayBoundaryTimer = null;
     let displayBoundaryTargetServerTime = 0;
+    let lastRenderDelayMs = null;
+    let lastRenderDelayAt = 0;
+    let serverClockDisplayTimer = null;
+    let serverClockDisplayWasVisible = false;
     let serverAvailable = true;
     let standaloneMode = false;
     let offlineReloadMode = window.__FDV_SW_OFFLINE_FALLBACK === true;
@@ -4089,6 +4464,10 @@
           festivalAnnouncements: state.festivalAnnouncements,
           primaryClientId: state.primaryClientId,
           primaryPinSet: state.primaryPinSet,
+          showBrowserNumbers: state.showBrowserNumbers,
+          browserDisplayNumber: state.browserDisplayNumber,
+          showServerTime: state.showServerTime,
+          serverTimezoneOffsetMinutes: state.serverTimezoneOffsetMinutes,
           startListParallel: state.startListParallel,
           startListEnabled: state.startListEnabled,
           startListVisible: state.startListVisible,
@@ -4178,6 +4557,10 @@
             festivalAnnouncements: state.festivalAnnouncements,
             primaryClientId: state.primaryClientId,
             primaryPinSet: state.primaryPinSet,
+            showBrowserNumbers: state.showBrowserNumbers,
+            browserDisplayNumber: state.browserDisplayNumber,
+            showServerTime: state.showServerTime,
+            serverTimezoneOffsetMinutes: state.serverTimezoneOffsetMinutes,
             startLists: state.startLists,
             startListParallel: state.startListParallel,
             startListEnabled: state.startListEnabled,
@@ -4259,6 +4642,10 @@
           festivalAnnouncements: snapshot.state.festivalAnnouncements !== false,
           primaryClientId: restoredPrimaryClientId,
           primaryPinSet: Boolean(snapshot.state.primaryPinSet),
+          showBrowserNumbers: Boolean(snapshot.state.showBrowserNumbers),
+          browserDisplayNumber: Math.max(0, Math.round(Number(snapshot.state.browserDisplayNumber) || 0)),
+          showServerTime: Boolean(snapshot.state.showServerTime),
+          serverTimezoneOffsetMinutes: Number(snapshot.state.serverTimezoneOffsetMinutes || 0),
           startLists: restoredStartLists,
           startListParallel: Boolean(snapshot.state.startListParallel)
             && restoredStartLists.length === 2,
@@ -4308,6 +4695,7 @@
         els.flashToggle.checked = state.flashing;
         els.festivalAnnouncementsToggle.checked = state.festivalAnnouncements;
         setServerAvailable(false);
+        syncServerClockDisplay();
         revealControlsIfAllowed();
         if (standaloneMode) {
           rescheduleStandaloneSignals();
@@ -4374,7 +4762,14 @@
 
       const isLargeScreenMode = document.fullscreenElement || document.body.classList.contains("viewer-mode");
       const maxWidth = Math.max(60, rect.width * (isLargeScreenMode ? 0.99 : 0.985));
-      const maxHeight = Math.max(60, rect.height * (isLargeScreenMode ? 0.98 : 0.96));
+      const serverClockRect = state.showServerTime && !els.serverClockDisplay.hidden
+        ? els.serverClockDisplay.getBoundingClientRect()
+        : { height: 0 };
+      const serverClockMargin = state.showServerTime && !els.serverClockDisplay.hidden
+        ? parseFloat(window.getComputedStyle(els.serverClockDisplay).marginTop) || 0
+        : 0;
+      const maxHeight = Math.max(60,
+        rect.height * (isLargeScreenMode ? 0.98 : 0.96) - serverClockRect.height - serverClockMargin);
       const currentSize = Math.max(48, parseFloat(window.getComputedStyle(els.time).fontSize) || 220);
       const timeRect = els.time.getBoundingClientRect();
       if (timeRect.width < 1 || timeRect.height < 1) return;
@@ -4954,6 +5349,7 @@
       const finiteOrBlank = (value) => Number.isFinite(Number(value)) ? value : "";
       return {
         clientId,
+        clientBuild: pageBuildNumber,
         legacy: false,
         latency: syncQuality.latency ?? "",
         offset: syncQuality.offset ?? "",
@@ -4969,6 +5365,8 @@
         syncRateResidualMinMax: finiteOrBlank(syncQuality.rateResidualMinMax),
         syncRateHalfDiffPpm: finiteOrBlank(syncQuality.rateHalfDiffPpm),
         syncRateOutlierShare: finiteOrBlank(syncQuality.rateOutlierShare),
+        renderDelay: Number.isFinite(lastRenderDelayMs) ? lastRenderDelayMs : "",
+        renderDelayAge: lastRenderDelayAt > 0 ? Math.max(0, performance.now() - lastRenderDelayAt) : "",
         visibility: document.visibilityState,
         viewport: `${window.innerWidth}x${window.innerHeight}`,
         screen: `${window.screen.width}x${window.screen.height}`,
@@ -4977,6 +5375,9 @@
         soundAllowed: canPlaySound(),
         audioBaseLatency: Number.isFinite(audioBaseLatency) ? audioBaseLatency * 1000 : "",
         audioOutputLatency: Number.isFinite(audioOutputLatency) ? audioOutputLatency * 1000 : "",
+        audioTimingError: Number.isFinite(lastAudioTimingErrorMs) ? lastAudioTimingErrorMs : "",
+        audioTimingAge: lastAudioTimingAt > 0 ? Math.max(0, Date.now() - lastAudioTimingAt) : "",
+        audioTimingKind: lastAudioTimingKind,
         wakeLockSupported: Boolean(navigator.wakeLock?.request),
         wakeLockActive: Boolean(screenWakeLock),
         eventSourceSupported: Boolean(window.EventSource),
@@ -5116,6 +5517,63 @@
       button.textContent = "";
     }
 
+    function syncBrowserNumberDisplay() {
+      const enabled = Boolean(state.showBrowserNumbers);
+      const displayNumber = Math.max(0, Math.round(Number(state.browserDisplayNumber) || 0));
+      const label = t(enabled ? "hideBrowserNumbers" : "showBrowserNumbers");
+      els.browserNumbersToggle.classList.toggle("active", enabled);
+      els.browserNumbersToggle.setAttribute("aria-pressed", String(enabled));
+      els.browserNumbersToggle.setAttribute("aria-label", label);
+      els.browserNumbersToggle.title = label;
+      els.browserNumberBadge.textContent = displayNumber > 0 ? String(displayNumber) : "";
+      els.browserNumberBadge.hidden = !enabled || displayNumber < 1;
+    }
+
+    function formatServerClockTime(timestamp) {
+      const timezoneOffset = Number.isFinite(Number(state.serverTimezoneOffsetMinutes))
+        ? Number(state.serverTimezoneOffsetMinutes)
+        : new Date().getTimezoneOffset();
+      const shifted = new Date(Number(timestamp) - timezoneOffset * 60_000);
+      return [shifted.getUTCHours(), shifted.getUTCMinutes(), shifted.getUTCSeconds()]
+        .map((part) => String(part).padStart(2, "0"))
+        .join(":");
+    }
+
+    function syncServerClockDisplay() {
+      if (serverClockDisplayTimer) window.clearTimeout(serverClockDisplayTimer);
+      serverClockDisplayTimer = null;
+      const visible = Boolean(state.showServerTime);
+      els.serverClockDisplay.hidden = !visible;
+      document.body.classList.toggle("server-clock-visible", visible);
+      if (visible !== serverClockDisplayWasVisible) {
+        serverClockDisplayWasVisible = visible;
+        scheduleFitTimer();
+      }
+      if (!visible) return;
+      const clockHeight = els.serverClockDisplay.getBoundingClientRect().height;
+      let clockBottomValue = clockHeight;
+      if (isViewerClient) {
+        const timerWrapRect = els.serverClockDisplay.closest(".timer-wrap")?.getBoundingClientRect();
+        const timerColumnRect = els.serverClockDisplay.closest(".timer-column")?.getBoundingClientRect();
+        if (timerWrapRect && timerColumnRect) {
+          clockBottomValue -= Math.max(0, timerColumnRect.bottom - timerWrapRect.bottom);
+        }
+      }
+      const clockBottom = `${Math.ceil(clockBottomValue)}px`;
+      if (els.serverClockDisplay.style.bottom !== clockBottom) {
+        els.serverClockDisplay.style.bottom = clockBottom;
+      }
+      const currentServerTime = serverNow();
+      const label = formatServerClockTime(currentServerTime);
+      setElementText(els.serverClockDisplay, label);
+      els.serverClockDisplay.setAttribute("aria-label", `${t("serverTime")} ${label}`);
+      if (document.hidden) return;
+      const clockRate = Math.max(0.01, serverClockRate);
+      const nextSecond = Math.floor(currentServerTime / 1000) * 1000 + 1000;
+      const delay = Math.max(20, (nextSecond - currentServerTime) / clockRate + 25);
+      serverClockDisplayTimer = window.setTimeout(syncServerClockDisplay, delay);
+    }
+
     function toggleControlSection(button) {
       const content = document.getElementById(button.getAttribute("aria-controls"));
       if (!content) return;
@@ -5205,6 +5663,8 @@
       els.flashLabel.textContent = t("flashing");
       els.controlsTitle.textContent = t("controls");
       els.browsersTitle.textContent = t("browsers");
+      syncBrowserNumberDisplay();
+      syncServerClockDisplay();
       els.sectionToggles.forEach(updateSectionToggle);
       els.presets.forEach((button) => {
         button.textContent = t(button.dataset.preset);
@@ -5592,6 +6052,29 @@
       return false;
     }
 
+    function preserveActiveScrubPreview(remote) {
+      if (!isScrubbing || !Number.isFinite(pendingSeekElapsed)) return;
+      const remoteCanRemainScrubbed = !remote.running
+        && !remote.completed
+        && !remote.countdownOnly
+        && !remote.waitingForManualStart
+        && Number(remote.elapsedBeforePause || 0) > 0;
+      if (!remoteCanRemainScrubbed) {
+        isScrubbing = false;
+        scrubSegment = null;
+        pendingSeekElapsed = null;
+        return;
+      }
+      state.running = false;
+      state.completed = false;
+      state.countdownOnly = false;
+      state.waitingForManualStart = false;
+      state.manualStartLeadMs = 0;
+      state.manualStartDisplayHold = false;
+      state.serverStartedAt = 0;
+      state.elapsedBeforePause = pendingSeekElapsed;
+    }
+
     function applyServerState(remote, options = {}) {
       performanceCount("serverStateFullApplies");
       const performanceStartedAt = performanceStart();
@@ -5624,8 +6107,9 @@
       state.runtimePreset = Object.prototype.hasOwnProperty.call(remote, "runtimePreset")
         ? remote.runtimePreset || ""
         : state.activeSettings.oneShot ? "final" : state.activePreset || "classic";
+      preserveActiveScrubPreview(remote);
       applyRemoteStartListPayload(remote);
-      state.startListParallel = Boolean(remote.startListParallel) && state.startLists.length === 2;
+      state.startListParallel = Boolean(remote.startListParallel);
       state.startListEnabled = Boolean(remote.startListEnabled);
       state.startListIndexes = Array.isArray(remote.startListIndexes)
         ? [...new Set(remote.startListIndexes.map(Number).filter((index) => Number.isInteger(index) && index >= 0 && index < 4))]
@@ -5637,8 +6121,6 @@
         safeStorageSet("sessionStorage", startListEditorPreferenceKey, startListEditorOpen ? "1" : "0");
       }
       state.startListFinalCycle = Math.max(0, Math.round(Number(remote.startListFinalCycle) || 0));
-      updateStartListControls();
-      updateStartListVisibility();
       state.flashing = remote.flashing !== false;
       const festivalAnnouncementsChanged = (remote.festivalAnnouncements !== false) !== state.festivalAnnouncements;
       state.festivalAnnouncements = remote.festivalAnnouncements !== false;
@@ -5673,12 +6155,25 @@
 
       const primaryClientId = remote.primaryClientId || null;
       const isPrimary = primaryClientId === clientId;
+      const nextIsViewer = Boolean(primaryClientId && !isPrimary);
+      const primaryRoleChanged = isPrimaryClient !== isPrimary || isViewerClient !== nextIsViewer;
       state.primaryClientId = primaryClientId;
       state.primaryPinSet = Boolean(remote.primaryPinSet);
       state.ownPrimaryPinSaved = Boolean(remote.ownPrimaryPinSaved);
       state.ownPrimaryPinValue = String(remote.ownPrimaryPinValue || "");
+      state.showBrowserNumbers = Boolean(remote.showBrowserNumbers);
+      state.browserDisplayNumber = Math.max(0, Math.round(Number(remote.browserDisplayNumber) || 0));
+      state.showServerTime = Boolean(remote.showServerTime);
+      state.serverTimezoneOffsetMinutes = Number.isFinite(Number(remote.serverTimezoneOffsetMinutes))
+        ? Number(remote.serverTimezoneOffsetMinutes)
+        : new Date().getTimezoneOffset();
+      state.clockDiagnostics = remote.clockDiagnostics && typeof remote.clockDiagnostics === "object"
+        ? remote.clockDiagnostics
+        : state.clockDiagnostics;
+      syncBrowserNumberDisplay();
+      syncServerClockDisplay();
       isPrimaryClient = isPrimary;
-      isViewerClient = Boolean(primaryClientId && !isPrimary);
+      isViewerClient = nextIsViewer;
       updatePrimaryComputerFlag(diagnosticsIncluded ? remoteClients : lastKnownClients, primaryClientId);
       instancesSoundEnabled = Boolean(remote.instancesSound);
       instancesFullscreenEnabled = Boolean(remote.instancesFullscreen);
@@ -5692,6 +6187,18 @@
       els.soundToggle.checked = isPrimary ? primarySoundEnabled : globalSoundEnabled;
       document.body.classList.toggle("primary-active", isPrimary);
       document.body.classList.toggle("viewer-mode", isViewerClient);
+      if (primaryRoleChanged) {
+        lastStartListStructureKey = "";
+        lastStartListRenderKey = "";
+        startListWidthFitLastKey = "";
+        startListHorizontalDensity = 0;
+        startListInitialAutoScrollPending = true;
+        lastStartListScrollAnchors = [];
+        pendingStartListScrollRestores = [];
+      }
+      updateStartListControls();
+      updateStartListVisibility();
+      if (primaryRoleChanged) scheduleStartListPanelWidthFit({ settle: true, force: true });
       revealControlsIfAllowed();
       syncDiagnosticsStream();
       applyViewerFullscreenPreference();
@@ -5739,7 +6246,7 @@
       if (diagnosticsIncluded) renderBrowserList(remoteClients);
       render("state-update");
       recordPerformanceServerInstanceChange(remote);
-      saveOfflineSnapshot();
+      if (!isScrubbing) saveOfflineSnapshot();
       } finally {
         performanceEnd("applyServerState", performanceStartedAt);
       }
@@ -5765,8 +6272,9 @@
       state.runtimePreset = Object.prototype.hasOwnProperty.call(remote, "runtimePreset")
         ? remote.runtimePreset || ""
         : state.activeSettings.oneShot ? "final" : state.activePreset || "classic";
+      preserveActiveScrubPreview(remote);
       applyRemoteStartListPayload(remote);
-      state.startListParallel = Boolean(remote.startListParallel) && state.startLists.length === 2;
+      state.startListParallel = Boolean(remote.startListParallel);
       state.startListEnabled = Boolean(remote.startListEnabled);
       state.startListIndexes = Array.isArray(remote.startListIndexes)
         ? [...new Set(remote.startListIndexes.map(Number).filter((index) => Number.isInteger(index) && index >= 0 && index < 4))]
@@ -5778,13 +6286,24 @@
         safeStorageSet("sessionStorage", startListEditorPreferenceKey, startListEditorOpen ? "1" : "0");
       }
       state.startListFinalCycle = Math.max(0, Math.round(Number(remote.startListFinalCycle) || 0));
+      state.showBrowserNumbers = Boolean(remote.showBrowserNumbers);
+      state.browserDisplayNumber = Math.max(0, Math.round(Number(remote.browserDisplayNumber) || 0));
+      state.showServerTime = Boolean(remote.showServerTime);
+      state.serverTimezoneOffsetMinutes = Number.isFinite(Number(remote.serverTimezoneOffsetMinutes))
+        ? Number(remote.serverTimezoneOffsetMinutes)
+        : new Date().getTimezoneOffset();
+      state.clockDiagnostics = remote.clockDiagnostics && typeof remote.clockDiagnostics === "object"
+        ? remote.clockDiagnostics
+        : state.clockDiagnostics;
+      syncBrowserNumberDisplay();
+      syncServerClockDisplay();
       updateStartListControls();
       updateStartListVisibility();
       if (settingsChanged) buildTimeline(state.activeSettings);
       lastRemoteRunning = state.running;
       syncButtons();
       render("state-clock");
-      saveOfflineSnapshot();
+      if (!isScrubbing) saveOfflineSnapshot();
       } finally {
         performanceEnd("applyServerRuntimeClockState", performanceStartedAt);
       }
@@ -6090,6 +6609,13 @@
         try {
           markSseEvent();
           const diagnostics = JSON.parse(event.data);
+          if (Object.prototype.hasOwnProperty.call(diagnostics, "showBrowserNumbers")) {
+            state.showBrowserNumbers = Boolean(diagnostics.showBrowserNumbers);
+            syncBrowserNumberDisplay();
+          }
+          if (diagnostics.clockDiagnostics && typeof diagnostics.clockDiagnostics === "object") {
+            state.clockDiagnostics = diagnostics.clockDiagnostics;
+          }
           if (Array.isArray(diagnostics.clients)) {
             updatePrimaryComputerFlag(diagnostics.clients, diagnostics.primaryClientId || state.primaryClientId || null);
             renderBrowserList(diagnostics.clients);
@@ -6329,12 +6855,13 @@
     function drawSchedule(segment) {
       const cycleNumber = displayedCycleNumber(segment);
       const showCycle = state.runtimePreset === "classic" || state.runtimePreset === "festival" || state.runtimePreset === "final";
+      const waitingForStart = state.waitingForManualStart || isBeforeScheduledStart();
       const editableCycle = cycleInputEditable();
       const hasBreak = state.timeline.some((item) => item.type === "break");
       const scheduleStateKey = [
         language,
         state.runtimePreset,
-        segment?.type || "ready",
+        segment?.type || (waitingForStart ? "waiting" : "ready"),
         cycleNumber,
         showCycle,
         editableCycle,
@@ -6342,6 +6869,11 @@
         state.timeline.map((item) => `${item.type}:${item.duration}`).join("|")
       ].join(":");
       if (scheduleStateKey === lastScheduleStateKey) return;
+      if (showCycle && waitingForStart) {
+        const waitingChip = `<div class="chip cycle-chip cycle-waiting"><span>${t("waitingStart")}</span></div>`;
+        setScheduleMarkup(waitingChip, true, false, scheduleStateKey);
+        return;
+      }
       if (!showCycle) {
         const chips = state.timeline.map((item) => {
           const classes = ["chip"];
@@ -6409,6 +6941,32 @@
       return `${match.name}${match.version ? ` ${match.version}` : ""} ${operatingSystem(userAgent)}`;
     }
 
+    function clientRequiresLegacyInterface(userAgent = "", oldBrowser = false) {
+      if (oldBrowser) return true;
+      const major = (pattern) => {
+        const match = String(userAgent).match(pattern);
+        const value = match ? Number(match[1]) : 0;
+        return Number.isFinite(value) ? value : 0;
+      };
+      const chromeMajor = major(/(?:Chrome|CriOS)\/(\d+)/);
+      const firefoxMajor = major(/Firefox\/(\d+)/);
+      const edgeLegacyMajor = major(/Edge\/(\d+)/);
+      const safariMajor = major(/Version\/(\d+)/);
+      const isChrome = chromeMajor > 0 || /Chrome\//i.test(userAgent) || /CriOS\//i.test(userAgent);
+      const isAndroidBrowser = /Android/i.test(userAgent) && /Version\/\d/i.test(userAgent) && !isChrome;
+      const isOldAndroid = /Android [1-4]\./i.test(userAgent);
+      const isSafari = !isChrome && safariMajor > 0 && /Safari\//i.test(userAgent);
+      return Boolean(
+        (chromeMajor && chromeMajor < 80)
+        || (firefoxMajor && firefoxMajor < 74)
+        || edgeLegacyMajor
+        || (isSafari && safariMajor < 13)
+        || isAndroidBrowser
+        || isOldAndroid
+        || /MSIE |Trident\//i.test(userAgent)
+      );
+    }
+
     function refreshStandaloneBrowserList() {
       if (!standaloneMode || !els.browserList) return;
       const diagnostics = clientDiagnostics();
@@ -6417,6 +6975,8 @@
         id: clientId,
         firstSeen: standaloneClientFirstSeen,
         order: 0,
+        displayNumber: 1,
+        browserPinned: false,
         label: compactUserAgent(navigator.userAgent),
         browser: compactUserAgent(navigator.userAgent).split(" ")[0],
         userAgent: navigator.userAgent,
@@ -6426,6 +6986,7 @@
         connected: true,
         role: t("standaloneTitle"),
         startListVisible: Boolean(state.startListVisible),
+        showServerTime: Boolean(state.showServerTime),
         age: Date.now() - standaloneClientFirstSeen,
         audioUserOffset: audioUserOffsetMs
       }]);
@@ -6439,7 +7000,7 @@
 
     function diagChip(label, status, title, attributes = "") {
       const className = `diag-chip${status && status !== "good" ? ` ${status}` : ""}`;
-      const interactive = /\sdata-(?:audio-client|legacy-mode-client)=/.test(attributes)
+      const interactive = /\sdata-(?:audio-client|legacy-mode-client|server-time-client)=/.test(attributes)
         || /\sdata-start-list-client=/.test(attributes);
       const tagName = interactive ? "button" : "span";
       const type = interactive ? ' type="button"' : "";
@@ -6452,6 +7013,20 @@
       if (number > badLimit) return "bad";
       if (number > warnLimit) return "warn";
       return "good";
+    }
+
+    function renderDelayStatus(value) {
+      const number = Number(value);
+      if (!Number.isFinite(number)) return "neutral";
+      const absoluteDelay = Math.abs(number);
+      if (absoluteDelay > 250) return "bad";
+      if (absoluteDelay >= 100) return "warn";
+      return "good";
+    }
+
+    function worstDiagnosticStatus(...statuses) {
+      const rank = { neutral: 0, good: 1, warn: 2, bad: 3 };
+      return statuses.reduce((worst, status) => (rank[status] || 0) > (rank[worst] || 0) ? status : worst, "neutral");
     }
 
     function browserLink(displayIp, clients) {
@@ -6642,7 +7217,7 @@
           <button class="start-list-add" type="button" data-start-list-add title="${escapeHtml(t("addStartList"))}" aria-label="${escapeHtml(t("addStartList"))}"${state.startLists.length >= 4 ? " disabled" : ""}>+</button>
           ${layoutToggle}
           <label class="start-list-file-button" title="${escapeHtml(formatStartListText("loadStartListNumber", { number: index + 1 }))}">
-            <span>${escapeHtml(t("loadStartListCompact"))}</span>
+            <span>${escapeHtml(formatStartListText("loadStartListNumber", { number: index + 1 }))}</span>
             <input type="file" data-start-list-file accept=".xlsx,.csv,.tsv,.txt,.mxl">
           </label>
           <label class="start-list-route-field">
@@ -6704,34 +7279,19 @@
       return width;
     }
 
-    function intrinsicStartListControlsWidth(controls) {
-      const style = getComputedStyle(controls);
-      const children = [...controls.children].filter((child) => getComputedStyle(child).display !== "none");
-      const horizontalFrame = [style.paddingLeft, style.paddingRight, style.borderLeftWidth, style.borderRightWidth]
-        .reduce((sum, value) => sum + (parseFloat(value) || 0), 0);
-      const gap = parseFloat(style.columnGap) || 0;
-      const childrenWidth = children.reduce((sum, child) => {
-        if (!child.classList.contains("start-list-file-button")) {
-          return sum + Math.ceil(child.getBoundingClientRect().width);
-        }
-        const childStyle = getComputedStyle(child);
-        const labelWidth = child.querySelector("span")?.scrollWidth || 0;
-        const childFrame = [childStyle.paddingLeft, childStyle.paddingRight, childStyle.borderLeftWidth, childStyle.borderRightWidth]
-          .reduce((frame, value) => frame + (parseFloat(value) || 0), 0);
-        return sum + Math.ceil(labelWidth + childFrame);
-      }, 0);
-      return Math.ceil(horizontalFrame + childrenWidth + gap * Math.max(0, children.length - 1));
-    }
-
     function synchronizeStackedStartListTableColumns(column) {
       const tables = [...column.querySelectorAll(".start-list-table")];
-      if (tables.length < 2) return;
       const columnGroups = tables.map((table) => [...table.querySelectorAll("colgroup > col")]);
-      const columnCount = columnGroups[0].length;
-      if (!columnCount || columnGroups.some((group) => group.length !== columnCount)) return;
+      tables.forEach((table) => {
+        table.style.width = "";
+        table.style.tableLayout = "";
+      });
       columnGroups.forEach((group) => group.forEach((tableColumn) => {
         tableColumn.style.width = "";
       }));
+      if (tables.length < 2) return;
+      const columnCount = columnGroups[0].length;
+      if (!columnCount || columnGroups.some((group) => group.length !== columnCount)) return;
       const synchronizedWidths = Array(columnCount).fill(0);
       tables.forEach((table) => {
         [...table.tHead.rows[0].cells].forEach((cell, index) => {
@@ -6743,40 +7303,127 @@
       }));
     }
 
+    function fitMobileStackedStartListTableColumns(column) {
+      const tables = [...column.querySelectorAll(".start-list-table")];
+      const scrolls = [...column.querySelectorAll(".start-list-scroll")];
+      if (!tables.length || !scrolls.length) return;
+      const availableWidth = Math.floor(scrolls.reduce((minimum, scroll) =>
+        Math.min(minimum, scroll.clientWidth), Number.POSITIVE_INFINITY));
+      const columnGroups = tables.map((table) => [...table.querySelectorAll("colgroup > col")]);
+      const columnCount = columnGroups[0].length;
+      if (!availableWidth || !columnCount || columnGroups.some((group) => group.length !== columnCount)) return;
+      tables.forEach((table) => {
+        table.style.width = "max-content";
+        table.style.tableLayout = "auto";
+      });
+      columnGroups.forEach((group) => group.forEach((tableColumn) => {
+        tableColumn.style.width = "";
+      }));
+      const desiredWidths = Array(columnCount).fill(0);
+      let dataColumnCount = columnCount;
+      tables.forEach((table) => {
+        const cells = [...table.tHead.rows[0].cells];
+        const firstRouteIndex = cells.findIndex((cell) => cell.classList.contains("route-cell"));
+        if (firstRouteIndex >= 0) dataColumnCount = Math.min(dataColumnCount, firstRouteIndex);
+        cells.forEach((cell, index) => {
+          desiredWidths[index] = Math.max(desiredWidths[index], cell.getBoundingClientRect().width);
+        });
+      });
+      const fittedWidths = [...desiredWidths];
+      const routeWidth = desiredWidths.slice(dataColumnCount).reduce((sum, width) => sum + width, 0);
+      const dataAvailable = Math.max(1, availableWidth - routeWidth);
+      const narrowIndexes = [];
+      const flexibleIndexes = [];
+      for (let index = 0; index < dataColumnCount; index += 1) {
+        (desiredWidths[index] <= 48 ? narrowIndexes : flexibleIndexes).push(index);
+      }
+      if (!flexibleIndexes.length) flexibleIndexes.push(...narrowIndexes.splice(0));
+      let narrowWidth = narrowIndexes.reduce((sum, index) => sum + desiredWidths[index], 0);
+      if (narrowWidth >= dataAvailable) {
+        const scale = dataAvailable / Math.max(1, narrowWidth);
+        narrowIndexes.forEach((index) => { fittedWidths[index] = desiredWidths[index] * scale; });
+        flexibleIndexes.forEach((index) => { fittedWidths[index] = 1; });
+      } else {
+        const flexibleAvailable = Math.max(1, dataAvailable - narrowWidth);
+        const flexibleWidth = flexibleIndexes.reduce((sum, index) => sum + desiredWidths[index], 0);
+        flexibleIndexes.forEach((index) => {
+          fittedWidths[index] = flexibleAvailable * desiredWidths[index] / Math.max(1, flexibleWidth);
+        });
+      }
+      let fittedTotal = fittedWidths.reduce((sum, width) => sum + width, 0);
+      const adjustmentIndex = flexibleIndexes[flexibleIndexes.length - 1] ?? Math.max(0, dataColumnCount - 1);
+      fittedWidths[adjustmentIndex] += availableWidth - fittedTotal;
+      columnGroups.forEach((group) => group.forEach((tableColumn, index) => {
+        tableColumn.style.width = `${Math.max(1, fittedWidths[index])}px`;
+      }));
+      tables.forEach((table) => {
+        table.style.width = `${availableWidth}px`;
+        table.style.tableLayout = "fixed";
+      });
+    }
+
     function fitStartListPanelWidth() {
       performanceCount("startListWidthFitRuns");
       const performanceStartedAt = performanceStart();
       try {
       const columns = [...els.startListLayout.querySelectorAll(".start-list-column")];
       if (!columns.length) return null;
-      const minimumColumnWidth = 280;
-      const maximumContentWidth = Math.min(window.innerWidth * 0.5, 700);
+      const stageWidth = Math.max(1, els.stageMain?.clientWidth || window.innerWidth);
+      const mobilePortrait = window.matchMedia?.("(max-width: 560px) and (orientation: portrait)")?.matches === true;
+      const mobileScreenMode = mobilePortrait && startListScreenMode();
+      const minimumTimerWidth = mobilePortrait ? 0 : stageWidth <= 900 ? 210 : 240;
+      const stackedColumns = mobilePortrait;
+      const borderWidth = stackedColumns ? 0 : Math.max(0, columns.length - 1);
+      const panelLimit = mobilePortrait
+        ? stageWidth
+        : Math.max(1, Math.min(stageWidth * 0.72, 1400, stageWidth - minimumTimerWidth));
+      const minimumColumnWidth = stackedColumns
+        ? panelLimit
+        : Math.max(160, Math.min(280, Math.floor((panelLimit - borderWidth) / Math.max(1, columns.length))));
+      const maximumContentWidth = Math.min(stageWidth * 0.55, 700);
       const nativeScrollbarWidth = browserScrollbarWidth();
       const scrollbarRoundingAllowance = 2;
-      const measurements = columns.map((column) => {
-        synchronizeStackedStartListTableColumns(column);
-        const tables = [...column.querySelectorAll(".start-list-table")];
-        const tableWidth = tables.reduce((maximum, table) =>
-          Math.max(maximum, intrinsicStartListTableWidth(table)), 0);
-        const controlsWidth = [...column.querySelectorAll(".start-list-panel-controls")]
-          .reduce((maximum, controls) => Math.max(maximum, intrinsicStartListControlsWidth(controls)), 0);
-        const scrollbars = [...column.querySelectorAll(".start-list-scroll")];
-        const scrollbarAllowance = scrollbars.reduce((maximum, scroll) =>
-          Math.max(maximum, scroll.offsetWidth - scroll.clientWidth), nativeScrollbarWidth)
-          + scrollbarRoundingAllowance;
-        const measuredContentWidth = Math.max(tableWidth + scrollbarAllowance, controlsWidth);
-        const contentWidth = Math.min(maximumContentWidth + scrollbarAllowance, measuredContentWidth);
-        return {
-          scrollbarAllowance,
-          width: measuredContentWidth ? Math.max(minimumColumnWidth, contentWidth) : minimumColumnWidth
-        };
-      });
+      const verticalDensity = minimumStartListVerticalDensity();
+      const previousDensity = currentStartListDensity();
+      const maximumDensity = mobileScreenMode ? 2 : 3;
+      let density = Math.min(verticalDensity, maximumDensity);
+      let measurements;
+      let intrinsicTableTotal;
+      do {
+        setStartListDensity(density);
+        measurements = columns.map((column) => {
+          synchronizeStackedStartListTableColumns(column);
+          const tables = [...column.querySelectorAll(".start-list-table")];
+          const tableWidth = tables.reduce((maximum, table) =>
+            Math.max(maximum, intrinsicStartListTableWidth(table)), 0);
+          const scrollbars = [...column.querySelectorAll(".start-list-scroll")];
+          const scrollbarAllowance = scrollbars.reduce((maximum, scroll) =>
+            Math.max(maximum, scroll.offsetWidth - scroll.clientWidth), nativeScrollbarWidth)
+            + scrollbarRoundingAllowance;
+          const tableContentWidth = tableWidth + scrollbarAllowance;
+          const contentWidth = Math.min(maximumContentWidth + scrollbarAllowance, tableContentWidth);
+          return {
+            scrollbarAllowance,
+            tableContentWidth,
+            width: tableContentWidth ? Math.max(minimumColumnWidth, contentWidth) : minimumColumnWidth
+          };
+        });
+        intrinsicTableTotal = stackedColumns
+          ? measurements.reduce((maximum, measurement) =>
+            Math.max(maximum, measurement.tableContentWidth), 0)
+          : measurements.reduce((sum, measurement) =>
+            sum + Math.max(minimumColumnWidth, measurement.tableContentWidth), borderWidth);
+        if (intrinsicTableTotal <= panelLimit || density >= maximumDensity) break;
+        density += 1;
+      } while (density <= 3);
+      startListHorizontalDensity = density;
       let widths = measurements.map((measurement) => measurement.width);
-      const scrollbarAllowance = measurements.reduce((sum, measurement) => sum + measurement.scrollbarAllowance, 0);
-      const panelLimit = Math.max(minimumColumnWidth, Math.min(window.innerWidth * 0.72, 1400) + scrollbarAllowance);
-      const borderWidth = Math.max(0, columns.length - 1);
-      const desiredWidth = widths.reduce((sum, width) => sum + width, borderWidth);
-      if (desiredWidth > panelLimit && columns.length > 1) {
+      const desiredWidth = stackedColumns
+        ? widths.reduce((maximum, width) => Math.max(maximum, width), 0)
+        : widths.reduce((sum, width) => sum + width, borderWidth);
+      if (stackedColumns) {
+        widths = widths.map(() => panelLimit);
+      } else if (desiredWidth > panelLimit) {
         const distributable = Math.max(0, panelLimit - borderWidth - minimumColumnWidth * columns.length);
         const extraWeights = widths.map((width) => Math.max(0, width - minimumColumnWidth));
         const extraWeightTotal = extraWeights.reduce((sum, width) => sum + width, 0);
@@ -6789,6 +7436,7 @@
       });
       els.startListPanel.style.maxWidth = `${panelLimit}px`;
       els.startListPanel.style.width = `${Math.min(panelLimit, widths.reduce((sum, width) => sum + width, borderWidth))}px`;
+      if (mobileScreenMode) columns.forEach((column) => fitMobileStackedStartListTableColumns(column));
       const scrolls = [...els.startListLayout.querySelectorAll(".start-list-scroll")];
       const overflow = scrolls.reduce((maximum, scroll) =>
         Math.max(maximum, scroll.scrollWidth - scroll.clientWidth), 0);
@@ -6798,10 +7446,11 @@
       });
       const layoutKey = [
         Math.round(els.startListPanel.getBoundingClientRect().width),
+        density,
         ...columns.map((column) => Math.round(column.getBoundingClientRect().width)),
         ...scrollGeometry
       ].join(":");
-      return { overflow, layoutKey };
+      return { overflow, layoutKey, densityChanged: density !== previousDensity };
       } finally {
         performanceEnd("fitStartListPanelWidth", performanceStartedAt);
       }
@@ -6814,6 +7463,7 @@
         window.innerHeight,
         Math.round(viewport?.width || 0),
         Math.round(viewport?.height || 0),
+        Math.round(els.stageMain?.clientWidth || 0),
         lastStartListStructureKey,
         startListDataRevision,
         currentStartListDensity(),
@@ -6868,11 +7518,13 @@
           return;
         }
         startListWidthFitPass += 1;
-        startListWidthFitLastKey = currentKey;
+        startListWidthFitLastKey = startListWidthFitInputKey();
         const layoutChanged = Boolean(startListWidthFitPreviousLayoutKey
           && result.layoutKey !== startListWidthFitPreviousLayoutKey);
         const needsConfirmationPass = startListWidthFitSettleRequested && startListWidthFitPass === 1;
         startListWidthFitPreviousLayoutKey = result.layoutKey;
+        if (result.densityChanged) reanchorStartListScrolls(true);
+        if (result.densityChanged || layoutChanged) scheduleFitTimer();
         if (startListWidthFitSettleRequested
           && startListWidthFitPass < 3
           && (needsConfirmationPass || layoutChanged)) {
@@ -6890,6 +7542,18 @@
       if (document.body.classList.contains("start-list-dense")) return 2;
       if (document.body.classList.contains("start-list-compact")) return 1;
       return 0;
+    }
+
+    function setStartListDensity(density) {
+      document.body.classList.toggle("start-list-compact", density >= 1);
+      document.body.classList.toggle("start-list-dense", density >= 2);
+      document.body.classList.toggle("start-list-ultra-dense", density >= 3);
+    }
+
+    function startListScreenMode() {
+      return document.body.classList.contains("viewer-mode")
+        || document.body.classList.contains("fullscreen")
+        || Boolean(document.fullscreenElement);
     }
 
     function startListRowCapacity(scroll, density, currentDensity) {
@@ -6920,13 +7584,15 @@
     }
 
     function applyStartListVerticalDensity() {
-      const density = document.body.classList.contains("start-list-visible")
-        ? minimumStartListVerticalDensity()
+      let density = document.body.classList.contains("start-list-visible")
+        ? Math.max(minimumStartListVerticalDensity(), startListHorizontalDensity)
         : 0;
+      if (window.matchMedia?.("(max-width: 560px) and (orientation: portrait)")?.matches === true
+        && startListScreenMode()) {
+        density = Math.min(2, density);
+      }
       const previous = currentStartListDensity();
-      document.body.classList.toggle("start-list-compact", density >= 1);
-      document.body.classList.toggle("start-list-dense", density >= 2);
-      document.body.classList.toggle("start-list-ultra-dense", density >= 3);
+      setStartListDensity(density);
       return density !== previous;
     }
 
@@ -7069,9 +7735,7 @@
     }
 
     function formatRoutePauseState(incident, cycle) {
-      const activeInDisplayedCycle = cycle >= incident.startCycle
-        && (incident.resumeCycle === null || incident.resumeCycle === undefined || cycle < incident.resumeCycle);
-      if (activeInDisplayedCycle || incident.resumeCycle === null || incident.resumeCycle === undefined) {
+      if (incident.resumeCycle === null || incident.resumeCycle === undefined) {
         return formatStartListText("routeIncidentPausedFrom", { cycle: incident.startCycle });
       }
       if (incident.resolution === "stop") {
@@ -7098,6 +7762,11 @@
           <button class="start-list-incident-action stop" type="button" data-start-list-incident-action="stop" title="${escapeHtml(t("routeIncidentStop"))}" aria-label="${escapeHtml(t("routeIncidentStop"))}"></button>`;
     }
 
+    function startListIncidentActionState(activePause, stop) {
+      if (stop) return "stopped";
+      return activePause ? "resume" : "pause";
+    }
+
     function renderStartListIncidentMenu(slot, list, listIndex, position, errorText = "") {
       const menu = slot?.querySelector("[data-start-list-incident-menu]");
       if (!menu) return;
@@ -7115,11 +7784,17 @@
       slot.dataset.startListIncidentRoute = String(routeIndex);
       const incidents = list.incidents || [];
       const cycleValue = defaultRouteIncidentCycle(position);
-      const activePause = window.FDVStartList.activePauseForRoute(routeIndex, incidents, cycleValue);
+      const activePause = window.FDVStartList.editablePauseForRoute(
+        routeIndex,
+        incidents,
+        cycleValue,
+        position.cycle
+      );
       const stop = window.FDVStartList.stopForRoute(routeIndex, incidents);
       const routePauses = incidents.filter((incident) => incident.kind === "pause" && incident.route === routeIndex + 1);
       const cycleHint = activePause ? t("routeIncidentResumeCycleHint") : t("routeIncidentStartCycleHint");
       const actions = startListIncidentActions(activePause, stop);
+      const actionState = startListIncidentActionState(activePause, stop);
       const singleRoute = list.routeCount === 1;
       const pauseNotes = routePauses.map((incident) => {
         const incidentIndex = incidents.indexOf(incident);
@@ -7133,7 +7808,7 @@
       ].filter(Boolean).join("");
       const incidentControls = actions ? `<div class="start-list-incident-controls">
         <label class="start-list-incident-cycle" data-start-list-incident-cycle-control title="${escapeHtml(cycleHint)}"><span>${escapeHtml(t("routeIncidentCycle"))}</span><input type="number" min="1" max="9999" step="1" value="${cycleValue}" data-start-list-incident-cycle title="${escapeHtml(cycleHint)}"></label>
-        <div class="start-list-incident-actions">${actions}</div>
+        <div class="start-list-incident-actions" data-start-list-incident-action-state="${actionState}">${actions}</div>
       </div>` : "<div></div>";
       menu.innerHTML = `
         <strong class="start-list-incident-title">${singleRoute ? "" : escapeHtml(formatStartListText("startListRoute", { route: routeIndex + 1 }))}</strong>
@@ -7157,9 +7832,18 @@
       if (!cycleInput || !actions || !list || !Number.isInteger(routeIndex)) return;
       const cycle = Math.max(1, Math.min(9999, Math.round(Number(cycleInput.value) || 1)));
       const incidents = list.incidents || [];
-      const activePause = window.FDVStartList.activePauseForRoute(routeIndex, incidents, cycle);
+      const activePause = window.FDVStartList.editablePauseForRoute(
+        routeIndex,
+        incidents,
+        cycle,
+        currentStartListPosition().cycle
+      );
       const stop = window.FDVStartList.stopForRoute(routeIndex, incidents);
-      actions.innerHTML = startListIncidentActions(activePause, stop);
+      const actionState = startListIncidentActionState(activePause, stop);
+      if (actions.dataset.startListIncidentActionState !== actionState) {
+        actions.innerHTML = startListIncidentActions(activePause, stop);
+        actions.dataset.startListIncidentActionState = actionState;
+      }
       const cycleHint = activePause ? t("routeIncidentResumeCycleHint") : t("routeIncidentStartCycleHint");
       cycleInput.title = cycleHint;
       cycleInput.closest("[data-start-list-incident-cycle-control]")?.setAttribute("title", cycleHint);
@@ -7176,7 +7860,12 @@
       if (!list || !Number.isInteger(routeIndex) || routeIndex < 0 || routeIndex >= list.routeCount) return;
       const cycle = Math.max(1, Math.min(9999, Math.round(Number(cycleInput.value) || 1)));
       const incidents = list.incidents || [];
-      const activePause = window.FDVStartList.activePauseForRoute(routeIndex, incidents, cycle);
+      const activePause = window.FDVStartList.editablePauseForRoute(
+        routeIndex,
+        incidents,
+        cycle,
+        currentStartListPosition().cycle
+      );
       const previewIncidents = activePause
         ? incidents.map((incident) => incident === activePause
           ? { ...incident, resumeCycle: Math.max(incident.startCycle, cycle), resolution: "resume" }
@@ -7219,7 +7908,12 @@
       const cycle = Math.max(1, Math.min(9999, Math.round(Number(cycleInput?.value) || defaultRouteIncidentCycle())));
       if (cycleInput) cycleInput.value = String(cycle);
       let incidents = [...(list.incidents || [])];
-      const activePause = window.FDVStartList.activePauseForRoute(routeIndex, incidents, cycle);
+      const activePause = window.FDVStartList.editablePauseForRoute(
+        routeIndex,
+        incidents,
+        cycle,
+        currentStartListPosition().cycle
+      );
       if (action === "pause") {
         const calculatedParticipantIndex = window.FDVStartList.participantAtOrAfterCycle(
           routeIndex,
@@ -7437,7 +8131,7 @@
         const highlightedSpan = highlightedIndexes.length
           ? Math.max(...highlightedIndexes) - Math.min(...highlightedIndexes) + 1
           : 1;
-        const mobileRowCount = Math.min(list.rows.length, Math.max(5, highlightedSpan + 4));
+        const mobileRowCount = Math.min(list.rows.length, Math.max(6, Math.min(12, highlightedSpan + 4)));
         scroll.style.setProperty("--start-list-mobile-row-count", String(mobileRowCount));
         const tableHead = scroll.querySelector("thead");
         const firstTableRow = scroll.querySelector("tbody tr");
@@ -7445,6 +8139,10 @@
         const measuredRowHeight = firstTableRow?.getBoundingClientRect().height || 30;
         const mobileTableHeight = Math.ceil(measuredHeaderHeight + mobileRowCount * measuredRowHeight + 2);
         scroll.style.setProperty("--start-list-mobile-table-height", `${mobileTableHeight}px`);
+        const mobileTitleHeight = titleBar && !titleBar.hidden
+          ? Math.ceil(titleBar.getBoundingClientRect().height)
+          : 0;
+        slot.style.setProperty("--start-list-mobile-slot-height", `${mobileTableHeight + mobileTitleHeight}px`);
         renderStartListIncidentMenu(slot, list, index, position);
         const calculationAnchor = window.FDVStartList.scrollAnchor(
           list.routeCount,
@@ -7478,7 +8176,7 @@
       });
       if (applyStartListVerticalDensity()) reanchorStartListScrolls();
       if (rebuiltTables) {
-        scheduleStartListPanelWidthFit({ settle: true });
+        scheduleStartListPanelWidthFit({ settle: true, force: true });
       }
       } finally {
         performanceEnd("renderStartList", performanceStartedAt);
@@ -7558,7 +8256,7 @@
       try {
         list = await readStartListFile(file, routeCount);
       } catch (error) {
-        console.error("Could not import start protocol", error);
+        console.error("Could not import start list", error);
       }
       input.value = "";
       if (!list) {
@@ -7619,6 +8317,7 @@
     function renderBrowserList(clients) {
       if (!els.browserList) return;
       lastKnownClients = clients;
+      els.browserNumbersToggle.hidden = clients.length < 3;
       const activeAudioSlider = els.browserList.querySelector("[data-audio-offset-slider]");
       const preserveAudioEditor = editingAudioClientId
         && activeAudioSlider?.dataset.audioOffsetSlider === editingAudioClientId
@@ -7632,16 +8331,15 @@
         const primaryA = a.id === (state.primaryClientId || "") ? 0 : 1;
         const primaryB = b.id === (state.primaryClientId || "") ? 0 : 1;
         if (primaryA !== primaryB) return primaryA - primaryB;
-        if (!state.primaryClientId) {
-          const selfA = a.id === clientId ? 0 : 1;
-          const selfB = b.id === clientId ? 0 : 1;
-          if (selfA !== selfB) return selfA - selfB;
-        }
-        return 0;
+        const numberA = Number(a.displayNumber);
+        const numberB = Number(b.displayNumber);
+        if (Number.isFinite(numberA) && Number.isFinite(numberB) && numberA !== numberB) return numberA - numberB;
+        return Number(a.order || 0) - Number(b.order || 0);
       });
+      const movableClients = visibleClients.filter((client) => client.id !== state.primaryClientId);
       const audioTestReason = audioTestDisabledReason();
       const audioTestDisabledAttributes = audioTestReason ? ` disabled title="${escapeHtml(audioTestDisabledTitle(audioTestReason))}"` : "";
-      els.browserList.innerHTML = visibleClients.map((client) => {
+      els.browserList.innerHTML = visibleClients.map((client, displayIndex) => {
         const isPrimary = client.id === state.primaryClientId;
         const isLegacyViewer = client.legacyViewer === true;
         const standaloneSelf = standaloneMode && client.id === clientId;
@@ -7652,12 +8350,14 @@
         const detailIp = isPrimary
           ? (clientIp && clientIp !== displayIp ? clientIp : "")
           : (connectionIp && connectionIp !== displayIp ? connectionIp : "");
-        const clientPrefix = isPrimary ? `${t("thisBrowser")}, IP: ` : "IP: ";
         const copyUrl = isPrimary ? browserLink(serverIp, clients) : "";
         const displayIpHtml = isPrimary
           ? `<button type="button" class="browser-address-copy" data-copy-browser-url="${escapeHtml(copyUrl)}" title="${escapeHtml(`${t("copyLink")}: ${copyUrl}`)}">${escapeHtml(displayIp)}</button><span class="browser-copy-feedback" aria-live="polite"></span>`
           : escapeHtml(displayIp);
         const classes = ["browser-item"];
+        if (isPrimary) classes.push("primary-browser");
+        const canOrderBrowser = !standaloneMode && !isPrimary && controlsAvailable();
+        if (canOrderBrowser) classes.push("has-order-controls");
         const clientConnected = standaloneSelf || (serverAvailable && client.connected);
         if (!clientConnected) classes.push("offline");
         const latency = Number(client.latency);
@@ -7710,104 +8410,275 @@
         ].filter(Boolean).join("; ");
         const syncRateDetailsText = syncRateDetails ? `; ${syncRateDetails}` : "";
         const netStatus = clientConnected ? thresholdStatus(latency, 100, 200) : "bad";
-        const syncStatus = clientConnected ? thresholdStatus(estimatedSyncError, 100, 300) : "bad";
-        const audioOk = client.soundAllowed !== false && client.audioUnlocked === true;
+        const baseSyncStatus = clientConnected ? thresholdStatus(estimatedSyncError, 100, 300) : "bad";
+        const hasRenderDelay = client.renderDelay !== null
+          && client.renderDelay !== undefined
+          && client.renderDelay !== ""
+          && Number.isFinite(Number(client.renderDelay));
+        const renderDelay = hasRenderDelay ? Number(client.renderDelay) : NaN;
+        const renderDelayAge = Number(client.renderDelayAge);
+        const renderDelayRelevant = client.displayStatus === "roundRunning" || client.displayStatus === "waitingStart";
+        const renderDelayFresh = hasRenderDelay && (!Number.isFinite(renderDelayAge) || renderDelayAge <= 5000);
+        const currentRenderStatus = !clientConnected
+          ? "bad"
+          : renderDelayRelevant
+            ? renderDelayFresh ? renderDelayStatus(renderDelay) : "bad"
+            : "neutral";
+        const clockDiagnostics = state.clockDiagnostics && typeof state.clockDiagnostics === "object"
+          ? state.clockDiagnostics
+          : {};
+        const negativeClockAnomalies = Math.max(0, Number(clockDiagnostics.negativeContinuityAnomalyCount) || 0);
+        const snapshotClockDifference = Number(clockDiagnostics.lastSnapshot?.savedElapsedDifferenceMs);
+        const restoreClockDifference = Number(clockDiagnostics.lastRestore?.snapshotAgeDifferenceMs);
+        const clockDifferenceMagnitude = Math.max(
+          Number.isFinite(snapshotClockDifference) ? Math.abs(snapshotClockDifference) : 0,
+          Number.isFinite(restoreClockDifference) ? Math.abs(restoreClockDifference) : 0
+        );
+        const serverClockStatus = !isPrimary
+          ? "neutral"
+          : negativeClockAnomalies > 0 || clockDifferenceMagnitude > 250
+            ? "bad"
+            : clockDifferenceMagnitude > 100
+              ? "warn"
+              : "neutral";
+        const syncStatus = worstDiagnosticStatus(
+          worstDiagnosticStatus(baseSyncStatus, currentRenderStatus),
+          serverClockStatus
+        );
+        const renderDelayTextRu = renderDelayRelevant
+          ? renderDelayFresh
+            ? `${renderDelay < 0 ? "опережение" : "задержка"} отрисовки ${formatMs(Math.abs(renderDelay))}; возраст замера ${formatMs(renderDelayAge)}`
+            : "нет свежего замера задержки отрисовки"
+          : "задержка отрисовки измеряется во время работы таймера";
+        const renderDelayTextEn = renderDelayRelevant
+          ? renderDelayFresh
+            ? `render ${renderDelay < 0 ? "lead" : "delay"} ${formatMs(Math.abs(renderDelay))}; sample age ${formatMs(renderDelayAge)}`
+            : "no fresh render-delay sample"
+          : "render delay is measured while the timer is running";
+        const renderThresholdsRu = "отрисовка: зелёный <100 мс, жёлтый 100–250 мс, красный >250 мс";
+        const renderThresholdsEn = "rendering: green <100 ms, yellow 100–250 ms, red >250 ms";
         const userAudioOffset = Number(client.audioUserOffset || 0);
         const audioEditing = editingAudioClientId === client.id;
-        const audioClasses = `${audioOk ? "good" : "bad"} clickable${userAudioOffset !== 0 ? " calibrated" : ""}${audioEditing ? " editing" : ""}`;
-        const wakeOk = client.wakeLockSupported === true && client.wakeLockActive === true;
-        const sseOk = serverAvailable && client.eventSourceSupported === true && client.eventSourceConnected === true;
-        const tabOk = client.visibility === "visible";
         const yesNo = (value) => value ? t("yes") : t("no");
         const manualLegacy = client.manualLegacy === true;
         const isOldBrowserClient = client.oldBrowser === true;
-        const legacyControlAllowed = !isPrimary && !standaloneSelf && !isOldBrowserClient;
-        const legacyBaseStatus = manualLegacy ? "manual-legacy" : isLegacyViewer ? "good" : "neutral";
+        const legacyRequired = clientRequiresLegacyInterface(client.userAgent, isOldBrowserClient);
+        const capableLegacyViewer = isLegacyViewer && !legacyRequired;
+        const legacyControlAllowed = !isPrimary && !standaloneSelf && !legacyRequired;
+        const legacyBaseStatus = manualLegacy || capableLegacyViewer
+          ? "manual-legacy"
+          : isLegacyViewer
+            ? "good"
+            : legacyControlAllowed
+              ? "inactive"
+              : "neutral";
         const legacyStatus = `${legacyBaseStatus}${legacyControlAllowed ? " clickable" : ""}`;
         const legacyAttrs = legacyControlAllowed
           ? ` data-legacy-mode-client="${escapeHtml(client.id)}" data-legacy-mode-enabled="${manualLegacy ? "1" : "0"}"`
           : "";
         const legacyChip = language === "ru"
-          ? diagChip("LEGACY", legacyStatus, !legacyControlAllowed ? (isOldBrowserClient ? "Этот браузер не поддерживает обычный режим" : "Основной браузер нельзя перевести в упрощённый режим") : manualLegacy ? "Ручной упрощённый режим включён. Нажмите, чтобы вернуть обычный режим." : isLegacyViewer ? "Упрощённый режим активен. Нажмите, чтобы включить ручное удержание Legacy для этого браузера." : "Нажмите, чтобы включить упрощённый режим для этого браузера.", legacyAttrs)
-          : diagChip("LEGACY", legacyStatus, !legacyControlAllowed ? (isOldBrowserClient ? "This browser doesn't support the normal interface" : "Primary browser cannot be switched to legacy mode") : manualLegacy ? "Manual legacy mode is on. Click to return this browser to normal mode." : isLegacyViewer ? "Legacy mode is active. Click to pin manual Legacy for this browser." : "Click to enable simplified legacy mode for this browser.", legacyAttrs);
+          ? diagChip("LEGACY", legacyStatus, !legacyControlAllowed ? (standaloneSelf ? "Недоступно в автономном режиме" : legacyRequired ? "Этот браузер не поддерживает обычный режим" : "Основной браузер нельзя перевести в упрощённый режим") : manualLegacy ? "Ручной упрощённый режим включён. Нажмите, чтобы вернуть обычный режим." : isLegacyViewer ? "Упрощённый режим активен. Нажмите, чтобы включить ручное удержание Legacy для этого браузера." : "Нажмите, чтобы включить упрощённый режим для этого браузера.", legacyAttrs)
+          : diagChip("LEGACY", legacyStatus, !legacyControlAllowed ? (standaloneSelf ? "Unavailable in standalone mode" : legacyRequired ? "This browser doesn't support the normal interface" : "Primary browser cannot be switched to legacy mode") : manualLegacy ? "Manual legacy mode is on. Click to return this browser to normal mode." : isLegacyViewer ? "Legacy mode is active. Click to pin manual Legacy for this browser." : "Click to enable simplified legacy mode for this browser.", legacyAttrs);
         const legacyNeutralTitle = language === "ru"
           ? "Недоступно в упрощённом режиме"
           : "Not available in legacy mode";
-        const ruLocalChips = [
-          diagChip("AUDIO", audioClasses, `Звук разрешён: ${yesNo(client.soundAllowed !== false)}; разблокирован тапом: ${yesNo(client.audioUnlocked === true)}; ${t("audioOffsetUser")}: ${formatMs(userAudioOffset)}`, ` data-audio-client="${escapeHtml(client.id)}"`),
-          diagChip("WAKE", wakeOk ? "good" : "bad", `Wake Lock поддерживается: ${yesNo(client.wakeLockSupported === true)}; активен: ${yesNo(client.wakeLockActive === true)}`),
-          diagChip("TAB", tabOk ? "good" : "bad", `Видимость вкладки: ${client.visibility || "неизвестно"}`)
-        ];
-        const enLocalChips = [
-          diagChip("AUDIO", audioClasses, `Sound allowed: ${yesNo(client.soundAllowed !== false)}; unlocked by tap: ${yesNo(client.audioUnlocked === true)}; ${t("audioOffsetUser")}: ${formatMs(userAudioOffset)}`, ` data-audio-client="${escapeHtml(client.id)}"`),
-          diagChip("WAKE", wakeOk ? "good" : "bad", `Wake Lock supported: ${yesNo(client.wakeLockSupported === true)}; active: ${yesNo(client.wakeLockActive === true)}`),
-          diagChip("TAB", tabOk ? "good" : "bad", `Tab visibility: ${client.visibility || "unknown"}`)
-        ];
+        const standaloneNeutralTitle = language === "ru"
+          ? "Недоступно в автономном режиме"
+          : "Unavailable in standalone mode";
+        const primaryDiagnosticClient = clients.find((entry) => entry.id === state.primaryClientId);
+        const audioSameComputer = !isPrimary
+          && Boolean(client.computerKey && primaryDiagnosticClient?.computerKey
+            && client.computerKey === primaryDiagnosticClient.computerKey);
+        const audioAvailable = !isLegacyViewer && !audioSameComputer;
+        const audioEnabled = audioAvailable && client.soundAllowed !== false;
+        const audioOk = audioEnabled && client.audioUnlocked === true;
+        const hasAudioTimingError = client.audioTimingError !== null
+          && client.audioTimingError !== undefined
+          && client.audioTimingError !== ""
+          && Number.isFinite(Number(client.audioTimingError));
+        const audioTimingError = hasAudioTimingError ? Number(client.audioTimingError) : NaN;
+        const audioTimingAge = Number(client.audioTimingAge);
+        const audioTimingFresh = hasAudioTimingError
+          && Number.isFinite(audioTimingAge)
+          && audioTimingAge >= 0
+          && audioTimingAge <= 60000;
+        const audioTimingMagnitude = Math.abs(audioTimingError);
+        const audioTimingStatus = !audioTimingFresh
+          ? "good"
+          : audioTimingMagnitude > 250
+            ? "bad"
+            : audioTimingMagnitude >= 100
+              ? "warn"
+              : "good";
+        const audioStatus = !audioAvailable
+          ? "neutral"
+          : !audioEnabled
+            ? "inactive"
+            : audioOk
+              ? audioTimingStatus
+              : "bad";
+        const audioClasses = `${audioStatus}${audioAvailable ? " clickable" : ""}${userAudioOffset !== 0 ? " calibrated" : ""}${audioEditing ? " editing" : ""}`;
+        const audioUnavailableRu = isLegacyViewer
+          ? legacyNeutralTitle
+          : "Недоступно: звук на этом компьютере воспроизводит основной браузер";
+        const audioUnavailableEn = isLegacyViewer
+          ? legacyNeutralTitle
+          : "Unavailable: the primary browser plays sound on this computer";
+        const audioTimingTitleRu = audioTimingFresh
+          ? `ошибка аудиочасов ${formatMs(audioTimingError)}; сигнал ${client.audioTimingKind || "n/a"}; возраст замера ${formatMs(audioTimingAge)}; зелёный <100 мс, жёлтый 100–250 мс, красный >250 мс`
+          : "свежего замера ошибки аудиочасов пока нет";
+        const audioTimingTitleEn = audioTimingFresh
+          ? `audio-clock error ${formatMs(audioTimingError)}; signal ${client.audioTimingKind || "n/a"}; sample age ${formatMs(audioTimingAge)}; green <100 ms, yellow 100–250 ms, red >250 ms`
+          : "no fresh audio-clock error sample yet";
+        const audioTitleRu = !audioAvailable
+          ? audioUnavailableRu
+          : `Звук включён в настройках: ${yesNo(audioEnabled)}; разблокирован тапом: ${yesNo(client.audioUnlocked === true)}; ${t("audioOffsetUser")}: ${formatMs(userAudioOffset)}; ${audioTimingTitleRu}`;
+        const audioTitleEn = !audioAvailable
+          ? audioUnavailableEn
+          : `Sound enabled in settings: ${yesNo(audioEnabled)}; unlocked by tap: ${yesNo(client.audioUnlocked === true)}; ${t("audioOffsetUser")}: ${formatMs(userAudioOffset)}; ${audioTimingTitleEn}`;
+        const audioAttrs = audioAvailable ? ` data-audio-client="${escapeHtml(client.id)}"` : "";
+        const audioChipRu = diagChip("AUDIO", audioClasses, audioTitleRu, audioAttrs);
+        const audioChipEn = diagChip("AUDIO", audioClasses, audioTitleEn, audioAttrs);
+        const wakeTitleRu = `Wake Lock поддерживается: ${yesNo(client.wakeLockSupported === true)}; активен: ${yesNo(client.wakeLockActive === true)}`;
+        const wakeTitleEn = `Wake Lock supported: ${yesNo(client.wakeLockSupported === true)}; active: ${yesNo(client.wakeLockActive === true)}`;
+        const tabTitleRu = `Видимость вкладки: ${client.visibility || "неизвестно"}; ${wakeTitleRu}`;
+        const tabTitleEn = `Tab visibility: ${client.visibility || "unknown"}; ${wakeTitleEn}`;
+        const legacyTabTitleRu = `Видимость вкладки: ${client.visibility || "неизвестно"}`;
+        const legacyTabTitleEn = `Tab visibility: ${client.visibility || "unknown"}`;
+        const tabStatus = !client.visibility ? "neutral" : client.visibility === "visible" ? "good" : "bad";
+        const serverTimeEnabled = client.showServerTime === true;
+        const serverTimeChip = diagChip(
+          "TIME",
+          `${serverTimeEnabled ? "good" : "inactive"} clickable`,
+          language === "ru"
+            ? `${serverTimeEnabled ? "Время сервера отображается" : "Время сервера скрыто"}. Нажмите, чтобы ${serverTimeEnabled ? "скрыть" : "показать"} часы на этом экране.`
+            : `Server time is ${serverTimeEnabled ? "shown" : "hidden"}. Click to ${serverTimeEnabled ? "hide" : "show"} the clock on this screen.`,
+          ` data-server-time-client="${escapeHtml(client.id)}" data-server-time-enabled="${serverTimeEnabled ? "1" : "0"}"`
+        );
+        const netChipRu = standaloneSelf
+          ? diagChip("NET", "neutral", standaloneNeutralTitle)
+          : diagChip("NET", netStatus, `Соединение: ${clientConnected ? "онлайн" : "нет связи"}; задержка ${formatMs(client.latency)}; зелёный ≤100 мс, жёлтый ≤200 мс, красный >200 мс`);
+        const netChipEn = standaloneSelf
+          ? diagChip("NET", "neutral", standaloneNeutralTitle)
+          : diagChip("NET", netStatus, `Connection: ${clientConnected ? "online" : "offline"}; latency ${formatMs(client.latency)}; green ≤100 ms, yellow ≤200 ms, red >200 ms`);
+        const legacySyncStatus = !clientConnected
+          ? "bad"
+          : renderDelayRelevant
+            ? currentRenderStatus
+            : "inactive";
+        const syncChipRu = standaloneSelf
+          ? diagChip("SYNC", "neutral", standaloneNeutralTitle)
+          : diagChip("SYNC", syncStatus, `${hasSyncError ? "Оценка ошибки синхронизации" : "Приблизительная оценка по задержке сети"}: ${formatMs(estimatedSyncError)}; разброс ${formatMs(client.syncJitter)}; замеров ${client.syncSamples || "n/a"}${syncRateDetailsText}; ${renderDelayTextRu}; ${renderThresholdsRu}`);
+        const syncChipEn = standaloneSelf
+          ? diagChip("SYNC", "neutral", standaloneNeutralTitle)
+          : diagChip("SYNC", syncStatus, `${hasSyncError ? "Estimated synchronization error" : "Approximate estimate from network latency"}: ${formatMs(estimatedSyncError)}; jitter ${formatMs(client.syncJitter)}; samples ${client.syncSamples || "n/a"}${syncRateDetailsText}; ${renderDelayTextEn}; ${renderThresholdsEn}`);
+        const legacySyncChipRu = diagChip("SYNC", legacySyncStatus, `${renderDelayTextRu}; ${renderThresholdsRu}`);
+        const legacySyncChipEn = diagChip("SYNC", legacySyncStatus, `${renderDelayTextEn}; ${renderThresholdsEn}`);
+        const sseSupported = client.eventSourceSupported === true;
+        const sseOk = serverAvailable && sseSupported && client.eventSourceConnected === true;
+        const sseStatus = !sseSupported || standaloneSelf ? "neutral" : sseOk ? "good" : "bad";
+        const sseChipRu = diagChip("SSE", sseStatus, standaloneSelf
+          ? standaloneNeutralTitle
+          : !sseSupported
+            ? "Браузер не поддерживает мгновенные события сервера"
+            : `Мгновенные события сервера: подключено ${yesNo(sseOk)}`);
+        const sseChipEn = diagChip("SSE", sseStatus, standaloneSelf
+          ? standaloneNeutralTitle
+          : !sseSupported
+            ? "The browser does not support instant server events"
+            : `Instant server events: connected ${yesNo(sseOk)}`);
+        const tabChipRu = diagChip("TAB", tabStatus, tabTitleRu);
+        const tabChipEn = diagChip("TAB", tabStatus, tabTitleEn);
         const ruLegacyChips = [
           legacyChip,
-          diagChip("NET", clientConnected ? "good" : "bad", `Соединение: ${clientConnected ? "онлайн" : "нет связи"}`),
-          diagChip("SYNC", "neutral", legacyNeutralTitle),
           diagChip("AUDIO", "neutral", legacyNeutralTitle),
-          diagChip("WAKE", "neutral", legacyNeutralTitle),
+          serverTimeChip,
+          diagChip("NET", clientConnected ? "good" : "bad", `Соединение: ${clientConnected ? "онлайн" : "нет связи"}`),
+          legacySyncChipRu,
           diagChip("SSE", "neutral", legacyNeutralTitle),
-          diagChip("TAB", "neutral", legacyNeutralTitle)
+          diagChip("TAB", tabStatus, legacyTabTitleRu)
         ];
         const enLegacyChips = [
           legacyChip,
-          diagChip("NET", clientConnected ? "good" : "bad", `Connection: ${clientConnected ? "online" : "offline"}`),
-          diagChip("SYNC", "neutral", legacyNeutralTitle),
           diagChip("AUDIO", "neutral", legacyNeutralTitle),
-          diagChip("WAKE", "neutral", legacyNeutralTitle),
+          serverTimeChip,
+          diagChip("NET", clientConnected ? "good" : "bad", `Connection: ${clientConnected ? "online" : "offline"}`),
+          legacySyncChipEn,
           diagChip("SSE", "neutral", legacyNeutralTitle),
-          diagChip("TAB", "neutral", legacyNeutralTitle)
+          diagChip("TAB", tabStatus, legacyTabTitleEn)
         ];
-        const chips = isLegacyViewer ? (language === "ru" ? ruLegacyChips : enLegacyChips) : language === "ru" ? (standaloneSelf ? ruLocalChips : [
-          legacyChip,
-          diagChip("NET", netStatus, `Соединение: ${clientConnected ? "онлайн" : "нет связи"}; задержка ${formatMs(client.latency)}; зелёный ≤100 мс, жёлтый ≤200 мс, красный >200 мс`),
-          diagChip("SYNC", syncStatus, `${hasSyncError ? "Оценка ошибки синхронизации" : "Приблизительная оценка по задержке сети"}: ${formatMs(estimatedSyncError)}; разброс ${formatMs(client.syncJitter)}; замеров ${client.syncSamples || "n/a"}${syncRateDetailsText}; зелёный ≤100 мс, жёлтый ≤300 мс, красный >300 мс`),
-          diagChip("AUDIO", audioClasses, `Звук разрешён: ${yesNo(client.soundAllowed !== false)}; разблокирован тапом: ${yesNo(client.audioUnlocked === true)}; ${t("audioOffsetUser")}: ${formatMs(userAudioOffset)}`, ` data-audio-client="${escapeHtml(client.id)}"`),
-          diagChip("WAKE", wakeOk ? "good" : "bad", `Wake Lock поддерживается: ${yesNo(client.wakeLockSupported === true)}; активен: ${yesNo(client.wakeLockActive === true)}`),
-          diagChip("SSE", sseOk ? "good" : "bad", `Мгновенные события сервера: поддержка ${yesNo(client.eventSourceSupported === true)}; подключено ${yesNo(sseOk)}`),
-          diagChip("TAB", tabOk ? "good" : "bad", `Видимость вкладки: ${client.visibility || "неизвестно"}`)
-        ]) : (standaloneSelf ? enLocalChips : [
-          legacyChip,
-          diagChip("NET", netStatus, `Connection: ${clientConnected ? "online" : "offline"}; latency ${formatMs(client.latency)}; green ≤100 ms, yellow ≤200 ms, red >200 ms`),
-          diagChip("SYNC", syncStatus, `${hasSyncError ? "Estimated synchronization error" : "Approximate estimate from network latency"}: ${formatMs(estimatedSyncError)}; jitter ${formatMs(client.syncJitter)}; samples ${client.syncSamples || "n/a"}${syncRateDetailsText}; green ≤100 ms, yellow ≤300 ms, red >300 ms`),
-          diagChip("AUDIO", audioClasses, `Sound allowed: ${yesNo(client.soundAllowed !== false)}; unlocked by tap: ${yesNo(client.audioUnlocked === true)}; ${t("audioOffsetUser")}: ${formatMs(userAudioOffset)}`, ` data-audio-client="${escapeHtml(client.id)}"`),
-          diagChip("WAKE", wakeOk ? "good" : "bad", `Wake Lock supported: ${yesNo(client.wakeLockSupported === true)}; active: ${yesNo(client.wakeLockActive === true)}`),
-          diagChip("SSE", sseOk ? "good" : "bad", `Instant server events: supported ${yesNo(client.eventSourceSupported === true)}; connected ${yesNo(sseOk)}`),
-          diagChip("TAB", tabOk ? "good" : "bad", `Tab visibility: ${client.visibility || "unknown"}`)
-        ]);
+        const ruModernChips = [legacyChip, audioChipRu, serverTimeChip, netChipRu, syncChipRu, sseChipRu, tabChipRu];
+        const enModernChips = [legacyChip, audioChipEn, serverTimeChip, netChipEn, syncChipEn, sseChipEn, tabChipEn];
+        const chips = isLegacyViewer
+          ? (language === "ru" ? ruLegacyChips : enLegacyChips)
+          : (language === "ru" ? ruModernChips : enModernChips);
         const chipHtml = chips.join("");
         const selectedListIndexes = new Set(Array.isArray(client.startListIndexes)
           ? client.startListIndexes.map(Number)
           : []);
+        const clientListsParallel = Boolean(client.startListParallel);
+        const clientLayoutOverridden = selectedListIndexes.size === 2
+          && clientListsParallel !== Boolean(state.startListParallel);
+        const clientLayoutButtonHtml = selectedListIndexes.size === 2
+          ? `<button type="button" class="diag-chip start-list-available clickable start-list-client-layout-button${clientLayoutOverridden ? " start-list-layout-overridden" : ""}" data-start-list-layout-client="${escapeHtml(client.id)}" data-start-list-parallel="${clientListsParallel ? "1" : "0"}" aria-label="${escapeHtml(t(clientListsParallel ? "screenListsStacked" : "screenListsParallel"))}" title="${escapeHtml(t(clientListsParallel ? "screenListsStacked" : "screenListsParallel"))}">${clientListsParallel ? "||" : "|"}</button>`
+          : "";
         const startListSelectorHtml = startListEditorOpen
           && !isPrimary
           && !standaloneSelf
-          ? `<div class="diag-row start-list-diag-row">${state.startLists.map((_, listIndex) => {
+          ? `<div class="diag-row start-list-diag-row">${Array.from({ length: 4 }, (_, listIndex) => {
+              const listAreaAdded = listIndex < state.startLists.length;
               const listAvailable = Boolean(state.startLists[listIndex]);
               const listSelected = listAvailable && selectedListIndexes.has(listIndex);
               const title = listAvailable
                 ? language === "ru"
-                  ? `Показать или скрыть протокол ${listIndex + 1} на этом экране`
+                  ? `Показать или скрыть список ${listIndex + 1} на этом экране`
                   : `Show or hide start list ${listIndex + 1} on this screen`
                 : language === "ru"
-                  ? `Протокол ${listIndex + 1} не загружен`
-                  : `Start list ${listIndex + 1} is not loaded`;
+                  ? listAreaAdded ? `Список ${listIndex + 1} не загружен` : `Список ${listIndex + 1} не добавлен`
+                  : listAreaAdded ? `Start list ${listIndex + 1} is not loaded` : `Start list ${listIndex + 1} is not added`;
               return diagChip(
-                `PROTOCOL ${listIndex + 1}`,
+                `LIST ${listIndex + 1}`,
                 `${listAvailable ? "start-list-available clickable" : "neutral"}${listSelected ? " start-list-selected" : ""}`,
                 title,
                 listAvailable
                   ? ` data-start-list-client="${escapeHtml(client.id)}" data-start-list-index="${listIndex}" data-start-list-enabled="${listSelected ? "1" : "0"}"`
                   : ""
               );
-            }).join("")}</div>`
+            }).join("")}${clientLayoutButtonHtml}</div>`
           : "";
         let title = language === "ru"
           ? `ОС: ${operatingSystem(client.userAgent)}; устройство: ${deviceType(client.userAgent)}; экран ${client.screen || "n/a"}; окно ${client.viewport || "n/a"}; DPR ${client.dpr ?? "n/a"}`
           : `OS: ${operatingSystem(client.userAgent)}; device: ${deviceType(client.userAgent)}; screen ${client.screen || "n/a"}; viewport ${client.viewport || "n/a"}; DPR ${client.dpr ?? "n/a"}`;
+        if (isPrimary && state.clockDiagnostics) {
+          const clockHistory = Array.isArray(state.clockDiagnostics.history) ? state.clockDiagnostics.history : [];
+          const lastClockAnomaly = clockHistory.length ? clockHistory[clockHistory.length - 1] : null;
+          const clockParts = language === "ru"
+            ? [
+                `отрицательных коррекций часов сервера: ${negativeClockAnomalies}`,
+                lastClockAnomaly && Number.isFinite(Number(lastClockAnomaly.correctionMs))
+                  ? `последняя коррекция: ${formatMs(lastClockAnomaly.correctionMs)}`
+                  : "",
+                Number.isFinite(snapshotClockDifference)
+                  ? `elapsed снимка минус абсолютное время: ${formatMs(snapshotClockDifference)}`
+                  : "",
+                Number.isFinite(restoreClockDifference)
+                  ? `uptime минус системный возраст снимка: ${formatMs(restoreClockDifference)}`
+                  : ""
+              ]
+            : [
+                `negative server-clock corrections: ${negativeClockAnomalies}`,
+                lastClockAnomaly && Number.isFinite(Number(lastClockAnomaly.correctionMs))
+                  ? `last correction: ${formatMs(lastClockAnomaly.correctionMs)}`
+                  : "",
+                Number.isFinite(snapshotClockDifference)
+                  ? `snapshot elapsed minus absolute time: ${formatMs(snapshotClockDifference)}`
+                  : "",
+                Number.isFinite(restoreClockDifference)
+                  ? `uptime minus wall snapshot age: ${formatMs(restoreClockDifference)}`
+                  : ""
+              ];
+          title += `; ${clockParts.filter(Boolean).join("; ")}`;
+        }
         if (client.clientBuild !== null && client.clientBuild !== undefined) {
           title += language === "ru" ? `; сборка клиента ${client.clientBuild}` : `; client build ${client.clientBuild}`;
         }
@@ -7853,9 +8724,22 @@
             </div>
           </div>` : "";
         const heading = standaloneSelf
-          ? `${escapeHtml(client.label)} (${escapeHtml(t("thisBrowser"))})`
-          : `${escapeHtml(client.label)} (${escapeHtml(clientPrefix)}${displayIpHtml})`;
+          ? escapeHtml(client.label)
+          : `${escapeHtml(client.label)}${displayIpHtml ? ` (${displayIpHtml})` : ""}`;
+        const displayNumber = Math.max(1, Math.round(Number(client.displayNumber) || displayIndex + 1));
+        const cardNumberHtml = state.showBrowserNumbers
+          ? `<span class="browser-card-number" aria-hidden="true">${displayNumber}</span>`
+          : "";
+        const movableIndex = movableClients.findIndex((entry) => entry.id === client.id);
+        const pinTitle = t(client.browserPinned ? "unpinBrowser" : "pinBrowser");
+        const orderControlsHtml = canOrderBrowser ? `<div class="browser-order-controls">
+          <button type="button" class="browser-order-button pin${client.browserPinned ? " active" : ""}" data-browser-pin="${client.browserPinned ? "1" : "0"}" data-browser-client="${escapeHtml(client.id)}" aria-pressed="${client.browserPinned ? "true" : "false"}" aria-label="${escapeHtml(pinTitle)}" title="${escapeHtml(pinTitle)}"><svg viewBox="0 0 16 16" aria-hidden="true"><g${client.browserPinned ? "" : ' transform="rotate(45 8 8)"'}><path d="M5 2.3h6M6 2.3l.6 4-2.1 2.1h7L9.4 6.3l.6-4M8 8.4v4.1M6.9 13.1c.35.9 1.85.9 2.2 0"/></g></svg></button>
+          <button type="button" class="browser-order-button" data-browser-move="up" data-browser-client="${escapeHtml(client.id)}" aria-label="${escapeHtml(t("moveBrowserUp"))}" title="${escapeHtml(t("moveBrowserUp"))}"${movableIndex <= 0 ? " disabled" : ""}>↑</button>
+          <button type="button" class="browser-order-button" data-browser-move="down" data-browser-client="${escapeHtml(client.id)}" aria-label="${escapeHtml(t("moveBrowserDown"))}" title="${escapeHtml(t("moveBrowserDown"))}"${movableIndex < 0 || movableIndex >= movableClients.length - 1 ? " disabled" : ""}>↓</button>
+        </div>` : "";
         return `<div class="${classes.join(" ")}">
+          ${cardNumberHtml}
+          ${orderControlsHtml}
           <strong title="${escapeHtml(title)}">${heading}</strong>
           <span title="${escapeHtml(metaTitle)}">${meta}</span>
           <div class="diag-row">${chipHtml}</div>
@@ -7863,6 +8747,12 @@
           ${audioEditor}
         </div>`;
       }).join("");
+      const primaryBrowserCard = els.browserList.querySelector(".primary-browser");
+      if (primaryBrowserCard) {
+        primaryBrowserCard.appendChild(els.browserNumbersToggle);
+      } else {
+        els.browserNumbersToggle.hidden = true;
+      }
     }
 
     function revealAudioOffsetEditor() {
@@ -8058,7 +8948,8 @@
       const markStarted = () => {
         if (item.started) return;
         item.started = true;
-        if (performanceDiagnosticsLevel >= 2) recordPerformanceAudioNodeTarget(item);
+        const timingSample = sampleAudioNodeTiming(item);
+        if (performanceDiagnosticsLevel >= 2) recordPerformanceAudioNodeTarget(item, timingSample);
         if (signalKey) markSignalPlayed(signalKey);
         onStarted?.();
       };
@@ -8223,7 +9114,8 @@
         const markStarted = () => {
           if (item.started) return;
           item.started = true;
-          if (performanceDiagnosticsLevel >= 2) recordPerformanceAudioNodeTarget(item);
+          const timingSample = sampleAudioNodeTiming(item);
+          if (performanceDiagnosticsLevel >= 2) recordPerformanceAudioNodeTarget(item, timingSample);
           if (itemSignalKey) markSignalPlayed(itemSignalKey);
           itemOnStarted?.();
         };
@@ -9224,16 +10116,17 @@
       displayBoundaryTimer = window.setTimeout(() => {
         displayBoundaryTimer = null;
         displayBoundaryTargetServerTime = 0;
+        const callbackServerTimeBeforeRepair = serverNow();
+        checkClockContinuity();
+        const callbackServerTime = serverNow();
+        lastRenderDelayMs = Number((callbackServerTime - targetServerTime).toFixed(1));
+        lastRenderDelayAt = performance.now();
         if (!performanceAggregateDiagnostics) {
-          checkClockContinuity();
           render("boundary");
           return;
         }
         const scheduledTargetServerTime = targetServerTime;
         const beforeLabel = lastDisplayTimeLabel;
-        const callbackServerTimeBeforeRepair = serverNow();
-        checkClockContinuity();
-        const callbackServerTime = serverNow();
         const renderStartedAt = performance.now();
         render("boundary");
         const renderCompletedAt = performance.now();
@@ -9305,7 +10198,9 @@
       syncAudioTestButtons();
       syncButtonsWhenScheduledStartStateChanges();
       setElementClass(document.body, "warning-active", false);
-      setElementClass(document.body, "countdown-active", state.countdownOnly || (state.running && state.serverStartedAt > serverNow()));
+      setElementClass(document.body, "countdown-active", state.countdownOnly
+        || state.waitingForManualStart
+        || (state.running && state.serverStartedAt > serverNow()));
       setElementClass(document.body, "scrub-ready", !state.running && !isViewerClient && !isReady);
 
       if (state.countdownOnly) {
@@ -9373,7 +10268,7 @@
 
       if (state.waitingForManualStart) {
         setElementClass(document.body, "break-active", false);
-        setElementClass(document.body, "countdown-active", false);
+        setElementClass(document.body, "countdown-active", true);
         setElementText(els.phase, t("waitingManual"));
         setElementClassName(els.phase, "phase ready");
         setDisplayTime(0);
@@ -9584,6 +10479,7 @@
       els.resetBtn.disabled = !available;
       els.compactReset.disabled = !available;
       els.languageToggle.disabled = !available;
+      els.browserNumbersToggle.disabled = !available;
       els.primaryToggle.disabled = !serverControls;
       els.instancesSoundToggle.disabled = !serverControls;
       els.instancesFullscreenToggle.disabled = !serverControls;
@@ -10217,6 +11113,19 @@
         language: language === "ru" ? "en" : "ru"
       });
     });
+    els.browserNumbersToggle.addEventListener("click", () => {
+      if (!controlsAvailable()) return;
+      const enabled = !state.showBrowserNumbers;
+      if (standaloneMode) {
+        state.showBrowserNumbers = enabled;
+        state.browserDisplayNumber = 1;
+        syncBrowserNumberDisplay();
+        refreshStandaloneBrowserList();
+        saveOfflineSnapshot();
+        return;
+      }
+      sendServerAction("showBrowserNumbers", { enabled });
+    });
     els.enterStandaloneBtn.addEventListener("click", enterStandaloneMode);
     els.returnToServerBtn.addEventListener("click", returnToServerMode);
     els.installAppBtn.addEventListener("click", installAppToHomeScreen);
@@ -10240,6 +11149,50 @@
       }
 
       if (!controlsAvailable()) return;
+
+      const moveButton = event.target.closest("[data-browser-move]");
+      if (moveButton && !moveButton.disabled) {
+        sendServerAction("browserMove", {
+          targetClientId: moveButton.dataset.browserClient,
+          direction: moveButton.dataset.browserMove
+        });
+        return;
+      }
+
+      const pinButton = event.target.closest("[data-browser-pin]");
+      if (pinButton) {
+        sendServerAction("browserPin", {
+          targetClientId: pinButton.dataset.browserClient,
+          enabled: pinButton.dataset.browserPin !== "1"
+        });
+        return;
+      }
+
+      const clientLayoutButton = event.target.closest("[data-start-list-layout-client]");
+      if (clientLayoutButton) {
+        sendServerAction("startListClientLayout", {
+          targetClientId: clientLayoutButton.dataset.startListLayoutClient,
+          parallel: clientLayoutButton.dataset.startListParallel !== "1"
+        });
+        return;
+      }
+
+      const serverTimeButton = event.target.closest("[data-server-time-client]");
+      if (serverTimeButton) {
+        const targetClientId = serverTimeButton.dataset.serverTimeClient;
+        const enabled = serverTimeButton.dataset.serverTimeEnabled !== "1";
+        if (standaloneMode) {
+          if (targetClientId !== clientId) return;
+          state.showServerTime = enabled;
+          state.serverTimezoneOffsetMinutes = new Date().getTimezoneOffset();
+          syncServerClockDisplay();
+          refreshStandaloneBrowserList();
+          saveOfflineSnapshot();
+          return;
+        }
+        sendServerAction("clientServerTime", { targetClientId, enabled });
+        return;
+      }
 
       const startListButton = event.target.closest("[data-start-list-client]");
       if (startListButton) {
@@ -10781,6 +11734,8 @@
 
     document.addEventListener("visibilitychange", () => {
       if (document.visibilityState !== "visible") {
+        if (serverClockDisplayTimer) window.clearTimeout(serverClockDisplayTimer);
+        serverClockDisplayTimer = null;
         invalidateSignalsForPageSuspension("visibility-hidden");
         refreshTrustedClockAnchor(true);
         pageHiddenAt = Date.now();
@@ -10790,6 +11745,7 @@
         refreshStandaloneBrowserList();
         return;
       }
+      syncServerClockDisplay();
       if (window.location.protocol === "file:") {
         resumeLocalPageAfterSuspension();
         return;

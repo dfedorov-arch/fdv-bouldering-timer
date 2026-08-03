@@ -60,7 +60,7 @@ test("modern performance diagnostics are opt-in and preserve critical render ord
   assert.match(index, /longRun:\s*performanceLongRunDiagnostics/);
   assert.match(index, /const performanceDisplayBoundaryEventLimit = 16;/);
   assert.match(index, /display:\s*\{[\s\S]*?visibilityState:[\s\S]*?boundaryEvents:\s*performanceDisplayBoundaryEvents\.slice\(\)/);
-  assert.match(index, /if \(!performanceAggregateDiagnostics\) \{\s*checkClockContinuity\(\);\s*render\("boundary"\);\s*return;\s*\}[\s\S]*?targetServerTimeMs:[\s\S]*?callbackLatenessMs:[\s\S]*?commitLatenessMs:/);
+  assert.match(index, /checkClockContinuity\(\);[\s\S]*?lastRenderDelayMs = Number\(\(callbackServerTime - targetServerTime\)\.toFixed\(1\)\);[\s\S]*?if \(!performanceAggregateDiagnostics\) \{\s*render\("boundary"\);\s*return;\s*\}[\s\S]*?targetServerTimeMs:[\s\S]*?callbackLatenessMs:[\s\S]*?commitLatenessMs:/);
   assert.match(index, /displayBoundaryLate100ms[\s\S]*?displayBoundaryLate500ms[\s\S]*?displayBoundaryLate1000ms/);
   assert.match(index, /function render\(renderSource = "direct"\)[\s\S]*?lastRenderAt = performance\.now\(\);\s*scheduleDisplayBoundary\(\);/);
   assert.match(index, /function renderStartList\(\) \{\s*loadStoredStartListScrollPositions\(\);\s*updateStartListVisibility\(\);/);
@@ -77,9 +77,11 @@ test("modern diagnostics can be downloaded on a phone and retain audio-clock evi
   assert.match(index, /link\.download = `\$\{host\}-\$\{Date\.now\(\)\}\.txt`/);
   assert.match(index, /window\.FDVPerformanceDiagnostics = \{[\s\S]*?download:\s*downloadPerformanceDiagnostics/);
   assert.match(index, /function performanceAudioClockSample\(\)[\s\S]*?getOutputTimestamp[\s\S]*?audioClockOffsetFromPerformanceMs[\s\S]*?audioOutputTimestampAgeMs[\s\S]*?audioOutputContextLagMs/);
-  assert.match(index, /function recordPerformanceAudioNodeTarget\(item\)[\s\S]*?stage:\s*"node-target-check"[\s\S]*?callbackLatenessMs = callbackServerTimeMs - targetServerTimeMs[\s\S]*?expectedAudioContextTimeMs = scheduledAudioContextTimeMs \+ callbackLatenessMs[\s\S]*?audioContextProgressErrorMs:/);
+  assert.match(index, /function sampleAudioNodeTiming\(item\)[\s\S]*?callbackLatenessMs = callbackServerTimeMs - targetServerTimeMs[\s\S]*?expectedAudioContextTimeMs = scheduledAudioContextTimeMs \+ callbackLatenessMs[\s\S]*?audioContextProgressErrorMs/);
+  assert.match(index, /function recordPerformanceAudioNodeTarget\(item, timingSample\)[\s\S]*?stage:\s*"node-target-check"[\s\S]*?audioContextProgressErrorMs/);
   assert.match(index, /FDV_AUDIO_SCHEDULE[\s\S]*?audioContextState:[\s\S]*?\.\.\.performanceAudioClockSample\(\)/);
-  assert.equal((index.match(/if \(performanceDiagnosticsLevel >= 2\) recordPerformanceAudioNodeTarget\(item\);/g) || []).length, 2);
+  assert.equal((index.match(/const timingSample = sampleAudioNodeTiming\(item\);/g) || []).length, 2);
+  assert.equal((index.match(/if \(performanceDiagnosticsLevel >= 2\) recordPerformanceAudioNodeTarget\(item, timingSample\);/g) || []).length, 2);
   assert.match(index, /function wakeAudioOutput\([^)]*\)[\s\S]*?prewarm-request[\s\S]*?resume-request[\s\S]*?resume-resolved[\s\S]*?prewarm-direct/);
   assert.match(index, /function scheduleFinalWarnings\(segment\)[\s\S]*?warning-batch-plan[\s\S]*?cycle:\s*segment\.cycle[\s\S]*?phase:\s*segment\.type/);
 });
@@ -126,7 +128,7 @@ test("server restart diagnostics expose timer continuity before sparse logging r
   assert.match(index, /function reconcileServerStateIdentity\(remote\)[\s\S]*?identity\.serverRestarted[\s\S]*?previousStartedAtMs:[\s\S]*?previousElapsedMs,[\s\S]*?previousPhaseKey:/);
   assert.match(index, /function recordPerformanceServerInstanceChange\(remote\)[\s\S]*?timelineShiftMs[\s\S]*?elapsedDiscontinuityMs:/);
   assert.match(index, /function recordPerformanceServerInstanceChange\(remote\)[\s\S]*?queuePerformanceServerInstanceChange\(\{/);
-  assert.match(index, /render\("state-update"\);\s*recordPerformanceServerInstanceChange\(remote\);\s*saveOfflineSnapshot\(\);/);
+  assert.match(index, /render\("state-update"\);\s*recordPerformanceServerInstanceChange\(remote\);\s*if \(!isScrubbing\) saveOfflineSnapshot\(\);/);
 });
 
 test("modern offline snapshots skip unchanged payloads but retain a safety checkpoint", () => {
@@ -263,6 +265,8 @@ test("Legacy diagnostics remain explicitly enabled and ES5-compatible", () => {
   assert.match(legacy, /var performanceDisplayBoundaryEventLimit = 16;/);
   assert.match(legacy, /forcedByDiagnostics:\s*false/);
   assert.match(legacy, /display:\s*\{[\s\S]*?visibilityState:[\s\S]*?boundaryEvents:\s*performanceDisplayBoundaryEvents\.slice\(0\)/);
+  assert.match(legacy, /function currentTimerCycle\(\)[\s\S]*?Math\.floor\(Math\.max\(0, elapsed\) \/ cycleLength\) \+ 1/);
+  assert.match(legacy, /recordDisplayBoundary\(\{[\s\S]*?cycle:\s*currentTimerCycle\(\)/);
   assert.match(legacy, /if \(!performanceDiagnosticsEnabled\) \{\s*scheduleRender\(render\(\)\);\s*return;\s*\}[\s\S]*?targetServerTimeMs:[\s\S]*?callbackLatenessMs:[\s\S]*?commitLatenessMs:/);
   assert.doesNotMatch(legacy, /\b(?:const|let)\b|=>|\?\.|\?\?/);
 });
@@ -275,8 +279,11 @@ test("server diagnostics require an explicit startup flag", () => {
   assert.match(server, /function performanceSnapshot\(\)[\s\S]*?clock:\s*\{[\s\S]*?serverInstanceId/);
   assert.match(server, /performanceCount\("startListSanitizations"\)/);
   assert.match(server, /performanceCount\("sseStateBytes"/);
-  assert.match(server, /function repairTimerClockContinuity\(\)[\s\S]*?systemUptimeNow\(\)[\s\S]*?clockContinuityCorrectionMs[\s\S]*?timerStartedAtMono -= correction[\s\S]*?FDV_SERVER_CLOCK_REPAIR/);
+  assert.match(server, /function repairTimerClockContinuity\(\)[\s\S]*?systemUptimeNow\(\)[\s\S]*?clockContinuityCorrectionMs[\s\S]*?recordClockContinuityAnomaly[\s\S]*?timerStartedAtMono -= correction[\s\S]*?FDV_SERVER_CLOCK_REPAIR/);
   assert.match(server, /function elapsedSeconds\([^)]*\)[\s\S]*?repairTimerClockContinuity\(\)/);
-  assert.match(server, /function snapshotPayload\(\)[\s\S]*?savedAtUptimeMs:\s*systemUptimeNow\(\)/);
+  assert.match(server, /function snapshotPayload\(\)[\s\S]*?savedAtUptimeMs = systemUptimeNow\(\)[\s\S]*?savedElapsedDifferenceMs[\s\S]*?clockDiagnostics:\s*publicClockDiagnostics\(\)/);
   assert.match(server, /function restoreTimerSnapshot\(\)[\s\S]*?runningElapsedAfterRestore\([\s\S]*?savedAtUptimeMs,[\s\S]*?currentUptimeMs/);
+  assert.match(server, /timerClockDiagnostics\.lastRestore = sanitizeClockDiagnosticRecord\([\s\S]*?snapshotAgeDifferenceMs[\s\S]*?restoredElapsedMs/);
+  assert.match(server, /function diagnosticsPayload\(\)[\s\S]*?clockDiagnostics:\s*publicClockDiagnostics\(\)/);
+  assert.match(index, /negativeClockAnomalies[\s\S]*?snapshotClockDifference[\s\S]*?restoreClockDifference[\s\S]*?serverClockStatus/);
 });
