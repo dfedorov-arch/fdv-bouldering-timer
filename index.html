@@ -2307,13 +2307,25 @@
     }
 
     body.fullscreen .app {
+      min-height: 100vh;
+      min-height: 100dvh;
+      height: 100vh;
+      height: 100dvh;
       grid-template-columns: 1fr;
     }
 
     body.fullscreen .stage {
       min-height: 100vh;
+      min-height: 100dvh;
+      height: 100vh;
+      height: 100dvh;
       grid-template-rows: 1fr;
       padding: 0;
+    }
+
+    body.fullscreen .stage-main {
+      min-height: 0;
+      height: 100%;
     }
 
     body.fullscreen footer,
@@ -2439,13 +2451,25 @@
     }
 
     :fullscreen .app {
+      min-height: 100vh;
+      min-height: 100dvh;
+      height: 100vh;
+      height: 100dvh;
       grid-template-columns: 1fr;
     }
 
     :fullscreen .stage {
       min-height: 100vh;
+      min-height: 100dvh;
+      height: 100vh;
+      height: 100dvh;
       grid-template-rows: 1fr;
       padding: 0;
+    }
+
+    :fullscreen .stage-main {
+      min-height: 0;
+      height: 100%;
     }
 
     :fullscreen .timer-wrap {
@@ -2940,7 +2964,7 @@
       timeline: []
     };
 
-    const pageBuildNumber = 389;
+    const pageBuildNumber = 390;
     const projectUrl = "https://github.com/dfedorov-arch/fdv-bouldering-timer";
     const buildLinkConfirmDelayMs = 550;
     const offlineSnapshotKey = "fdvBoulderingTimerOfflineSnapshot";
@@ -6176,7 +6200,9 @@
       isViewerClient = nextIsViewer;
       updatePrimaryComputerFlag(diagnosticsIncluded ? remoteClients : lastKnownClients, primaryClientId);
       instancesSoundEnabled = Boolean(remote.instancesSound);
-      instancesFullscreenEnabled = Boolean(remote.instancesFullscreen);
+      const nextInstancesFullscreenEnabled = Boolean(remote.instancesFullscreen);
+      const exitViewerFullscreen = instancesFullscreenEnabled && !nextInstancesFullscreenEnabled;
+      instancesFullscreenEnabled = nextInstancesFullscreenEnabled;
       globalSoundEnabled = remote.globalSound !== false;
       els.primaryToggle.checked = isPrimary;
       els.instancesSoundToggle.checked = instancesSoundEnabled;
@@ -6201,7 +6227,7 @@
       if (primaryRoleChanged) scheduleStartListPanelWidthFit({ settle: true, force: true });
       revealControlsIfAllowed();
       syncDiagnosticsStream();
-      applyViewerFullscreenPreference();
+      applyViewerFullscreenPreference(false, exitViewerFullscreen);
       scheduleFitTimer();
 
       if (options.replaceAudioSchedule) clearSignalTimers(false, true);
@@ -11065,7 +11091,7 @@
       registerTimerTap(event, event.clientX, event.clientY);
     }
 
-    async function applyViewerFullscreenPreference(fromUserGesture = false) {
+    async function applyViewerFullscreenPreference(fromUserGesture = false, exitRequested = false) {
       if (!isViewerClient) {
         pendingViewerFullscreen = false;
         return;
@@ -11089,6 +11115,7 @@
         return;
       }
 
+      if (!exitRequested) return;
       pendingViewerFullscreen = false;
       document.body.classList.remove("fullscreen");
       if (document.fullscreenElement) {

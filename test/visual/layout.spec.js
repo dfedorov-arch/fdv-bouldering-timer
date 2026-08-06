@@ -55,6 +55,90 @@ test("Festival hides the unavailable start-list switch", async ({ browser }) => 
   }
 });
 
+test("Disabling remote fullscreen exits viewers once without overriding later manual fullscreen", async ({ browser }) => {
+  const screenId = "visual-fullscreen-screen";
+  const screenContext = await browser.newContext({ viewport: { width: 1000, height: 800 } });
+  await screenContext.addInitScript((id) => {
+    window.sessionStorage.setItem("boulderingTimerClientId", id);
+  }, screenId);
+  const screen = await screenContext.newPage();
+  try {
+    await screen.goto(`${server.baseUrl}/`, { waitUntil: "domcontentloaded" });
+    await screen.waitForFunction(() => document.body.classList.contains("viewer-mode"));
+    await screen.evaluate(() => {
+      let fullscreenElement = null;
+      let requests = 0;
+      let exits = 0;
+      Object.defineProperty(document, "fullscreenElement", {
+        configurable: true,
+        get: () => fullscreenElement
+      });
+      Object.defineProperty(document.documentElement, "requestFullscreen", {
+        configurable: true,
+        value: async () => {
+          requests += 1;
+          fullscreenElement = document.documentElement;
+        }
+      });
+      Object.defineProperty(document, "exitFullscreen", {
+        configurable: true,
+        value: async () => {
+          exits += 1;
+          fullscreenElement = null;
+        }
+      });
+      window.fullscreenTestState = () => ({ requests, exits, active: Boolean(fullscreenElement) });
+    });
+    await action(server.baseUrl, "instancesFullscreen", { enabled: true });
+    await screen.waitForFunction(() => window.fullscreenTestState().requests === 1);
+    await action(server.baseUrl, "instancesFullscreen", { enabled: false });
+    await screen.waitForFunction(() => window.fullscreenTestState().exits === 1);
+    await screen.evaluate(() => document.documentElement.requestFullscreen());
+    await action(server.baseUrl, "instancesSound", { enabled: true });
+    await wait(350);
+    expect(await screen.evaluate(() => window.fullscreenTestState())).toEqual({ requests: 2, exits: 1, active: true });
+  } finally {
+    await screenContext.close();
+  }
+});
+
+test("Large phone fullscreen keeps the server clock inside a timer-only screen", async ({ browser }) => {
+  const clientId = "visual-phone-fullscreen-clock";
+  const context = await browser.newContext({ viewport: { width: 430, height: 932 } });
+  await context.addInitScript((id) => {
+    window.sessionStorage.setItem("boulderingTimerClientId", id);
+  }, clientId);
+  const page = await context.newPage();
+  try {
+    await page.goto(`${server.baseUrl}/`, { waitUntil: "domcontentloaded" });
+    await page.waitForFunction(() => document.body.classList.contains("viewer-mode"));
+    await action(server.baseUrl, "startListEnabled", { enabled: false });
+    await action(server.baseUrl, "clientServerTime", { targetClientId: clientId, enabled: true });
+    await page.locator("#serverClockDisplay").waitFor();
+    await page.evaluate(() => document.body.classList.add("fullscreen"));
+    const geometry = await page.evaluate(() => {
+      const stage = document.querySelector(".stage").getBoundingClientRect();
+      const timerColumn = document.querySelector(".timer-column").getBoundingClientRect();
+      const clock = document.getElementById("serverClockDisplay").getBoundingClientRect();
+      return {
+        viewportHeight: window.innerHeight,
+        stageHeight: stage.height,
+        timerBottom: timerColumn.bottom,
+        clockTop: clock.top,
+        clockBottom: clock.bottom
+      };
+    });
+    expect(geometry.stageHeight).toBeCloseTo(geometry.viewportHeight, 0);
+    expect(geometry.timerBottom).toBeLessThanOrEqual(geometry.viewportHeight + 1);
+    expect(geometry.clockTop).toBeGreaterThanOrEqual(0);
+    expect(geometry.clockBottom).toBeLessThanOrEqual(geometry.viewportHeight + 1);
+  } finally {
+    await action(server.baseUrl, "clientServerTime", { targetClientId: clientId, enabled: false }).catch(() => {});
+    await action(server.baseUrl, "startListEnabled", { enabled: true }).catch(() => {});
+    await context.close();
+  }
+});
+
 test("Paused festival progress stays under a motionless held pointer during server sync", async ({ browser }) => {
   await action(server.baseUrl, "reset");
   await action(server.baseUrl, "settings", {
