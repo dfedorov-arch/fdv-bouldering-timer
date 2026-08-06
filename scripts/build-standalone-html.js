@@ -27,22 +27,37 @@ function mimeType(fileName) {
   return "font/ttf";
 }
 
+function fontDataUri(fileName) {
+  if (/[\\/\0]/.test(fileName)) throw new Error(`Unexpected font file name: ${fileName}`);
+  const fontPath = path.join(root, "fonts", fileName);
+  if (!fs.existsSync(fontPath)) throw new Error(`Font file is missing: ${fileName}`);
+  return `data:${mimeType(fileName)};base64,${fs.readFileSync(fontPath).toString("base64")}`;
+}
+
 function embedTimerFont(offlineAudio) {
   const match = offlineAudio.match(/window\.FDV_OFFLINE_BUNDLE = (.*);\s*$/s);
   if (!match) throw new Error("Could not parse lib/offline-audio.js");
   const bundle = JSON.parse(match[1]);
   const fontFile = String(bundle.config?.timerFontFile || "").trim();
   if (!fontFile) return offlineAudio;
-  if (/[\\/\0]/.test(fontFile)) throw new Error(`Unexpected font file name: ${fontFile}`);
-  const fontPath = path.join(root, "fonts", fontFile);
-  if (!fs.existsSync(fontPath)) return offlineAudio;
-  const fontData = fs.readFileSync(fontPath).toString("base64");
-  bundle.config.timerFontUrl = `data:${mimeType(fontFile)};base64,${fontData}`;
+  bundle.config.timerFontUrl = fontDataUri(fontFile);
   return `/* Generated automatically from params.txt, beeps, and fonts. */\nwindow.FDV_OFFLINE_BUNDLE = ${JSON.stringify(bundle)};\n`;
 }
 
+function embedClockFonts(html) {
+  const clockFontFiles = [
+    "DSEG7Classic-Regular.woff2",
+    "DSEG7Classic-Regular.woff",
+    "DSEG7Classic-Bold.woff2",
+    "DSEG7Classic-Bold.woff"
+  ];
+  return clockFontFiles.reduce((result, fileName) => (
+    result.replaceAll(`url("fonts/${fileName}")`, `url("${fontDataUri(fileName)}")`)
+  ), html);
+}
+
 function build() {
-  let html = read("index.html");
+  let html = embedClockFonts(read("index.html"));
   const offlineAudio = embedTimerFont(read("lib/offline-audio.js"));
   const clientActionTransport = read("lib/client-action-transport.js");
   const startListDisplay = read("lib/start-list-display.js");

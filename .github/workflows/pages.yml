@@ -6,6 +6,14 @@ on:
       - main
     paths:
       - "docs/**"
+      - "index.html"
+      - "params.txt"
+      - "fonts/**"
+      - "beeps/**"
+      - "lib/**"
+      - "manifest.webmanifest"
+      - "app-icon.svg"
+      - "scripts/build-standalone-html.js"
       - "help.html"
       - "help-assets/**"
       - ".github/workflows/pages.yml"
@@ -32,6 +40,9 @@ jobs:
 
       - name: Configure GitHub Pages
         uses: actions/configure-pages@v5
+
+      - name: Build standalone timer
+        run: node scripts/build-standalone-html.js docs/standalone.html
 
       - name: Assemble website
         run: |
