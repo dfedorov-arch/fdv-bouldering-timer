@@ -1,0 +1,197 @@
+{
+  "schemaVersion": 1,
+  "recordedAt": "2026-07-31T08:03:52.077Z",
+  "sourceCommit": "bce8a9258f1b8462bf3371e7f434ab4cd2ee0d3e",
+  "instrumentation": "working tree after bce8a92; diagnostic-only snapshot fields and baseline harness",
+  "scenario": {
+    "id": "four-120x5-incidents",
+    "listCount": 4,
+    "participantsPerList": 120,
+    "routeCount": 5,
+    "incidentsPerList": 100,
+    "timer": {
+      "rotationSeconds": 8,
+      "breakSeconds": 3
+    }
+  },
+  "sampleDurationMs": 15000,
+  "environment": {
+    "clients": "two modern tabs and one Legacy tab in the Codex in-app browser on one Windows computer",
+    "server": "isolated temporary copy, Node.js, performance diagnostics enabled",
+    "limitations": [
+      "This run compares logical sound targets; it does not measure physical speaker output.",
+      "Clock offset spread is comparable because all tabs share one computer wall clock.",
+      "CPU and heap usage were not sampled in this first baseline."
+    ]
+  },
+  "invariants": {
+    "displayLabelsMatched": true,
+    "displayLabel": "00:08",
+    "clockOffsetSpreadAllClientsMs": 9.05,
+    "clockOffsetSpreadModernClientsMs": 0.8,
+    "maxModernReportedSyncErrorMs": 2.45,
+    "comparableLogicalSoundTargets": 5,
+    "maxCanonicalSoundTargetSpreadMs": 1,
+    "allClientsReportedServerAvailable": true
+  },
+  "serverSteady": {
+    "sampleAgeMs": 15064,
+    "counters": {
+      "jsonResponses": 32,
+      "jsonResponseBytes": 1106318,
+      "legacyPublicStateCalls": 15,
+      "publicStateCalls": 31,
+      "startListSanitizations": 209,
+      "eventLoopLagSamples": 15
+    },
+    "timings": {
+      "sendJson": { "count": 32, "totalMs": 16.197, "averageMs": 0.506, "maxMs": 1.447 },
+      "sanitizeStartLists": { "count": 209, "totalMs": 31.845, "averageMs": 0.152, "maxMs": 0.288 },
+      "publicState": { "count": 31, "totalMs": 30.151, "averageMs": 0.973, "maxMs": 2.54 },
+      "legacyPublicState": { "count": 15, "totalMs": 8.77, "averageMs": 0.585, "maxMs": 0.637 },
+      "eventLoopLag": { "count": 15, "totalMs": 18.733, "averageMs": 1.249, "maxMs": 8.386 }
+    },
+    "gauges": {
+      "clients": 3,
+      "eventClients": 2,
+      "diagnosticEventClients": 2,
+      "startListCount": 4,
+      "startListRows": 480
+    }
+  },
+  "clients": [
+    {
+      "id": "modern-1",
+      "mode": "modern",
+      "sampleAgeMs": 15004,
+      "clock": {
+        "offsetFromWallMs": -1.05,
+        "syncErrorMs": 2.45,
+        "syncLatencyMs": 21.2,
+        "syncJitterMs": 0.5,
+        "syncSamples": 5
+      },
+      "dom": { "tables": 4, "rows": 480 },
+      "counters": {
+        "renderCalls": 79,
+        "startListRenderCalls": 79,
+        "startListNormalizations": 209,
+        "startListTableRebuilds": 16,
+        "startListRowsBuilt": 1920,
+        "startListRouteCellsBuilt": 9600,
+        "timerFitRequests": 120,
+        "timerFitCoalesced": 101,
+        "timerFitRuns": 18,
+        "offlineSnapshotCalls": 17,
+        "offlineSnapshotWrites": 17,
+        "offlineSnapshotBytes": 1056916,
+        "stateRequests": 10,
+        "stateResponseBytes": 661201
+      },
+      "timings": {
+        "render": { "count": 79, "totalMs": 730.6, "averageMs": 9.248, "maxMs": 173 },
+        "renderStartList": { "count": 79, "totalMs": 664.4, "averageMs": 8.41, "maxMs": 172.1 },
+        "normalizeStartLists": { "count": 209, "totalMs": 148.1, "averageMs": 0.709, "maxMs": 1.7 },
+        "fitStartListPanelWidth": { "count": 16, "totalMs": 393.9, "averageMs": 24.619, "maxMs": 49 },
+        "eventLoopLag": { "count": 15, "totalMs": 454.6, "averageMs": 30.307, "maxMs": 171.7 },
+        "syncFromServer": { "count": 10, "totalMs": 487.3, "averageMs": 48.73, "maxMs": 235.6 },
+        "saveOfflineSnapshot": { "count": 17, "totalMs": 4.1, "averageMs": 0.241, "maxMs": 0.5 }
+      },
+      "audio": { "scheduledSignals": 5, "playedSignals": 13 }
+    },
+    {
+      "id": "modern-2",
+      "mode": "modern",
+      "sampleAgeMs": 15004,
+      "clock": {
+        "offsetFromWallMs": -0.25,
+        "syncErrorMs": 2.3,
+        "syncLatencyMs": 21,
+        "syncJitterMs": 0.5,
+        "syncSamples": 5
+      },
+      "dom": { "tables": 4, "rows": 480 },
+      "counters": {
+        "renderCalls": 80,
+        "startListRenderCalls": 80,
+        "startListNormalizations": 211,
+        "startListTableRebuilds": 16,
+        "startListRowsBuilt": 1920,
+        "startListRouteCellsBuilt": 9600,
+        "timerFitRequests": 121,
+        "timerFitCoalesced": 102,
+        "timerFitRuns": 18,
+        "offlineSnapshotCalls": 17,
+        "offlineSnapshotWrites": 17,
+        "offlineSnapshotBytes": 1056909,
+        "stateRequests": 10,
+        "stateResponseBytes": 661156
+      },
+      "timings": {
+        "render": { "count": 80, "totalMs": 745.5, "averageMs": 9.319, "maxMs": 170.6 },
+        "renderStartList": { "count": 80, "totalMs": 672.4, "averageMs": 8.405, "maxMs": 169.7 },
+        "normalizeStartLists": { "count": 211, "totalMs": 164.4, "averageMs": 0.779, "maxMs": 1.8 },
+        "fitStartListPanelWidth": { "count": 16, "totalMs": 429.6, "averageMs": 26.85, "maxMs": 53.1 },
+        "eventLoopLag": { "count": 15, "totalMs": 210, "averageMs": 14, "maxMs": 94.2 },
+        "syncFromServer": { "count": 10, "totalMs": 576.6, "averageMs": 57.66, "maxMs": 278.7 },
+        "saveOfflineSnapshot": { "count": 17, "totalMs": 3.9, "averageMs": 0.229, "maxMs": 0.4 }
+      },
+      "audio": { "scheduledSignals": 5, "playedSignals": 13 }
+    },
+    {
+      "id": "legacy-1",
+      "mode": "legacy",
+      "sampleAgeMs": 15105,
+      "clock": {
+        "offsetFromWallMs": 8,
+        "syncLatencyMs": 20,
+        "syncSamples": 10
+      },
+      "dom": { "tables": 4, "rows": 480 },
+      "counters": {
+        "renderCalls": 32,
+        "timerFitCalls": 31,
+        "timerFitSearches": 14,
+        "stateRequests": 16,
+        "stateResponseBytes": 50275,
+        "protocolStructureRebuilds": 1,
+        "protocolTablesBuilt": 4,
+        "protocolRowsBuilt": 480,
+        "protocolRouteCellsBuilt": 2400,
+        "protocolFullUpdates": 16,
+        "snapshotCalls": 16,
+        "snapshotWrites": 3
+      },
+      "timings": {
+        "render": { "count": 32, "totalMs": 162.2, "averageMs": 5.069, "maxMs": 99.9 },
+        "fitTimerText": { "count": 31, "totalMs": 74.5, "averageMs": 2.403, "maxMs": 43.7 },
+        "stateResponseJsonParse": { "count": 16, "totalMs": 0.3, "averageMs": 0.019, "maxMs": 0.1 },
+        "eventLoopLag": { "count": 15, "totalMs": 33.8, "averageMs": 2.253, "maxMs": 11.8 }
+      }
+    }
+  ],
+  "fieldChecks": {
+    "physicalSoundSync": "not-measured",
+    "networkDisconnectRecovery": "browser-pass",
+    "serverRestartRecovery": "browser-pass-and-server-integration-test"
+  },
+  "recovery": {
+    "offlineWindowMs": 21800,
+    "offline": {
+      "allClientsDetectedOutage": true,
+      "displayLabelsMatched": true,
+      "displayLabel": "00:02",
+      "modernClockOffsetSpreadMs": 0.45,
+      "clockOffsetSpreadAllClientsMs": 9.8
+    },
+    "restart": {
+      "restoredServerInstanceId": "17991ce3-874f-4192-ab3f-9d6b0b03b7ed",
+      "serverRestoredRunningState": true,
+      "allClientsReconnected": true,
+      "displayLabelsMatched": true,
+      "displayLabel": "00:07",
+      "modernClockOffsetSpreadMs": 0.05,
+      "clockOffsetSpreadAllClientsMs": 10.1
+    }
+  }
+}

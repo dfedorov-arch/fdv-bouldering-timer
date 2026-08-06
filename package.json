@@ -1,0 +1,13 @@
+{
+  "name": "fdv-bouldering-timer",
+  "private": true,
+  "scripts": {
+    "test": "node scripts/run-node-tests.js",
+    "test:visual": "playwright test --config test/visual/playwright.config.js",
+    "test:visual:update": "playwright test --config test/visual/playwright.config.js --update-snapshots",
+    "test:visual:install": "playwright install chromium"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.62.1"
+  }
+}

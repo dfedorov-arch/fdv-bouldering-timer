@@ -1,400 +1,153 @@
-Таймер болдеринга: краткий запуск
-=================================
+FDV BOULDERING TIMER
+====================
 
-Английская версия находится ниже (English version follows below).
-
-Полное руководство:
-
-  help.html
-
-Готовые portable-архивы для Windows, macOS и Linux:
-
-  https://github.com/dfedorov-arch/fdv-bouldering-timer/releases
-
-
-1. Перенос на другой компьютер
-------------------------------
-
-Скопируйте папку fdv-bouldering-timer целиком.
-
-Для работы нужен Node.js LTS:
-
-  https://nodejs.org/en/download
-
-Проверка установленного Node.js:
-
-  node -v
-
-Пути к portable Node.js задаются в params.txt:
-
-  portable_node_win=runtime\win\node.exe
-  portable_node_mac=runtime/mac/bin/node
-  portable_node_linux=runtime/linux/bin/node
-
-Относительный путь считается от папки таймера. Если portable Node.js не найден,
-скрипт запуска попробует использовать системный Node.js. Краткие инструкции по
-распаковке находятся в runtime\win\README.txt, runtime\mac\README.txt и
-runtime/linux/README.txt.
-
-
-2. Запуск
----------
-
-Windows:
-
-  fdv-bouldering-timer.exe
-
-EXE показывает адреса, открывает браузер и позволяет перезапустить или остановить
-сервер. При закрытии окна он продолжает работать в области уведомлений Windows.
-Резервный способ запуска:
-
-  start-timer-win.bat
-
-Разрешите Node.js доступ к частной сети в Windows Firewall.
-
-macOS:
-
-  FDV Bouldering Timer.app
-
-Резервный способ запуска:
-
-  start-timer-mac.command
-
-Если запуск запрещён, щёлкните приложение или файл правой кнопкой и выберите "Открыть". Если macOS продолжает блокировать запуск, откройте Системные настройки → Конфиденциальность и безопасность и нажмите "Всё равно открыть" / "Разрешить" для FDV Bouldering Timer. Если macOS продолжает блокировать приложение сервера или portable Node.js, снимите quarantine-атрибут с распакованной папки:
-
-  xattr -dr com.apple.quarantine .
-  xattr -dr com.apple.quarantine "FDV Bouldering Timer.app"
-  xattr -dr com.apple.quarantine "/полный/путь/к/fdv-bouldering-timer-v1.0.7-macos-arm64"
-
-При ошибке Permission denied выполните:
-
-  chmod +x fdv-bouldering-timer start-timer-mac.command create-https-certificate-mac.command
-
-Linux:
-
-  ./start-timer-linux.sh
-
-При ошибке Permission denied выполните:
-
-  chmod +x start-timer-linux.sh create-https-certificate-linux.sh
-
-Не закрывайте окно сервера или Terminal во время работы таймера.
-
-
-3. Адреса
----------
-
-На компьютере сервера:
-
-  http://127.0.0.1:8008/
-
-На других устройствах откройте сетевой адрес, напечатанный скриптом запуска,
-например http://192.168.1.68:8008/. Все устройства должны находиться в одной
-локальной сети.
-
-
-4. Первоначальная настройка
---------------------------
-
-При необходимости измените params.txt и перезапустите сервер. Основные параметры:
-
-  http_port=8008
-  https_port=8443
-  language=ru
-  classic_rotation_minutes=5
-  classic_break_seconds=15
-  festival_round_minutes=120
-  festival_break_minutes=30
-  festival_announcements=true
-  final_rotation_minutes=4
-  final_round_format=old
-  final_rest_rotations=3
-  sound_profile=FSR_2026
-
-  timer_font_file=Roboto-Variable.ttf
-  timer_font=Arial, sans-serif
-
-  countdown_text_color=#f4f7fb
-  countdown_background_color=#0e1116
-
-  rotation_text_color=#f4f7fb
-  rotation_last_five_text_color=#f4f7fb
-  rotation_background_color=#0e1116
-  rotation_last_five_background_color=#0e1116
-
-  break_text_color=#f4f7fb
-  break_background_color=#f05a59
-
-Каждый подкаталог в beeps является звуковым профилем. Используются файлы START,
-END, MINUTE и WARNING в WAV или MP3. Для фестивальных объявлений поддерживаются
-FESTIVAL_60, FESTIVAL_30, FESTIVAL_10 и FESTIVAL_5. Если END отсутствует,
-используется START. Подробности находятся в help.html и beeps\README.txt.
-
-При каждом запуске сервера автоматически обновляется lib/offline-audio.js. Он содержит
-автономную копию профилей и позволяет открыть index.html напрямую без сервера со
-звуком. После замены файлов в beeps один раз запустите таймер для обновления копии.
-В автономном режиме плитка текущего браузера позволяет открыть AUDIO, настроить
-поправку звука и проверить четыре типа сигналов.
-
-В релизах также есть один самодостаточный файл fdv-bouldering-timer-standalone.html.
-Он подходит для любой ОС и запускается без Node.js, но работает как одиночный
-автономный таймер без синхронизации с другими браузерами.
-
-Файл шрифта берётся из каталога fonts и загружается всеми экранами с локального
-сервера. timer_font задаёт резервные системные шрифты. Поддерживаются WOFF2,
-WOFF, TTF и OTF; указывайте только имя файла без пути. Размер цифр всегда
-рассчитывается автоматически как максимально возможный.
-Готовые варианты перечислены в fonts\README.txt. Все включённые шрифты имеют
-обычный пустой ноль; у Roboto, Open Sans и Barlow Condensed круглое двоеточие.
-
-
-5. Основные действия
---------------------
-
-1. Включите "Основной браузер" в управляющем браузере.
-2. Выберите формат и длительности.
-3. Нажмите "Старт" для немедленного запуска.
-4. Для запуска по часам задайте время и нажмите маленькую кнопку ▶.
-
-Горячие клавиши:
-
-  Z / Я             Старт или продолжить
-  Ctrl+Q / Ctrl+Й   Пауза
-  P / З             Сброс
-  Ctrl+F / Ctrl+А   Полный экран
-  Ctrl+M / Ctrl+Ь   Назначить основным
-
-Пробел не управляет стартом или паузой.
-
-Legacy-режим для старых браузеров и телевизоров включается из списка браузеров нажатием на индикатор LEGACY. Без выбранных протоколов такой экран показывает только крупное время; кнопками PROTOCOL 1–4 на нём можно вывести полные таблицы выбранных протоколов. Legacy использует упрощённый JavaScript и XHR-синхронизацию, продолжает обновлять таймер и протоколы при временной потере сети, не воспроизводит звук и возвращается в обычный режим повторным нажатием LEGACY из основного браузера.
-
-
-6. HTTPS
---------
-
-HTTP работает без сертификата. Для HTTPS запустите:
-
-  Windows: create-https-certificate.bat
-  macOS:   create-https-certificate-mac.command
-  Linux:   create-https-certificate-linux.sh
-
-Затем перезапустите таймер. После переноса на другой компьютер или изменения
-локального IP сертификат рекомендуется создать заново.
-
-
-7. Если экран не подключается
------------------------------
-
-Проверьте, что устройства находятся в одной негостевой сети, в адресе указан
-порт, используется IP Wi-Fi или Ethernet, Node.js разрешён в Firewall, а VPN
-отключён. Подробные инструкции находятся в help.html.
-
-
-Лицензия
---------
-
-Проект распространяется по лицензии MIT. Полный текст находится в LICENSE.
-
-2026 Фёдоров Денис + Codex
-
-
-==========================================================================
-
-Bouldering Timer: Quick Start
-=============================
-
-Full user guide:
-
-  help.html
-
-Ready-to-use portable packages for Windows, macOS, and Linux:
-
-  https://github.com/dfedorov-arch/fdv-bouldering-timer/releases
-
-
-1. Moving to another computer
------------------------------
-
-Copy the entire fdv-bouldering-timer folder.
-
-Node.js LTS is required:
-
-  https://nodejs.org/en/download
-
-Check the installed version:
-
-  node -v
-
-Portable Node.js paths are configured in params.txt:
-
-  portable_node_win=runtime\win\node.exe
-  portable_node_mac=runtime/mac/bin/node
-  portable_node_linux=runtime/linux/bin/node
-
-Relative paths are resolved from the timer folder. If portable Node.js is not
-found, the launcher tries the system Node.js installation. Short extraction
-instructions are in runtime\win\README.txt, runtime\mac\README.txt, and
-runtime/linux/README.txt.
-
-
-2. Starting the timer
----------------------
-
-Windows:
-
-  fdv-bouldering-timer.exe
-
-The EXE displays addresses, opens the browser, and can restart or stop the
-server. Closing its window keeps it running in the Windows notification area.
-Fallback launcher:
-
-  start-timer-win.bat
-
-Allow Node.js access to private networks in Windows Firewall.
-
-macOS:
-
-  FDV Bouldering Timer.app
-
-Fallback launcher:
-
-  start-timer-mac.command
-
-If macOS blocks the app or file, right-click it and select Open. If launch is still blocked, open System Settings → Privacy & Security and click Open Anyway / Allow for FDV Bouldering Timer. If macOS still blocks the server app or bundled Node.js runtime, clear the quarantine attribute on the extracted folder:
-
-  xattr -dr com.apple.quarantine .
-  xattr -dr com.apple.quarantine "FDV Bouldering Timer.app"
-  xattr -dr com.apple.quarantine "/full/path/to/fdv-bouldering-timer-v1.0.7-macos-arm64"
-
-For a Permission denied error, run:
-
-  chmod +x fdv-bouldering-timer start-timer-mac.command create-https-certificate-mac.command
-
-Linux:
-
-  ./start-timer-linux.sh
-
-For a Permission denied error, run:
-
-  chmod +x start-timer-linux.sh create-https-certificate-linux.sh
-
-Official portable Node.js Linux builds target glibc distributions. Alpine Linux
-and other musl systems require a compatible Node.js build.
-
-Keep the server or Terminal window open while the timer is in use.
-
-
-3. Addresses
-------------
-
-On the server computer:
-
-  http://127.0.0.1:8008/
-
-On other devices, open a network address printed by the launcher, for example
-http://192.168.1.68:8008/. All devices must be on the same local network.
-
-
-4. Initial configuration
-------------------------
-
-Edit params.txt if required, then restart the server. Main parameters:
-
-  http_port=8008
-  https_port=8443
-  language=ru
-  classic_rotation_minutes=5
-  classic_break_seconds=15
-  festival_round_minutes=120
-  festival_break_minutes=30
-  festival_announcements=true
-  final_rotation_minutes=4
-  final_round_format=old
-  final_rest_rotations=3
-  sound_profile=FSR_2026
-
-  timer_font_file=Roboto-Variable.ttf
-  timer_font=Arial, sans-serif
-
-  countdown_text_color=#f4f7fb
-  countdown_background_color=#0e1116
-
-  rotation_text_color=#f4f7fb
-  rotation_last_five_text_color=#f4f7fb
-  rotation_background_color=#0e1116
-  rotation_last_five_background_color=#0e1116
-
-  break_text_color=#f4f7fb
-  break_background_color=#f05a59
-
-Each subfolder in beeps is a sound profile. Profiles use START, END, MINUTE and
-WARNING files in WAV or MP3 format. Festival announcements may use FESTIVAL_60,
-FESTIVAL_30, FESTIVAL_10 and FESTIVAL_5. START is used when END is missing. See
-help.html and beeps\README.txt for details.
-
-Every server start automatically refreshes lib/offline-audio.js. It contains a standalone
-copy of the profiles, allowing index.html to be opened directly without the server
-and retain sound. After replacing files in beeps, start the timer once to refresh it.
-In standalone mode, the current-browser card provides AUDIO offset adjustment and
-local tests for all four signal types.
-
-Releases also include a single-file standalone timer: fdv-bouldering-timer-standalone.html.
-It works on any operating system and does not require Node.js, but it runs as a
-single-browser offline timer without synchronization with other browsers.
-
-The font file is loaded from the fonts folder by every display through the
-local server. timer_font defines system fallbacks. WOFF2, WOFF, TTF and OTF are
-supported; specify a file name without a path. Digit size is always calculated
-automatically to fill the available space.
-Bundled choices are listed in fonts\README.txt. Every included font has a plain,
-empty zero; Roboto, Open Sans and Barlow Condensed have round colon dots.
-
-
-5. Main controls
-----------------
-
-1. Enable Primary browser in the controlling browser.
-2. Select a format and durations.
-3. Press Start for an immediate start.
-4. For a scheduled start, enter the time and press the small ▶ button.
-
-Keyboard shortcuts:
-
-  Z          Start or resume
-  Ctrl+Q     Pause
-  P          Reset
-  Ctrl+F     Fullscreen
-  Ctrl+M     Set as primary browser
-
-Space does not start or pause the timer.
-
-Legacy mode for older browsers and TV browsers is toggled from the browser list by clicking the LEGACY badge. With no protocols selected it shows only the large timer; PROTOCOL 1–4 can add complete read-only tables for the selected lists. Legacy uses simplified JavaScript and XHR synchronization, keeps advancing its timer and protocols during temporary network loss, does not play sound, and returns to the normal interface when LEGACY is clicked again from the primary browser.
-
-
-6. HTTPS
---------
-
-HTTP works without a certificate. For HTTPS run:
-
-  Windows: create-https-certificate.bat
-  macOS:   create-https-certificate-mac.command
-  Linux:   create-https-certificate-linux.sh
-
-Restart the timer afterwards. Recreate the certificate after moving to another
-computer or changing the local IP address.
-
-
-7. If a display cannot connect
-------------------------------
-
-Check that all devices use the same non-guest network, the address includes the
-port, a Wi-Fi or Ethernet IP is used, Node.js is allowed through the firewall,
-and VPN is disabled. See help.html for detailed troubleshooting.
-
-
-License
+Русский
 -------
 
-This project is distributed under the MIT License. See LICENSE for the full text.
+Назначение
+----------
 
-2026 Fedorov Denis + Codex
+FDV Bouldering Timer — локальный сетевой таймер для соревнований по болдерингу. Один браузер назначается основным и управляет общим состоянием сервера; телефоны, планшеты, компьютеры и телевизоры показывают синхронный экран. Интерфейс работает на русском и английском языках.
+
+Форматы
+-------
+
+- Классика: повторяющиеся ротация и короткий перерыв.
+- Фестиваль: длинный раунд и перерыв, дополнительные объявления за 60, 30, 10 и 5 минут.
+- Финал: одна ротация за запуск; следующая начинается вручную. Поддерживаются старый и новый порядок продвижения участников.
+
+Быстрый запуск
+--------------
+
+1. Распакуйте релиз полностью.
+2. Windows: запустите fdv-bouldering-timer.exe. macOS/Linux: используйте приложение или штатный скрипт запуска из своей папки.
+3. На серверном компьютере откройте http://127.0.0.1:8008/.
+4. Включите «Основной браузер» или нажмите Ctrl+M / Ctrl+Ь.
+5. На остальных устройствах откройте адрес Wi-Fi/Ethernet, показанный приложением запуска.
+6. Выберите формат и параметры. «Старт» запускает немедленно; маленькая кнопка ▶ у времени начала создаёт отложенный старт.
+
+Основные команды
+----------------
+
+- Старт: Z / Я.
+- Пауза: Ctrl+Q / Ctrl+Й.
+- Стоп: P / З.
+- Полный экран основного браузера: Ctrl+F / Ctrl+А.
+- Назначение основного браузера: Ctrl+M / Ctrl+Ь.
+
+На паузе основной браузер может перетаскивать полосу прогресса. Пока кнопка мыши или касание удерживаются, синхронизация с сервером не должна возвращать полосу назад.
+
+Стартовые списки
+----------------
+
+Можно загрузить до четырёх стартовых списков из XLSX, XLS, CSV, TSV, TXT или MXL. В пользовательском интерфейсе они обозначаются LIST 1–4. Термин «протокол» остаётся только во внутренних именах совместимости и в значении HTTP/HTTPS.
+
+- Таблицы показывают подготовку, лазание, завершение, паузы и остановки трасс.
+- Значения участников не сокращаются многоточием; при нехватке ширины используется горизонтальная прокрутка. Сокращаться может заголовок.
+- Для каждого экрана отдельно выбираются видимые LIST.
+- Если выбраны ровно два списка, голубая кнопка переключает одну или две колонки. Оранжевый контур означает раскладку, отличающуюся от стандартной.
+- Трассу можно приостановить и возобновить с текущего или будущего цикла. Запланированные границы сразу показываются в тексте инцидента и таблице.
+- Участников и трассы можно исключать и восстанавливать.
+
+Экраны и диагностика
+--------------------
+
+Основной браузер всегда первый и выделен ярким контуром. Остальные карточки можно переставлять стрелками. Булавка сохраняет место браузера после отключения и повторного подключения. Если браузеров не меньше трёх, кнопка номера в карточке основного браузера показывает одинаковые номера на карточках и в правом верхнем углу поля таймера экранов.
+
+Плашки расположены в порядке LEGACY, AUDIO, TIME, NET, SYNC, SSE, TAB, затем LIST 1–4.
+
+- Серый: функция или параметр недоступны.
+- Тёмно-зелёный: доступны, но неактивны.
+- Светло-зелёный: активны или работают нормально.
+- Жёлтый: предупреждение.
+- Красный: ошибка либо требуемая функция не работает.
+- Голубой: список показан или активна кнопка раскладки.
+- Оранжевый контур: ручной Legacy на совместимом браузере или нестандартная раскладка двух списков.
+
+LEGACY переключает облегчённую страницу старого телевизора. AUDIO показывает доступность, разблокировку и реальное продвижение аудиочасов. TIME включает компактные часы сервера под таймером. NET показывает сеть, SYNC — оценку синхронизации и задержки отрисовки, SSE — поток команд, TAB — видимость вкладки и, в обычном браузере, Wake Lock.
+
+Порог NET: до 100 мс зелёный, 100–200 мс жёлтый, выше 200 мс красный. Порог задержки отрисовки и аудиочасов: до 100 мс зелёный, 100–250 мс жёлтый, выше 250 мс красный.
+
+Legacy и временная потеря сети
+-----------------------------
+
+Legacy предназначен для старых ТВ-браузеров. Он показывает таймер, выбранные LIST и при включённом TIME часы сервера, но не воспроизводит звук. Страница использует XHR вместо SSE и продолжает локальный отсчёт при временной потере сети. Отложенный старт Классики и Фестиваля привязан к абсолютной отметке времени и должен наступить даже без сети; после восстановления экран принимает авторитетное состояние сервера.
+
+Обычный экран также продолжает расчёт из последней временной шкалы. После длительной недоступности сервера предлагается автономный режим. Возврат к серверу выполняется явно, потому что автономные команды не отправляются назад.
+
+Звук
+----
+
+Звук основного браузера и звук других браузеров настраиваются отдельно. Браузер требует хотя бы одного касания для разблокировки. Дополнительный браузер на том же компьютере, что и основной, не дублирует звук. AUDIO открывает поправку от −500 до +500 мс и тест сигналов. Профили находятся в beeps; поддерживаются WAV и MP3.
+
+Настройки и помощь
+------------------
+
+Начальные параметры, порты, цвета, шрифт и профиль звука задаются в params.txt и читаются при запуске сервера. Полное двуязычное руководство: help.html. Техническая карта документации: docs/documentation-map.md.
+
+Автономная версия
+-----------------
+
+fdv-bouldering-timer-standalone.html работает одним файлом без Node.js и сети, но не синхронизирует другие браузеры. Обычный index.html также может работать напрямую после генерации lib/offline-audio.js.
+
+
+English
+-------
+
+Purpose
+-------
+
+FDV Bouldering Timer is a local-network competition timer. One primary browser controls authoritative server state while phones, computers, tablets, and televisions show synchronized displays. Russian and English interfaces are included.
+
+Formats
+-------
+
+- Classic: repeating rotation and short break.
+- Festival: long round and break with optional 60, 30, 10, and 5 minute announcements.
+- Final: one rotation per Start, followed by an operator-controlled next attempt; Old and New participant schedules are supported.
+
+Quick start
+-----------
+
+1. Extract the complete release.
+2. Start fdv-bouldering-timer.exe on Windows or the supplied app/script on macOS or Linux.
+3. Open http://127.0.0.1:8008/ on the server computer.
+4. Enable Primary browser or press Ctrl+M.
+5. Open the Wi-Fi/Ethernet address shown by the launcher on each display.
+6. Select a format and durations. Start runs immediately; the small ▶ beside Start time creates a scheduled start.
+
+Keys: Z Start, Ctrl+Q Pause, P Stop, Ctrl+F fullscreen, Ctrl+M primary browser. While paused, the primary browser can drag the progress bar; server synchronization does not take control while the pointer is held.
+
+Start lists
+-----------
+
+Load up to four lists from XLSX, XLS, CSV, TSV, TXT, or MXL. The user interface calls them LIST 1–4; old “protocol” names remain only in internal compatibility identifiers and the HTTP/HTTPS meaning.
+
+Participant cells are never ellipsized. Each display selects its own visible LIST badges. With exactly two visible lists, a cyan button switches one or two columns; an orange outline marks a non-default layout. Route incidents can suspend and resume a route at a current or future cycle, and participants or routes can be excluded and restored.
+
+Browsers and diagnostics
+------------------------
+
+The primary browser is always first and has a brighter border. Arrows reorder other cards; a pin preserves a browser's place through reconnects. With at least three browsers, the number button in the primary card displays matching numbers on cards and in the top-right corner of every timer area.
+
+Badge order is LEGACY, AUDIO, TIME, NET, SYNC, SSE, TAB, followed by LIST 1–4. Gray means unavailable, dark green available but inactive, light green active/healthy, yellow warning, red fault, cyan visible list/layout control, and orange outline a manual Legacy choice or non-default two-list layout.
+
+LEGACY selects the simplified old-browser page. AUDIO reports availability, unlock state, and real audio-clock progress. TIME shows a compact server clock below the timer. NET reports request latency, SYNC clock/render timing, SSE instant command delivery, and TAB visibility plus Wake Lock on modern browsers.
+
+NET is green up to 100 ms, yellow from 100 to 200 ms, and red above 200 ms. Render and audio-clock progress are green below 100 ms, yellow from 100 to 250 ms, and red above 250 ms.
+
+Legacy and network loss
+-----------------------
+
+Legacy is intended for older TV browsers. It shows the timer, selected LIST tables, and the optional TIME clock, but has no sound. It uses XHR rather than SSE and continues locally through a temporary network interruption. A scheduled Classic or Festival start is anchored to its absolute timestamp and must occur while offline; reconnecting applies authoritative server state.
+
+The modern page also extrapolates from the last known timeline. After a longer server outage it offers Standalone mode. Returning to server state is explicit because standalone commands are not uploaded.
+
+Sound, settings, and help
+-------------------------
+
+Primary and remote-display sound are controlled separately. A tap is required to unlock audio. A second browser on the primary computer does not duplicate sound. AUDIO provides a −500 to +500 ms user offset and signal tests. WAV and MP3 profiles live under beeps.
+
+Startup values, ports, colors, timer font, and sound profile are read from params.txt. The complete bilingual guide is help.html; the documentation map is docs/documentation-map.md.
+
+fdv-bouldering-timer-standalone.html is a one-file offline timer without multi-browser synchronization.

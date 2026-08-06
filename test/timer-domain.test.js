@@ -5,8 +5,10 @@ const assert = require("node:assert/strict");
 const {
   LIMITS,
   boundedInteger,
+  clockContinuityCorrectionMs,
   createTimerDomain,
   normalizeOptionalClockPart,
+  runningElapsedAfterRestore,
   scheduledStartTime
 } = require("../lib/timer-domain");
 
@@ -74,6 +76,26 @@ test("draft break limit depends on the selected preset", () => {
     domain.normalizeDraftSettings(settings, "festival").breakSeconds,
     LIMITS.maxFestivalBreakSeconds
   );
+});
+
+test("running restore keeps the absolute start when monotonic snapshot elapsed drifted", () => {
+  const savedAt = 2_000_000;
+  const now = savedAt + 5_000;
+  const savedStart = savedAt - 120_000;
+  assert.equal(runningElapsedAfterRestore(savedStart, savedAt, 20, now), 125);
+  assert.equal(runningElapsedAfterRestore(0, savedAt, 20, now), 25);
+  assert.equal(runningElapsedAfterRestore(savedAt + 2_000, savedAt, 0, now), 3);
+  assert.equal(runningElapsedAfterRestore(savedStart, savedAt, 20, now, 50_000, 55_000), 25);
+  assert.equal(runningElapsedAfterRestore(savedStart, savedAt, 20, now, 55_000, 5_000), 125);
+  assert.equal(runningElapsedAfterRestore(savedStart, savedAt, 122.2, now, 50_000, 55_000), 125);
+});
+
+test("server clock continuity repair advances through a suspended monotonic clock", () => {
+  assert.equal(clockContinuityCorrectionMs(5000, 5000, 5000), 0);
+  assert.equal(clockContinuityCorrectionMs(5000, 4899, 5000), 101);
+  assert.equal(clockContinuityCorrectionMs(2000, 0, 2000), 0);
+  assert.equal(clockContinuityCorrectionMs(5000, 4950, 5000), 0);
+  assert.equal(clockContinuityCorrectionMs(105000, 5000, 5000), 0);
 });
 
 test("Final format and rest rotations are normalized", () => {

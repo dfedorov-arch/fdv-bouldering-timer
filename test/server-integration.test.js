@@ -53,9 +53,10 @@ async function postAction(baseUrl, body) {
   return { status: response.status, body: await response.json() };
 }
 
-async function openEventStream(baseUrl, clientId) {
+async function openEventStream(baseUrl, clientId, startListRevision = "") {
   const controller = new AbortController();
-  const response = await fetch(`${baseUrl}/api/events?clientId=${encodeURIComponent(clientId)}`, {
+  const params = new URLSearchParams({ clientId, startListRevision });
+  const response = await fetch(`${baseUrl}/api/events?${params}`, {
     signal: controller.signal
   });
   assert.equal(response.status, 200);
@@ -140,7 +141,8 @@ test("production server validates settings, rejects stale commands, and deduplic
   });
 
   const baseUrl = `http://127.0.0.1:${port}`;
-  await waitForServer(baseUrl, child, output);
+  const initialState = await waitForServer(baseUrl, child, output);
+  assert.equal(initialState.config.noSoundWarm, false);
 
   const startListLoaded = await postAction(baseUrl, {
     type: "startLists",
@@ -203,6 +205,37 @@ test("production server validates settings, rejects stale commands, and deduplic
   assert.equal(multipleLists.body.startLists[1], null);
   assert.equal(multipleLists.body.startLists[2].routeCount, 4);
   assert.equal(Object.prototype.hasOwnProperty.call(multipleLists.body.startLists[2], "incidents"), false);
+  assert.ok(multipleLists.body.startListRevision);
+  const repeatedModernState = await fetch(`${baseUrl}/api/state?clientId=list-screen&startListRevision=${encodeURIComponent(multipleLists.body.startListRevision)}`)
+    .then((response) => response.json());
+  assert.equal(repeatedModernState.startListRevision, multipleLists.body.startListRevision);
+  assert.equal(Object.prototype.hasOwnProperty.call(repeatedModernState, "startLists"), false);
+  const staleModernState = await fetch(`${baseUrl}/api/state?clientId=list-screen&startListRevision=stale-revision`)
+    .then((response) => response.json());
+  assert.equal(staleModernState.startListRevision, multipleLists.body.startListRevision);
+  assert.deepEqual(staleModernState.startLists, multipleLists.body.startLists);
+
+  const revisionStream = await openEventStream(baseUrl, "revision-screen", multipleLists.body.startListRevision);
+  eventStreams.push(revisionStream);
+  const initialRevisionEvent = await revisionStream.next("state");
+  assert.equal(initialRevisionEvent.startListRevision, multipleLists.body.startListRevision);
+  assert.equal(Object.prototype.hasOwnProperty.call(initialRevisionEvent, "startLists"), false);
+  const repeatedStartLists = await postAction(baseUrl, {
+    type: "startLists",
+    startLists: multipleLists.body.startLists
+  });
+  assert.notEqual(repeatedStartLists.body.startListRevision, multipleLists.body.startListRevision);
+  const changedRevisionEvent = await revisionStream.next("state");
+  assert.equal(changedRevisionEvent.startListRevision, repeatedStartLists.body.startListRevision);
+  assert.deepEqual(changedRevisionEvent.startLists, repeatedStartLists.body.startLists);
+  const conditionalAction = await postAction(baseUrl, {
+    type: "startListEnabled",
+    enabled: true,
+    startListRevision: repeatedStartLists.body.startListRevision
+  });
+  assert.equal(conditionalAction.body.startListRevision, repeatedStartLists.body.startListRevision);
+  assert.equal(Object.prototype.hasOwnProperty.call(conditionalAction.body, "startLists"), false);
+  revisionStream.close();
   const selectedScreenAfterUpdate = await fetch(`${baseUrl}/api/state?clientId=list-screen`).then((response) => response.json());
   assert.equal(selectedScreenAfterUpdate.startListVisible, true);
   assert.deepEqual(selectedScreenAfterUpdate.startListIndexes, [0]);
@@ -215,8 +248,35 @@ test("production server validates settings, rejects stale commands, and deduplic
   assert.equal(thirdListEnabled.status, 200);
   const multiSelectionState = await fetch(`${baseUrl}/api/state?clientId=list-screen`).then((response) => response.json());
   assert.deepEqual(multiSelectionState.startListIndexes, [0, 2]);
+  assert.equal(multiSelectionState.startListParallel, false);
   assert.equal(Object.prototype.hasOwnProperty.call(multiSelectionState, "startListDisplaySelections"), false);
+  assert.equal(Object.prototype.hasOwnProperty.call(multiSelectionState, "startListLayoutOverrides"), false);
+  const screenParallelLayout = await postAction(baseUrl, {
+    type: "startListClientLayout",
+    targetClientId: "list-screen",
+    parallel: true
+  });
+  assert.equal(screenParallelLayout.status, 200);
+  assert.equal(screenParallelLayout.body.clients.find((client) => client.id === "list-screen").startListParallel, true);
+  const parallelScreenState = await fetch(`${baseUrl}/api/state?clientId=list-screen`).then((response) => response.json());
+  assert.equal(parallelScreenState.startListParallel, true);
+  assert.equal(parallelScreenState.showServerTime, false);
+  assert.ok(Number.isFinite(parallelScreenState.serverTimezoneOffsetMinutes));
+  assert.equal(Object.prototype.hasOwnProperty.call(parallelScreenState, "serverTimeDisplayClientIds"), false);
+  const serverTimeEnabled = await postAction(baseUrl, {
+    type: "clientServerTime",
+    targetClientId: "list-screen",
+    enabled: true
+  });
+  assert.equal(serverTimeEnabled.status, 200);
+  assert.equal(serverTimeEnabled.body.clients.find((client) => client.id === "list-screen").showServerTime, true);
+  const clockScreenState = await fetch(`${baseUrl}/api/state?clientId=list-screen`).then((response) => response.json());
+  assert.equal(clockScreenState.showServerTime, true);
+  const otherScreenState = await fetch(`${baseUrl}/api/state?clientId=integration-test`).then((response) => response.json());
+  assert.equal(otherScreenState.showServerTime, false);
   const firstLegacyState = await fetch(`${baseUrl}/api/state?legacy=1&clientId=list-screen`).then((response) => response.json());
+  assert.equal(firstLegacyState.startListParallel, true);
+  assert.equal(firstLegacyState.showServerTime, true);
   assert.equal(Object.prototype.hasOwnProperty.call(firstLegacyState, "startLists"), false);
   assert.deepEqual(firstLegacyState.legacyProtocols.map((entry) => entry.index), [0, 2]);
   assert.equal(firstLegacyState.legacyProtocols[0].list.rows.length, 2);
@@ -386,6 +446,47 @@ test("production server validates settings, rejects stale commands, and deduplic
   assert.equal(flashing.status, 200);
   assert.equal(flashing.body.flashing, false);
 
+  await fetch(`${baseUrl}/api/state?clientId=order-alpha`);
+  await fetch(`${baseUrl}/api/state?clientId=order-beta`);
+  const primarySelected = await postAction(baseUrl, {
+    type: "primary",
+    primaryClientId: "integration-test"
+  });
+  assert.equal(primarySelected.status, 200);
+  assert.equal(primarySelected.body.clients[0].id, "integration-test");
+  assert.equal(primarySelected.body.clients[0].displayNumber, 1);
+  const primaryParallelLayout = await postAction(baseUrl, {
+    type: "startListClientLayout",
+    targetClientId: "integration-test",
+    parallel: true
+  });
+  assert.equal(primaryParallelLayout.body.clients[0].startListParallel, true);
+  const primaryParallelState = await fetch(`${baseUrl}/api/state?clientId=integration-test`).then((response) => response.json());
+  assert.equal(primaryParallelState.startListParallel, true);
+  const betaBeforeMove = primarySelected.body.clients.find((client) => client.id === "order-beta");
+  const browserMoved = await postAction(baseUrl, {
+    type: "browserMove",
+    targetClientId: "order-beta",
+    direction: "up"
+  });
+  const betaAfterMove = browserMoved.body.clients.find((client) => client.id === "order-beta");
+  assert.equal(betaAfterMove.displayNumber, betaBeforeMove.displayNumber - 1);
+  assert.equal(betaAfterMove.browserPinned, true);
+  const primaryMoveIgnored = await postAction(baseUrl, {
+    type: "browserMove",
+    targetClientId: "integration-test",
+    direction: "down"
+  });
+  assert.equal(primaryMoveIgnored.body.clients[0].id, "integration-test");
+  assert.equal(primaryMoveIgnored.body.clients[0].browserPinned, false);
+  const browserNumbersEnabled = await postAction(baseUrl, {
+    type: "showBrowserNumbers",
+    enabled: true
+  });
+  assert.equal(browserNumbersEnabled.body.showBrowserNumbers, true);
+  const numberedScreenState = await fetch(`${baseUrl}/api/state?clientId=order-beta`).then((response) => response.json());
+  assert.equal(numberedScreenState.browserDisplayNumber, betaAfterMove.displayNumber);
+
   const reset = await postAction(baseUrl, {
     type: "reset",
     commandId: "normalize-reset",
@@ -442,6 +543,8 @@ test("production server validates settings, rejects stale commands, and deduplic
   assert.equal(started.body.manualStartLeadMs, 600);
   assert.equal(started.body.manualStartDisplayHold, true);
   assert.match(started.body.serverInstanceId, /^[0-9a-f-]{36}$/i);
+  assert.equal(started.body.clockDiagnostics.negativeContinuityAnomalyCount, 0);
+  assert.ok(Number.isFinite(Number(started.body.clockDiagnostics.lastSnapshot.savedElapsedDifferenceMs)));
 
   const duplicate = await postAction(baseUrl, startBody);
   assert.equal(duplicate.status, 200);
@@ -464,6 +567,13 @@ test("production server validates settings, rejects stale commands, and deduplic
     finalRestRotations: 4
   });
 
+  const revisionBeforeRestart = started.body.startListRevision;
+  const untilRunningBeforeRestartMs = Math.max(0, Number(started.body.startedAt || 0) - Date.now()) + 100;
+  await new Promise((resolve) => setTimeout(resolve, untilRunningBeforeRestartMs));
+  const stateBeforeRestart = await fetch(`${baseUrl}/api/state?clientId=restart-continuity-before`)
+    .then((response) => response.json());
+  assert.equal(stateBeforeRestart.running, true);
+  assert.ok(stateBeforeRestart.elapsed >= 0);
   await stopServer(child);
   child = spawnServer();
   const restored = await waitForServer(baseUrl, child, output);
@@ -477,6 +587,33 @@ test("production server validates settings, rejects stale commands, and deduplic
   assert.equal(restored.flashing, false);
   assert.ok(restored.version > started.body.version);
   assert.notEqual(restored.serverInstanceId, started.body.serverInstanceId);
+  assert.equal(restored.showBrowserNumbers, true);
+  assert.equal(restored.clockDiagnostics.negativeContinuityAnomalyCount, 0);
+  assert.ok(Number.isFinite(Number(restored.clockDiagnostics.lastRestore.snapshotAgeDifferenceMs)));
+  const restoredPinnedBrowser = await fetch(`${baseUrl}/api/state?clientId=order-beta`).then((response) => response.json());
+  assert.equal(restoredPinnedBrowser.browserDisplayNumber, 2);
+  const restoredListScreen = await fetch(`${baseUrl}/api/state?clientId=list-screen`).then((response) => response.json());
+  assert.equal(restoredListScreen.startListParallel, true);
+  assert.equal(restoredListScreen.showServerTime, true);
+  const restoredPrimaryDiagnostics = await fetch(`${baseUrl}/api/state?clientId=integration-test`).then((response) => response.json());
+  assert.equal(restoredPrimaryDiagnostics.clients.find((client) => client.id === "order-beta").browserPinned, true);
+  const restartWallAdvanceMs = Number(restored.serverSentAt) - Number(stateBeforeRestart.serverSentAt);
+  const restartElapsedAdvanceMs = (Number(restored.elapsed) - Number(stateBeforeRestart.elapsed)) * 1000;
+  assert.ok(restartElapsedAdvanceMs >= 0);
+  assert.ok(Math.abs(restartElapsedAdvanceMs - restartWallAdvanceMs) < 150);
+  assert.ok(
+    Math.abs(Number(restored.startedAt) - Number(stateBeforeRestart.startedAt)) < 20,
+    JSON.stringify({
+      beforeStartedAt: stateBeforeRestart.startedAt,
+      restoredStartedAt: restored.startedAt,
+      restartWallAdvanceMs,
+      restartElapsedAdvanceMs
+    })
+  );
+  const restoredWithOldRevision = await fetch(`${baseUrl}/api/state?clientId=restart-screen&startListRevision=${encodeURIComponent(revisionBeforeRestart)}`)
+    .then((response) => response.json());
+  assert.notEqual(restoredWithOldRevision.startListRevision, revisionBeforeRestart);
+  assert.equal(Object.prototype.hasOwnProperty.call(restoredWithOldRevision, "startLists"), true);
 
   const oldInstanceConflict = await postAction(baseUrl, {
     type: "pause",

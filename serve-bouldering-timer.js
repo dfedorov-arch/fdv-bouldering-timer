@@ -5,7 +5,11 @@ const os = require("os");
 const path = require("path");
 const crypto = require("crypto");
 const { performance } = require("perf_hooks");
-const { createTimerDomain } = require("./lib/timer-domain");
+const {
+  clockContinuityCorrectionMs,
+  createTimerDomain,
+  runningElapsedAfterRestore
+} = require("./lib/timer-domain");
 const { createTimerTransitions } = require("./lib/timer-transitions");
 const startListDomain = require("./lib/start-list");
 
@@ -16,17 +20,90 @@ const runtimeStatePath = path.join(runtimeStateDir, "timer-state.json");
 const beepsPath = path.join(root, "beeps");
 const fontsPath = path.join(root, "fonts");
 const offlineAudioPath = path.join(root, "lib", "offline-audio.js");
-const BUILD_NUMBER = 355;
+const BUILD_NUMBER = 390;
 const serverInstanceId = crypto.randomUUID();
 const SNAPSHOT_SCHEMA_VERSION = 1;
 const SNAPSHOT_MAX_AGE_MS = 12 * 60 * 60 * 1000;
 const PRIMARY_RESTORE_GRACE_MS = 10000;
 const MANUAL_START_AUDIO_LEAD_MS = 600;
+const CLOCK_CONTINUITY_GAP_MS = 3000;
+const CLOCK_CONTINUITY_MISMATCH_MS = 100;
+const CLOCK_DIAGNOSTICS_HISTORY_MAX = 12;
 const COMMAND_CACHE_MAX = 256;
 const DIAGNOSTICS_BROADCAST_MS = 2500;
 const PRIMARY_PIN_MAX_FAILURES = 5;
 const PRIMARY_PIN_BLOCK_STEPS_MS = [5000, 30000, 300000];
 const AUDIO_TEST_RATE_LIMIT_MS = 1000;
+const performanceDiagnosticsEnabled = process.argv.includes("--performance-diagnostics")
+  || process.env.FDV_PERFORMANCE_DIAGNOSTICS === "1";
+const performanceDiagnostics = {
+  startedAt: performance.now(),
+  resetAt: performance.now(),
+  counters: Object.create(null),
+  timings: Object.create(null)
+};
+
+function performanceCount(name, amount = 1) {
+  if (!performanceDiagnosticsEnabled) return;
+  performanceDiagnostics.counters[name] = (performanceDiagnostics.counters[name] || 0) + amount;
+}
+
+function performanceStart() {
+  return performanceDiagnosticsEnabled ? performance.now() : null;
+}
+
+function performanceEnd(name, startedAt) {
+  if (!performanceDiagnosticsEnabled || startedAt === null) return;
+  const duration = Math.max(0, performance.now() - startedAt);
+  const timing = performanceDiagnostics.timings[name] || { count: 0, totalMs: 0, maxMs: 0 };
+  timing.count += 1;
+  timing.totalMs += duration;
+  timing.maxMs = Math.max(timing.maxMs, duration);
+  performanceDiagnostics.timings[name] = timing;
+}
+
+function performanceSnapshot() {
+  const now = performance.now();
+  const sampledAtWallMs = wallNow();
+  const timings = Object.fromEntries(Object.entries(performanceDiagnostics.timings).map(([name, timing]) => [name, {
+    count: timing.count,
+    totalMs: Number(timing.totalMs.toFixed(3)),
+    averageMs: Number((timing.totalMs / Math.max(1, timing.count)).toFixed(3)),
+    maxMs: Number(timing.maxMs.toFixed(3))
+  }]));
+  return {
+    enabled: performanceDiagnosticsEnabled,
+    ageMs: Math.round(now - performanceDiagnostics.startedAt),
+    sampleAgeMs: Math.round(now - performanceDiagnostics.resetAt),
+    counters: { ...performanceDiagnostics.counters },
+    timings,
+    clock: {
+      sampledAtWallMs,
+      monotonicNowMs: Number(monoNow().toFixed(3)),
+      running: timerState.running,
+      elapsedSeconds: Number(elapsedSeconds().toFixed(6)),
+      serverInstanceId,
+      continuity: publicClockDiagnostics()
+    },
+    gauges: {
+      clients: clients.size,
+      eventClients: eventClients.size,
+      diagnosticEventClients: diagnosticEventClients.size,
+      commandResults: commandResults.size,
+      primaryPinFailures: primaryPinFailures.size,
+      startListRevision: startListDataRevision,
+      startListCount: timerState.startLists.filter(Boolean).length,
+      startListRows: timerState.startLists.reduce((sum, list) => sum + (list?.rows?.length || 0), 0)
+    }
+  };
+}
+
+function resetPerformanceDiagnostics() {
+  performanceDiagnostics.counters = Object.create(null);
+  performanceDiagnostics.timings = Object.create(null);
+  performanceDiagnostics.resetAt = performance.now();
+  return performanceSnapshot();
+}
 const defaultConfig = {
   httpPort: 8008,
   httpsPort: 8443,
@@ -43,6 +120,7 @@ const defaultConfig = {
   soundInOtherBrowsers: false,
   festivalAnnouncements: true,
   flashing: true,
+  noSoundWarm: false,
   soundProfile: "FSR_2026",
   timerFontFile: "Roboto-Variable.ttf",
   timerFont: "Arial, sans-serif",
@@ -213,6 +291,10 @@ function monoNow() {
   return performance.now();
 }
 
+function systemUptimeNow() {
+  return os.uptime() * 1000;
+}
+
 function clampNumber(value, min, max, fallback) {
   const number = Number(value);
   if (!Number.isFinite(number)) return fallback;
@@ -244,6 +326,7 @@ const config = {
   soundInOtherBrowsers: boolParam(params, "sound_in_other_browsers", defaultConfig.soundInOtherBrowsers),
   festivalAnnouncements: boolParam(params, "festival_announcements", defaultConfig.festivalAnnouncements),
   flashing: boolParam(params, "flashing", defaultConfig.flashing),
+  noSoundWarm: boolParam(params, "no_sound_warm", defaultConfig.noSoundWarm),
   timerFontFile: initialTimerFontFile,
   timerFontUrl: fontFileUrl(initialTimerFontFile),
   timerFont: textParam(params, "timer_font", defaultConfig.timerFont),
@@ -342,6 +425,11 @@ const timerState = {
   startListParallel: false,
   startListEnabled: false,
   startListDisplaySelections: {},
+  startListLayoutOverrides: {},
+  browserOrder: [],
+  browserPinnedClientIds: [],
+  serverTimeDisplayClientIds: [],
+  showBrowserNumbers: false,
   startListFinalCycle: 0,
   version: 1
 };
@@ -361,6 +449,16 @@ let nextAudioTestId = 1;
 let stateTransitionTimer = null;
 let snapshotWriteTimer = null;
 let timerStartedAtMono = 0;
+let timerClockContinuityWallAt = wallNow();
+let timerClockContinuityMonoAt = monoNow();
+let timerClockContinuityUptimeAt = systemUptimeNow();
+let timerClockDiagnostics = {
+  continuityAnomalyCount: 0,
+  negativeContinuityAnomalyCount: 0,
+  history: [],
+  lastSnapshot: null,
+  lastRestore: null
+};
 let diagnosticsBroadcastTimer = null;
 let startListDataRevision = 1;
 let lastDiagnosticsBroadcastAt = 0;
@@ -430,6 +528,11 @@ function compactUserAgent(userAgent = "") {
 function sourceValue(source, key) {
   if (typeof source.get === "function") return source.get(key);
   return source[key];
+}
+
+function sourceHas(source, key) {
+  if (typeof source.has === "function") return source.has(key);
+  return Boolean(source && Object.prototype.hasOwnProperty.call(source, key));
 }
 
 function optionalNumber(value, fallback = null) {
@@ -518,6 +621,136 @@ function clearTimerStartedAt() {
   timerStartedAtMono = 0;
 }
 
+function finiteClockDiagnostic(value) {
+  const number = Number(value);
+  return Number.isFinite(number) ? Number(number.toFixed(3)) : null;
+}
+
+function sanitizeClockDiagnosticRecord(source) {
+  if (!source || typeof source !== "object") return null;
+  const record = {};
+  for (const key of [
+    "kind",
+    "serverInstanceId",
+    "recordedAtWallMs",
+    "wallDeltaMs",
+    "monotonicDeltaMs",
+    "uptimeDeltaMs",
+    "wallUptimeDifferenceMs",
+    "uptimeMonotonicDifferenceMs",
+    "correctionMs",
+    "elapsedBeforeMs",
+    "elapsedAfterMs",
+    "startedAtWallMs",
+    "savedAtWallMs",
+    "savedElapsedMs",
+    "absoluteElapsedAtSaveMs",
+    "savedElapsedDifferenceMs",
+    "snapshotAgeWallMs",
+    "snapshotAgeUptimeMs",
+    "snapshotAgeDifferenceMs",
+    "absoluteElapsedAtRestoreMs",
+    "uptimeElapsedAtRestoreMs",
+    "restoredElapsedMs"
+  ]) {
+    if (key === "kind" || key === "serverInstanceId") {
+      if (source[key] !== null && source[key] !== undefined) record[key] = String(source[key]).slice(0, 80);
+      continue;
+    }
+    const value = finiteClockDiagnostic(source[key]);
+    if (value !== null) record[key] = value;
+  }
+  return Object.keys(record).length ? record : null;
+}
+
+function restoreClockDiagnostics(source) {
+  if (!source || typeof source !== "object") return;
+  timerClockDiagnostics = {
+    continuityAnomalyCount: Math.max(0, Math.round(numberOrDefault(source.continuityAnomalyCount, 0))),
+    negativeContinuityAnomalyCount: Math.max(0, Math.round(numberOrDefault(source.negativeContinuityAnomalyCount, 0))),
+    history: Array.isArray(source.history)
+      ? source.history.map(sanitizeClockDiagnosticRecord).filter(Boolean).slice(-CLOCK_DIAGNOSTICS_HISTORY_MAX)
+      : [],
+    lastSnapshot: sanitizeClockDiagnosticRecord(source.lastSnapshot),
+    lastRestore: sanitizeClockDiagnosticRecord(source.lastRestore)
+  };
+}
+
+function recordClockContinuityAnomaly(details) {
+  const record = sanitizeClockDiagnosticRecord({
+    kind: "continuity",
+    serverInstanceId,
+    recordedAtWallMs: wallNow(),
+    ...details
+  });
+  if (!record) return;
+  timerClockDiagnostics.continuityAnomalyCount += 1;
+  if (Number(record.correctionMs) < 0) timerClockDiagnostics.negativeContinuityAnomalyCount += 1;
+  timerClockDiagnostics.history.push(record);
+  timerClockDiagnostics.history = timerClockDiagnostics.history.slice(-CLOCK_DIAGNOSTICS_HISTORY_MAX);
+}
+
+function publicClockDiagnostics() {
+  return {
+    continuityAnomalyCount: timerClockDiagnostics.continuityAnomalyCount,
+    negativeContinuityAnomalyCount: timerClockDiagnostics.negativeContinuityAnomalyCount,
+    history: timerClockDiagnostics.history.map((record) => ({ ...record })),
+    lastSnapshot: timerClockDiagnostics.lastSnapshot ? { ...timerClockDiagnostics.lastSnapshot } : null,
+    lastRestore: timerClockDiagnostics.lastRestore ? { ...timerClockDiagnostics.lastRestore } : null
+  };
+}
+
+function repairTimerClockContinuity() {
+  const currentWall = wallNow();
+  const currentMono = monoNow();
+  const currentUptime = systemUptimeNow();
+  const wallDelta = currentWall - timerClockContinuityWallAt;
+  const monotonicDelta = currentMono - timerClockContinuityMonoAt;
+  const uptimeDelta = currentUptime - timerClockContinuityUptimeAt;
+  if (!timerState.running || !timerStartedAtMono || timerState.startedAt > currentWall) {
+    timerClockContinuityWallAt = currentWall;
+    timerClockContinuityMonoAt = currentMono;
+    timerClockContinuityUptimeAt = currentUptime;
+    return 0;
+  }
+  if (wallDelta >= 0 && monotonicDelta >= 0 && uptimeDelta >= 0 && uptimeDelta < CLOCK_CONTINUITY_GAP_MS) return 0;
+  timerClockContinuityWallAt = currentWall;
+  timerClockContinuityMonoAt = currentMono;
+  timerClockContinuityUptimeAt = currentUptime;
+  const correction = clockContinuityCorrectionMs(
+    wallDelta,
+    monotonicDelta,
+    uptimeDelta,
+    CLOCK_CONTINUITY_GAP_MS,
+    CLOCK_CONTINUITY_MISMATCH_MS
+  );
+  if (!correction) return 0;
+  const elapsedBeforeMs = Math.max(0, currentMono - timerStartedAtMono);
+  recordClockContinuityAnomaly({
+    wallDeltaMs: wallDelta,
+    monotonicDeltaMs: monotonicDelta,
+    uptimeDeltaMs: uptimeDelta,
+    wallUptimeDifferenceMs: wallDelta - uptimeDelta,
+    uptimeMonotonicDifferenceMs: uptimeDelta - monotonicDelta,
+    correctionMs: correction,
+    elapsedBeforeMs,
+    elapsedAfterMs: Math.max(0, elapsedBeforeMs + correction),
+    startedAtWallMs: timerState.startedAt
+  });
+  timerStartedAtMono -= correction;
+  performanceCount("timerClockContinuityRepairs");
+  console.warn(`FDV_SERVER_CLOCK_REPAIR ${JSON.stringify({
+    serverInstanceId,
+    wallDeltaMs: Number(wallDelta.toFixed(3)),
+    monotonicDeltaMs: Number(monotonicDelta.toFixed(3)),
+    uptimeDeltaMs: Number(uptimeDelta.toFixed(3)),
+    wallClockAdjustmentMs: Number((wallDelta - uptimeDelta).toFixed(3)),
+    correctionMs: Number(correction.toFixed(3)),
+    repairedAtWallMs: currentWall
+  })}`);
+  return correction;
+}
+
 function elapsedSecondsAtWall(targetWallNow = wallNow()) {
   if (!timerState.running) return timerState.elapsedBeforePause;
   if (timerState.startedAt > targetWallNow) return 0;
@@ -534,15 +767,36 @@ function publicStartedAt(sentAtWall, elapsed) {
 
 function snapshotPayload() {
   const savedAtWall = wallNow();
+  const savedAtUptimeMs = systemUptimeNow();
+  const runningElapsedAtSave = timerState.running ? elapsedSeconds() : timerState.elapsedBeforePause;
+  const absoluteElapsedAtSaveMs = timerState.running
+    && timerState.startedAt > 0
+    && timerState.startedAt <= savedAtWall
+    ? Math.max(0, savedAtWall - timerState.startedAt)
+    : null;
+  timerClockDiagnostics.lastSnapshot = sanitizeClockDiagnosticRecord({
+    kind: "snapshot",
+    serverInstanceId,
+    recordedAtWallMs: wallNow(),
+    startedAtWallMs: timerState.startedAt,
+    savedAtWallMs: savedAtWall,
+    savedElapsedMs: runningElapsedAtSave * 1000,
+    absoluteElapsedAtSaveMs,
+    savedElapsedDifferenceMs: absoluteElapsedAtSaveMs === null
+      ? null
+      : runningElapsedAtSave * 1000 - absoluteElapsedAtSaveMs
+  });
   return {
     schemaVersion: SNAPSHOT_SCHEMA_VERSION,
     savedAtWall,
-    runningElapsedAtSave: timerState.running ? elapsedSeconds() : timerState.elapsedBeforePause,
+    savedAtUptimeMs,
+    runningElapsedAtSave,
     timerState: {
       ...timerState
     },
     audioOffsets: [...clientAudioOffsets.entries()],
-    manualLegacyClients: [...manualLegacyClients]
+    manualLegacyClients: [...manualLegacyClients],
+    clockDiagnostics: publicClockDiagnostics()
   };
 }
 
@@ -607,6 +861,11 @@ function assignTimerState(source = {}) {
     "startListParallel",
     "startListEnabled",
     "startListDisplaySelections",
+    "startListLayoutOverrides",
+    "browserOrder",
+    "browserPinnedClientIds",
+    "serverTimeDisplayClientIds",
+    "showBrowserNumbers",
     "startListFinalCycle",
     "version"
   ]) {
@@ -627,6 +886,7 @@ function restoreTimerSnapshot() {
       return false;
     }
 
+    restoreClockDiagnostics(snapshot.clockDiagnostics);
     assignTimerState(snapshot.timerState);
     timerState.activeSettings = normalizeActiveSettings(timerState.activeSettings, {
       rotationSeconds: config.classicRotationMinutes * 60,
@@ -644,6 +904,16 @@ function restoreTimerSnapshot() {
       timerState.startListDisplaySelections,
       timerState.startLists
     );
+    timerState.startListLayoutOverrides = sanitizeStartListLayoutOverrides(timerState.startListLayoutOverrides);
+    timerState.browserPinnedClientIds = sanitizeBrowserClientIds(timerState.browserPinnedClientIds);
+    timerState.serverTimeDisplayClientIds = sanitizeBrowserClientIds(timerState.serverTimeDisplayClientIds);
+    const pinnedBrowserIds = new Set(timerState.browserPinnedClientIds);
+    timerState.browserOrder = sanitizeBrowserClientIds(timerState.browserOrder)
+      .filter((clientId) => pinnedBrowserIds.has(clientId));
+    timerState.browserPinnedClientIds.forEach((clientId) => {
+      if (!timerState.browserOrder.includes(clientId)) timerState.browserOrder.push(clientId);
+    });
+    timerState.showBrowserNumbers = Boolean(timerState.showBrowserNumbers);
     timerState.startListFinalCycle = Math.max(0, Math.round(numberOrDefault(timerState.startListFinalCycle, 0)));
     clientAudioOffsets.clear();
     if (Array.isArray(snapshot.audioOffsets)) {
@@ -661,13 +931,56 @@ function restoreTimerSnapshot() {
     if (timerState.running) {
       const savedStart = Number(snapshot.timerState.startedAt || 0);
       const savedElapsed = Math.max(0, numberOrDefault(snapshot.runningElapsedAtSave, 0));
+      const savedAtUptimeMs = snapshot.savedAtUptimeMs;
+      const currentUptimeMs = systemUptimeNow();
+      let restoredElapsed = null;
       if (savedStart > savedAtWall && now < savedStart) {
         setTimerStartedAt(savedStart);
       } else if (savedStart > savedAtWall && now >= savedStart) {
-        setTimerStartedFromElapsed((now - savedStart) / 1000, now);
+        restoredElapsed = (now - savedStart) / 1000;
+        setTimerStartedFromElapsed(restoredElapsed, now);
       } else {
-        setTimerStartedFromElapsed(savedElapsed + Math.max(0, age) / 1000, now);
+        restoredElapsed = runningElapsedAfterRestore(
+          savedStart,
+          savedAtWall,
+          savedElapsed,
+          now,
+          savedAtUptimeMs,
+          currentUptimeMs
+        );
+        setTimerStartedFromElapsed(restoredElapsed, now);
       }
+      const absoluteElapsedAtSaveMs = savedStart > 0 && savedStart <= savedAtWall
+        ? Math.max(0, savedAtWall - savedStart)
+        : null;
+      const snapshotAgeUptimeMs = Number.isFinite(Number(savedAtUptimeMs))
+        && Number.isFinite(Number(currentUptimeMs))
+        && Number(currentUptimeMs) >= Number(savedAtUptimeMs)
+        ? Number(currentUptimeMs) - Number(savedAtUptimeMs)
+        : null;
+      const uptimeElapsedAtRestoreMs = snapshotAgeUptimeMs === null
+        ? null
+        : savedElapsed * 1000 + snapshotAgeUptimeMs;
+      timerClockDiagnostics.lastRestore = sanitizeClockDiagnosticRecord({
+        kind: "restore",
+        serverInstanceId,
+        recordedAtWallMs: now,
+        startedAtWallMs: savedStart,
+        savedAtWallMs: savedAtWall,
+        savedElapsedMs: savedElapsed * 1000,
+        absoluteElapsedAtSaveMs,
+        savedElapsedDifferenceMs: absoluteElapsedAtSaveMs === null
+          ? null
+          : savedElapsed * 1000 - absoluteElapsedAtSaveMs,
+        snapshotAgeWallMs: Math.max(0, now - savedAtWall),
+        snapshotAgeUptimeMs,
+        snapshotAgeDifferenceMs: snapshotAgeUptimeMs === null
+          ? null
+          : snapshotAgeUptimeMs - Math.max(0, now - savedAtWall),
+        absoluteElapsedAtRestoreMs: savedStart > 0 ? Math.max(0, now - savedStart) : null,
+        uptimeElapsedAtRestoreMs,
+        restoredElapsedMs: restoredElapsed === null ? null : restoredElapsed * 1000
+      });
     } else {
       timerStartedAtMono = 0;
     }
@@ -820,11 +1133,15 @@ function registerClient(req, source = {}) {
   const now = wallNow();
   const userAgent = req.headers["user-agent"] || "";
   const existing = clients.get(id) || {};
+  ensureBrowserOrderClient(id);
   const latency = optionalNumber(sourceValue(source, "latency"), existing.latency ?? null);
   const syncError = optionalNumber(sourceValue(source, "syncError"), existing.syncError ?? null);
   const usesFallbackSync = syncError === null && Number.isFinite(latency);
   const connectionAddress = hostAddressFromHeader(req.headers.host || "");
   const reportedLegacy = sourceValue(source, "legacy");
+  const hasAudioTimingError = sourceHas(source, "audioTimingError");
+  const hasAudioTimingAge = sourceHas(source, "audioTimingAge");
+  const hasAudioTimingKind = sourceHas(source, "audioTimingKind");
   const legacyViewer = optionalBool(reportedLegacy, existing.legacyViewer === true);
   if (reportedLegacy !== null && reportedLegacy !== undefined && reportedLegacy !== "" && legacyViewer === false && manualLegacyClients.delete(id)) {
     scheduleSnapshotWrite();
@@ -858,6 +1175,8 @@ function registerClient(req, source = {}) {
     syncRateResidualMinMax: optionalNumber(sourceValue(source, "syncRateResidualMinMax"), existing.syncRateResidualMinMax ?? null),
     syncRateHalfDiffPpm: optionalNumber(sourceValue(source, "syncRateHalfDiffPpm"), existing.syncRateHalfDiffPpm ?? null),
     syncRateOutlierShare: optionalNumber(sourceValue(source, "syncRateOutlierShare"), existing.syncRateOutlierShare ?? null),
+    renderDelay: optionalNumber(sourceValue(source, "renderDelay"), existing.renderDelay ?? null),
+    renderDelayAge: optionalNumber(sourceValue(source, "renderDelayAge"), existing.renderDelayAge ?? null),
     visibility: sourceValue(source, "visibility") || existing.visibility || "",
     viewport: sourceValue(source, "viewport") || existing.viewport || "",
     screen: sourceValue(source, "screen") || existing.screen || "",
@@ -867,6 +1186,15 @@ function registerClient(req, source = {}) {
     soundAllowed: optionalBool(sourceValue(source, "soundAllowed"), existing.soundAllowed ?? null),
     audioBaseLatency: optionalNumber(sourceValue(source, "audioBaseLatency"), existing.audioBaseLatency ?? null),
     audioOutputLatency: optionalNumber(sourceValue(source, "audioOutputLatency"), existing.audioOutputLatency ?? null),
+    audioTimingError: hasAudioTimingError
+      ? optionalNumber(sourceValue(source, "audioTimingError"), null)
+      : existing.audioTimingError ?? null,
+    audioTimingAge: hasAudioTimingAge
+      ? optionalNumber(sourceValue(source, "audioTimingAge"), null)
+      : existing.audioTimingAge ?? null,
+    audioTimingKind: hasAudioTimingKind
+      ? String(sourceValue(source, "audioTimingKind") || "")
+      : existing.audioTimingKind || "",
     audioUserOffset: clientAudioOffsets.get(id) ?? 0,
     wakeLockSupported: optionalBool(sourceValue(source, "wakeLockSupported"), existing.wakeLockSupported ?? null),
     wakeLockActive: optionalBool(sourceValue(source, "wakeLockActive"), existing.wakeLockActive ?? null),
@@ -883,31 +1211,105 @@ function registerClient(req, source = {}) {
   return id;
 }
 
-function publicClients() {
+function sanitizeBrowserClientIds(value) {
+  if (!Array.isArray(value)) return [];
+  return [...new Set(value.map((id) => String(id || "").trim()).filter(Boolean))].slice(0, 100);
+}
+
+function pinnedBrowserIdSet() {
+  return new Set(sanitizeBrowserClientIds(timerState.browserPinnedClientIds));
+}
+
+function ensureBrowserOrderClient(clientId) {
+  const id = String(clientId || "");
+  if (!id) return;
+  timerState.browserOrder = sanitizeBrowserClientIds(timerState.browserOrder);
+  if (timerState.browserOrder.includes(id)) return;
+  if (timerState.browserOrder.length >= 100) {
+    const pinnedIds = pinnedBrowserIdSet();
+    const removableIndex = timerState.browserOrder.findIndex((entryId) => !pinnedIds.has(entryId) && !clients.has(entryId));
+    if (removableIndex >= 0) timerState.browserOrder.splice(removableIndex, 1);
+  }
+  if (timerState.browserOrder.length < 100) timerState.browserOrder.push(id);
+}
+
+function removeUnpinnedBrowserOrderClient(clientId) {
+  if (pinnedBrowserIdSet().has(clientId)) return;
+  timerState.browserOrder = sanitizeBrowserClientIds(timerState.browserOrder).filter((id) => id !== clientId);
+}
+
+function orderedClientValues() {
   const now = wallNow();
   for (const [id, client] of clients) {
     if (now - client.lastSeen > 30000) {
       clients.delete(id);
       manualLegacyClients.delete(id);
       oldBrowserClients.delete(id);
+      removeUnpinnedBrowserOrderClient(id);
     }
   }
+  for (const id of clients.keys()) ensureBrowserOrderClient(id);
+  const orderIndexes = new Map(sanitizeBrowserClientIds(timerState.browserOrder).map((id, index) => [id, index]));
   return [...clients.values()]
     .sort((a, b) => {
       const primaryA = timerState.primaryClientId === a.id ? 0 : 1;
       const primaryB = timerState.primaryClientId === b.id ? 0 : 1;
       if (primaryA !== primaryB) return primaryA - primaryB;
+      const orderA = orderIndexes.has(a.id) ? orderIndexes.get(a.id) : Number.MAX_SAFE_INTEGER;
+      const orderB = orderIndexes.has(b.id) ? orderIndexes.get(b.id) : Number.MAX_SAFE_INTEGER;
+      if (orderA !== orderB) return orderA - orderB;
       return (a.order || 0) - (b.order || 0);
-    })
-    .map((client) => ({
+    });
+}
+
+function publicClients(orderedClients = orderedClientValues()) {
+  const now = wallNow();
+  const pinnedIds = pinnedBrowserIdSet();
+  return orderedClients.map((client, index) => ({
       ...client,
+      displayNumber: index + 1,
+      browserPinned: pinnedIds.has(client.id),
       manualLegacy: manualLegacyClients.has(client.id),
       startListIndexes: startListIndexesForClient(client.id),
       startListVisible: startListVisibleForClient(client.id),
+      startListParallel: startListParallelForClient(client.id),
+      showServerTime: sanitizeBrowserClientIds(timerState.serverTimeDisplayClientIds).includes(client.id),
       role: client.legacyViewer ? "screen" : timerState.primaryClientId ? (timerState.primaryClientId === client.id ? "primary" : "screen") : "",
       age: now - client.lastSeen,
       connected: now - client.lastSeen < 6000
     }));
+}
+
+function setBrowserPinned(targetClientId, enabled) {
+  const id = String(targetClientId || "");
+  if (!id || !clients.has(id) || id === timerState.primaryClientId) return false;
+  ensureBrowserOrderClient(id);
+  const pinnedIds = pinnedBrowserIdSet();
+  const wasPinned = pinnedIds.has(id);
+  if (enabled) pinnedIds.add(id);
+  else pinnedIds.delete(id);
+  if (wasPinned === pinnedIds.has(id)) return false;
+  timerState.browserPinnedClientIds = [...pinnedIds];
+  return true;
+}
+
+function moveBrowserClient(targetClientId, direction) {
+  const id = String(targetClientId || "");
+  if (!id || id === timerState.primaryClientId || !clients.has(id)) return false;
+  const movableClients = orderedClientValues().filter((client) => client.id !== timerState.primaryClientId);
+  const currentIndex = movableClients.findIndex((client) => client.id === id);
+  const nextIndex = direction === "up" ? currentIndex - 1 : direction === "down" ? currentIndex + 1 : currentIndex;
+  if (currentIndex < 0 || nextIndex < 0 || nextIndex >= movableClients.length || nextIndex === currentIndex) return false;
+  const neighborId = movableClients[nextIndex].id;
+  const order = sanitizeBrowserClientIds(timerState.browserOrder).filter((entryId) => entryId !== id);
+  const neighborIndex = order.indexOf(neighborId);
+  if (neighborIndex < 0) return false;
+  order.splice(direction === "up" ? neighborIndex : neighborIndex + 1, 0, id);
+  timerState.browserOrder = order;
+  const pinnedIds = pinnedBrowserIdSet();
+  pinnedIds.add(id);
+  timerState.browserPinnedClientIds = [...pinnedIds];
+  return true;
 }
 
 function startListVisibleForClient(clientId) {
@@ -915,9 +1317,15 @@ function startListVisibleForClient(clientId) {
 }
 
 function sanitizeStartLists(value) {
+  performanceCount("startListSanitizations");
+  const performanceStartedAt = performanceStart();
+  try {
   const source = Array.isArray(value) ? value.slice(0, 4) : [null];
   const lists = source.map((list) => list ? startListDomain.sanitize(list) : null);
   return lists.length ? lists : [null];
+  } finally {
+    performanceEnd("sanitizeStartLists", performanceStartedAt);
+  }
 }
 
 function hasStartLists(value) {
@@ -941,6 +1349,13 @@ function sanitizeStartListDisplaySelections(value, lists = timerState.startLists
   ]).filter(([clientId, indexes]) => clientId && indexes.length));
 }
 
+function sanitizeStartListLayoutOverrides(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  return Object.fromEntries(Object.entries(value).slice(0, 100)
+    .filter(([clientId, parallel]) => String(clientId || "") && (parallel === true || parallel === false))
+    .map(([clientId, parallel]) => [String(clientId), parallel]));
+}
+
 function startListIndexesForClient(clientId) {
   if (!hasStartLists(timerState.startLists) || !clientId) return [];
   if (timerState.primaryClientId && timerState.primaryClientId === clientId) {
@@ -950,6 +1365,19 @@ function startListIndexesForClient(clientId) {
     timerState.startListDisplaySelections,
     timerState.startLists
   )[clientId] || [];
+}
+
+function startListParallelForClient(clientId) {
+  const indexes = startListIndexesForClient(clientId);
+  const overrides = sanitizeStartListLayoutOverrides(timerState.startListLayoutOverrides);
+  if (clientId && indexes.length === 2 && Object.prototype.hasOwnProperty.call(overrides, clientId)) {
+    return overrides[clientId];
+  }
+  if (!clientId || !timerState.primaryClientId || timerState.primaryClientId === clientId) {
+    return Boolean(timerState.startListParallel);
+  }
+  if (indexes.length !== 2) return false;
+  return Boolean(timerState.startListParallel);
 }
 
 function clearStartListIncidents() {
@@ -968,7 +1396,18 @@ function legacyProtocolRevision(clientId) {
   return `${serverInstanceId}:${startListDataRevision}:${startListIndexesForClient(clientId).join(",")}`;
 }
 
+function modernStartListRevision() {
+  return `${serverInstanceId}:${startListDataRevision}`;
+}
+
+function cleanStartListRevision(value) {
+  return String(value || "").slice(0, 200);
+}
+
 function legacyPublicState(options = {}) {
+  performanceCount("legacyPublicStateCalls");
+  const performanceStartedAt = performanceStart();
+  try {
   const state = publicState({
     ...options,
     includeClients: false
@@ -987,11 +1426,17 @@ function legacyPublicState(options = {}) {
     protocolRevision: revision,
     legacyProtocols
   };
+  } finally {
+    performanceEnd("legacyPublicState", performanceStartedAt);
+  }
 }
 
-function elapsedSeconds(now = monoNow()) {
+function elapsedSeconds(now = null) {
   if (!timerState.running) return timerState.elapsedBeforePause;
-  if (timerStartedAtMono) return Math.max(0, (now - timerStartedAtMono) / 1000);
+  repairTimerClockContinuity();
+  const hasExplicitNow = now !== null && now !== undefined && Number.isFinite(Number(now));
+  const currentMono = hasExplicitNow ? Number(now) : monoNow();
+  if (timerStartedAtMono) return Math.max(0, (currentMono - timerStartedAtMono) / 1000);
   return Math.max(0, (wallNow() - timerState.startedAt) / 1000);
 }
 
@@ -1062,6 +1507,9 @@ function shouldIncludeDiagnostics(clientId, requestedDiagnostics = false) {
 }
 
 function publicState(options = {}) {
+  performanceCount("publicStateCalls");
+  const performanceStartedAt = performanceStart();
+  try {
   finalizeScheduledCountdown();
   finalizeOneShot();
   const sentAt = wallNow();
@@ -1072,16 +1520,27 @@ function publicState(options = {}) {
   const ownAudioOffset = clientId ? clientAudioOffsets.get(clientId) ?? clients.get(clientId)?.audioUserOffset ?? 0 : 0;
   const ownManualLegacy = clientId ? manualLegacyClients.has(clientId) : false;
   const ownLegacyRedirect = clientId ? legacyRedirectPending.has(clientId) : false;
+  const startListRevision = modernStartListRevision();
+  const includeStartLists = cleanStartListRevision(options.startListRevision) !== startListRevision;
+  const orderedClients = orderedClientValues();
+  const ownDisplayIndex = clientId ? orderedClients.findIndex((client) => client.id === clientId) : -1;
   const {
     primaryPinHash: _primaryPinHash,
     primaryPinSalt: _primaryPinSalt,
     primaryPinClientId: _primaryPinClientId,
     primaryPinValue: _primaryPinValue,
     startListDisplaySelections: _startListDisplaySelections,
+    startListLayoutOverrides: _startListLayoutOverrides,
+    browserOrder: _browserOrder,
+    browserPinnedClientIds: _browserPinnedClientIds,
+    serverTimeDisplayClientIds: _serverTimeDisplayClientIds,
+    startLists,
     ...publicTimerState
   } = timerState;
   return {
     ...publicTimerState,
+    ...(includeStartLists ? { startLists } : {}),
+    startListRevision,
     serverInstanceId,
     startedAt: publicStartedAt(sentAt, elapsed),
     config: {
@@ -1099,26 +1558,44 @@ function publicState(options = {}) {
       && timerState.primaryPinClientId === clientId
       ? timerState.primaryPinValue || ""
       : "",
-    clients: includeClients ? publicClients() : [],
+    clients: includeClients ? publicClients(orderedClients) : [],
     diagnosticsIncluded: includeClients,
+    ...(includeClients ? { clockDiagnostics: publicClockDiagnostics() } : {}),
+    browserDisplayNumber: ownDisplayIndex >= 0 ? ownDisplayIndex + 1 : 0,
+    showServerTime: Boolean(clientId
+      && sanitizeBrowserClientIds(timerState.serverTimeDisplayClientIds).includes(clientId)),
+    serverTimezoneOffsetMinutes: new Date(sentAt).getTimezoneOffset(),
     manualLegacy: ownManualLegacy,
     legacyRedirect: ownLegacyRedirect,
     audioUserOffset: ownAudioOffset,
     startListIndexes: startListIndexesForClient(clientId),
     startListVisible: startListVisibleForClient(clientId),
+    startListParallel: startListParallelForClient(clientId),
     elapsed,
     serverReceivedAt: Number.isFinite(receivedAt) ? receivedAt : null,
     serverSentAt: sentAt,
     now: sentAt
   };
+  } finally {
+    performanceEnd("publicState", performanceStartedAt);
+  }
 }
 
 function broadcastState() {
   for (const [res, eventClient] of eventClients) {
     try {
-      const state = publicState({ clientId: eventClient.clientId, includeClients: false });
+      const state = publicState({
+        clientId: eventClient.clientId,
+        includeClients: false,
+        startListRevision: eventClient.startListRevision
+      });
       const payload = `event: state\ndata: ${JSON.stringify(state)}\n\n`;
+      performanceCount("sseStateMessages");
+      if (performanceDiagnosticsEnabled) {
+        performanceCount("sseStateBytes", Buffer.byteLength(payload));
+      }
       res.write(payload);
+      eventClient.startListRevision = state.startListRevision;
     } catch (error) {
       clearInterval(eventClient.keepAlive);
       eventClients.delete(res);
@@ -1130,6 +1607,8 @@ function diagnosticsPayload() {
   return {
     serverInstanceId,
     primaryClientId: timerState.primaryClientId,
+    showBrowserNumbers: timerState.showBrowserNumbers,
+    clockDiagnostics: publicClockDiagnostics(),
     clients: publicClients(),
     version: timerState.version,
     now: wallNow()
@@ -1175,11 +1654,21 @@ function sendEvent(eventName, data, predicate = () => true) {
 }
 
 function sendJson(res, status, payload) {
-  res.writeHead(status, {
+  const performanceStartedAt = performanceStart();
+  const body = JSON.stringify(payload);
+  performanceCount("jsonResponses");
+  const headers = {
     "content-type": "application/json; charset=utf-8",
     "cache-control": "no-store"
-  });
-  res.end(JSON.stringify(payload));
+  };
+  if (performanceDiagnosticsEnabled) {
+    const bodyBytes = Buffer.byteLength(body);
+    performanceCount("jsonResponseBytes", bodyBytes);
+    headers["content-length"] = bodyBytes;
+  }
+  res.writeHead(status, headers);
+  res.end(body);
+  performanceEnd("sendJson", performanceStartedAt);
 }
 
 function readJson(req) {
@@ -1238,6 +1727,17 @@ function shouldServeLegacyViewer(req, requestUrl) {
 function handleRequest(req, res) {
   const requestUrl = new URL(req.url, `http://localhost:${port}`);
 
+  if (requestUrl.pathname === "/api/performance" && req.method === "GET") {
+    if (!performanceDiagnosticsEnabled) {
+      sendJson(res, 404, { error: "Performance diagnostics are disabled" });
+      return;
+    }
+    sendJson(res, 200, requestUrl.searchParams.get("reset") === "1"
+      ? resetPerformanceDiagnostics()
+      : performanceSnapshot());
+    return;
+  }
+
   if (requestUrl.pathname === "/api/state" && req.method === "GET") {
     const receivedAt = wallNow();
     const clientId = registerClient(req, requestUrl.searchParams);
@@ -1251,7 +1751,12 @@ function handleRequest(req, res) {
         clientId,
         protocolRevision: requestUrl.searchParams.get("protocolRevision") || ""
       })
-      : publicState({ receivedAt, clientId, includeClients });
+      : publicState({
+        receivedAt,
+        clientId,
+        includeClients,
+        startListRevision: requestUrl.searchParams.get("startListRevision") || ""
+      });
     sendJson(res, 200, responseState);
     if (clientId) legacyRedirectPending.delete(clientId);
     return;
@@ -1259,6 +1764,11 @@ function handleRequest(req, res) {
 
   if (requestUrl.pathname === "/api/events" && req.method === "GET") {
     const eventClientId = registerClient(req, requestUrl.searchParams);
+    const eventClient = {
+      keepAlive: null,
+      clientId: eventClientId,
+      startListRevision: cleanStartListRevision(requestUrl.searchParams.get("startListRevision"))
+    };
     res.writeHead(200, {
       "content-type": "text/event-stream; charset=utf-8",
       "cache-control": "no-store",
@@ -1266,7 +1776,13 @@ function handleRequest(req, res) {
       "x-accel-buffering": "no"
     });
     res.write("retry: 1000\n\n");
-    res.write(`event: state\ndata: ${JSON.stringify(publicState({ clientId: eventClientId, includeClients: false }))}\n\n`);
+    const initialState = publicState({
+      clientId: eventClientId,
+      includeClients: false,
+      startListRevision: eventClient.startListRevision
+    });
+    res.write(`event: state\ndata: ${JSON.stringify(initialState)}\n\n`);
+    eventClient.startListRevision = initialState.startListRevision;
     const keepAlive = setInterval(() => {
       try {
         if (eventClientId && clients.has(eventClientId)) {
@@ -1275,7 +1791,8 @@ function handleRequest(req, res) {
         res.write(`event: ping\ndata: ${wallNow()}\n\n`);
       } catch (error) {}
     }, 15000);
-    eventClients.set(res, { keepAlive, clientId: eventClientId });
+    eventClient.keepAlive = keepAlive;
+    eventClients.set(res, eventClient);
     req.on("close", () => {
       clearInterval(keepAlive);
       eventClients.delete(res);
@@ -1315,12 +1832,18 @@ function handleRequest(req, res) {
     readJson(req).then((body) => {
       const clientId = registerClient(req, body);
       const now = wallNow();
+      const actionPublicState = () => publicState({
+        receivedAt: now,
+        clientId,
+        includeClients: shouldIncludeDiagnostics(clientId),
+        startListRevision: body.startListRevision
+      });
       const type = body.type;
       const isRuntimeCommand = runtimeCommandTypes.has(type);
       const commandId = cleanCommandId(body.commandId);
       if (actionRequiresPrimary(type) && !primaryControlAllowed(clientId)) {
         sendJson(res, 403, {
-          ...publicState({ receivedAt: now, clientId, includeClients: shouldIncludeDiagnostics(clientId) }),
+          ...actionPublicState(),
           actionDenied: true
         });
         return;
@@ -1338,7 +1861,7 @@ function handleRequest(req, res) {
       const instanceConflict = Boolean(baseServerInstanceId && baseServerInstanceId !== serverInstanceId);
       if (isRuntimeCommand && (instanceConflict || (Number.isFinite(baseVersion) && baseVersion !== timerState.version))) {
         const conflictState = {
-          ...publicState({ receivedAt: now, clientId, includeClients: shouldIncludeDiagnostics(clientId) }),
+          ...actionPublicState(),
           commandConflict: true,
           instanceConflict,
           expectedVersion: timerState.version,
@@ -1408,7 +1931,7 @@ function handleRequest(req, res) {
           : body.clientId || null;
         if (!primaryActionAllowed(clientId, nextPrimaryClientId)) {
           sendJson(res, 403, {
-            ...publicState({ receivedAt: now, clientId, includeClients: shouldIncludeDiagnostics(clientId) }),
+            ...actionPublicState(),
             actionDenied: true
           });
           return;
@@ -1423,7 +1946,7 @@ function handleRequest(req, res) {
           if (!verifyPrimaryPin(clientId, cleanPin)) {
             const entry = primaryPinFailures.get(clientId || "") || {};
             sendJson(res, 403, {
-              ...publicState({ receivedAt: now, clientId, includeClients: shouldIncludeDiagnostics(clientId) }),
+              ...actionPublicState(),
               primaryPinRequired: true,
               primaryPinBlockedUntil: entry.blockedUntil || 0
             });
@@ -1440,7 +1963,7 @@ function handleRequest(req, res) {
         const currentPrimary = timerState.primaryClientId === clientId;
         if (!currentPrimary) {
           sendJson(res, 403, {
-            ...publicState({ receivedAt: now, clientId, includeClients: shouldIncludeDiagnostics(clientId) }),
+            ...actionPublicState(),
             primaryPinDenied: true
           });
           return;
@@ -1453,7 +1976,7 @@ function handleRequest(req, res) {
           const cleanPin = cleanPrimaryPin(pin);
           if (!cleanPin) {
             sendJson(res, 400, {
-              ...publicState({ receivedAt: now, clientId, includeClients: shouldIncludeDiagnostics(clientId) }),
+              ...actionPublicState(),
               primaryPinInvalidFormat: true
             });
             return;
@@ -1471,6 +1994,37 @@ function handleRequest(req, res) {
       if (type === "instancesFullscreen") {
         timerState.instancesFullscreen = Boolean(body.enabled);
         timerState.version += 1;
+      }
+
+      if (type === "showBrowserNumbers") {
+        const enabled = Boolean(body.enabled);
+        if (timerState.showBrowserNumbers !== enabled) {
+          timerState.showBrowserNumbers = enabled;
+          timerState.version += 1;
+        }
+      }
+
+      if (type === "clientServerTime") {
+        const targetClientId = String(body.targetClientId || "");
+        if (targetClientId && clients.has(targetClientId)) {
+          const enabledClientIds = new Set(sanitizeBrowserClientIds(timerState.serverTimeDisplayClientIds));
+          if (body.enabled) enabledClientIds.add(targetClientId);
+          else enabledClientIds.delete(targetClientId);
+          timerState.serverTimeDisplayClientIds = [...enabledClientIds].slice(0, 100);
+          timerState.version += 1;
+        }
+      }
+
+      if (type === "browserPin") {
+        if (setBrowserPinned(body.targetClientId, Boolean(body.enabled))) {
+          timerState.version += 1;
+        }
+      }
+
+      if (type === "browserMove") {
+        if (moveBrowserClient(body.targetClientId, body.direction)) {
+          timerState.version += 1;
+        }
       }
 
       if (type === "sound") {
@@ -1530,6 +2084,17 @@ function handleRequest(req, res) {
         }
       }
 
+      if (type === "startListClientLayout") {
+        const targetClientId = String(body.targetClientId || "");
+        if (targetClientId && clients.has(targetClientId)
+          && startListIndexesForClient(targetClientId).length === 2) {
+          const overrides = sanitizeStartListLayoutOverrides(timerState.startListLayoutOverrides);
+          overrides[targetClientId] = Boolean(body.parallel);
+          timerState.startListLayoutOverrides = overrides;
+          timerState.version += 1;
+        }
+      }
+
       const soundProfileCanChange = timerState.elapsedBeforePause === 0
         && (!timerState.running || timerState.startedAt > now);
       if (type === "soundProfile" && soundProfileCanChange) {
@@ -1585,7 +2150,7 @@ function handleRequest(req, res) {
         const rateLimit = consumeAudioTestRateLimit(now);
         if (!rateLimit.allowed) {
           sendJson(res, 429, {
-            ...publicState({ receivedAt: now, clientId, includeClients: shouldIncludeDiagnostics(clientId) }),
+            ...actionPublicState(),
             audioTestRateLimited: true,
             audioTestRetryAfterMs: rateLimit.retryAfterMs
           });
@@ -1621,11 +2186,7 @@ function handleRequest(req, res) {
       if (timerState.version !== previousVersion) {
         scheduleSnapshotWrite(isRuntimeCommand);
       }
-      const state = publicState({
-        receivedAt: now,
-        clientId,
-        includeClients: shouldIncludeDiagnostics(clientId)
-      });
+      const state = actionPublicState();
       rememberCommandResult(commandId, 200, state);
       sendJson(res, 200, state);
       broadcastState();
@@ -1688,6 +2249,17 @@ if (restoredFromSnapshot) {
   scheduleSnapshotWrite(true);
 }
 setInterval(() => broadcastDiagnostics(true), DIAGNOSTICS_BROADCAST_MS);
+if (performanceDiagnosticsEnabled) {
+  let expectedPerformanceProbeAt = performance.now() + 1000;
+  setInterval(() => {
+    const measuredAt = performance.now();
+    const lag = Math.max(0, measuredAt - expectedPerformanceProbeAt);
+    performanceCount("eventLoopLagSamples");
+    performanceEnd("eventLoopLag", measuredAt - lag);
+    expectedPerformanceProbeAt = measuredAt + 1000;
+  }, 1000);
+  console.log("Performance diagnostics enabled: GET /api/performance");
+}
 
 function flushSnapshotAndExit(exitCode = 0) {
   try {

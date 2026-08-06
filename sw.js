@@ -1,4 +1,4 @@
-const BUILD_NUMBER = 355;
+const BUILD_NUMBER = 390;
 const CACHE_NAME = `fdv-bouldering-timer-v${BUILD_NUMBER}`;
 const CACHE_PREFIX = "fdv-bouldering-timer-v";
 const CORE_URLS = [
@@ -18,7 +18,11 @@ const CORE_URLS = [
   "/fonts/CourierPrime-Bold.ttf",
   "/fonts/OpenSans-Variable.ttf",
   "/fonts/Roboto-Variable.ttf",
-  "/fonts/SyneMono-Regular.ttf"
+  "/fonts/SyneMono-Regular.ttf",
+  "/fonts/DSEG7Classic-Regular.woff2",
+  "/fonts/DSEG7Classic-Regular.woff",
+  "/fonts/DSEG7Classic-Bold.woff2",
+  "/fonts/DSEG7Classic-Bold.woff"
 ];
 
 function isApiRequest(url) {

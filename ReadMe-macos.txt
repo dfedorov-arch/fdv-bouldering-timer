@@ -14,7 +14,7 @@ FDV Bouldering Timer for macOS
 
   xattr -dr com.apple.quarantine .
   xattr -dr com.apple.quarantine "FDV Bouldering Timer.app"
-  xattr -dr com.apple.quarantine "/полный/путь/к/fdv-bouldering-timer-v1.0.7-macos-arm64"
+  xattr -dr com.apple.quarantine "/полный/путь/к/fdv-bouldering-timer-macos-arm64"
 
 При Permission denied выполните:
 
@@ -37,7 +37,7 @@ If macOS blocks the app, right-click it and choose Open. If launch is still bloc
 
   xattr -dr com.apple.quarantine .
   xattr -dr com.apple.quarantine "FDV Bouldering Timer.app"
-  xattr -dr com.apple.quarantine "/full/path/to/fdv-bouldering-timer-v1.0.7-macos-arm64"
+  xattr -dr com.apple.quarantine "/full/path/to/fdv-bouldering-timer-macos-arm64"
 
 For Permission denied run:
 

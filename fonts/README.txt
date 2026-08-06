@@ -17,6 +17,7 @@ All bundled fonts have a plain, empty zero:
   BarlowCondensed-Bold.ttf     round colon; compact tabular digits
   CourierPrime-Bold.ttf        monospaced; rectangular colon dots
   SyneMono-Regular.ttf         monospaced; round colon; angular digits
+  DSEG7Classic-Regular/Bold    seven-segment LCD display used by the server clock
 
 The bundled fonts are distributed under the SIL Open Font License 1.1. The
 corresponding licence files are stored in this folder.
