@@ -11,9 +11,11 @@ const index = fs.readFileSync(path.join(root, "index.html"), "utf8");
 const displayCore = fs.readFileSync(path.join(root, "lib", "start-list-display.js"), "utf8");
 
 test("Legacy start-list display core remains parseable by ES5-era browsers", () => {
+  const buildNumber = index.match(/const pageBuildNumber = (\d+);/)?.[1];
   assert.doesNotMatch(displayCore, /\b(?:const|let|class)\b|=>|\?\.|\.\.\.|`/);
   assert.match(displayCore, /root\.FDVStartListDisplay = api/);
-  assert.match(legacy, /src="lib\/start-list-display\.js\?v=389"/);
+  assert.ok(buildNumber, "Modern page must expose its build number");
+  assert.match(legacy, new RegExp(`src="lib/start-list-display\\.js\\?v=${buildNumber}"`));
 });
 
 test("Legacy requests protocol data conditionally and stores it separately from timer snapshots", () => {
