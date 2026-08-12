@@ -30,7 +30,6 @@ function createMacLauncherFixture({ includePdb = false, includeLocalNetworkUsage
   const macos = path.join(app, "Contents", "MacOS");
   fs.mkdirSync(macos, { recursive: true });
   fs.writeFileSync(path.join(macos, "fdv-bouldering-timer"), "launcher");
-  fs.chmodSync(path.join(macos, "fdv-bouldering-timer"), 0o755);
   if (includePdb) fs.writeFileSync(path.join(macos, "fdv-bouldering-timer.pdb"), "symbols");
   fs.writeFileSync(path.join(app, "Contents", "Info.plist"), [
     "<plist><dict>",

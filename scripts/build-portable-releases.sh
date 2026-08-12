@@ -73,7 +73,9 @@ require_launcher() {
   if [[ "$expected_kind" == "mac-app" ]]; then
     local plist="$launcher_path/Contents/Info.plist"
     local executable="$launcher_path/Contents/MacOS/fdv-bouldering-timer"
-    if [[ ! -d "$launcher_path" || ! -f "$plist" || ! -x "$executable" ]]; then
+    # GitHub artifact transfer does not preserve the executable bit. The
+    # package builder restores it after copying the app into the release.
+    if [[ ! -d "$launcher_path" || ! -f "$plist" || ! -f "$executable" ]]; then
       echo "Required macOS app bundle is incomplete: $variable_name=$launcher_path" >&2
       return 1
     fi
