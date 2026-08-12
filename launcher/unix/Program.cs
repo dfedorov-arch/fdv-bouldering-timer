@@ -134,6 +134,7 @@ internal sealed class LauncherWindow : Window
     private bool _intentionalStop;
     private bool _openBrowserAfterStart = true;
     private bool _startupAccessNoticeShown;
+    private bool _localNetworkProbeStarted;
 
     public LauncherWindow()
     {
@@ -404,6 +405,7 @@ internal sealed class LauncherWindow : Window
             _startupAttempts = 0;
             _healthFailures = 0;
             _startupAccessNoticeShown = false;
+            _localNetworkProbeStarted = false;
             _openBrowserAfterStart = openBrowser;
             _startupTimer.Start();
         }
@@ -452,6 +454,7 @@ internal sealed class LauncherWindow : Window
             AppendLog("Server is ready.");
             AppendLog("Keep this computer connected to power and disable sleep while the timer is running.");
             _healthTimer.Start();
+            _ = RequestLocalNetworkAccess();
             if (_openBrowserAfterStart) OpenLocalTimer();
             return;
         }
@@ -487,6 +490,48 @@ internal sealed class LauncherWindow : Window
         {
             return false;
         }
+    }
+
+    private async Task RequestLocalNetworkAccess()
+    {
+        if (!RuntimeInformation.IsOSPlatform(OSPlatform.OSX) || _localNetworkProbeStarted) return;
+        _localNetworkProbeStarted = true;
+
+        TimerAddress? networkAddress = null;
+        foreach (var item in _addresses.Items)
+        {
+            if (item is TimerAddress address &&
+                address.Url.StartsWith("http://", StringComparison.OrdinalIgnoreCase) &&
+                !address.Url.Contains("127.0.0.1", StringComparison.Ordinal))
+            {
+                networkAddress = address;
+                break;
+            }
+        }
+        if (networkAddress == null)
+        {
+            AppendLog("No active local-network address was found; local timer access is available.");
+            return;
+        }
+
+        AppendLog("Requesting macOS local-network access...");
+        try
+        {
+            using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
+            var probeUrl = new Uri(new Uri(networkAddress.Url), "favicon.ico?launcher-local-network-probe=1");
+            using var response = await client.GetAsync(probeUrl);
+            if (response.IsSuccessStatusCode)
+            {
+                AppendLog("Local-network access is available: " + networkAddress.Url);
+                return;
+            }
+        }
+        catch
+        {
+        }
+        _status.Text = "Server is running locally; local-network access is blocked";
+        _status.Foreground = Brush(255, 200, 87);
+        AppendLog("Local-network access is not available. Allow FDV Bouldering Timer in System Settings > Privacy & Security > Local Network, then click Restart server.");
     }
 
     private async void CheckServerHealth(object? sender, EventArgs args)
