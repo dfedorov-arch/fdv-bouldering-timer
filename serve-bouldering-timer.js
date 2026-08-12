@@ -361,7 +361,7 @@ if (process.argv.includes("--generate-offline-audio")) {
 
 const port = Number(process.env.PORT) || config.httpPort;
 const httpsPort = Number(process.env.HTTPS_PORT) || config.httpsPort;
-const host = String(process.env.HOST || "0.0.0.0");
+const configuredHost = String(process.env.HOST || "").trim();
 const keyPath = path.join(root, "timer-key.pem");
 const certPath = path.join(root, "timer-cert.pem");
 const pfxPath = path.join(root, "timer-cert.pfx");
@@ -2272,40 +2272,58 @@ function flushSnapshotAndExit(exitCode = 0) {
 process.on("SIGINT", () => flushSnapshotAndExit(0));
 process.on("SIGTERM", () => flushSnapshotAndExit(0));
 
-const server = http.createServer(handleRequest);
-
-function localNetworkUrls(protocol, currentPort) {
-  return Object.values(os.networkInterfaces())
+function localNetworkAddresses() {
+  return [...new Set(Object.values(os.networkInterfaces())
     .flat()
     .filter((item) => item && item.family === "IPv4" && !item.internal)
-    .map((item) => `${protocol}://${item.address}:${currentPort}/`);
+    .map((item) => item.address))];
 }
 
-server.listen(port, host, () => {
-  console.log(`Bouldering timer on this computer: http://127.0.0.1:${port}/`);
-  localNetworkUrls("http", port).forEach((url) => console.log(`Bouldering timer on local network: ${url}`));
-});
+function listenHosts() {
+  if (configuredHost) return [configuredHost];
+  if (process.platform === "darwin") return ["127.0.0.1", ...localNetworkAddresses()];
+  return ["0.0.0.0"];
+}
+
+function logListeningAddress(protocol, currentPort, currentHost) {
+  if (currentHost === "127.0.0.1") {
+    console.log(`Bouldering timer${protocol === "https" ? " HTTPS" : ""} on this computer: ${protocol}://127.0.0.1:${currentPort}/`);
+    return;
+  }
+  if (currentHost === "0.0.0.0") {
+    console.log(`Bouldering timer${protocol === "https" ? " HTTPS" : ""} on this computer: ${protocol}://127.0.0.1:${currentPort}/`);
+    localNetworkAddresses().forEach((address) => {
+      console.log(`Bouldering timer${protocol === "https" ? " HTTPS" : ""} on local network: ${protocol}://${address}:${currentPort}/`);
+    });
+    return;
+  }
+  console.log(`Bouldering timer${protocol === "https" ? " HTTPS" : ""} on local network: ${protocol}://${currentHost}:${currentPort}/`);
+}
+
+function startServers(createServer, protocol, currentPort) {
+  return listenHosts().map((currentHost, index) => {
+    const currentServer = createServer();
+    currentServer.on("error", (error) => {
+      const critical = configuredHost || currentHost === "127.0.0.1" || index === 0;
+      if (critical) throw error;
+      console.warn(`Unable to listen on ${currentHost}:${currentPort}: ${error.message}`);
+    });
+    currentServer.listen(currentPort, currentHost, () => {
+      logListeningAddress(protocol, currentPort, currentHost);
+    });
+    return currentServer;
+  });
+}
+
+startServers(() => http.createServer(handleRequest), "http", port);
 
 if (fs.existsSync(keyPath) && fs.existsSync(certPath)) {
-  const httpsServer = https.createServer({
-    key: fs.readFileSync(keyPath),
-    cert: fs.readFileSync(certPath)
-  }, handleRequest);
-
-  httpsServer.listen(httpsPort, host, () => {
-    console.log(`Bouldering timer HTTPS on this computer: https://127.0.0.1:${httpsPort}/`);
-    localNetworkUrls("https", httpsPort).forEach((url) => console.log(`Bouldering timer HTTPS on local network: ${url}`));
-  });
+  const key = fs.readFileSync(keyPath);
+  const cert = fs.readFileSync(certPath);
+  startServers(() => https.createServer({ key, cert }, handleRequest), "https", httpsPort);
 } else if (fs.existsSync(pfxPath)) {
-  const httpsServer = https.createServer({
-    pfx: fs.readFileSync(pfxPath),
-    passphrase: pfxPassphrase
-  }, handleRequest);
-
-  httpsServer.listen(httpsPort, host, () => {
-    console.log(`Bouldering timer HTTPS on this computer: https://127.0.0.1:${httpsPort}/`);
-    localNetworkUrls("https", httpsPort).forEach((url) => console.log(`Bouldering timer HTTPS on local network: ${url}`));
-  });
+  const pfx = fs.readFileSync(pfxPath);
+  startServers(() => https.createServer({ pfx, passphrase: pfxPassphrase }, handleRequest), "https", httpsPort);
 } else {
   console.log("HTTPS disabled: certificate files were not found. Run create-https-certificate to enable it.");
 }
