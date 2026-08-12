@@ -361,7 +361,7 @@ if (process.argv.includes("--generate-offline-audio")) {
 
 const port = Number(process.env.PORT) || config.httpPort;
 const httpsPort = Number(process.env.HTTPS_PORT) || config.httpsPort;
-const host = "0.0.0.0";
+const host = String(process.env.HOST || "0.0.0.0");
 const keyPath = path.join(root, "timer-key.pem");
 const certPath = path.join(root, "timer-cert.pem");
 const pfxPath = path.join(root, "timer-cert.pfx");

@@ -14,6 +14,11 @@ OUTPUT_DIR=${2:-"$ROOT_DIR/dist/unix-launcher/$RID"}
 LAUNCHER_VERSION=${LAUNCHER_VERSION:-1.0.6}
 PUBLISH_DIR="$OUTPUT_DIR/publish"
 
+if [[ ! "$LAUNCHER_VERSION" =~ ^[0-9]+([.][0-9]+){1,3}$ ]]; then
+  echo "LAUNCHER_VERSION must contain only dot-separated numbers: $LAUNCHER_VERSION" >&2
+  exit 2
+fi
+
 case "$RID" in
   linux-x64|linux-arm64|osx-x64|osx-arm64) ;;
   *)
@@ -31,7 +36,11 @@ dotnet publish "$SCRIPT_DIR/FdvBoulderingTimer.Launcher.csproj" \
   --self-contained true \
   --output "$PUBLISH_DIR" \
   /p:PublishSingleFile=true \
-  /p:PublishTrimmed=false
+  /p:PublishTrimmed=false \
+  /p:DebugType=None \
+  /p:DebugSymbols=false
+
+rm -f "$PUBLISH_DIR"/*.pdb
 
 chmod +x "$PUBLISH_DIR/fdv-bouldering-timer"
 ICON_PNG="$OUTPUT_DIR/timer-launcher.png"
@@ -257,7 +266,7 @@ for name, size in sizes:
 PY
   iconutil -c icns "$ICONSET_DIR" -o "$APP_DIR/Contents/Resources/timer-launcher.icns"
   rm -rf "$ICONSET_DIR"
-  cat > "$APP_DIR/Contents/Info.plist" <<'PLIST'
+  cat > "$APP_DIR/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -282,11 +291,19 @@ PY
   <string>10.15</string>
   <key>NSHighResolutionCapable</key>
   <true/>
+  <key>NSLocalNetworkUsageDescription</key>
+  <string>FDV Bouldering Timer uses the local network to synchronize competition timers and displays.</string>
 </dict>
 </plist>
 PLIST
+  plutil -lint "$APP_DIR/Contents/Info.plist"
+  if [[ -n "$(find "$APP_DIR" -type f -name '*.pdb' -print -quit)" ]]; then
+    echo "Debug symbols must not be included in the macOS app bundle." >&2
+    exit 1
+  fi
   if command -v codesign >/dev/null 2>&1; then
     codesign --force --deep --sign - "$APP_DIR"
+    codesign --verify --deep --strict --verbose=2 "$APP_DIR"
   fi
   cat > "$OUTPUT_DIR/fdv-bouldering-timer" <<'SH'
 #!/usr/bin/env bash

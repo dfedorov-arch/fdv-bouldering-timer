@@ -70,6 +70,26 @@ require_launcher() {
     echo "Required launcher path was not found: $variable_name=$launcher_path" >&2
     return 1
   fi
+  if [[ "$expected_kind" == "mac-app" ]]; then
+    local plist="$launcher_path/Contents/Info.plist"
+    local executable="$launcher_path/Contents/MacOS/fdv-bouldering-timer"
+    if [[ ! -d "$launcher_path" || ! -f "$plist" || ! -x "$executable" ]]; then
+      echo "Required macOS app bundle is incomplete: $variable_name=$launcher_path" >&2
+      return 1
+    fi
+    if [[ -n "$(find "$launcher_path" -type f -name '*.pdb' -print -quit)" ]]; then
+      echo "macOS app bundle contains debug symbols: $variable_name=$launcher_path" >&2
+      return 1
+    fi
+    if ! grep -q '<key>NSLocalNetworkUsageDescription</key>' "$plist"; then
+      echo "macOS app bundle does not declare local network usage: $variable_name=$launcher_path" >&2
+      return 1
+    fi
+    if grep -q '\${LAUNCHER_VERSION}' "$plist"; then
+      echo "macOS app bundle contains an unresolved version placeholder: $variable_name=$launcher_path" >&2
+      return 1
+    fi
+  fi
 }
 
 target_enabled() {
@@ -83,8 +103,8 @@ validate_launchers() {
   fi
   local failed=false
   if target_enabled "windows-x64"; then require_launcher "WINDOWS_LAUNCHER_EXE" "${WINDOWS_LAUNCHER_EXE:-}" "file" || failed=true; fi
-  if target_enabled "macos-arm64"; then require_launcher "MACOS_LAUNCHER_ARM64" "${MACOS_LAUNCHER_ARM64:-}" "path" || failed=true; fi
-  if target_enabled "macos-x64"; then require_launcher "MACOS_LAUNCHER_X64" "${MACOS_LAUNCHER_X64:-}" "path" || failed=true; fi
+  if target_enabled "macos-arm64"; then require_launcher "MACOS_LAUNCHER_ARM64" "${MACOS_LAUNCHER_ARM64:-}" "mac-app" || failed=true; fi
+  if target_enabled "macos-x64"; then require_launcher "MACOS_LAUNCHER_X64" "${MACOS_LAUNCHER_X64:-}" "mac-app" || failed=true; fi
   if target_enabled "linux-arm64"; then require_launcher "LINUX_LAUNCHER_ARM64" "${LINUX_LAUNCHER_ARM64:-}" "file" || failed=true; fi
   if target_enabled "linux-x64"; then require_launcher "LINUX_LAUNCHER_X64" "${LINUX_LAUNCHER_X64:-}" "file" || failed=true; fi
   if [[ "$failed" == true ]]; then

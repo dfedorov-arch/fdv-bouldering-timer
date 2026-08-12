@@ -133,6 +133,7 @@ internal sealed class LauncherWindow : Window
     private bool _allowClose;
     private bool _intentionalStop;
     private bool _openBrowserAfterStart = true;
+    private bool _startupAccessNoticeShown;
 
     public LauncherWindow()
     {
@@ -402,6 +403,7 @@ internal sealed class LauncherWindow : Window
 
             _startupAttempts = 0;
             _healthFailures = 0;
+            _startupAccessNoticeShown = false;
             _openBrowserAfterStart = openBrowser;
             _startupTimer.Start();
         }
@@ -454,11 +456,22 @@ internal sealed class LauncherWindow : Window
             return;
         }
 
-        if (_serverProcess == null || _serverProcess.HasExited || _startupAttempts >= 30)
+        if (_serverProcess == null || _serverProcess.HasExited)
         {
             _startupTimer.Stop();
-            SetError("The server did not start. Check the server log and configured ports.");
-            ScheduleServerRestart("server did not become ready");
+            return;
+        }
+
+        if (_startupAttempts >= 30 && !_startupAccessNoticeShown)
+        {
+            _startupAccessNoticeShown = true;
+            _status.Text = "Server process is running; waiting for local access...";
+            _status.Foreground = Brush(255, 200, 87);
+            AppendLog("Node.js is running, but the launcher cannot reach the local timer yet.");
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+            {
+                AppendLog("Allow FDV Bouldering Timer in System Settings > Privacy & Security > Local Network.");
+            }
         }
     }
 
