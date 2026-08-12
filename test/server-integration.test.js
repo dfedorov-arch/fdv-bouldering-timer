@@ -31,17 +31,35 @@ function copyFixture(target) {
 }
 
 async function waitForServer(baseUrl, child, output) {
-  for (let attempt = 0; attempt < 80; attempt += 1) {
+  const deadline = Date.now() + 5000;
+  let lastError;
+  while (Date.now() < deadline) {
     if (child.exitCode !== null) {
       throw new Error(`Server exited before it became ready.\n${output.join("")}`);
     }
+    const controller = new AbortController();
+    const timeout = setTimeout(
+      () => controller.abort(),
+      Math.min(250, Math.max(1, deadline - Date.now()))
+    );
     try {
-      const response = await fetch(`${baseUrl}/api/state?clientId=integration-test`);
+      const response = await fetch(`${baseUrl}/api/state?clientId=integration-test`, {
+        signal: controller.signal
+      });
       if (response.ok) return response.json();
-    } catch (error) {}
-    await new Promise((resolve) => setTimeout(resolve, 50));
+      lastError = new Error(`Server readiness request returned HTTP ${response.status}`);
+    } catch (error) {
+      lastError = error;
+    } finally {
+      clearTimeout(timeout);
+    }
+    const retryDelay = Math.min(50, Math.max(0, deadline - Date.now()));
+    if (retryDelay > 0) {
+      await new Promise((resolve) => setTimeout(resolve, retryDelay));
+    }
   }
-  throw new Error(`Server did not become ready.\n${output.join("")}`);
+  const errorDetails = lastError ? `\nLast request error: ${lastError.message}` : "";
+  throw new Error(`Server did not become ready.${errorDetails}\n${output.join("")}`);
 }
 
 async function postAction(baseUrl, body) {
@@ -126,7 +144,12 @@ test("production server validates settings, rejects stale commands, and deduplic
   const spawnServer = () => {
     const server = spawn(process.execPath, [path.join(fixture, "serve-bouldering-timer.js")], {
       cwd: fixture,
-      env: { ...process.env, PORT: String(port), HTTPS_PORT: String(httpsPort) },
+      env: {
+        ...process.env,
+        HOST: "127.0.0.1",
+        PORT: String(port),
+        HTTPS_PORT: String(httpsPort)
+      },
       stdio: ["ignore", "pipe", "pipe"]
     });
     server.stdout.on("data", (chunk) => output.push(chunk.toString()));
