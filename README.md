@@ -24,7 +24,7 @@
 ## Быстрый запуск
 
 1. Скачайте архив для своей системы в [Releases](https://github.com/dfedorov-arch/fdv-bouldering-timer/releases/latest) и распакуйте его целиком.
-2. Запустите `fdv-bouldering-timer.exe` в Windows, `FDV Bouldering Timer.app` в macOS или `fdv-bouldering-timer` в Linux. Скрипты `start-timer-*` остаются резервным способом.
+2. Запустите `fdv-bouldering-timer.exe` в Windows, `FDV Bouldering Timer.app` в macOS или `fdv-bouldering-timer` в Linux. Если macOS блокирует приложение или встроенный Node.js, сначала запустите правой кнопкой → «Открыть» файл `prepare-timer-mac.command`. Скрипты `start-timer-*` остаются резервным способом.
 3. На компьютере сервера откройте `http://127.0.0.1:8008/`, на других устройствах — напечатанный запускателем сетевой адрес.
 4. Включите **Основной браузер**, выберите формат и проверьте звук.
 
@@ -94,7 +94,7 @@ A network-synchronized timer for bouldering competitions. One browser controls t
 ### Quick start
 
 1. Download and extract the correct package from [Releases](https://github.com/dfedorov-arch/fdv-bouldering-timer/releases/latest).
-2. Start `fdv-bouldering-timer.exe` on Windows, `FDV Bouldering Timer.app` on macOS, or `fdv-bouldering-timer` on Linux.
+2. Start `fdv-bouldering-timer.exe` on Windows, `FDV Bouldering Timer.app` on macOS, or `fdv-bouldering-timer` on Linux. If macOS blocks the app or bundled Node.js, first right-click `prepare-timer-mac.command`, choose Open, and confirm.
 3. Open `http://127.0.0.1:8008/` on the server computer and the printed LAN address on every other display.
 4. Enable **Primary browser**, select the format, and verify sound and every physical display before the event.
 

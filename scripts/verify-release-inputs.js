@@ -43,6 +43,7 @@ if (uniqueBuilds.size !== 1) {
   "help.html",
   "lib/offline-audio.js",
   "params.txt",
+  "prepare-timer-mac.command",
   "serve-bouldering-timer.js",
   "sw.js",
   "scripts/build-standalone-html.js",
@@ -55,6 +56,10 @@ if (uniqueBuilds.size !== 1) {
   "fonts",
   "help-assets"
 ].forEach(requirePath);
+
+if ((fs.statSync(path.join(root, "prepare-timer-mac.command")).mode & 0o111) === 0) {
+  throw new Error("prepare-timer-mac.command must be executable");
+}
 
 const index = read("index.html");
 if (!index.includes('<script src="lib/client-action-transport.js"></script>')) {
