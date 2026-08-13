@@ -87,6 +87,10 @@ require_launcher() {
       echo "macOS app bundle does not declare local network usage: $variable_name=$launcher_path" >&2
       return 1
     fi
+    if ! grep -q '<key>NSBonjourServices</key>' "$plist" || ! grep -q '_fdv-bouldering-timer._tcp' "$plist"; then
+      echo "macOS app bundle does not declare its Bonjour permission probe: $variable_name=$launcher_path" >&2
+      return 1
+    fi
     if grep -q '\${LAUNCHER_VERSION}' "$plist"; then
       echo "macOS app bundle contains an unresolved version placeholder: $variable_name=$launcher_path" >&2
       return 1

@@ -293,6 +293,10 @@ PY
   <true/>
   <key>NSLocalNetworkUsageDescription</key>
   <string>FDV Bouldering Timer uses the local network to synchronize competition timers and displays.</string>
+  <key>NSBonjourServices</key>
+  <array>
+    <string>_fdv-bouldering-timer._tcp</string>
+  </array>
 </dict>
 </plist>
 PLIST

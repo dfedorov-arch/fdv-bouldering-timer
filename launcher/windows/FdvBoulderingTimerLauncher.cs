@@ -98,8 +98,8 @@ namespace FdvBoulderingTimerLauncher
     internal sealed class LauncherForm : Form
     {
         private readonly string _baseDirectory;
-        private readonly LauncherSettings _settings;
-        private readonly bool _hasHttps;
+        private LauncherSettings _settings;
+        private bool _hasHttps;
         private readonly bool _openBrowserOnStart;
         private readonly ListBox _addresses = new ListBox();
         private readonly Label _status = new Label();
@@ -112,6 +112,7 @@ namespace FdvBoulderingTimerLauncher
         private readonly System.Windows.Forms.Timer _startupTimer = new System.Windows.Forms.Timer();
         private readonly System.Windows.Forms.Timer _healthTimer = new System.Windows.Forms.Timer();
         private readonly System.Windows.Forms.Timer _restartTimer = new System.Windows.Forms.Timer();
+        private readonly System.Windows.Forms.Timer _networkRefreshTimer = new System.Windows.Forms.Timer();
         private Process _serverProcess;
         private int _startupAttempts;
         private int _healthFailures;
@@ -132,6 +133,7 @@ namespace FdvBoulderingTimerLauncher
 
             Shown += delegate { StartServer(_openBrowserOnStart); };
             FormClosing += OnFormClosing;
+            NetworkChange.NetworkAddressChanged += OnNetworkAddressChanged;
         }
 
         private void InitializeWindow()
@@ -228,6 +230,8 @@ namespace FdvBoulderingTimerLauncher
             _healthTimer.Interval = 1000;
             _healthTimer.Tick += CheckServerHealth;
             _restartTimer.Tick += RestartTimerTick;
+            _networkRefreshTimer.Interval = 750;
+            _networkRefreshTimer.Tick += RefreshNetworkAddresses;
         }
 
         private void ConfigureTray()
@@ -255,6 +259,8 @@ namespace FdvBoulderingTimerLauncher
 
         private void PopulateAddresses()
         {
+            var selected = _addresses.SelectedItem as TimerAddress;
+            var selectedUrl = selected == null ? null : selected.Url;
             _addresses.Items.Clear();
             AddAddress("Local HTTP", "http://127.0.0.1:" + _settings.HttpPort + "/");
             if (_hasHttps) AddAddress("Local HTTPS", "https://127.0.0.1:" + _settings.HttpsPort + "/");
@@ -273,7 +279,20 @@ namespace FdvBoulderingTimerLauncher
                     if (_hasHttps) AddAddress(type + " HTTPS", "https://" + ip + ":" + _settings.HttpsPort + "/");
                 }
             }
-            if (_addresses.Items.Count > 0) _addresses.SelectedIndex = 0;
+            var selectedIndex = -1;
+            if (selectedUrl != null)
+            {
+                for (var index = 0; index < _addresses.Items.Count; index++)
+                {
+                    var item = _addresses.Items[index] as TimerAddress;
+                    if (item != null && item.Url == selectedUrl)
+                    {
+                        selectedIndex = index;
+                        break;
+                    }
+                }
+            }
+            if (_addresses.Items.Count > 0) _addresses.SelectedIndex = selectedIndex >= 0 ? selectedIndex : 0;
         }
 
         private static string NetworkType(NetworkInterface network)
@@ -291,6 +310,31 @@ namespace FdvBoulderingTimerLauncher
             _addresses.Items.Add(new TimerAddress { Label = label, Url = url });
         }
 
+        private void OnNetworkAddressChanged(object sender, EventArgs args)
+        {
+            if (_allowClose || IsDisposed || !IsHandleCreated) return;
+            try
+            {
+                BeginInvoke(new Action(delegate
+                {
+                    if (_allowClose) return;
+                    // Windows can report several interface changes for one
+                    // connection. Coalesce them instead of polling the network.
+                    _networkRefreshTimer.Stop();
+                    _networkRefreshTimer.Start();
+                }));
+            }
+            catch (InvalidOperationException) { }
+        }
+
+        private void RefreshNetworkAddresses(object sender, EventArgs args)
+        {
+            _networkRefreshTimer.Stop();
+            if (_allowClose) return;
+            PopulateAddresses();
+            AppendLog("Network addresses updated.");
+        }
+
         private void StartServer(bool openBrowser)
         {
             _startupTimer.Stop();
@@ -304,6 +348,11 @@ namespace FdvBoulderingTimerLauncher
             AppendLog("Starting server...");
 
             StopServerProcess();
+            StopPortListeners();
+            _settings = LauncherSettings.Load(_baseDirectory);
+            _hasHttps = HasHttpsCertificate();
+            PopulateAddresses();
+            // Also stop a stale listener if the configured ports changed.
             StopPortListeners();
             _intentionalStop = false;
 
@@ -632,6 +681,7 @@ namespace FdvBoulderingTimerLauncher
         private void StopAndExit()
         {
             _allowClose = true;
+            StopNetworkMonitoring();
             _startupTimer.Stop();
             _healthTimer.Stop();
             _restartTimer.Stop();
@@ -650,6 +700,12 @@ namespace FdvBoulderingTimerLauncher
             _tray.ShowBalloonTip(1800, "FDV Bouldering Timer", "The server is still running. Use the tray icon to open or stop it.", ToolTipIcon.Info);
         }
 
+        private void StopNetworkMonitoring()
+        {
+            _networkRefreshTimer.Stop();
+            NetworkChange.NetworkAddressChanged -= OnNetworkAddressChanged;
+        }
+
         private static string QuoteArgument(string value)
         {
             return "\"" + value.Replace("\"", "\\\"") + "\"";
@@ -659,9 +715,11 @@ namespace FdvBoulderingTimerLauncher
         {
             if (disposing)
             {
+                StopNetworkMonitoring();
                 _startupTimer.Dispose();
                 _healthTimer.Dispose();
                 _restartTimer.Dispose();
+                _networkRefreshTimer.Dispose();
                 _tray.Dispose();
                 if (_serverProcess != null) _serverProcess.Dispose();
             }
