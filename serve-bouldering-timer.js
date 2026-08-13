@@ -2281,7 +2281,6 @@ function localNetworkAddresses() {
 
 function listenHosts() {
   if (configuredHost) return [configuredHost];
-  if (process.platform === "darwin") return ["127.0.0.1", ...localNetworkAddresses()];
   return ["0.0.0.0"];
 }
 

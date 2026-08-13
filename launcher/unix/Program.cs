@@ -112,9 +112,43 @@ internal sealed class TimerAddress
 
 internal sealed class LauncherWindow : Window
 {
+    private const string BonjourServiceType = "_fdv-bouldering-timer._tcp";
+
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    private delegate void DnsServiceBrowseReply(
+        IntPtr serviceRef,
+        uint flags,
+        uint interfaceIndex,
+        int errorCode,
+        IntPtr serviceName,
+        IntPtr registrationType,
+        IntPtr replyDomain,
+        IntPtr context);
+
+    [DllImport("libSystem.B.dylib", EntryPoint = "DNSServiceBrowse", CallingConvention = CallingConvention.Cdecl)]
+    private static extern int DnsServiceBrowse(
+        out IntPtr serviceRef,
+        uint flags,
+        uint interfaceIndex,
+        [MarshalAs(UnmanagedType.LPUTF8Str)] string registrationType,
+        IntPtr domain,
+        DnsServiceBrowseReply callback,
+        IntPtr context);
+
+    [DllImport("libSystem.B.dylib", EntryPoint = "DNSServiceRefDeallocate", CallingConvention = CallingConvention.Cdecl)]
+    private static extern void DnsServiceRefDeallocate(IntPtr serviceRef);
+
+    [DllImport("libSystem.B.dylib", EntryPoint = "removexattr", CallingConvention = CallingConvention.Cdecl, SetLastError = true)]
+    private static extern int RemoveExtendedAttribute(
+        [MarshalAs(UnmanagedType.LPUTF8Str)] string path,
+        [MarshalAs(UnmanagedType.LPUTF8Str)] string name,
+        int options);
+
+    private static readonly DnsServiceBrowseReply BonjourBrowseCallback = (_, _, _, _, _, _, _, _) => { };
+
     private readonly string _baseDirectory;
-    private readonly LauncherSettings _settings;
-    private readonly bool _hasHttps;
+    private LauncherSettings _settings;
+    private bool _hasHttps;
     private readonly ListBox _addresses = new();
     private readonly TextBlock _status = new();
     private readonly TextBox _log = new();
@@ -125,6 +159,7 @@ internal sealed class LauncherWindow : Window
     private readonly DispatcherTimer _startupTimer = new() { Interval = TimeSpan.FromMilliseconds(300) };
     private readonly DispatcherTimer _healthTimer = new() { Interval = TimeSpan.FromSeconds(1) };
     private readonly DispatcherTimer _restartTimer = new();
+    private readonly DispatcherTimer _networkRefreshTimer = new() { Interval = TimeSpan.FromMilliseconds(750) };
     private Process? _serverProcess;
     private int _startupAttempts;
     private int _healthFailures;
@@ -160,6 +195,8 @@ internal sealed class LauncherWindow : Window
         _startupTimer.Tick += CheckServerReady;
         _healthTimer.Tick += CheckServerHealth;
         _restartTimer.Tick += RestartTimerTick;
+        _networkRefreshTimer.Tick += RefreshNetworkAddresses;
+        NetworkChange.NetworkAddressChanged += OnNetworkAddressChanged;
     }
 
     private static string DetectBaseDirectory()
@@ -312,6 +349,7 @@ internal sealed class LauncherWindow : Window
 
     private void PopulateAddresses()
     {
+        var selectedUrl = (_addresses.SelectedItem as TimerAddress)?.Url;
         _addresses.Items.Clear();
         AddAddress("Local HTTP", "http://127.0.0.1:" + _settings.HttpPort + "/");
         if (_hasHttps) AddAddress("Local HTTPS", "https://127.0.0.1:" + _settings.HttpsPort + "/");
@@ -330,7 +368,19 @@ internal sealed class LauncherWindow : Window
                 if (_hasHttps) AddAddress(type + " HTTPS", "https://" + ip + ":" + _settings.HttpsPort + "/");
             }
         }
-        if (_addresses.Items.Count > 0) _addresses.SelectedIndex = 0;
+        var selectedIndex = -1;
+        if (selectedUrl != null)
+        {
+            for (var index = 0; index < _addresses.Items.Count; index++)
+            {
+                if (_addresses.Items[index] is TimerAddress address && address.Url == selectedUrl)
+                {
+                    selectedIndex = index;
+                    break;
+                }
+            }
+        }
+        if (_addresses.Items.Count > 0) _addresses.SelectedIndex = selectedIndex >= 0 ? selectedIndex : 0;
     }
 
     private static string NetworkType(NetworkInterface network)
@@ -351,6 +401,26 @@ internal sealed class LauncherWindow : Window
         _addresses.Items.Add(new TimerAddress { Label = label, Url = url });
     }
 
+    private void OnNetworkAddressChanged(object? sender, EventArgs args)
+    {
+        Dispatcher.UIThread.Post(() =>
+        {
+            if (_allowClose) return;
+            // Interface changes often arrive in short bursts. Refresh once after
+            // the network has settled instead of polling continuously.
+            _networkRefreshTimer.Stop();
+            _networkRefreshTimer.Start();
+        });
+    }
+
+    private void RefreshNetworkAddresses(object? sender, EventArgs args)
+    {
+        _networkRefreshTimer.Stop();
+        if (_allowClose) return;
+        PopulateAddresses();
+        AppendLog("Network addresses updated.");
+    }
+
     private void StartServer(bool openBrowser)
     {
         _startupTimer.Stop();
@@ -365,6 +435,11 @@ internal sealed class LauncherWindow : Window
 
         StopServerProcess();
         StopPortListeners();
+        _settings = LauncherSettings.Load(_baseDirectory);
+        _hasHttps = HasHttpsCertificate();
+        PopulateAddresses();
+        // The configured ports may have changed since the previous start.
+        StopPortListeners();
         _intentionalStop = false;
 
         var nodePath = FindNodeExecutable();
@@ -373,6 +448,7 @@ internal sealed class LauncherWindow : Window
             SetError(NodeNotFoundMessage());
             return;
         }
+        RemovePortableRuntimeQuarantine(nodePath);
 
         var serverScript = Path.Combine(_baseDirectory, "serve-bouldering-timer.js");
         if (!File.Exists(serverScript))
@@ -380,6 +456,12 @@ internal sealed class LauncherWindow : Window
             SetError(ServerScriptNotFoundMessage());
             return;
         }
+
+        _localNetworkProbeStarted = false;
+        // Start the macOS permission request before waiting for the HTTP server.
+        // A wildcard listener may itself be held by Local Network Privacy until
+        // the user answers the system prompt.
+        _ = RequestLocalNetworkAccess();
 
         try
         {
@@ -405,7 +487,6 @@ internal sealed class LauncherWindow : Window
             _startupAttempts = 0;
             _healthFailures = 0;
             _startupAccessNoticeShown = false;
-            _localNetworkProbeStarted = false;
             _openBrowserAfterStart = openBrowser;
             _startupTimer.Start();
         }
@@ -454,7 +535,6 @@ internal sealed class LauncherWindow : Window
             AppendLog("Server is ready.");
             AppendLog("Keep this computer connected to power and disable sleep while the timer is running.");
             _healthTimer.Start();
-            _ = RequestLocalNetworkAccess();
             if (_openBrowserAfterStart) OpenLocalTimer();
             return;
         }
@@ -515,8 +595,15 @@ internal sealed class LauncherWindow : Window
         }
 
         AppendLog("Requesting macOS local-network access...");
+        // macOS may keep DNSServiceBrowse blocked while its permission dialog is
+        // unanswered, so never invoke it on Avalonia's UI thread.
+        var bonjourBrowseTask = Task.Run(StartBonjourBrowse);
         try
         {
+            // DNSServiceBrowse is the macOS-supported trigger for the Local Network
+            // privacy prompt. Keep the browse alive while the HTTP probe waits for
+            // the user to answer it.
+            await Task.Delay(250);
             using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
             var probeUrl = new Uri(new Uri(networkAddress.Url), "favicon.ico?launcher-local-network-probe=1");
             using var response = await client.GetAsync(probeUrl);
@@ -529,9 +616,41 @@ internal sealed class LauncherWindow : Window
         catch
         {
         }
+        finally
+        {
+            _ = StopBonjourBrowseWhenReady(bonjourBrowseTask);
+        }
         _status.Text = "Server is running locally; local-network access is blocked";
         _status.Foreground = Brush(255, 200, 87);
         AppendLog("Local-network access is not available. Allow FDV Bouldering Timer in System Settings > Privacy & Security > Local Network, then click Restart server.");
+    }
+
+    private IntPtr StartBonjourBrowse()
+    {
+        try
+        {
+            var errorCode = DnsServiceBrowse(
+                out var serviceRef,
+                0,
+                0,
+                BonjourServiceType,
+                IntPtr.Zero,
+                BonjourBrowseCallback,
+                IntPtr.Zero);
+            if (errorCode == 0) return serviceRef;
+            AppendLog("macOS Bonjour permission request failed with error " + errorCode + ".");
+        }
+        catch (Exception error)
+        {
+            AppendLog("Unable to start the macOS Bonjour permission request: " + error.Message);
+        }
+        return IntPtr.Zero;
+    }
+
+    private static async Task StopBonjourBrowseWhenReady(Task<IntPtr> browseTask)
+    {
+        var serviceRef = await browseTask;
+        if (serviceRef != IntPtr.Zero) DnsServiceRefDeallocate(serviceRef);
     }
 
     private async void CheckServerHealth(object? sender, EventArgs args)
@@ -618,6 +737,33 @@ internal sealed class LauncherWindow : Window
             }
         }
         return null;
+    }
+
+    private void RemovePortableRuntimeQuarantine(string nodePath)
+    {
+        if (!RuntimeInformation.IsOSPlatform(OSPlatform.OSX)) return;
+
+        try
+        {
+            var runtimeRoot = Path.GetFullPath(Path.Combine(_baseDirectory, "runtime", "mac"));
+            var relativeNodePath = Path.GetRelativePath(runtimeRoot, Path.GetFullPath(nodePath));
+            if (relativeNodePath == ".." ||
+                relativeNodePath.StartsWith(".." + Path.DirectorySeparatorChar, StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            var removed = 0;
+            foreach (var path in Directory.EnumerateFileSystemEntries(runtimeRoot, "*", SearchOption.AllDirectories).Prepend(runtimeRoot))
+            {
+                if (RemoveExtendedAttribute(path, "com.apple.quarantine", 0) == 0) removed++;
+            }
+            if (removed > 0) AppendLog("Prepared the portable Node.js runtime for macOS (removed quarantine).");
+        }
+        catch (Exception error)
+        {
+            AppendLog("Unable to prepare the portable Node.js runtime: " + error.Message);
+        }
     }
 
     private void StopPortListeners()
@@ -801,6 +947,7 @@ internal sealed class LauncherWindow : Window
     private void StopAndExit()
     {
         _allowClose = true;
+        StopNetworkMonitoring();
         _startupTimer.Stop();
         _healthTimer.Stop();
         _restartTimer.Stop();
@@ -811,6 +958,7 @@ internal sealed class LauncherWindow : Window
 
     private void OnClosing(object? sender, WindowClosingEventArgs args)
     {
+        StopNetworkMonitoring();
         if (_allowClose) return;
         _allowClose = true;
         _startupTimer.Stop();
@@ -818,6 +966,12 @@ internal sealed class LauncherWindow : Window
         _restartTimer.Stop();
         _intentionalStop = true;
         StopServerProcess();
+    }
+
+    private void StopNetworkMonitoring()
+    {
+        _networkRefreshTimer.Stop();
+        NetworkChange.NetworkAddressChanged -= OnNetworkAddressChanged;
     }
 
     private static IBrush Brush(byte red, byte green, byte blue)

@@ -24,7 +24,11 @@ function cleanLauncherEnvironment() {
   return environment;
 }
 
-function createMacLauncherFixture({ includePdb = false, includeLocalNetworkUsage = true } = {}) {
+function createMacLauncherFixture({
+  includePdb = false,
+  includeLocalNetworkUsage = true,
+  includeBonjourServices = true
+} = {}) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "fdv-mac-launcher-test-"));
   const app = path.join(root, "FDV Bouldering Timer.app");
   const macos = path.join(app, "Contents", "MacOS");
@@ -35,6 +39,7 @@ function createMacLauncherFixture({ includePdb = false, includeLocalNetworkUsage
     "<plist><dict>",
     "<key>CFBundleVersion</key><string>2.1.1</string>",
     includeLocalNetworkUsage ? "<key>NSLocalNetworkUsageDescription</key><string>Local timer displays</string>" : "",
+    includeBonjourServices ? "<key>NSBonjourServices</key><array><string>_fdv-bouldering-timer._tcp</string></array>" : "",
     "</dict></plist>"
   ].join(""));
   return { root, app };
@@ -94,8 +99,12 @@ test("targeted packaging requires only the selected platform launcher", () => {
   }
 });
 
-test("macOS packaging rejects debug symbols and missing local network usage", () => {
-  for (const options of [{ includePdb: true }, { includeLocalNetworkUsage: false }]) {
+test("macOS packaging rejects debug symbols and incomplete local network declarations", () => {
+  for (const options of [
+    { includePdb: true },
+    { includeLocalNetworkUsage: false },
+    { includeBonjourServices: false }
+  ]) {
     const fixture = createMacLauncherFixture(options);
     const environment = cleanLauncherEnvironment();
     environment.MACOS_LAUNCHER_ARM64 = fixture.app;
@@ -111,7 +120,7 @@ test("macOS packaging rejects debug symbols and missing local network usage", ()
         encoding: "utf8"
       });
       assert.equal(result.status, 1);
-      assert.match(result.stderr, /debug symbols|does not declare local network usage/);
+      assert.match(result.stderr, /debug symbols|does not declare local network usage|does not declare its Bonjour permission probe/);
     } finally {
       fs.rmSync(fixture.root, { recursive: true, force: true });
     }
