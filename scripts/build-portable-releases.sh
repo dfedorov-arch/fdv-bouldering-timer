@@ -251,6 +251,9 @@ build_unix() {
     linux) cp "$ROOT_DIR/ReadMe-linux.txt" "$package/ReadMe.txt" ;;
   esac
   cp "$ROOT_DIR/$launcher" "$ROOT_DIR/$certificate_script" "$package/"
+  if [[ "$os" == "macos" ]]; then
+    cp "$ROOT_DIR/prepare-timer-mac.command" "$package/"
+  fi
   case "${os}-${arch}" in
     macos-arm64) gui_launcher="${MACOS_LAUNCHER_ARM64:-}" ;;
     macos-x64) gui_launcher="${MACOS_LAUNCHER_X64:-}" ;;
@@ -286,6 +289,9 @@ SH
   cp "$node_root/LICENSE" "$package/runtime/$runtime_name/LICENSE-Node.txt"
   cp "$ROOT_DIR/runtime/$runtime_name/README.txt" "$package/runtime/$runtime_name/README.txt"
   chmod +x "$package/$launcher" "$package/$certificate_script" "$package/runtime/$runtime_name/bin/node"
+  if [[ "$os" == "macos" ]]; then
+    chmod +x "$package/prepare-timer-mac.command"
+  fi
 
   tar -czf "$DIST_DIR/$package_name.tar.gz" -C "$WORK_DIR" "$package_name"
 }

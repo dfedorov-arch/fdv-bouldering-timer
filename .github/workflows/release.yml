@@ -149,7 +149,7 @@ jobs:
           printf '%s\n' \
             "Portable packages include Node.js $NODE_VERSION LTS and do not require a system Node.js installation." \
             "The Windows package includes fdv-bouldering-timer.exe and keeps start-timer-win.bat as a fallback launcher." \
-            "The macOS packages include FDV Bouldering Timer.app, fdv-bouldering-timer, and keep start-timer-mac.command as a fallback launcher." \
+            "The macOS packages include FDV Bouldering Timer.app, fdv-bouldering-timer, prepare-timer-mac.command for clearing quarantine, and start-timer-mac.command as a fallback launcher." \
             "The Linux packages include fdv-bouldering-timer and keep start-timer-linux.sh as a fallback launcher." \
             "The release also includes a single-file standalone timer for all operating systems; no Node.js is required to run that HTML file." \
             "" \

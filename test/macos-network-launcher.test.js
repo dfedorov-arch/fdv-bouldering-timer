@@ -41,6 +41,19 @@ test("macOS launcher removes quarantine only from its bundled Node.js runtime", 
   assert.doesNotMatch(source, /xattr[^\n]+_baseDirectory/);
 });
 
+test("macOS release preparation script clears quarantine and restores executable files", () => {
+  const scriptPath = path.join(projectRoot, "prepare-timer-mac.command");
+  const source = fs.readFileSync(scriptPath, "utf8");
+  const buildSource = fs.readFileSync(path.join(projectRoot, "scripts", "build-portable-releases.sh"), "utf8");
+  assert.notEqual(fs.statSync(scriptPath).mode & 0o111, 0);
+  assert.match(source, /SCRIPT_DIR=/);
+  assert.match(source, /xattr -dr com\.apple\.quarantine "\$SCRIPT_DIR"/);
+  assert.match(source, /chmod \+x "\$APP_EXECUTABLE" "\$PORTABLE_NODE"/);
+  assert.match(source, /xattr -p com\.apple\.quarantine "\$target"/);
+  assert.match(buildSource, /cp "\$ROOT_DIR\/prepare-timer-mac\.command" "\$package\/"/);
+  assert.match(buildSource, /chmod \+x "\$package\/prepare-timer-mac\.command"/);
+});
+
 test("launcher reloads settings on restart and refreshes addresses on network changes", () => {
   const source = fs.readFileSync(path.join(projectRoot, "launcher", "unix", "Program.cs"), "utf8");
   const startServer = source.slice(
