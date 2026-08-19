@@ -437,9 +437,11 @@ test("Diagnostics switches the layout of exactly two lists on one screen", async
     expect(layoutIcon.afterDisplay).toBe("none");
     const pinButton = screenCard.locator("[data-browser-pin]");
     await expect(pinButton.locator("g")).toHaveAttribute("transform", "rotate(45 8 8)");
+    await expect(pinButton.locator(".browser-pin-needle")).toHaveClass(/sharp/);
     await pinButton.click();
     await expect(pinButton).toHaveClass(/active/);
     await expect(pinButton.locator("g")).not.toHaveAttribute("transform", /.+/);
+    await expect(pinButton.locator(".browser-pin-needle")).not.toHaveClass(/sharp/);
     await pinButton.click();
     await expect(pinButton).not.toHaveClass(/active/);
     const timeButton = screenCard.locator(`[data-server-time-client="${screenId}"]`);

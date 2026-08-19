@@ -684,6 +684,8 @@ test("browser ordering controls pin positions and share display numbers with eve
   assert.match(index, /\.browser-numbers-toggle \{[\s\S]*?position: absolute;[\s\S]*?top: 4px;[\s\S]*?right: 3px;/);
   assert.match(index, /\.browser-number-badge \{[\s\S]*?position: absolute;[\s\S]*?top: 12px;[\s\S]*?right: 12px;/);
   assert.match(index, /data-browser-pin=[\s\S]*?data-browser-move="up"[\s\S]*?data-browser-move="down"/);
+  assert.match(index, /const pinNeedlePath = client\.browserPinned[\s\S]*?M6\.65 12\.15 8 13\.5l1\.35-1\.35/);
+  assert.match(index, /\.browser-pin-needle\.sharp \{[\s\S]*?stroke-linecap: butt;[\s\S]*?stroke-linejoin: miter;/);
   assert.match(index, /\.browser-order-controls \{[\s\S]*?right: 1px;[\s\S]*?grid-template-columns: 16px;[\s\S]*?grid-template-rows: repeat\(3, 16px\)/);
   assert.match(index, /\.browser-item\.has-order-controls > strong,[\s\S]*?> strong \+ span,[\s\S]*?> \.diag-row:not\(\.start-list-diag-row\) \{\s*padding-right: 18px;/);
   assert.match(index, /\.browser-order-button \{[\s\S]*?width: 16px;[\s\S]*?border: 0;[\s\S]*?background: transparent;/);
