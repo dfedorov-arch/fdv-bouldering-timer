@@ -689,7 +689,7 @@ test("browser ordering controls pin positions and share display numbers with eve
   assert.match(index, /\.browser-order-button \{[\s\S]*?width: 16px;[\s\S]*?border: 0;[\s\S]*?background: transparent;/);
   assert.doesNotMatch(index, /\.browser-item\.has-order-controls \{\s*padding-right:/);
   assert.match(index, /id="browserNumbersToggle"[^>]*hidden/);
-  assert.match(index, /els\.browserNumbersToggle\.hidden = clients\.length < 3/);
+  assert.match(index, /els\.browserNumbersToggle\.hidden = clients\.length < 3 && !state\.showBrowserNumbers/);
   assert.match(index, /const primaryBrowserCard = els\.browserList\.querySelector\("\.primary-browser"\);[\s\S]*?primaryBrowserCard\.appendChild\(els\.browserNumbersToggle\)/);
   assert.match(index, /if \(isPrimary\) classes\.push\("primary-browser"\)/);
   assert.match(index, /\.browser-item\.primary-browser \{\s*border-color: #667181;/);

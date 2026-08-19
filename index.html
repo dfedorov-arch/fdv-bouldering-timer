@@ -8343,7 +8343,9 @@
     function renderBrowserList(clients) {
       if (!els.browserList) return;
       lastKnownClients = clients;
-      els.browserNumbersToggle.hidden = clients.length < 3;
+      // Keep the global switch reachable when a display disconnects after
+      // browser numbers have been enabled.
+      els.browserNumbersToggle.hidden = clients.length < 3 && !state.showBrowserNumbers;
       const activeAudioSlider = els.browserList.querySelector("[data-audio-offset-slider]");
       const preserveAudioEditor = editingAudioClientId
         && activeAudioSlider?.dataset.audioOffsetSlider === editingAudioClientId
