@@ -4159,6 +4159,10 @@
     };
     const audioScheduleAheadSeconds = 2.8;
     const audioPrewarmSeconds = 2;
+    // A buffered signal is created this far before its target. Wake the
+    // output one second earlier, so a just-idled audio clock is running
+    // before its target time is calculated.
+    const audioPrewarmBeforeBufferSeconds = 1;
     const performanceAudioKeepaliveLeadSeconds = 10;
     const performanceAudioKeepaliveTailSeconds = 0.35;
     const performanceAudioKeepaliveGain = 0.00005;
@@ -9937,8 +9941,9 @@
 
       const minuteTargetServerTime = serverTimeForElapsed(segment.end - 60);
       if (duration > 60 && shouldScheduleServerSignal(minuteTargetServerTime, signalLateGraceMs.minute)) {
-        if (remaining > 60 + audioPrewarmSeconds) {
-          scheduleSignalAt(segment, serverTimeForElapsed(segment.end - 60 - audioPrewarmSeconds), "prewarm", false);
+        const minutePrewarmLeadSeconds = audioScheduleAheadSeconds + audioPrewarmBeforeBufferSeconds;
+        if (remaining > 60 + minutePrewarmLeadSeconds) {
+          scheduleSignalAt(segment, serverTimeForElapsed(segment.end - 60 - minutePrewarmLeadSeconds), "prewarm", false);
         }
         if (remaining > 60.8) {
           scheduleSignalAt(segment, serverTimeForElapsed(segment.end - 60.8), "warm", false);
