@@ -206,11 +206,6 @@
       text-align: center;
     }
 
-    body.web-standalone .server-connection-warning[data-state="standalone"] .server-connection-actions,
-    body.web-standalone .server-connection-warning[data-state="standalone"] .install-hint {
-      display: none;
-    }
-
     body.web-standalone .server-connection-warning[data-state="standalone"] #serverConnectionWarningText,
     body.file-mode #primaryRow,
     body.file-mode #primaryPinPanel {
@@ -11930,6 +11925,10 @@
       registerOfflineServiceWorker();
       startSync();
       scheduleOfflineSnapshotSafetyWrite();
+    } else if (isWebStandalonePage()) {
+      // The published single-file timer stays local-only, but it can still
+      // install a service worker while online to reopen itself offline.
+      registerOfflineServiceWorker();
     }
     if (performanceDiagnosticsEnabled) {
       if (els.performanceExportBtn) {
