@@ -689,7 +689,7 @@ test("browser ordering controls pin positions and share display numbers with eve
   assert.match(index, /\.browser-number-badge \{[\s\S]*?position: absolute;[\s\S]*?top: 12px;[\s\S]*?right: 12px;/);
   assert.match(index, /data-browser-pin=[\s\S]*?data-browser-move="up"[\s\S]*?data-browser-move="down"/);
   assert.match(index, /const pinNeedlePath = client\.browserPinned[\s\S]*?M8 8\.4v4\.55/);
-  assert.match(index, /const pinTipHtml = client\.browserPinned[\s\S]*?<path class="browser-pin-tip" d="M5\.45 12\.1h5\.1L8 15z"\/>/);
+  assert.match(index, /const pinTipHtml = client\.browserPinned[\s\S]*?<path class="browser-pin-tip" d="M7\.1 12\.1h1\.8L8 15z"\/>/);
   assert.match(index, /\.browser-pin-needle\.sharp \{[\s\S]*?stroke-linecap: butt;[\s\S]*?stroke-linejoin: miter;/);
   assert.match(index, /\.browser-pin-tip \{[\s\S]*?fill: currentColor;[\s\S]*?stroke: none;/);
   assert.match(index, /\.browser-order-controls \{[\s\S]*?right: 1px;[\s\S]*?grid-template-columns: 16px;[\s\S]*?grid-template-rows: repeat\(3, 16px\)/);

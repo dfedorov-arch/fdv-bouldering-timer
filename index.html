@@ -8776,7 +8776,7 @@
           : "M8 8.4v4.55";
         const pinTipHtml = client.browserPinned
           ? ""
-          : '<path class="browser-pin-tip" d="M5.45 12.1h5.1L8 15z"/>';
+          : '<path class="browser-pin-tip" d="M7.1 12.1h1.8L8 15z"/>';
         const orderControlsHtml = canOrderBrowser ? `<div class="browser-order-controls">
           <button type="button" class="browser-order-button pin${client.browserPinned ? " active" : ""}" data-browser-pin="${client.browserPinned ? "1" : "0"}" data-browser-client="${escapeHtml(client.id)}" aria-pressed="${client.browserPinned ? "true" : "false"}" aria-label="${escapeHtml(pinTitle)}" title="${escapeHtml(pinTitle)}"><svg viewBox="0 0 16 16" aria-hidden="true"><g${client.browserPinned ? "" : ' transform="rotate(45 8 8)"'}><path d="M5 2.3h6M6 2.3l.6 4-2.1 2.1h7L9.4 6.3l.6-4"/><path class="browser-pin-needle${client.browserPinned ? "" : " sharp"}" d="${pinNeedlePath}"/>${pinTipHtml}</g></svg></button>
           <button type="button" class="browser-order-button" data-browser-move="up" data-browser-client="${escapeHtml(client.id)}" aria-label="${escapeHtml(t("moveBrowserUp"))}" title="${escapeHtml(t("moveBrowserUp"))}"${movableIndex <= 0 ? " disabled" : ""}>↑</button>
