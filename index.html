@@ -3055,7 +3055,8 @@
         installApp: "На рабочий стол",
         installAppTitle: "Добавить таймер на рабочий стол телефона",
         installIosHint: "iOS: нажмите «Поделиться» и выберите «На экран Домой».",
-        installAndroidHint: "Android: откройте меню браузера ⋮ и выберите «Добавить на главный экран» или «Установить приложение». Для системной установки откройте таймер по HTTP/HTTPS.",
+        installAndroidHint: "Android: откройте меню браузера ⋮ и выберите «Добавить на главный экран» или «Установить приложение».",
+        installAndroidFileHint: "Android: откройте меню браузера ⋮ и выберите «Добавить на главный экран» или «Установить приложение». Для системной установки откройте таймер по HTTP/HTTPS.",
         installUnsupportedHint: "Если браузер не показал установку, используйте меню браузера и пункт добавления на главный экран.",
         serverOfflineTitle: "Нет связи с сервером",
         serverOfflineText: "Табло продолжает последний полученный отсчёт. Продолжить автономно в этом браузере? Другие браузеры синхронизироваться не будут.",
@@ -3150,7 +3151,8 @@
         installApp: "Add to home screen",
         installAppTitle: "Add the timer to this phone's home screen",
         installIosHint: "iOS: tap Share and choose Add to Home Screen.",
-        installAndroidHint: "Android: open the browser menu ⋮ and choose Add to Home screen or Install app. For system installation, open the timer over HTTP/HTTPS.",
+        installAndroidHint: "Android: open the browser menu ⋮ and choose Add to Home screen or Install app.",
+        installAndroidFileHint: "Android: open the browser menu ⋮ and choose Add to Home screen or Install app. For system installation, open the timer over HTTP/HTTPS.",
         installUnsupportedHint: "If the browser does not show an install prompt, use the browser menu and choose the home-screen shortcut option.",
         serverOfflineTitle: "Server connection lost",
         serverOfflineText: "The display continues the last received countdown. Continue independently in this browser? Other browsers will not be synchronized.",
@@ -4306,7 +4308,7 @@
         return;
       }
       if (isAndroidDevice()) {
-        showInstallHint(t("installAndroidHint"));
+        showInstallHint(t(window.location.protocol === "file:" ? "installAndroidFileHint" : "installAndroidHint"));
         return;
       }
       showInstallHint(t("installUnsupportedHint"));
