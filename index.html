@@ -206,11 +206,6 @@
       text-align: center;
     }
 
-    body.web-standalone .server-connection-warning[data-state="standalone"] .server-connection-actions,
-    body.web-standalone .server-connection-warning[data-state="standalone"] .install-hint {
-      display: none;
-    }
-
     body.web-standalone .server-connection-warning[data-state="standalone"] #serverConnectionWarningText,
     body.file-mode #primaryRow,
     body.file-mode #primaryPinPanel {
@@ -1025,6 +1020,11 @@
       stroke-width: 1.8;
       stroke-linecap: round;
       stroke-linejoin: round;
+    }
+
+    .browser-pin-needle.sharp {
+      stroke-linecap: butt;
+      stroke-linejoin: miter;
     }
 
     .browser-number-badge {
@@ -4154,6 +4154,10 @@
     };
     const audioScheduleAheadSeconds = 2.8;
     const audioPrewarmSeconds = 2;
+    // A buffered signal is created this far before its target. Wake the
+    // output one second earlier, so a just-idled audio clock is running
+    // before its target time is calculated.
+    const audioPrewarmBeforeBufferSeconds = 1;
     const performanceAudioKeepaliveLeadSeconds = 10;
     const performanceAudioKeepaliveTailSeconds = 0.35;
     const performanceAudioKeepaliveGain = 0.00005;
@@ -8343,7 +8347,9 @@
     function renderBrowserList(clients) {
       if (!els.browserList) return;
       lastKnownClients = clients;
-      els.browserNumbersToggle.hidden = clients.length < 3;
+      // Keep the global switch reachable when a display disconnects after
+      // browser numbers have been enabled.
+      els.browserNumbersToggle.hidden = clients.length < 3 && !state.showBrowserNumbers;
       const activeAudioSlider = els.browserList.querySelector("[data-audio-offset-slider]");
       const preserveAudioEditor = editingAudioClientId
         && activeAudioSlider?.dataset.audioOffsetSlider === editingAudioClientId
@@ -8758,8 +8764,11 @@
           : "";
         const movableIndex = movableClients.findIndex((entry) => entry.id === client.id);
         const pinTitle = t(client.browserPinned ? "unpinBrowser" : "pinBrowser");
+        const pinNeedlePath = client.browserPinned
+          ? "M8 8.4v4.1M6.9 13.1c.35.9 1.85.9 2.2 0"
+          : "M8 8.4v5.1M6.65 12.15 8 13.5l1.35-1.35";
         const orderControlsHtml = canOrderBrowser ? `<div class="browser-order-controls">
-          <button type="button" class="browser-order-button pin${client.browserPinned ? " active" : ""}" data-browser-pin="${client.browserPinned ? "1" : "0"}" data-browser-client="${escapeHtml(client.id)}" aria-pressed="${client.browserPinned ? "true" : "false"}" aria-label="${escapeHtml(pinTitle)}" title="${escapeHtml(pinTitle)}"><svg viewBox="0 0 16 16" aria-hidden="true"><g${client.browserPinned ? "" : ' transform="rotate(45 8 8)"'}><path d="M5 2.3h6M6 2.3l.6 4-2.1 2.1h7L9.4 6.3l.6-4M8 8.4v4.1M6.9 13.1c.35.9 1.85.9 2.2 0"/></g></svg></button>
+          <button type="button" class="browser-order-button pin${client.browserPinned ? " active" : ""}" data-browser-pin="${client.browserPinned ? "1" : "0"}" data-browser-client="${escapeHtml(client.id)}" aria-pressed="${client.browserPinned ? "true" : "false"}" aria-label="${escapeHtml(pinTitle)}" title="${escapeHtml(pinTitle)}"><svg viewBox="0 0 16 16" aria-hidden="true"><g${client.browserPinned ? "" : ' transform="rotate(45 8 8)"'}><path d="M5 2.3h6M6 2.3l.6 4-2.1 2.1h7L9.4 6.3l.6-4"/><path class="browser-pin-needle${client.browserPinned ? "" : " sharp"}" d="${pinNeedlePath}"/></g></svg></button>
           <button type="button" class="browser-order-button" data-browser-move="up" data-browser-client="${escapeHtml(client.id)}" aria-label="${escapeHtml(t("moveBrowserUp"))}" title="${escapeHtml(t("moveBrowserUp"))}"${movableIndex <= 0 ? " disabled" : ""}>↑</button>
           <button type="button" class="browser-order-button" data-browser-move="down" data-browser-client="${escapeHtml(client.id)}" aria-label="${escapeHtml(t("moveBrowserDown"))}" title="${escapeHtml(t("moveBrowserDown"))}"${movableIndex < 0 || movableIndex >= movableClients.length - 1 ? " disabled" : ""}>↓</button>
         </div>` : "";
@@ -9927,8 +9936,9 @@
 
       const minuteTargetServerTime = serverTimeForElapsed(segment.end - 60);
       if (duration > 60 && shouldScheduleServerSignal(minuteTargetServerTime, signalLateGraceMs.minute)) {
-        if (remaining > 60 + audioPrewarmSeconds) {
-          scheduleSignalAt(segment, serverTimeForElapsed(segment.end - 60 - audioPrewarmSeconds), "prewarm", false);
+        const minutePrewarmLeadSeconds = audioScheduleAheadSeconds + audioPrewarmBeforeBufferSeconds;
+        if (remaining > 60 + minutePrewarmLeadSeconds) {
+          scheduleSignalAt(segment, serverTimeForElapsed(segment.end - 60 - minutePrewarmLeadSeconds), "prewarm", false);
         }
         if (remaining > 60.8) {
           scheduleSignalAt(segment, serverTimeForElapsed(segment.end - 60.8), "warm", false);
@@ -11915,6 +11925,10 @@
       registerOfflineServiceWorker();
       startSync();
       scheduleOfflineSnapshotSafetyWrite();
+    } else if (isWebStandalonePage()) {
+      // The published single-file timer stays local-only, but it can still
+      // install a service worker while online to reopen itself offline.
+      registerOfflineServiceWorker();
     }
     if (performanceDiagnosticsEnabled) {
       if (els.performanceExportBtn) {

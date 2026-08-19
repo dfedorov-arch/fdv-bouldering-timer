@@ -111,6 +111,11 @@ test("params can mute technical warm-up tones without disabling silent audio pre
   assert.match(help, /<code>no_sound_warm<\/code><\/td><td>Disable quiet technical warm-up tones/);
 });
 
+test("minute signal warms an idle audio output before its buffer is scheduled", () => {
+  assert.match(index, /const audioScheduleAheadSeconds = 2\.8;\s*const audioPrewarmSeconds = 2;\s*\/\/ A buffered signal[\s\S]*?const audioPrewarmBeforeBufferSeconds = 1;/);
+  assert.match(index, /const minuteTargetServerTime = serverTimeForElapsed\(segment\.end - 60\);[\s\S]*?const minutePrewarmLeadSeconds = audioScheduleAheadSeconds \+ audioPrewarmBeforeBufferSeconds;[\s\S]*?scheduleSignalAt\(segment, serverTimeForElapsed\(segment\.end - 60 - minutePrewarmLeadSeconds\), "prewarm", false\);[\s\S]*?scheduleBufferedSignalAt\(segment, minuteTargetServerTime, "minute", true, shouldTryBufferImmediately\(minuteTargetServerTime\)\);/);
+});
+
 test("perf=4 isolates the Android audio-clock keepalive experiment from normal operation", () => {
   assert.match(index, /const performanceAudioKeepaliveLeadSeconds = 10;/);
   assert.match(index, /const performanceAudioKeepaliveGain = 0\.00005;/);

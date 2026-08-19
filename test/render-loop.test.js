@@ -426,7 +426,9 @@ test("mobile standalone controls collapse without reserving a viewport-height ga
 
 test("single-file standalone variants expose only applicable controls and notices", () => {
   assert.match(index, /body\.web-standalone \.server-connection-warning\[data-state="standalone"\][\s\S]*?align-content: center;[\s\S]*?justify-items: center;[\s\S]*?margin-top: 8px;[\s\S]*?text-align: center/);
-  assert.match(index, /body\.web-standalone \.server-connection-warning\[data-state="standalone"\] \.server-connection-actions,[\s\S]*?\.install-hint \{\s*display: none;/);
+  assert.doesNotMatch(index, /body\.web-standalone \.server-connection-warning\[data-state="standalone"\] \.server-connection-actions,[\s\S]*?\.install-hint \{\s*display: none;/);
+  assert.match(index, /function updateInstallButton\(\) \{[\s\S]*?isLocalStandalonePage\(\)[\s\S]*?standaloneMode[\s\S]*?mobileTarget/);
+  assert.match(index, /if \(!fileMode\) \{[\s\S]*?registerOfflineServiceWorker\(\);[\s\S]*?startSync\(\);[\s\S]*?\} else if \(isWebStandalonePage\(\)\) \{[\s\S]*?registerOfflineServiceWorker\(\);/);
   assert.match(index, /body\.web-standalone[\s\S]*?#serverConnectionWarningText,[\s\S]*?body\.file-mode #primaryRow,[\s\S]*?body\.file-mode #primaryPinPanel[\s\S]*?display: none/);
   assert.match(standaloneBuilder, /path\.normalize\(outputPath\) === path\.normalize\(path\.join\(root, "docs", "standalone\.html"\)\)/);
   assert.match(standaloneBuilder, /window\.FDV_WEB_STANDALONE = \$\{webStandalone\}/);
@@ -684,12 +686,14 @@ test("browser ordering controls pin positions and share display numbers with eve
   assert.match(index, /\.browser-numbers-toggle \{[\s\S]*?position: absolute;[\s\S]*?top: 4px;[\s\S]*?right: 3px;/);
   assert.match(index, /\.browser-number-badge \{[\s\S]*?position: absolute;[\s\S]*?top: 12px;[\s\S]*?right: 12px;/);
   assert.match(index, /data-browser-pin=[\s\S]*?data-browser-move="up"[\s\S]*?data-browser-move="down"/);
+  assert.match(index, /const pinNeedlePath = client\.browserPinned[\s\S]*?M6\.65 12\.15 8 13\.5l1\.35-1\.35/);
+  assert.match(index, /\.browser-pin-needle\.sharp \{[\s\S]*?stroke-linecap: butt;[\s\S]*?stroke-linejoin: miter;/);
   assert.match(index, /\.browser-order-controls \{[\s\S]*?right: 1px;[\s\S]*?grid-template-columns: 16px;[\s\S]*?grid-template-rows: repeat\(3, 16px\)/);
   assert.match(index, /\.browser-item\.has-order-controls > strong,[\s\S]*?> strong \+ span,[\s\S]*?> \.diag-row:not\(\.start-list-diag-row\) \{\s*padding-right: 18px;/);
   assert.match(index, /\.browser-order-button \{[\s\S]*?width: 16px;[\s\S]*?border: 0;[\s\S]*?background: transparent;/);
   assert.doesNotMatch(index, /\.browser-item\.has-order-controls \{\s*padding-right:/);
   assert.match(index, /id="browserNumbersToggle"[^>]*hidden/);
-  assert.match(index, /els\.browserNumbersToggle\.hidden = clients\.length < 3/);
+  assert.match(index, /els\.browserNumbersToggle\.hidden = clients\.length < 3 && !state\.showBrowserNumbers/);
   assert.match(index, /const primaryBrowserCard = els\.browserList\.querySelector\("\.primary-browser"\);[\s\S]*?primaryBrowserCard\.appendChild\(els\.browserNumbersToggle\)/);
   assert.match(index, /if \(isPrimary\) classes\.push\("primary-browser"\)/);
   assert.match(index, /\.browser-item\.primary-browser \{\s*border-color: #667181;/);

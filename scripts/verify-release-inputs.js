@@ -69,6 +69,13 @@ if (!index.includes('<script src="lib/offline-audio.js">')) {
   throw new Error("index.html does not load lib/offline-audio.js");
 }
 const serviceWorker = read("sw.js");
+if (!serviceWorker.includes('"/standalone.html"')) {
+  throw new Error("Service worker does not cache the published standalone timer");
+}
+if (!serviceWorker.includes('url.pathname === "/standalone.html"')
+    || !serviceWorker.includes('? ["/standalone.html"]')) {
+  throw new Error("Service worker does not restore the standalone timer offline");
+}
 if (!serviceWorker.includes('"/lib/client-action-transport.js"')) {
   throw new Error("Service worker does not cache the client action transport");
 }
@@ -128,6 +135,10 @@ if (!standaloneScript.includes("window.FDV_WEB_STANDALONE")) {
 }
 if (!standaloneScript.includes("window.FDV_XLSX_LIBRARY_SOURCE")) {
   throw new Error("Standalone build does not embed the XLSX reader");
+}
+const pagesWorkflow = read(".github/workflows/pages.yml");
+if (!pagesWorkflow.includes('"sw.js"') || !pagesWorkflow.includes("cp sw.js _site/sw.js")) {
+  throw new Error("GitHub Pages deployment does not publish the service worker");
 }
 
 console.log(`Release inputs verified for build ${[...uniqueBuilds][0]}.`);

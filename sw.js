@@ -4,6 +4,7 @@ const CACHE_PREFIX = "fdv-bouldering-timer-v";
 const CORE_URLS = [
   "/",
   "/index.html",
+  "/standalone.html",
   "/legacy.html",
   "/manifest.webmanifest",
   "/app-icon.svg",
@@ -71,6 +72,8 @@ async function offlineDocumentFallback(request) {
   const url = new URL(request.url);
   const candidates = url.pathname === "/legacy.html"
     ? ["/legacy.html"]
+    : url.pathname === "/standalone.html"
+      ? ["/standalone.html"]
     : url.pathname === "/help.html"
       ? ["/help.html"]
       : ["/index.html", "/"];

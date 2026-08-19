@@ -13,6 +13,7 @@ on:
       - "lib/**"
       - "manifest.webmanifest"
       - "app-icon.svg"
+      - "sw.js"
       - "scripts/build-standalone-html.js"
       - "help.html"
       - "help-assets/**"
@@ -48,6 +49,7 @@ jobs:
         run: |
           mkdir _site
           cp -R docs/. _site/
+          cp sw.js _site/sw.js
           cp help.html _site/help.html
           cp -R help-assets _site/help-assets
 
