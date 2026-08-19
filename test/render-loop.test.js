@@ -428,6 +428,8 @@ test("single-file standalone variants expose only applicable controls and notice
   assert.match(index, /body\.web-standalone \.server-connection-warning\[data-state="standalone"\][\s\S]*?align-content: center;[\s\S]*?justify-items: center;[\s\S]*?margin-top: 8px;[\s\S]*?text-align: center/);
   assert.doesNotMatch(index, /body\.web-standalone \.server-connection-warning\[data-state="standalone"\] \.server-connection-actions,[\s\S]*?\.install-hint \{\s*display: none;/);
   assert.match(index, /function updateInstallButton\(\) \{[\s\S]*?isLocalStandalonePage\(\)[\s\S]*?standaloneMode[\s\S]*?mobileTarget/);
+  assert.match(index, /installAndroidHint: "Android: откройте меню браузера ⋮ и выберите «Добавить на главный экран» или «Установить приложение»\."[\s\S]*?installAndroidFileHint:[\s\S]*?Для системной установки откройте таймер по HTTP\/HTTPS\./);
+  assert.match(index, /showInstallHint\(t\(window\.location\.protocol === "file:" \? "installAndroidFileHint" : "installAndroidHint"\)\);/);
   assert.match(index, /if \(!fileMode\) \{[\s\S]*?registerOfflineServiceWorker\(\);[\s\S]*?startSync\(\);[\s\S]*?\} else if \(isWebStandalonePage\(\)\) \{[\s\S]*?registerOfflineServiceWorker\(\);/);
   assert.match(index, /body\.web-standalone[\s\S]*?#serverConnectionWarningText,[\s\S]*?body\.file-mode #primaryRow,[\s\S]*?body\.file-mode #primaryPinPanel[\s\S]*?display: none/);
   assert.match(standaloneBuilder, /path\.normalize\(outputPath\) === path\.normalize\(path\.join\(root, "docs", "standalone\.html"\)\)/);
