@@ -88,7 +88,7 @@ Legacy предназначен для старых ТВ-браузеров. О�
 Автономная версия
 -----------------
 
-fdv-bouldering-timer-standalone.html работает одним файлом без Node.js и сети, но не синхронизирует другие браузеры. Обычный index.html также может работать напрямую после генерации lib/offline-audio.js.
+fdv-bouldering-timer-standalone.html работает одним файлом без Node.js и сети, но не синхронизирует другие браузеры. Android APK с пометкой standalone — тот же одиночный автономный таймер: в нём нет сервера, сетевых экранов и синхронизации. Обычный index.html также может работать напрямую после генерации lib/offline-audio.js.
 
 
 English
@@ -150,4 +150,4 @@ Primary and remote-display sound are controlled separately. A tap is required to
 
 Startup values, ports, colors, timer font, and sound profile are read from params.txt. The complete bilingual guide is help.html; the documentation map is docs/documentation-map.md.
 
-fdv-bouldering-timer-standalone.html is a one-file offline timer without multi-browser synchronization.
+fdv-bouldering-timer-standalone.html is a one-file offline timer without multi-browser synchronization. The Android APK marked standalone is the same single-device timer: it has no server, LAN displays, or synchronization.

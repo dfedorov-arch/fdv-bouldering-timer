@@ -19,11 +19,11 @@
 - Диагностика браузеров: `LEGACY`, `AUDIO`, `TIME`, `NET`, `SYNC`, `SSE`, `TAB` и `LIST 1–4`.
 - Закрепление и изменение порядка карточек, вывод номеров браузеров на экранах и дополнительные часы сервера.
 - Звуковые профили, поправка задержки звука, диагностика аудиочасов и тест сигналов.
-- Русский и английский интерфейс, HTTP/HTTPS, portable-сборки для Windows, macOS и Linux, а также однофайловый standalone-вариант.
+- Русский и английский интерфейс, HTTP/HTTPS, установщики для Windows, macOS и Linux, portable-сборки и автономный APK для Android.
 
 ## Быстрый запуск
 
-1. Скачайте архив для своей системы в [Releases](https://github.com/dfedorov-arch/fdv-bouldering-timer/releases/latest) и распакуйте его целиком.
+1. Скачайте установщик для своей системы в [Releases](https://github.com/dfedorov-arch/fdv-bouldering-timer/releases/latest): MSI для Windows, PKG для macOS или DEB для Debian/Ubuntu Linux. Portable-архивы остаются альтернативой.
 2. Запустите `fdv-bouldering-timer.exe` в Windows, `FDV Bouldering Timer.app` в macOS или `fdv-bouldering-timer` в Linux. Если macOS блокирует приложение или встроенный Node.js, сначала запустите правой кнопкой → «Открыть» файл `prepare-timer-mac.command`. Скрипты `start-timer-*` остаются резервным способом.
 3. На компьютере сервера откройте `http://127.0.0.1:8008/`, на других устройствах — напечатанный запускателем сетевой адрес.
 4. Включите **Основной браузер**, выберите формат и проверьте звук.
@@ -89,11 +89,11 @@ A network-synchronized timer for bouldering competitions. One browser controls t
 - Browser diagnostics: `LEGACY`, `AUDIO`, `TIME`, `NET`, `SYNC`, `SSE`, `TAB`, and `LIST 1–4`.
 - Pinned and reorderable browser cards, display numbers, and optional server-time clocks.
 - Sound profiles, per-browser audio correction, audio-clock diagnostics, and signal tests.
-- Russian and English UI, HTTP/HTTPS, portable packages for Windows/macOS/Linux, and a single-file standalone build.
+- Russian and English UI, HTTP/HTTPS, installers for Windows/macOS/Linux, portable packages, and a standalone Android APK.
 
 ### Quick start
 
-1. Download and extract the correct package from [Releases](https://github.com/dfedorov-arch/fdv-bouldering-timer/releases/latest).
+1. Download the installer from [Releases](https://github.com/dfedorov-arch/fdv-bouldering-timer/releases/latest): MSI for Windows, PKG for macOS, or DEB for Debian/Ubuntu Linux. Portable archives remain an alternative.
 2. Start `fdv-bouldering-timer.exe` on Windows, `FDV Bouldering Timer.app` on macOS, or `fdv-bouldering-timer` on Linux. If macOS blocks the app or bundled Node.js, first right-click `prepare-timer-mac.command`, choose Open, and confirm.
 3. Open `http://127.0.0.1:8008/` on the server computer and the printed LAN address on every other display.
 4. Enable **Primary browser**, select the format, and verify sound and every physical display before the event.

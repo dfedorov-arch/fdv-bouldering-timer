@@ -4275,7 +4275,8 @@
     }
 
     function isInstalledAppDisplay() {
-      return window.matchMedia?.("(display-mode: standalone)")?.matches
+      return window.FDV_ANDROID_STANDALONE === true
+        || window.matchMedia?.("(display-mode: standalone)")?.matches
         || window.navigator.standalone === true;
     }
 

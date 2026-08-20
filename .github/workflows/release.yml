@@ -1,9 +1,8 @@
-name: Portable release
+name: Release
 
 on:
   push:
-    tags:
-      - "v*"
+    tags: ["v*"]
 
 permissions:
   contents: write
@@ -12,14 +11,9 @@ jobs:
   tests:
     runs-on: ubuntu-latest
     steps:
-      - name: Check out repository
-        uses: actions/checkout@v5
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v5
-        with:
-          node-version: "24.17.0"
-
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with: { node-version: "24.17.0" }
       - name: Run timer tests
         run: |
           node serve-bouldering-timer.js --generate-offline-audio
@@ -29,15 +23,11 @@ jobs:
   windows-launcher:
     runs-on: windows-latest
     steps:
-      - name: Check out repository
-        uses: actions/checkout@v5
-
+      - uses: actions/checkout@v5
       - name: Build Windows launcher
         shell: powershell
         run: launcher/windows/build-launcher.ps1 -OutputDirectory "$env:RUNNER_TEMP\windows-launcher"
-
-      - name: Upload Windows launcher
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
           name: windows-launcher
           path: ${{ runner.temp }}\windows-launcher\fdv-bouldering-timer.exe
@@ -48,32 +38,15 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - runner: ubuntu-latest
-            rid: linux-x64
-            artifact: linux-launcher-x64
-            path: fdv-bouldering-timer
-          - runner: ubuntu-latest
-            rid: linux-arm64
-            artifact: linux-launcher-arm64
-            path: fdv-bouldering-timer
-          - runner: macos-latest
-            rid: osx-x64
-            artifact: macos-launcher-x64
-            path: FDV Bouldering Timer.app
-          - runner: macos-latest
-            rid: osx-arm64
-            artifact: macos-launcher-arm64
-            path: FDV Bouldering Timer.app
+          - { runner: ubuntu-latest, rid: linux-x64, artifact: linux-launcher-x64 }
+          - { runner: ubuntu-latest, rid: linux-arm64, artifact: linux-launcher-arm64 }
+          - { runner: macos-latest, rid: osx-x64, artifact: macos-launcher-x64 }
+          - { runner: macos-latest, rid: osx-arm64, artifact: macos-launcher-arm64 }
     runs-on: ${{ matrix.runner }}
     steps:
-      - name: Check out repository
-        uses: actions/checkout@v5
-
-      - name: Set up .NET
-        uses: actions/setup-dotnet@v5
-        with:
-          dotnet-version: "8.0.x"
-
+      - uses: actions/checkout@v5
+      - uses: actions/setup-dotnet@v5
+        with: { dotnet-version: "8.0.x" }
       - name: Build launcher
         run: |
           chmod +x launcher/unix/build-launcher.sh
@@ -81,56 +54,161 @@ jobs:
           launcher/unix/build-launcher.sh "${{ matrix.rid }}" "${{ runner.temp }}/unix-launcher"
           mkdir -p "${{ runner.temp }}/launcher-artifact"
           cp -R "${{ runner.temp }}/unix-launcher"/. "${{ runner.temp }}/launcher-artifact/"
-
-      - name: Upload launcher
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact }}
           path: ${{ runner.temp }}/launcher-artifact
           if-no-files-found: error
 
-  release:
-    needs:
-      - tests
-      - windows-launcher
-      - unix-launchers
-    runs-on: ubuntu-latest
-    env:
-      NODE_VERSION: "24.17.0"
+  windows-installer:
+    needs: windows-launcher
+    runs-on: windows-latest
     steps:
-      - name: Check out repository
-        uses: actions/checkout@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with: { node-version: "24.17.0" }
+      - uses: actions/download-artifact@v4
+        with: { name: windows-launcher, path: build-artifacts/windows-launcher }
+      - name: Build portable payload
+        shell: bash
+        env:
+          WINDOWS_LAUNCHER_EXE: ${{ github.workspace }}/build-artifacts/windows-launcher/fdv-bouldering-timer.exe
+        run: |
+          chmod +x scripts/build-portable-releases.sh
+          scripts/build-portable-releases.sh "$GITHUB_REF_NAME" --target=windows-x64
+          unzip -q "dist/fdv-bouldering-timer-${GITHUB_REF_NAME}-windows-x64.zip" -d installer-payload
+      - name: Build MSI
+        shell: powershell
+        run: |
+          $version = $env:GITHUB_REF_NAME.TrimStart('v')
+          $payload = Join-Path $env:GITHUB_WORKSPACE "installer-payload\fdv-bouldering-timer-$env:GITHUB_REF_NAME-windows-x64"
+          dotnet tool install --global wix --version 4.*
+          $wix = Join-Path $env:USERPROFILE ".dotnet\tools\wix.exe"
+          & $wix harvest directory $payload -d INSTALLFOLDER -cg PayloadComponents -var var.PayloadDir -out installer\windows\payload.wxs
+          & $wix build installer\windows\Product.wxs installer\windows\payload.wxs -arch x64 -d PayloadDir=$payload -d Version=$version -o "dist\fdv-bouldering-timer-$env:GITHUB_REF_NAME-windows-x64.msi"
+      - uses: actions/upload-artifact@v4
+        with: { name: windows-msi, path: dist/*.msi, if-no-files-found: error }
 
-      - name: Download Windows launcher
-        uses: actions/download-artifact@v4
+  linux-installers:
+    needs: unix-launchers
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { arch: x64, artifact: linux-launcher-x64 }
+          - { arch: arm64, artifact: linux-launcher-arm64 }
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with: { node-version: "24.17.0" }
+      - uses: actions/download-artifact@v4
         with:
-          name: windows-launcher
-          path: build-artifacts/windows-launcher
-
-      - name: Download Linux x64 launcher
-        uses: actions/download-artifact@v4
+          name: ${{ matrix.artifact }}
+          path: build-artifacts/linux-launcher
+      - name: Build DEB package
+        env:
+          LINUX_LAUNCHER_X64: ${{ matrix.arch == 'x64' && format('{0}/build-artifacts/linux-launcher/fdv-bouldering-timer', github.workspace) || '' }}
+          LINUX_LAUNCHER_ARM64: ${{ matrix.arch == 'arm64' && format('{0}/build-artifacts/linux-launcher/fdv-bouldering-timer', github.workspace) || '' }}
+        run: |
+          chmod +x scripts/build-portable-releases.sh scripts/build-linux-deb.sh
+          scripts/build-portable-releases.sh "$GITHUB_REF_NAME" --target=linux-${{ matrix.arch }}
+          mkdir package
+          tar -xzf "dist/fdv-bouldering-timer-${GITHUB_REF_NAME}-linux-${{ matrix.arch }}.tar.gz" -C package
+          scripts/build-linux-deb.sh "${GITHUB_REF_NAME#v}" "${{ matrix.arch }}" "package/fdv-bouldering-timer-${GITHUB_REF_NAME}-linux-${{ matrix.arch }}" "dist/fdv-bouldering-timer-${GITHUB_REF_NAME}-linux-${{ matrix.arch }}.deb"
+      - uses: actions/upload-artifact@v4
         with:
-          name: linux-launcher-x64
-          path: build-artifacts/linux-launcher-x64
+          name: linux-deb-${{ matrix.arch }}
+          path: dist/*.deb
+          if-no-files-found: error
 
-      - name: Download Linux arm64 launcher
-        uses: actions/download-artifact@v4
+  macos-installers:
+    needs: unix-launchers
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { arch: x64, artifact: macos-launcher-x64 }
+          - { arch: arm64, artifact: macos-launcher-arm64 }
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with: { node-version: "24.17.0" }
+      - uses: actions/download-artifact@v4
         with:
-          name: linux-launcher-arm64
-          path: build-artifacts/linux-launcher-arm64
-
-      - name: Download macOS x64 launcher
-        uses: actions/download-artifact@v4
+          name: ${{ matrix.artifact }}
+          path: build-artifacts/macos-launcher
+      - name: Build PKG installer
+        env:
+          MACOS_LAUNCHER_X64: ${{ matrix.arch == 'x64' && format('{0}/build-artifacts/macos-launcher/FDV Bouldering Timer.app', github.workspace) || '' }}
+          MACOS_LAUNCHER_ARM64: ${{ matrix.arch == 'arm64' && format('{0}/build-artifacts/macos-launcher/FDV Bouldering Timer.app', github.workspace) || '' }}
+        run: |
+          chmod +x scripts/build-portable-releases.sh
+          scripts/build-portable-releases.sh "$GITHUB_REF_NAME" --target=macos-${{ matrix.arch }}
+          mkdir -p package pkg-root/Applications
+          tar -xzf "dist/fdv-bouldering-timer-${GITHUB_REF_NAME}-macos-${{ matrix.arch }}.tar.gz" -C package
+          cp -R "package/fdv-bouldering-timer-${GITHUB_REF_NAME}-macos-${{ matrix.arch }}" "pkg-root/Applications/FDV Bouldering Timer"
+          pkgbuild --root pkg-root --identifier ru.fdv.boulderingtimer --version "${GITHUB_REF_NAME#v}" --install-location / "dist/fdv-bouldering-timer-${GITHUB_REF_NAME}-macos-${{ matrix.arch }}.pkg"
+      - uses: actions/upload-artifact@v4
         with:
-          name: macos-launcher-x64
-          path: build-artifacts/macos-launcher-x64
+          name: macos-pkg-${{ matrix.arch }}
+          path: dist/*.pkg
+          if-no-files-found: error
 
-      - name: Download macOS arm64 launcher
-        uses: actions/download-artifact@v4
-        with:
-          name: macos-launcher-arm64
-          path: build-artifacts/macos-launcher-arm64
+  android-apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with: { node-version: "24.17.0" }
+      - uses: actions/setup-java@v5
+        with: { distribution: temurin, java-version: "17" }
+      - uses: android-actions/setup-android@v3
+      - uses: gradle/actions/setup-gradle@v4
+        with: { gradle-version: "8.11.1" }
+      - name: Build signed standalone APK
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          test -n "$ANDROID_KEYSTORE_BASE64"
+          node serve-bouldering-timer.js --generate-offline-audio
+          node scripts/build-standalone-html.js android/app/src/main/assets/timer.html --android
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > android/fdv-release.jks
+          cat > android/keystore.properties <<EOF
+          storeFile=fdv-release.jks
+          storePassword=$ANDROID_KEYSTORE_PASSWORD
+          keyAlias=$ANDROID_KEY_ALIAS
+          keyPassword=$ANDROID_KEY_PASSWORD
+          EOF
+          version="${GITHUB_REF_NAME#v}"
+          IFS=. read -r major minor patch <<< "$version"
+          export FDV_ANDROID_VERSION_NAME="$version"
+          export FDV_ANDROID_VERSION_CODE="$((major * 10000 + minor * 100 + patch))"
+          gradle -p android :app:assembleRelease
+          cp android/app/build/outputs/apk/release/app-release.apk "fdv-bouldering-timer-${GITHUB_REF_NAME}-android-standalone.apk"
+      - uses: actions/upload-artifact@v4
+        with: { name: android-apk, path: "fdv-bouldering-timer-*-android-standalone.apk", if-no-files-found: error }
 
+  release:
+    needs: [tests, windows-installer, linux-installers, macos-installers, android-apk]
+    runs-on: ubuntu-latest
+    env: { NODE_VERSION: "24.17.0" }
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/download-artifact@v4
+        with: { name: windows-launcher, path: build-artifacts/windows-launcher }
+      - uses: actions/download-artifact@v4
+        with: { name: linux-launcher-x64, path: build-artifacts/linux-launcher-x64 }
+      - uses: actions/download-artifact@v4
+        with: { name: linux-launcher-arm64, path: build-artifacts/linux-launcher-arm64 }
+      - uses: actions/download-artifact@v4
+        with: { name: macos-launcher-x64, path: build-artifacts/macos-launcher-x64 }
+      - uses: actions/download-artifact@v4
+        with: { name: macos-launcher-arm64, path: build-artifacts/macos-launcher-arm64 }
       - name: Build portable packages
         env:
           WINDOWS_LAUNCHER_EXE: ${{ github.workspace }}/build-artifacts/windows-launcher/fdv-bouldering-timer.exe
@@ -141,23 +219,24 @@ jobs:
         run: |
           chmod +x scripts/build-portable-releases.sh
           scripts/build-portable-releases.sh "$GITHUB_REF_NAME"
-
-      - name: Create GitHub Release
+      - uses: actions/download-artifact@v4
+        with: { pattern: "*-msi", path: dist, merge-multiple: true }
+      - uses: actions/download-artifact@v4
+        with: { pattern: "linux-deb-*", path: dist, merge-multiple: true }
+      - uses: actions/download-artifact@v4
+        with: { pattern: "macos-pkg-*", path: dist, merge-multiple: true }
+      - uses: actions/download-artifact@v4
+        with: { name: android-apk, path: dist }
+      - name: Create checksums and GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          cd dist
+          sha256sum * > SHA256SUMS.txt
+          cd ..
           printf '%s\n' \
-            "Portable packages include Node.js $NODE_VERSION LTS and do not require a system Node.js installation." \
-            "The Windows package includes fdv-bouldering-timer.exe and keeps start-timer-win.bat as a fallback launcher." \
-            "The macOS packages include FDV Bouldering Timer.app, fdv-bouldering-timer, prepare-timer-mac.command for clearing quarantine, and start-timer-mac.command as a fallback launcher." \
-            "The Linux packages include fdv-bouldering-timer and keep start-timer-linux.sh as a fallback launcher." \
-            "The release also includes a single-file standalone timer for all operating systems; no Node.js is required to run that HTML file." \
-            "" \
-            "Choose the archive matching your operating system and CPU architecture." \
-            "Linux packages target glibc distributions and do not support Alpine Linux/musl." \
-            "SHA256SUMS.txt contains checksums for every package." \
-            > release-notes.txt
-          gh release create "$GITHUB_REF_NAME" dist/* \
-            --verify-tag \
-            --title "FDV Bouldering Timer $GITHUB_REF_NAME" \
-            --notes-file release-notes.txt
+            "Installers: Windows MSI, macOS PKG (Intel and Apple Silicon), and Linux DEB (x64 and ARM64)." \
+            "The Android APK is an autonomous single-device timer only: it has no built-in server, LAN screens, or browser synchronization." \
+            "Portable archives also remain available; they include Node.js $NODE_VERSION LTS." \
+            "SHA256SUMS.txt contains checksums for every installer." > release-notes.txt
+          gh release create "$GITHUB_REF_NAME" dist/* --verify-tag --title "FDV Bouldering Timer $GITHUB_REF_NAME" --notes-file release-notes.txt

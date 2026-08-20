@@ -133,6 +133,9 @@ if (!standaloneScript.includes("window.FDV_SINGLE_FILE_STANDALONE = true")) {
 if (!standaloneScript.includes("window.FDV_WEB_STANDALONE")) {
   throw new Error("Standalone HTML does not identify whether it is the published web build");
 }
+if (!standaloneScript.includes("window.FDV_ANDROID_STANDALONE")) {
+  throw new Error("Standalone HTML does not identify its Android-app variant");
+}
 if (!standaloneScript.includes("window.FDV_XLSX_LIBRARY_SOURCE")) {
   throw new Error("Standalone build does not embed the XLSX reader");
 }

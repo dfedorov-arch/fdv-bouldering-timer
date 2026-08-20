@@ -6,6 +6,9 @@ timer-cert.pfx
 *.pem
 *.pfx
 *.p12
+*.jks
+android/keystore.properties
+android/.fdv-release-signing-password.txt
 
 # Dependencies and generated files
 node_modules/

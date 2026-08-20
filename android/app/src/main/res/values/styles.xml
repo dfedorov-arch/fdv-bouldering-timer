@@ -1,0 +1,6 @@
+<resources>
+  <style name="AppTheme" parent="android:style/Theme.Material.NoActionBar">
+    <item name="android:windowActionModeOverlay">true</item>
+    <item name="android:colorAccent">#ffc857</item>
+  </style>
+</resources>
