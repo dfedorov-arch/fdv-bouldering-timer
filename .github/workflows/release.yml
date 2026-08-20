@@ -69,6 +69,9 @@ jobs:
         with: { node-version: "24.17.0" }
       - uses: actions/download-artifact@v4
         with: { name: windows-launcher, path: build-artifacts/windows-launcher }
+      - name: Install ZIP tool for portable payload assembly
+        shell: powershell
+        run: choco install zip --yes --no-progress
       - name: Build portable payload
         shell: bash
         env:
@@ -82,10 +85,8 @@ jobs:
         run: |
           $version = $env:GITHUB_REF_NAME.TrimStart('v')
           $payload = Join-Path $env:GITHUB_WORKSPACE "installer-payload\fdv-bouldering-timer-$env:GITHUB_REF_NAME-windows-x64"
-          dotnet tool install --global wix --version 4.*
-          $wix = Join-Path $env:USERPROFILE ".dotnet\tools\wix.exe"
-          & $wix harvest directory $payload -d INSTALLFOLDER -cg PayloadComponents -var var.PayloadDir -out installer\windows\payload.wxs
-          & $wix build installer\windows\Product.wxs installer\windows\payload.wxs -arch x64 -d PayloadDir=$payload -d Version=$version -o "dist\fdv-bouldering-timer-$env:GITHUB_REF_NAME-windows-x64.msi"
+          dotnet build installer\windows\FDVInstaller.wixproj -p:PayloadDir=$payload -p:Version=$version -p:Platform=x64 -o msi-output
+          Move-Item (Get-ChildItem msi-output -Filter '*.msi' | Select-Object -First 1).FullName "dist\fdv-bouldering-timer-$env:GITHUB_REF_NAME-windows-x64.msi"
       - uses: actions/upload-artifact@v4
         with: { name: windows-msi, path: dist/*.msi, if-no-files-found: error }
 

@@ -11,6 +11,9 @@ const read = (relativePath) => fs.readFileSync(path.join(root, relativePath), "u
 test("release workflow produces installable assets for every supported operating system", () => {
   const workflow = read(".github/workflows/release.yml");
   assert.match(workflow, /windows-installer:[\s\S]*?\.msi/);
+  const wixProject = read("installer/windows/FDVInstaller.wixproj");
+  assert.match(wixProject, /WixToolset\.Heat/);
+  assert.match(wixProject, /<BindPath Include="\$\(PayloadDir\)"/);
   assert.match(workflow, /linux-installers:[\s\S]*?\.deb/);
   assert.match(workflow, /macos-installers:[\s\S]*?\.pkg/);
   assert.match(workflow, /android-apk:[\s\S]*?android-standalone\.apk/);
