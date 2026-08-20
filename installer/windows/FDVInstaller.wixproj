@@ -1,0 +1,14 @@
+<Project Sdk="WixToolset.Sdk/4.0.6">
+  <PropertyGroup>
+    <OutputType>Package</OutputType>
+    <OutputName>fdv-bouldering-timer-windows-x64</OutputName>
+    <DefineConstants>PayloadDir=$(PayloadDir);Version=$(Version)</DefineConstants>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="WixToolset.Heat" Version="4.0.6" />
+    <HarvestDirectory Include="$(PayloadDir)">
+      <ComponentGroupName>PayloadComponents</ComponentGroupName>
+      <DirectoryRefId>INSTALLFOLDER</DirectoryRefId>
+    </HarvestDirectory>
+  </ItemGroup>
+</Project>
