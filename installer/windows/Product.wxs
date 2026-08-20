@@ -66,7 +66,7 @@
       </Dialog>
       <Publish Dialog="ExitDialog" Control="Finish" Event="DoAction"
                Value="LaunchTimer" Order="1"
-               Condition="WIXUI_EXITDIALOGOPTIONALCHECKBOX = 1 AND NOT Installed" />
+               Condition="WIXUI_EXITDIALOGOPTIONALCHECKBOX = 1" />
     </UI>
     <Feature Id="MainFeature" Title="FDV Bouldering Timer" Level="1">
       <ComponentGroupRef Id="PayloadComponents" />
