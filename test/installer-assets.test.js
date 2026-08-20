@@ -16,7 +16,9 @@ test("release workflow produces installable assets for every supported operating
   assert.match(wixProject, /WixToolset\.UI\.wixext/);
   assert.match(wixProject, /<BindPath Include="\$\(PayloadDir\)"/);
   const product = read("installer/windows/Product.wxs");
-  assert.match(product, /WixUI_InstallDir/);
+  const installerUi = read("installer/windows/InstallDirNoLicense.wxs");
+  assert.match(product, /InstallDir_NoLicense/);
+  assert.doesNotMatch(installerUi, /LicenseAgreementDlg/);
   assert.match(product, /Создать ярлык в меню «Пуск»/);
   assert.match(product, /Создать ярлык на рабочем столе/);
   assert.match(product, /Запустить таймер после установки/);
