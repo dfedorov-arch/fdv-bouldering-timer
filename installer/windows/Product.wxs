@@ -1,8 +1,10 @@
-<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
+     xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui">
   <Package
       Name="FDV Bouldering Timer"
       Manufacturer="FDV"
       Version="$(var.Version)"
+      Codepage="65001"
       UpgradeCode="B72ED423-6973-467C-8AB5-7F85D90CF8D9"
       Scope="perMachine">
     <MajorUpgrade DowngradeErrorMessage="A newer version of FDV Bouldering Timer is already installed." />
@@ -10,8 +12,70 @@
     <StandardDirectory Id="ProgramFiles64Folder">
       <Directory Id="INSTALLFOLDER" Name="FDV Bouldering Timer" />
     </StandardDirectory>
+    <StandardDirectory Id="ProgramMenuFolder">
+      <Directory Id="FDVStartMenuFolder" Name="FDV Bouldering Timer" />
+    </StandardDirectory>
+    <Property Id="CREATE_START_MENU_SHORTCUT" Value="1" />
+    <Property Id="WIXUI_EXITDIALOGOPTIONALCHECKBOX" Value="1" />
+    <Property Id="WIXUI_EXITDIALOGOPTIONALCHECKBOXTEXT" Value="Запустить таймер после установки" />
+    <CustomAction Id="LaunchTimer" Directory="INSTALLFOLDER"
+                  ExeCommand="fdv-bouldering-timer.exe" Execute="immediate"
+                  Return="asyncNoWait" Impersonate="yes" />
+    <Component Id="StartMenuShortcut" Directory="FDVStartMenuFolder" Guid="*"
+               Condition="CREATE_START_MENU_SHORTCUT">
+      <Shortcut Id="StartTimer" Name="FDV Bouldering Timer"
+                Target="[INSTALLFOLDER]fdv-bouldering-timer.exe"
+                WorkingDirectory="INSTALLFOLDER" />
+      <RemoveFolder Id="RemoveFDVStartMenuFolder" On="uninstall" />
+      <RegistryValue Root="HKCU" Key="Software\FDV\Bouldering Timer"
+                     Name="StartMenuShortcut" Type="integer" Value="1" KeyPath="yes" />
+    </Component>
+    <Component Id="DesktopShortcut" Directory="DesktopFolder" Guid="*"
+               Condition="CREATE_DESKTOP_SHORTCUT">
+      <Shortcut Id="DesktopTimer" Name="FDV Bouldering Timer"
+                Target="[INSTALLFOLDER]fdv-bouldering-timer.exe"
+                WorkingDirectory="INSTALLFOLDER" />
+      <RegistryValue Root="HKCU" Key="Software\FDV\Bouldering Timer"
+                     Name="DesktopShortcut" Type="integer" Value="1" KeyPath="yes" />
+    </Component>
+    <ui:WixUI Id="WixUI_InstallDir" InstallDirectory="INSTALLFOLDER" />
+    <UI>
+      <Dialog Id="ShortcutOptionsDlg" Width="370" Height="270" Title="Параметры ярлыков">
+        <Control Id="Title" Type="Text" X="20" Y="18" Width="330" Height="22"
+                 Text="Выберите ярлыки для таймера" />
+        <Control Id="Description" Type="Text" X="20" Y="50" Width="330" Height="30"
+                 Text="Ярлыки можно удалить позднее обычными средствами Windows." />
+        <Control Id="StartMenu" Type="CheckBox" X="25" Y="100" Width="300" Height="18"
+                 Property="CREATE_START_MENU_SHORTCUT" CheckBoxValue="1"
+                 Text="Создать ярлык в меню «Пуск»" />
+        <Control Id="Desktop" Type="CheckBox" X="25" Y="128" Width="300" Height="18"
+                 Property="CREATE_DESKTOP_SHORTCUT" CheckBoxValue="1"
+                 Text="Создать ярлык на рабочем столе" />
+        <Control Id="Back" Type="PushButton" X="180" Y="243" Width="56" Height="17"
+                 Text="Назад">
+          <Publish Event="NewDialog" Value="InstallDirDlg" Condition="1" />
+        </Control>
+        <Control Id="Next" Type="PushButton" X="240" Y="243" Width="56" Height="17"
+                 Default="yes" Text="Далее">
+          <Publish Event="NewDialog" Value="VerifyReadyDlg" Condition="1" />
+        </Control>
+        <Control Id="Cancel" Type="PushButton" X="300" Y="243" Width="56" Height="17"
+                 Cancel="yes" Text="Отмена">
+          <Publish Event="SpawnDialog" Value="CancelDlg" Condition="1" />
+        </Control>
+      </Dialog>
+      <Publish Dialog="InstallDirDlg" Control="Next" Event="NewDialog"
+               Value="ShortcutOptionsDlg" Order="5" />
+      <Publish Dialog="VerifyReadyDlg" Control="Back" Event="NewDialog"
+               Value="ShortcutOptionsDlg" Order="3" Condition="NOT Installed" />
+      <Publish Dialog="ExitDialog" Control="Finish" Event="DoAction"
+               Value="LaunchTimer" Order="1"
+               Condition="WIXUI_EXITDIALOGOPTIONALCHECKBOX = 1 AND NOT Installed" />
+    </UI>
     <Feature Id="MainFeature" Title="FDV Bouldering Timer" Level="1">
       <ComponentGroupRef Id="PayloadComponents" />
+      <ComponentRef Id="StartMenuShortcut" />
+      <ComponentRef Id="DesktopShortcut" />
     </Feature>
   </Package>
 </Wix>

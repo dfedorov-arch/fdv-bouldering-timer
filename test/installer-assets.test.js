@@ -13,7 +13,13 @@ test("release workflow produces installable assets for every supported operating
   assert.match(workflow, /windows-installer:[\s\S]*?\.msi/);
   const wixProject = read("installer/windows/FDVInstaller.wixproj");
   assert.match(wixProject, /WixToolset\.Heat/);
+  assert.match(wixProject, /WixToolset\.UI\.wixext/);
   assert.match(wixProject, /<BindPath Include="\$\(PayloadDir\)"/);
+  const product = read("installer/windows/Product.wxs");
+  assert.match(product, /WixUI_InstallDir/);
+  assert.match(product, /Создать ярлык в меню «Пуск»/);
+  assert.match(product, /Создать ярлык на рабочем столе/);
+  assert.match(product, /Запустить таймер после установки/);
   assert.match(workflow, /linux-installers:[\s\S]*?\.deb/);
   assert.match(workflow, /macos-installers:[\s\S]*?\.pkg/);
   assert.match(workflow, /android-apk:[\s\S]*?android-standalone\.apk/);
