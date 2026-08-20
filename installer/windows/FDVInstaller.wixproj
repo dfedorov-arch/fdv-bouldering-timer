@@ -9,6 +9,9 @@
     <HarvestDirectory Include="$(PayloadDir)">
       <ComponentGroupName>PayloadComponents</ComponentGroupName>
       <DirectoryRefId>INSTALLFOLDER</DirectoryRefId>
+      <PreprocessorVariable>var.PayloadDir</PreprocessorVariable>
+      <SuppressRootDirectory>true</SuppressRootDirectory>
     </HarvestDirectory>
+    <BindPath Include="$(PayloadDir)" />
   </ItemGroup>
 </Project>
