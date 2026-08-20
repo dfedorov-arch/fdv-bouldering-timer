@@ -57,7 +57,8 @@ if (uniqueBuilds.size !== 1) {
   "help-assets"
 ].forEach(requirePath);
 
-if ((fs.statSync(path.join(root, "prepare-timer-mac.command")).mode & 0o111) === 0) {
+if (process.platform !== "win32"
+    && (fs.statSync(path.join(root, "prepare-timer-mac.command")).mode & 0o111) === 0) {
   throw new Error("prepare-timer-mac.command must be executable");
 }
 
