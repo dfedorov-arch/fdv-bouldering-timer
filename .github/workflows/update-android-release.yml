@@ -57,7 +57,9 @@ jobs:
           set -euo pipefail
           asset="fdv-bouldering-timer-${RELEASE_TAG}-android-standalone.apk"
           gh release download "$RELEASE_TAG" --pattern SHA256SUMS.txt --dir release-assets
-          sha256sum "$asset" | awk -v asset="$asset" '{print $1 "  " asset}' > new-entry
-          awk -v asset="$asset" -v entry="$(cat new-entry)" '$2 == asset { print entry; next } { print }' release-assets/SHA256SUMS.txt > release-assets/SHA256SUMS.updated
+          gh release upload "$RELEASE_TAG" "$asset" --clobber
+          digest="$(gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${RELEASE_TAG}" --jq '.assets[] | select(.name | endswith("-android-standalone.apk")) | .digest' | sed 's/^sha256://')"
+          test -n "$digest"
+          awk -v asset="$asset" -v digest="$digest" '$2 == asset { print digest "  " asset; next } { print }' release-assets/SHA256SUMS.txt > release-assets/SHA256SUMS.updated
           mv release-assets/SHA256SUMS.updated release-assets/SHA256SUMS.txt
-          gh release upload "$RELEASE_TAG" "$asset" release-assets/SHA256SUMS.txt --clobber
+          gh release upload "$RELEASE_TAG" release-assets/SHA256SUMS.txt --clobber
