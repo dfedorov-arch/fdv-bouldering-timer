@@ -50,6 +50,9 @@ test("Android package is a local standalone timer and suppresses browser install
   assert.match(manifest, /android:icon="@mipmap\/ic_launcher"/);
   assert.match(manifest, /android:label="FDV Bouldering Timer"/);
   assert.ok(fs.existsSync(path.join(root, "android/app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml")));
+  const foregroundIcon = read("android/app/src/main/res/drawable/ic_launcher_foreground.xml");
+  assert.match(foregroundIcon, /M54,61L54,40M54,61L70,50/);
+  assert.match(foregroundIcon, /M49,61a5,5/);
   assert.doesNotMatch(manifest, /android\.permission\.INTERNET/);
 });
 
