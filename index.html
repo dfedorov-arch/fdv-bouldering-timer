@@ -2287,6 +2287,50 @@
       }
     }
 
+    /* Android WebView may report a desktop CSS width for a local file even on
+       a portrait phone.  The APK is intentionally a phone-sized standalone
+       timer, so give it the same layout as the regular narrow-phone view
+       independently of that reported width. */
+    @media (orientation: portrait) {
+      html.android-standalone body.controls-ready:not(.viewer-mode):not(.fullscreen) .app {
+        grid-template-columns: minmax(0, 1fr);
+      }
+
+      html.android-standalone .controls {
+        border-right: 0;
+        border-bottom: 1px solid var(--line);
+        min-height: 0;
+        padding: 18px;
+      }
+
+      html.android-standalone .control-footer {
+        margin-top: 0;
+      }
+
+      html.android-standalone .stage {
+        min-width: 0;
+        min-height: 620px;
+        grid-template-rows: minmax(390px, 1fr) auto;
+      }
+
+      html.android-standalone .timer-wrap {
+        min-height: min(390px, calc(100vh - 260px));
+      }
+
+      html.android-standalone .compact-actions {
+        display: flex;
+      }
+
+      html.android-standalone .stage-main {
+        grid-template-rows: minmax(0, 1fr) auto;
+      }
+
+      html.android-standalone .compact-actions .action {
+        min-width: 0;
+        flex: 1 1 0;
+      }
+    }
+
     @media (max-width: 900px) and (orientation: landscape) {
       .stage {
         min-height: 100vh;
@@ -11916,6 +11960,7 @@
 
     // Static Russian labels cover most of the initial markup, but translated-only
     // attributes (including Final format tooltips) still need one initial pass.
+    document.documentElement.classList.toggle("android-standalone", window.FDV_ANDROID_STANDALONE === true);
     document.body.classList.toggle("web-standalone", isWebStandalonePage());
     if (window.matchMedia?.("(max-width: 560px)")?.matches) {
       els.browserList.hidden = true;
