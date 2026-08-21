@@ -1,0 +1,63 @@
+name: Update Android release asset
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Existing GitHub Release tag to update
+        required: true
+        default: v2.1.5
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  android-apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with: { node-version: "24.17.0" }
+      - uses: actions/setup-java@v5
+        with: { distribution: temurin, java-version: "17" }
+      - uses: android-actions/setup-android@v3
+      - uses: gradle/actions/setup-gradle@v4
+        with: { gradle-version: "8.11.1" }
+      - name: Build signed Android standalone APK
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+        run: |
+          set -euo pipefail
+          test -n "$ANDROID_KEYSTORE_BASE64"
+          node serve-bouldering-timer.js --generate-offline-audio
+          node scripts/build-standalone-html.js android/app/src/main/assets/timer.html --android
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > android/fdv-release.jks
+          cat > android/keystore.properties <<EOF
+          storeFile=fdv-release.jks
+          storePassword=$ANDROID_KEYSTORE_PASSWORD
+          keyAlias=$ANDROID_KEY_ALIAS
+          keyPassword=$ANDROID_KEY_PASSWORD
+          EOF
+          version="${RELEASE_TAG#v}"
+          IFS=. read -r major minor patch <<< "$version"
+          export FDV_ANDROID_VERSION_NAME="$version"
+          export FDV_ANDROID_VERSION_CODE="$((major * 10000 + minor * 100 + patch))"
+          gradle -p android :app:assembleRelease
+          cp android/app/build/outputs/apk/release/app-release.apk "fdv-bouldering-timer-${RELEASE_TAG}-android-standalone.apk"
+      - name: Replace APK and its checksum in the existing release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+        run: |
+          set -euo pipefail
+          asset="fdv-bouldering-timer-${RELEASE_TAG}-android-standalone.apk"
+          gh release download "$RELEASE_TAG" --pattern SHA256SUMS.txt --dir release-assets
+          sha256sum "$asset" | awk -v asset="$asset" '{print $1 "  " asset}' > new-entry
+          awk -v asset="$asset" -v entry="$(cat new-entry)" '$2 == asset { print entry; next } { print }' release-assets/SHA256SUMS.txt > release-assets/SHA256SUMS.updated
+          mv release-assets/SHA256SUMS.updated release-assets/SHA256SUMS.txt
+          gh release upload "$RELEASE_TAG" "$asset" release-assets/SHA256SUMS.txt --clobber

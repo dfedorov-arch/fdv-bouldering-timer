@@ -14,6 +14,11 @@ public final class MainActivity extends Activity {
     timer.getSettings().setJavaScriptEnabled(true);
     timer.getSettings().setDomStorageEnabled(true);
     timer.getSettings().setAllowFileAccess(true);
+    // Honor the page's mobile viewport instead of falling back to a desktop
+    // layout width, so phone-only timer controls remain visible.
+    timer.getSettings().setUseWideViewPort(true);
+    timer.getSettings().setLoadWithOverviewMode(false);
+    timer.getSettings().setTextZoom(100);
     timer.setWebChromeClient(new WebChromeClient());
     timer.loadUrl("file:///android_asset/timer.html");
     setContentView(timer);

@@ -27,15 +27,23 @@ test("release workflow produces installable assets for every supported operating
   assert.match(workflow, /macos-installers:[\s\S]*?\.pkg/);
   assert.match(workflow, /android-apk:[\s\S]*?android-standalone\.apk/);
   assert.match(workflow, /ANDROID_KEYSTORE_BASE64/);
+  const androidUpdateWorkflow = read(".github/workflows/update-android-release.yml");
+  assert.match(androidUpdateWorkflow, /workflow_dispatch/);
+  assert.match(androidUpdateWorkflow, /gh release upload/);
 });
 
 test("Android package is a local standalone timer and suppresses browser installation UI", () => {
   const builder = read("scripts/build-standalone-html.js");
   const index = read("index.html");
   const activity = read("android/app/src/main/java/ru/fdv/boulderingtimer/standalone/MainActivity.java");
+  const manifest = read("android/app/src/main/AndroidManifest.xml");
   assert.match(builder, /process\.argv\.includes\("--android"\)/);
   assert.match(builder, /window\.FDV_ANDROID_STANDALONE/);
   assert.match(index, /window\.FDV_ANDROID_STANDALONE === true[\s\S]*?display-mode: standalone/);
   assert.match(activity, /file:\/\/\/android_asset\/timer\.html/);
-  assert.doesNotMatch(read("android/app/src/main/AndroidManifest.xml"), /android\.permission\.INTERNET/);
+  assert.match(activity, /setUseWideViewPort\(true\)/);
+  assert.match(activity, /setLoadWithOverviewMode\(false\)/);
+  assert.match(manifest, /android:icon="@mipmap\/ic_launcher"/);
+  assert.ok(fs.existsSync(path.join(root, "android/app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml")));
+  assert.doesNotMatch(manifest, /android\.permission\.INTERNET/);
 });
