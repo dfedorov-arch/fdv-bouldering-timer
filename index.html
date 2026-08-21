@@ -2321,6 +2321,21 @@
         display: flex;
       }
 
+      /* A WebView-backed installed app can match display-mode: fullscreen.
+         Keep the regular phone footer in the APK nevertheless: it contains
+         the progress bar and the current-cycle chip. */
+      html.android-standalone footer {
+        display: block;
+      }
+
+      html.android-standalone .progress {
+        display: block;
+      }
+
+      html.android-standalone .schedule {
+        display: grid;
+      }
+
       html.android-standalone .stage-main {
         grid-template-rows: minmax(0, 1fr) auto;
       }

@@ -44,6 +44,8 @@ test("Android package is a local standalone timer and suppresses browser install
   assert.match(activity, /setUseWideViewPort\(true\)/);
   assert.match(activity, /setLoadWithOverviewMode\(false\)/);
   assert.match(index, /html\.android-standalone \.compact-actions \{\s*display: flex;/);
+  assert.match(index, /html\.android-standalone footer \{\s*display: block;/);
+  assert.match(index, /html\.android-standalone \.schedule \{\s*display: grid;/);
   assert.match(index, /document\.documentElement\.classList\.toggle\("android-standalone", window\.FDV_ANDROID_STANDALONE === true\)/);
   assert.match(manifest, /android:icon="@mipmap\/ic_launcher"/);
   assert.ok(fs.existsSync(path.join(root, "android/app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml")));
