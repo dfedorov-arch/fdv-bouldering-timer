@@ -42,7 +42,7 @@ FDV Bouldering Timer — локальный сетевой таймер для �
 Стартовые списки
 ----------------
 
-Можно загрузить до четырёх стартовых списков из XLSX, XLS, CSV, TSV, TXT или MXL. В пользовательском интерфейсе они обозначаются LIST 1–4. Термин «протокол» остаётся только во внутренних именах совместимости и в значении HTTP/HTTPS.
+Можно загрузить до четырёх стартовых списков из XLSX, CSV, TSV, TXT или MXL. В пользовательском интерфейсе они обозначаются LIST 1–4. Термин «протокол» остаётся только во внутренних именах совместимости и в значении HTTP/HTTPS.
 
 - Таблицы показывают подготовку, лазание, завершение, паузы и остановки трасс.
 - Значения участников не сокращаются многоточием; при нехватке ширины используется горизонтальная прокрутка. Сокращаться может заголовок.
@@ -128,7 +128,7 @@ Keys: Z Start, Ctrl+Q Pause, P Stop, Ctrl+F fullscreen, Ctrl+M primary browser. 
 Start lists
 -----------
 
-Load up to four lists from XLSX, XLS, CSV, TSV, TXT, or MXL. The user interface calls them LIST 1–4; old “protocol” names remain only in internal compatibility identifiers and the HTTP/HTTPS meaning.
+Load up to four lists from XLSX, CSV, TSV, TXT, or MXL. The user interface calls them LIST 1–4; old “protocol” names remain only in internal compatibility identifiers and the HTTP/HTTPS meaning.
 
 Participant cells are never ellipsized. Each display selects its own visible LIST badges. With exactly two visible lists, a cyan button switches one or two columns; an orange outline marks a non-default layout. Route incidents can suspend and resume a route at a current or future cycle, and participants or routes can be excluded and restored.
 
