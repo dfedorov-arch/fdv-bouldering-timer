@@ -14,7 +14,7 @@ This file defines the documentation set and its source-of-truth boundaries. Prod
 | `ReadMe-linux.txt` | Linux package users | Launcher, desktop integration, executable permissions, and fallback notes |
 | `runtime/*/README.txt` | Custom package builders | Optional portable Node.js placement |
 
-Release installers are assembled by `.github/workflows/release.yml`: MSI for Windows, PKG for macOS, DEB for Debian/Ubuntu Linux, and a signed Android APK. The Android asset is deliberately named `android-standalone`: it embeds a one-device timer and does not provide the local network server or synchronized displays.
+Release installers are assembled by `.github/workflows/release.yml`: MSI for Windows, PKG for macOS, DEB for Debian/Ubuntu Linux, and a signed Android APK. The same release assets can be installed through Komi Store on Windows, macOS, Linux, and Android. The Android asset is deliberately named `android-standalone`: it embeds a one-device timer and does not provide the local network server or synchronized displays.
 
 Current application screenshots belong in `help-assets/`. A screenshot that shows removed controls, obsolete terminology, or the old diagnostic order must not be referenced; use a neutral layout until a current-build capture is available. Launcher icons and launcher-window images are replaced only when those launchers change.
 

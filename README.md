@@ -20,15 +20,22 @@
 - Закрепление и изменение порядка карточек, вывод номеров браузеров на экранах и дополнительные часы сервера.
 - Звуковые профили, поправка задержки звука, диагностика аудиочасов и тест сигналов.
 - Русский и английский интерфейс, HTTP/HTTPS, установщики для Windows, macOS и Linux, portable-сборки и автономный APK для Android.
+- Установка через [Komi Store](https://komistore.app/) на Windows, macOS, Linux и Android: магазин выбирает подходящий файл из GitHub Releases. Android-версия остаётся одиночным автономным таймером без сервера и синхронных экранов.
 
 ## Быстрый запуск
 
-1. Скачайте установщик для своей системы в [Releases](https://github.com/dfedorov-arch/fdv-bouldering-timer/releases/latest): MSI для Windows, PKG для macOS или DEB для Debian/Ubuntu Linux. Portable-архивы остаются альтернативой.
+1. Установите через [Komi Store](https://komistore.app/) либо скачайте файл из [Releases](https://github.com/dfedorov-arch/fdv-bouldering-timer/releases/latest): MSI для Windows, PKG для macOS, DEB для Debian/Ubuntu Linux или APK для Android. Portable-архивы и однофайловая автономная версия остаются альтернативой.
 2. Запустите `fdv-bouldering-timer.exe` в Windows, `FDV Bouldering Timer.app` в macOS или `fdv-bouldering-timer` в Linux. Если macOS блокирует приложение или встроенный Node.js, сначала запустите правой кнопкой → «Открыть» файл `prepare-timer-mac.command`. Скрипты `start-timer-*` остаются резервным способом.
 3. На компьютере сервера откройте `http://127.0.0.1:8008/`, на других устройствах — напечатанный запускателем сетевой адрес.
 4. Включите **Основной браузер**, выберите формат и проверьте звук.
 
 Все экраны должны находиться в одной локальной сети. Перед соревнованием проверьте каждый физический экран, звук и поведение при отключении Wi-Fi.
+
+## HTTP и HTTPS
+
+HTTP достаточно для обычной локальной работы. HTTPS с сертификатом таймера создаёт для браузера защищённый контекст: на поддерживаемых телефонах и планшетах становится доступен **Wake Lock** (экран не гаснет во время работы), сервис-воркер может сохранить страницу для повторного открытия без интернета, а современный API буфера обмена позволяет надёжнее копировать адреса. Полноэкранный режим и звук всё равно требуют пользовательского касания, а Wake Lock зависит также от браузера и настроек энергосбережения ОС.
+
+Создайте сертификат штатным скриптом для своей ОС, перезапустите сервер и открывайте именно адрес `https://…:8443/`. Сертификат локальный и самоподписанный: на каждом устройстве сначала подтвердите переход к нему. После смены IP-адреса или компьютера создайте сертификат заново. Подробности — в [руководстве](help.html#https).
 
 ## Стартовые списки
 
@@ -90,15 +97,22 @@ A network-synchronized timer for bouldering competitions. One browser controls t
 - Pinned and reorderable browser cards, display numbers, and optional server-time clocks.
 - Sound profiles, per-browser audio correction, audio-clock diagnostics, and signal tests.
 - Russian and English UI, HTTP/HTTPS, installers for Windows/macOS/Linux, portable packages, and a standalone Android APK.
+- Installation through [Komi Store](https://komistore.app/) on Windows, macOS, Linux, and Android. It selects a matching GitHub Release asset; the Android APK remains a single-device standalone timer without a server or synchronized displays.
 
 ### Quick start
 
-1. Download the installer from [Releases](https://github.com/dfedorov-arch/fdv-bouldering-timer/releases/latest): MSI for Windows, PKG for macOS, or DEB for Debian/Ubuntu Linux. Portable archives remain an alternative.
+1. Install from [Komi Store](https://komistore.app/) or download an asset from [Releases](https://github.com/dfedorov-arch/fdv-bouldering-timer/releases/latest): MSI for Windows, PKG for macOS, DEB for Debian/Ubuntu Linux, or APK for Android. Portable archives and the one-file standalone timer remain alternatives.
 2. Start `fdv-bouldering-timer.exe` on Windows, `FDV Bouldering Timer.app` on macOS, or `fdv-bouldering-timer` on Linux. If macOS blocks the app or bundled Node.js, first right-click `prepare-timer-mac.command`, choose Open, and confirm.
 3. Open `http://127.0.0.1:8008/` on the server computer and the printed LAN address on every other display.
 4. Enable **Primary browser**, select the format, and verify sound and every physical display before the event.
 
 All devices must be on the same local network. See the [full guide](help.html?lang=en) for list imports, diagnostics, Legacy behavior, offline recovery, HTTPS, and troubleshooting.
+
+### HTTP and HTTPS
+
+HTTP is sufficient for ordinary local use. HTTPS gives supported browsers a secure context: **Wake Lock** can keep a phone or tablet display awake, a service worker can retain the page for reopening without internet, and the modern clipboard API can copy connection links more reliably. Fullscreen and audio still require a user gesture, and Wake Lock also depends on the browser and OS power-saving policy.
+
+Create a certificate with the supplied platform script, restart the server, and open `https://…:8443/`. The local certificate is self-signed, so accept it on every display. Recreate it after changing the server computer or its LAN IP.
 
 ### Start lists
 
