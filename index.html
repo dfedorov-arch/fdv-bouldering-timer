@@ -2287,6 +2287,65 @@
       }
     }
 
+    /* Android WebView may report a desktop CSS width for a local file even on
+       a portrait phone.  The APK is intentionally a phone-sized standalone
+       timer, so give it the same layout as the regular narrow-phone view
+       independently of that reported width. */
+    @media (orientation: portrait) {
+      html.android-standalone body.controls-ready:not(.viewer-mode):not(.fullscreen) .app {
+        grid-template-columns: minmax(0, 1fr);
+      }
+
+      html.android-standalone .controls {
+        border-right: 0;
+        border-bottom: 1px solid var(--line);
+        min-height: 0;
+        padding: 18px;
+      }
+
+      html.android-standalone .control-footer {
+        margin-top: 0;
+      }
+
+      html.android-standalone .stage {
+        min-width: 0;
+        min-height: 620px;
+        grid-template-rows: minmax(390px, 1fr) auto;
+      }
+
+      html.android-standalone .timer-wrap {
+        min-height: min(390px, calc(100vh - 260px));
+      }
+
+      html.android-standalone .compact-actions {
+        display: flex;
+      }
+
+      /* A WebView-backed installed app can match display-mode: fullscreen.
+         Keep the regular phone footer in the APK nevertheless: it contains
+         the progress bar and the current-cycle chip. */
+      html.android-standalone footer {
+        display: block;
+      }
+
+      html.android-standalone .progress {
+        display: block;
+      }
+
+      html.android-standalone .schedule {
+        display: grid;
+      }
+
+      html.android-standalone .stage-main {
+        grid-template-rows: minmax(0, 1fr) auto;
+      }
+
+      html.android-standalone .compact-actions .action {
+        min-width: 0;
+        flex: 1 1 0;
+      }
+    }
+
     @media (max-width: 900px) and (orientation: landscape) {
       .stage {
         min-height: 100vh;
@@ -4653,10 +4712,15 @@
 
         const snapshotClientId = String(snapshot.clientId || "");
         const snapshotPrimaryClientId = snapshot.state.primaryClientId || null;
-        const restoredPrimaryClientId = snapshotClientId
-          && snapshotPrimaryClientId === snapshotClientId
-          ? clientId
-          : snapshotPrimaryClientId;
+        // A local standalone timer has no peer browsers.  Its client id is
+        // deliberately new after an Android WebView restart, so restoring a
+        // saved primary id would otherwise turn it into a viewer and hide the
+        // footer, cycle chip, and compact controls.
+        const restoredPrimaryClientId = localStandalone
+          ? null
+          : (snapshotClientId && snapshotPrimaryClientId === snapshotClientId
+            ? clientId
+            : snapshotPrimaryClientId);
 
         const restoredStartLists = normalizeStartLists(snapshot.state.startLists);
         lastStartListServerRevision = !localStandalone && Array.isArray(snapshot.state.startLists)
@@ -4695,8 +4759,8 @@
         lastStartListRenderKey = "";
         startListEditorOpen = state.startListEnabled;
         els.startListToggle.checked = startListEditorOpen;
-        isPrimaryClient = state.primaryClientId === clientId;
-        isViewerClient = Boolean(state.primaryClientId && !isPrimaryClient);
+        isPrimaryClient = !localStandalone && state.primaryClientId === clientId;
+        isViewerClient = !localStandalone && Boolean(state.primaryClientId && !isPrimaryClient);
         document.body.classList.toggle("primary-active", isPrimaryClient);
         document.body.classList.toggle("viewer-mode", isViewerClient);
         if (snapshot.draftSettings) setInputsFromDraft(snapshot.draftSettings);
@@ -11911,6 +11975,7 @@
 
     // Static Russian labels cover most of the initial markup, but translated-only
     // attributes (including Final format tooltips) still need one initial pass.
+    document.documentElement.classList.toggle("android-standalone", window.FDV_ANDROID_STANDALONE === true);
     document.body.classList.toggle("web-standalone", isWebStandalonePage());
     if (window.matchMedia?.("(max-width: 560px)")?.matches) {
       els.browserList.hidden = true;

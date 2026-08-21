@@ -43,7 +43,21 @@ test("Android package is a local standalone timer and suppresses browser install
   assert.match(activity, /file:\/\/\/android_asset\/timer\.html/);
   assert.match(activity, /setUseWideViewPort\(true\)/);
   assert.match(activity, /setLoadWithOverviewMode\(false\)/);
+  assert.match(index, /html\.android-standalone \.compact-actions \{\s*display: flex;/);
+  assert.match(index, /html\.android-standalone footer \{\s*display: block;/);
+  assert.match(index, /html\.android-standalone \.schedule \{\s*display: grid;/);
+  assert.match(index, /document\.documentElement\.classList\.toggle\("android-standalone", window\.FDV_ANDROID_STANDALONE === true\)/);
   assert.match(manifest, /android:icon="@mipmap\/ic_launcher"/);
+  assert.match(manifest, /android:label="FDV Bouldering Timer"/);
   assert.ok(fs.existsSync(path.join(root, "android/app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml")));
+  const foregroundIcon = read("android/app/src/main/res/drawable/ic_launcher_foreground.xml");
+  assert.match(foregroundIcon, /M54,61L54,40M54,61L70,50/);
+  assert.match(foregroundIcon, /M49,61a5,5/);
   assert.doesNotMatch(manifest, /android\.permission\.INTERNET/);
+});
+
+test("local standalone restores never inherit a browser viewer role", () => {
+  const index = read("index.html");
+  assert.match(index, /const restoredPrimaryClientId = localStandalone\s*\? null/);
+  assert.match(index, /isViewerClient = !localStandalone && Boolean\(state\.primaryClientId && !isPrimaryClient\)/);
 });
