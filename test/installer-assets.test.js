@@ -47,3 +47,9 @@ test("Android package is a local standalone timer and suppresses browser install
   assert.ok(fs.existsSync(path.join(root, "android/app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml")));
   assert.doesNotMatch(manifest, /android\.permission\.INTERNET/);
 });
+
+test("local standalone restores never inherit a browser viewer role", () => {
+  const index = read("index.html");
+  assert.match(index, /const restoredPrimaryClientId = localStandalone\s*\? null/);
+  assert.match(index, /isViewerClient = !localStandalone && Boolean\(state\.primaryClientId && !isPrimaryClient\)/);
+});

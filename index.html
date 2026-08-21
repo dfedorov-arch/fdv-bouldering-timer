@@ -4653,10 +4653,15 @@
 
         const snapshotClientId = String(snapshot.clientId || "");
         const snapshotPrimaryClientId = snapshot.state.primaryClientId || null;
-        const restoredPrimaryClientId = snapshotClientId
-          && snapshotPrimaryClientId === snapshotClientId
-          ? clientId
-          : snapshotPrimaryClientId;
+        // A local standalone timer has no peer browsers.  Its client id is
+        // deliberately new after an Android WebView restart, so restoring a
+        // saved primary id would otherwise turn it into a viewer and hide the
+        // footer, cycle chip, and compact controls.
+        const restoredPrimaryClientId = localStandalone
+          ? null
+          : (snapshotClientId && snapshotPrimaryClientId === snapshotClientId
+            ? clientId
+            : snapshotPrimaryClientId);
 
         const restoredStartLists = normalizeStartLists(snapshot.state.startLists);
         lastStartListServerRevision = !localStandalone && Array.isArray(snapshot.state.startLists)
@@ -4695,8 +4700,8 @@
         lastStartListRenderKey = "";
         startListEditorOpen = state.startListEnabled;
         els.startListToggle.checked = startListEditorOpen;
-        isPrimaryClient = state.primaryClientId === clientId;
-        isViewerClient = Boolean(state.primaryClientId && !isPrimaryClient);
+        isPrimaryClient = !localStandalone && state.primaryClientId === clientId;
+        isViewerClient = !localStandalone && Boolean(state.primaryClientId && !isPrimaryClient);
         document.body.classList.toggle("primary-active", isPrimaryClient);
         document.body.classList.toggle("viewer-mode", isViewerClient);
         if (snapshot.draftSettings) setInputsFromDraft(snapshot.draftSettings);
