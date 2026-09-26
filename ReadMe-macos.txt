@@ -8,7 +8,7 @@ FDV Bouldering Timer for macOS
 2. Запустите FDV Bouldering Timer.app или файл fdv-bouldering-timer рядом с ним.
 3. Приложение сервера покажет локальный и сетевые адреса, запустит сервер и откроет браузер.
 4. На других экранах откройте сетевой адрес из окна приложения, например http://192.168.1.68:8008/.
-5. Закрытие окна приложения останавливает сервер. Restart server перезапускает сервер после изменения портов или настроек Node.js.
+5. Закрытие окна приложения останавливает сервер. Restart server заново читает параметры и обновляет показанные ссылки. При смене сети ссылки также обновляются автоматически.
 
 Если macOS блокирует приложение или оно открывается, но не может запустить встроенный Node.js, щёлкните правой кнопкой по prepare-timer-mac.command, выберите Открыть и подтвердите запуск. Если macOS всё равно блокирует скрипт, откройте Системные настройки → Конфиденциальность и безопасность и нажмите "Всё равно открыть". Скрипт снимает quarantine-атрибут со всего распакованного релиза и восстанавливает права запуска. После сообщения Done запустите FDV Bouldering Timer.app обычным способом.
 
@@ -37,7 +37,7 @@ English
 2. Run FDV Bouldering Timer.app or the adjacent fdv-bouldering-timer file.
 3. The server app displays local and network addresses, starts the server, and opens the browser.
 4. On other displays, open a network address from the app window, for example http://192.168.1.68:8008/.
-5. Closing the app window stops the server. Restart server restarts it after port or Node.js setting changes.
+5. Closing the app window stops the server. Restart server reloads parameters and displayed links. Network changes refresh the links automatically as well.
 
 If macOS blocks the app, or the app opens but cannot start bundled Node.js, right-click prepare-timer-mac.command, choose Open, and confirm. If macOS still blocks the script, open System Settings → Privacy & Security and click Open Anyway. The script removes quarantine from the complete extracted release and restores executable permissions. After it reports Done, start FDV Bouldering Timer.app normally.
 

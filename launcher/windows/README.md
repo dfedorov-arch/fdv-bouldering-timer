@@ -4,6 +4,12 @@
 It reads `params.txt`, uses portable or system Node.js, displays local network
 addresses, opens the timer, and provides restart and stop commands.
 
+The server listens on all local interfaces. The launcher reloads settings and
+rebuilds the displayed links after every restart, and refreshes those links
+when Windows reports a network-address change. Repeated notifications that do
+not change the address list are ignored, and health checks are serialized and
+bounded.
+
 Build it on Windows with the .NET Framework compiler included in Windows:
 
 ```powershell
@@ -24,6 +30,11 @@ other timer files. `start-timer-win.bat` remains the fallback launcher.
 Он читает `params.txt`, использует portable или системный Node.js, показывает
 локальные сетевые адреса, открывает таймер и предоставляет команды перезапуска
 и остановки.
+
+Сервер принимает подключения на всех локальных интерфейсах. После каждого
+перезапуска лаунчер заново читает настройки и формирует ссылки, а при смене
+сетевых адресов обновляет их без повторных записей в журнале. Проверки
+доступности выполняются последовательно и имеют ограничение по времени.
 
 Сборка выполняется в Windows с помощью компилятора .NET Framework, входящего
 в состав Windows:

@@ -49,6 +49,7 @@ FDV Bouldering Timer — локальный сетевой таймер для �
 - Для каждого экрана отдельно выбираются видимые LIST.
 - Если выбраны ровно два списка, голубая кнопка переключает одну или две колонки. Оранжевый контур означает раскладку, отличающуюся от стандартной.
 - Трассу можно приостановить и возобновить с текущего или будущего цикла. Запланированные границы сразу показываются в тексте инцидента и таблице.
+- При выборе будущего цикла автоматически включается флажок «Остановить всю волну с этого цикла»: участники связанной волны не выходят и на предыдущие трассы. Оператор может снять флажок; для текущего или прошедшего цикла он по умолчанию выключен.
 - Участников и трассы можно исключать и восстанавливать.
 
 Экраны и диагностика
@@ -130,7 +131,7 @@ Start lists
 
 Load up to four lists from XLSX, CSV, TSV, TXT, or MXL. The user interface calls them LIST 1–4; old “protocol” names remain only in internal compatibility identifiers and the HTTP/HTTPS meaning.
 
-Participant cells are never ellipsized. Each display selects its own visible LIST badges. With exactly two visible lists, a cyan button switches one or two columns; an orange outline marks a non-default layout. Route incidents can suspend and resume a route at a current or future cycle, and participants or routes can be excluded and restored.
+Participant cells are never ellipsized. Each display selects its own visible LIST badges. With exactly two visible lists, a cyan button switches one or two columns; an orange outline marks a non-default layout. Route incidents can suspend and resume a route at a current or future cycle. Choosing a future pause cycle enables “Hold the entire wave from this cycle” by default so the related wave does not start on upstream routes; the operator may clear it, and it defaults off for a current or past cycle. Participants or routes can also be excluded and restored.
 
 Browsers and diagnostics
 ------------------------

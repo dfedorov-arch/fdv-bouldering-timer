@@ -12,6 +12,8 @@ FDV Bouldering Timer for Windows
 
 Закрытие окна сворачивает приложение в область уведомлений Windows. Команда Stop and exit останавливает сервер. Резервный запуск: start-timer-win.bat.
 
+Сервер слушает все локальные сетевые интерфейсы. После перезапуска лаунчер заново читает параметры и обновляет ссылки; при смене сети ссылки также обновляются автоматически.
+
 Node.js уже включён в runtime\win\node.exe. Порты и настройки находятся в params.txt. Legacy-режим для старых браузеров и телевизоров включается из списка браузеров нажатием LEGACY. Полное руководство: help.html.
 
 English
@@ -24,5 +26,7 @@ English
 5. If Windows Firewall asks about Node.js, allow private networks.
 
 Closing the window keeps the app in the Windows notification area. Stop and exit stops the server. Fallback launcher: start-timer-win.bat.
+
+The server listens on all local network interfaces. After a restart the launcher reloads parameters and displayed links; network changes refresh the links automatically as well.
 
 Node.js is bundled in runtime\win\node.exe. Ports and settings are in params.txt. Legacy mode for older browsers and TV browsers is toggled from the browser list by clicking LEGACY. Full guide: help.html.

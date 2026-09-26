@@ -5,6 +5,12 @@ It reads `params.txt`, uses the portable or system Node.js runtime, displays
 local network addresses, opens the timer, and provides restart and stop
 commands.
 
+The server listens on all local interfaces. The launcher reloads settings and
+rebuilds the displayed links after every restart, and refreshes those links
+when the operating system reports a network-address change. It enumerates
+local interfaces without starting Bonjour discovery or manufacturing a macOS
+Local Network permission request. Health checks are serialized and bounded.
+
 Build one runtime with the .NET SDK:
 
 ```bash

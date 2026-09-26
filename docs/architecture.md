@@ -51,7 +51,7 @@ Modern clients retain the last complete payload for the matching revision. Uncha
 
 Each secondary display can select a different subset. With exactly two visible lists, it also stores a per-display stacked/parallel override. Turning the global Start lists switch off hides lists everywhere but preserves those selections.
 
-Participant progression is derived from effective cycle order after exclusions and route incidents. A temporary route suspension has a start cycle and optional resume cycle; both planned boundaries must remain visible before either cycle occurs. Editing incidents, seeking, and excluding/restoring rows must preserve unaffected list scroll positions.
+Participant progression is derived from effective cycle order after exclusions and route incidents. A temporary route suspension has a start cycle and optional resume cycle; both planned boundaries must remain visible before either cycle occurs. Its persisted `blocksStartCycleWave` flag determines whether the whole concurrent wave is held from the suspension cycle, including participants who would otherwise start on upstream routes. The incident editor defaults this flag on when the selected start cycle moves into the future and off for a current or past cycle, but an explicit operator choice is authoritative. Missing flags in older saved state retain the pre-feature behavior. Editing incidents, seeking, and excluding/restoring rows must preserve unaffected list scroll positions.
 
 Tables are read-only in screen mode, including after the primary browser enters its Screen view. Modern rendering separates structural rebuilds from dynamic cell updates and defers width fitting outside timer-critical display boundaries. Legacy builds stable tables and updates marker classes incrementally where possible.
 
@@ -82,6 +82,10 @@ The ordinary mode keeps only a compact audio-clock progress measurement. Extende
 Server state is written atomically to `runtime-state/timer-state.json` through a temporary file. Browser offline snapshots use compact change keys and a five-second safety checkpoint instead of serializing complete moving state on every render. Start-list data is revisioned and not embedded repeatedly when unchanged.
 
 Schema changes require a version migration or explicit safe fallback. Integration tests cover active, paused, scheduled, Final, and restart recovery paths.
+
+## Launcher networking
+
+Desktop launchers start the server on the wildcard listener (`0.0.0.0`) so every active local interface can accept connections. They refresh parsed settings and displayed links whenever the server restarts, and refresh network links when the operating system reports an address change. Address discovery is local interface enumeration only: the macOS/Linux launcher must not initiate Bonjour browsing merely to trigger a Local Network permission prompt. Health probes are serialized and bounded so a stopped or changing server cannot accumulate connections.
 
 ## Generated outputs and release gates
 

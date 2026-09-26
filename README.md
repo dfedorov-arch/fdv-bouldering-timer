@@ -15,7 +15,7 @@
 - **Legacy**-экран для старых или слабых браузеров и телевизоров.
 - До четырёх **стартовых списков** с импортом XLSX, MXL, CSV, TSV и TXT.
 - Отдельный выбор списков и их раскладки для каждого экрана, включая Legacy.
-- Маркеры подготовки, лазания и завершения; исключение участника; приостановка, возобновление и остановка трассы.
+- Маркеры подготовки, лазания и завершения; исключение участника; приостановка, возобновление и остановка трассы, включая управляемую остановку всей волны с будущего цикла.
 - Диагностика браузеров: `LEGACY`, `AUDIO`, `TIME`, `NET`, `SYNC`, `SSE`, `TAB` и `LIST 1–4`.
 - Закрепление и изменение порядка карточек, вывод номеров браузеров на экранах и дополнительные часы сервера.
 - Звуковые профили, поправка задержки звука, диагностика аудиочасов и тест сигналов.
@@ -41,7 +41,7 @@ HTTP достаточно для обычной локальной работы.
 
 Переключатель **Стартовые списки** открывает область таблиц. Кнопка `+` добавляет до четырёх независимых списков. Для двух списков можно выбрать одну или две колонки. Каждый удалённый экран может показывать свой набор и свою раскладку.
 
-Таблица показывает расчётное продвижение участников и не управляет временем таймера. Подробно о формате файлов, маркерах, инцидентах трасс и автопрокрутке см. в [полном руководстве](help.html#start-lists).
+Таблица показывает расчётное продвижение участников и не управляет временем таймера. При планировании паузы трассы на будущий цикл флажок после номера цикла позволяет удержать всю связанную волну; его можно снять, чтобы сохранить прежнее продвижение участников на предыдущих трассах. Подробно о формате файлов, маркерах, инцидентах трасс и автопрокрутке см. в [полном руководстве](help.html#start-lists).
 
 ## Горячие клавиши
 
@@ -92,7 +92,7 @@ A network-synchronized timer for bouldering competitions. One browser controls t
 - Simplified **Legacy** display for old or weak browsers and televisions.
 - Up to four **start lists**, imported from XLSX, MXL, CSV, TSV, or TXT.
 - Per-display list selection and two-list layout, including Legacy screens.
-- Participant preparation/climbing/completion markers, exclusions, and route pause/resume/stop incidents.
+- Participant preparation/climbing/completion markers, exclusions, and route pause/resume/stop incidents, including an operator-controlled whole-wave hold from a future cycle.
 - Browser diagnostics: `LEGACY`, `AUDIO`, `TIME`, `NET`, `SYNC`, `SSE`, `TAB`, and `LIST 1–4`.
 - Pinned and reorderable browser cards, display numbers, and optional server-time clocks.
 - Sound profiles, per-browser audio correction, audio-clock diagnostics, and signal tests.
@@ -118,7 +118,7 @@ Create a certificate with the supplied platform script, restart the server, and 
 
 Enable **Start lists** to open the table area. Add up to four independent lists. When exactly two lists are open, choose a stacked or parallel layout. Every remote screen may show a different list subset and may override the two-list layout.
 
-The lists visualize the calculated participant schedule; they never control timer timing. See [the full guide](help.html?lang=en#start-lists) for import rules, markers, exclusions, route incidents, and auto-scrolling.
+The lists visualize the calculated participant schedule; they never control timer timing. When a route pause is planned for a future cycle, the checkbox after the cycle number can hold the entire related wave; clear it to preserve the previous progression behavior on upstream routes. See [the full guide](help.html?lang=en#start-lists) for import rules, markers, exclusions, route incidents, and auto-scrolling.
 
 ### Development
 

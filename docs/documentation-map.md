@@ -30,7 +30,7 @@ Current application screenshots belong in `help-assets/`. A screenshot that show
 
 | File | Purpose |
 | --- | --- |
-| `docs/architecture.md` | Current server/client modules, state ownership, time, audio, persistence, and release invariants |
+| `docs/architecture.md` | Current server/client modules, state ownership, time, audio, start-list incident semantics, launcher networking, persistence, and release invariants |
 | `docs/performance-diagnostics.md` | Opt-in diagnostic modes, counters, traces, baseline harness, and interpretation |
 | `test/visual/README.md` | Playwright visual-regression workflow and current viewport matrix |
 | `launcher/*/README.md` | Building and packaging native launchers |
