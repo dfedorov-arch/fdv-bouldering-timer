@@ -257,13 +257,13 @@ namespace FdvBoulderingTimerLauncher
             return pem || File.Exists(Path.Combine(_baseDirectory, "timer-cert.pfx"));
         }
 
-        private void PopulateAddresses()
+        private bool PopulateAddresses()
         {
             var selected = _addresses.SelectedItem as TimerAddress;
             var selectedUrl = selected == null ? null : selected.Url;
-            _addresses.Items.Clear();
-            AddAddress("Local HTTP", "http://127.0.0.1:" + _settings.HttpPort + "/");
-            if (_hasHttps) AddAddress("Local HTTPS", "https://127.0.0.1:" + _settings.HttpsPort + "/");
+            var updatedAddresses = new List<TimerAddress>();
+            AddAddress(updatedAddresses, "Local HTTP", "http://127.0.0.1:" + _settings.HttpPort + "/");
+            if (_hasHttps) AddAddress(updatedAddresses, "Local HTTPS", "https://127.0.0.1:" + _settings.HttpsPort + "/");
 
             var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             foreach (var network in NetworkInterface.GetAllNetworkInterfaces())
@@ -275,10 +275,14 @@ namespace FdvBoulderingTimerLauncher
                     var ip = address.Address.ToString();
                     if (IPAddress.IsLoopback(address.Address) || ip.StartsWith("169.254.") || !seen.Add(ip)) continue;
                     var type = NetworkType(network);
-                    AddAddress(type + " HTTP", "http://" + ip + ":" + _settings.HttpPort + "/");
-                    if (_hasHttps) AddAddress(type + " HTTPS", "https://" + ip + ":" + _settings.HttpsPort + "/");
+                    AddAddress(updatedAddresses, type + " HTTP", "http://" + ip + ":" + _settings.HttpPort + "/");
+                    if (_hasHttps) AddAddress(updatedAddresses, type + " HTTPS", "https://" + ip + ":" + _settings.HttpsPort + "/");
                 }
             }
+            if (HasSameAddresses(updatedAddresses)) return false;
+
+            _addresses.Items.Clear();
+            foreach (var address in updatedAddresses) _addresses.Items.Add(address);
             var selectedIndex = -1;
             if (selectedUrl != null)
             {
@@ -293,6 +297,7 @@ namespace FdvBoulderingTimerLauncher
                 }
             }
             if (_addresses.Items.Count > 0) _addresses.SelectedIndex = selectedIndex >= 0 ? selectedIndex : 0;
+            return true;
         }
 
         private static string NetworkType(NetworkInterface network)
@@ -305,9 +310,31 @@ namespace FdvBoulderingTimerLauncher
             return "Network";
         }
 
-        private void AddAddress(string label, string url)
+        private bool HasSameAddresses(List<TimerAddress> updatedAddresses)
         {
-            _addresses.Items.Add(new TimerAddress { Label = label, Url = url });
+            if (_addresses.Items.Count != updatedAddresses.Count) return false;
+            var current = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var item in _addresses.Items)
+            {
+                var address = item as TimerAddress;
+                if (address == null) return false;
+                current.Add(AddressKey(address));
+            }
+            foreach (var address in updatedAddresses)
+            {
+                if (!current.Contains(AddressKey(address))) return false;
+            }
+            return true;
+        }
+
+        private static string AddressKey(TimerAddress address)
+        {
+            return address.Label + "\u001f" + address.Url;
+        }
+
+        private static void AddAddress(List<TimerAddress> addresses, string label, string url)
+        {
+            addresses.Add(new TimerAddress { Label = label, Url = url });
         }
 
         private void OnNetworkAddressChanged(object sender, EventArgs args)
@@ -331,8 +358,7 @@ namespace FdvBoulderingTimerLauncher
         {
             _networkRefreshTimer.Stop();
             if (_allowClose) return;
-            PopulateAddresses();
-            AppendLog("Network addresses updated.");
+            if (PopulateAddresses()) AppendLog("Network addresses changed.");
         }
 
         private void StartServer(bool openBrowser)

@@ -283,6 +283,40 @@ test("temporary route incident pauses the affected wave and shifts it after resu
   assert.deepEqual(startList.routePauseHistory(2, 18, resumed), resumed);
 });
 
+test("a pause planned before its start cycle also holds concurrent upstream attempts", () => {
+  const planned = [{
+    kind: "pause",
+    route: 2,
+    startCycle: 17,
+    resumeCycle: null,
+    participantIndex: 14,
+    blocksStartCycleWave: true
+  }];
+  assert.equal(startList.marker(14, 1, 16, "rotation", planned), "paused");
+  assert.equal(startList.marker(16, 0, 16, "rotation", planned), "paused");
+  assert.equal(startList.rowStatus(16, 5, 16, "rotation", planned), "");
+  assert.equal(startList.marker(14, 1, 17, "rotation", planned), "paused");
+  assert.equal(startList.marker(16, 0, 17, "rotation", planned), "paused");
+  assert.equal(startList.rowStatus(16, 5, 17, "rotation", planned), "");
+
+  const sanitized = startList.sanitize({
+    headers: ["#", "Name"],
+    rows: Array.from({ length: 20 }, (_, index) => [String(index + 1), `Participant ${index + 1}`]),
+    routeCount: 5,
+    incidents: planned
+  });
+  assert.equal(sanitized.incidents[0].blocksStartCycleWave, true);
+});
+
+test("a pause entered during its start cycle lets concurrent upstream attempts finish", () => {
+  const immediate = [{ kind: "pause", route: 2, startCycle: 17, resumeCycle: null, participantIndex: 14 }];
+  assert.equal(startList.marker(14, 1, 17, "rotation", immediate), "paused");
+  assert.equal(startList.marker(16, 0, 16, "rotation", immediate), "ready");
+  assert.equal(startList.rowStatus(16, 5, 16, "rotation", immediate), "ready");
+  assert.equal(startList.marker(16, 0, 17, "rotation", immediate), "active");
+  assert.equal(startList.rowStatus(16, 5, 17, "rotation", immediate), "active");
+});
+
 test("a pause with a future resume cycle remains editable while it is active", () => {
   const pause = { kind: "pause", route: 2, startCycle: 17, resumeCycle: 20, participantIndex: 14, resolution: "resume" };
   assert.equal(startList.activePauseForRoute(1, [pause]), null);

@@ -290,6 +290,12 @@ test("start-list route incident controls render pause, stop, resume and cancella
   assert.match(index, /function updateStartListIncidentActions\(slot\)[\s\S]*?editablePauseForRoute\([\s\S]*?currentStartListPosition\(\)\.cycle[\s\S]*?startListIncidentActions\(activePause, stop\)/);
   assert.match(index, /data-start-list-incident-action="cancel-stop"/);
   assert.match(index, /FDVStartList\.participantAtOrAfterCycle[\s\S]*?kind: "pause"[\s\S]*?resumeCycle: null/);
+  assert.match(index, /routeIncidentPauseWave: "Остановить всю волну с этого цикла"[\s\S]*?routeIncidentPauseWave: "Hold the entire wave from this cycle"/);
+  assert.match(index, /const pauseWaveControl = [\s\S]*?class="start-list-incident-wave"[\s\S]*?data-start-list-pause-wave/);
+  assert.match(index, /class="start-list-incident-cycle"[^\n]*<\/label>\s*\$\{pauseWaveControl\}\s*<div class="start-list-incident-actions"/);
+  assert.match(index, /\.start-list-incident-wave input \{[\s\S]*?display: block;[\s\S]*?height: 16px;[\s\S]*?min-height: 16px;/);
+  assert.match(index, /const cycleIsFuture = cycle > currentStartListPosition\(\)\.cycle;[\s\S]*?if \(cycleIsFuture !== previousCycleWasFuture\) pauseWaveInput\.checked = cycleIsFuture/);
+  assert.match(index, /if \(pauseWaveInput\?\.checked\) pause\.blocksStartCycleWave = true/);
   assert.match(index, /kind: "stop"[\s\S]*?startCycle: cycle/);
   assert.match(index, /action === "resume"[\s\S]*?resolution: "resume"[\s\S]*?action === "stop"[\s\S]*?resolution: "stop"/);
   assert.match(index, /action === "cancel-stop"[\s\S]*?resolution !== "stop"[\s\S]*?resumeCycle: null/);
@@ -375,7 +381,7 @@ test("incident cycle hover and focus outline the matching route cell", () => {
   assert.match(index, /data-start-list-route-cell="\$\{routeIndex\}"/);
   assert.match(index, /function updateStartListIncidentCyclePreview\(control\)/);
   assert.match(index, /FDVStartList\.participantAtOrAfterCycle\([\s\S]*?data-start-list-route-cell/);
-  assert.match(index, /action === "pause"[\s\S]*?FDVStartList\.participantAtOrAfterCycle\([\s\S]*?incidents\.push\(\{ kind: "pause"/);
+  assert.match(index, /action === "pause"[\s\S]*?FDVStartList\.participantAtOrAfterCycle\([\s\S]*?const pause = \{ kind: "pause"[\s\S]*?incidents\.push\(pause\)/);
   assert.match(index, /addEventListener\("pointerover"[\s\S]*?updateStartListIncidentCyclePreview/);
   assert.match(index, /addEventListener\("focusin"[\s\S]*?updateStartListIncidentCyclePreview/);
   assert.match(index, /addEventListener\("input"[\s\S]*?updateStartListIncidentCyclePreview/);

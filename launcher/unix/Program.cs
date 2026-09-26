@@ -112,39 +112,13 @@ internal sealed class TimerAddress
 
 internal sealed class LauncherWindow : Window
 {
-    private const string BonjourServiceType = "_fdv-bouldering-timer._tcp";
-
-    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-    private delegate void DnsServiceBrowseReply(
-        IntPtr serviceRef,
-        uint flags,
-        uint interfaceIndex,
-        int errorCode,
-        IntPtr serviceName,
-        IntPtr registrationType,
-        IntPtr replyDomain,
-        IntPtr context);
-
-    [DllImport("libSystem.B.dylib", EntryPoint = "DNSServiceBrowse", CallingConvention = CallingConvention.Cdecl)]
-    private static extern int DnsServiceBrowse(
-        out IntPtr serviceRef,
-        uint flags,
-        uint interfaceIndex,
-        [MarshalAs(UnmanagedType.LPUTF8Str)] string registrationType,
-        IntPtr domain,
-        DnsServiceBrowseReply callback,
-        IntPtr context);
-
-    [DllImport("libSystem.B.dylib", EntryPoint = "DNSServiceRefDeallocate", CallingConvention = CallingConvention.Cdecl)]
-    private static extern void DnsServiceRefDeallocate(IntPtr serviceRef);
+    private const int MaximumStartupAttempts = 30;
 
     [DllImport("libSystem.B.dylib", EntryPoint = "removexattr", CallingConvention = CallingConvention.Cdecl, SetLastError = true)]
     private static extern int RemoveExtendedAttribute(
         [MarshalAs(UnmanagedType.LPUTF8Str)] string path,
         [MarshalAs(UnmanagedType.LPUTF8Str)] string name,
         int options);
-
-    private static readonly DnsServiceBrowseReply BonjourBrowseCallback = (_, _, _, _, _, _, _, _) => { };
 
     private readonly string _baseDirectory;
     private LauncherSettings _settings;
@@ -160,6 +134,16 @@ internal sealed class LauncherWindow : Window
     private readonly DispatcherTimer _healthTimer = new() { Interval = TimeSpan.FromSeconds(1) };
     private readonly DispatcherTimer _restartTimer = new();
     private readonly DispatcherTimer _networkRefreshTimer = new() { Interval = TimeSpan.FromMilliseconds(750) };
+    private readonly HttpClient _healthClient = new(new SocketsHttpHandler
+    {
+        ConnectTimeout = TimeSpan.FromMilliseconds(500),
+        PooledConnectionLifetime = TimeSpan.FromMinutes(2),
+        UseProxy = false
+    })
+    {
+        Timeout = Timeout.InfiniteTimeSpan
+    };
+    private CancellationTokenSource _probeCancellation = new();
     private Process? _serverProcess;
     private int _startupAttempts;
     private int _healthFailures;
@@ -169,7 +153,9 @@ internal sealed class LauncherWindow : Window
     private bool _intentionalStop;
     private bool _openBrowserAfterStart = true;
     private bool _startupAccessNoticeShown;
-    private bool _localNetworkProbeStarted;
+    private bool _startupCheckInProgress;
+    private bool _healthCheckInProgress;
+    private int _probeGeneration;
 
     public LauncherWindow()
     {
@@ -347,12 +333,12 @@ internal sealed class LauncherWindow : Window
         return pem || File.Exists(Path.Combine(_baseDirectory, "timer-cert.pfx"));
     }
 
-    private void PopulateAddresses()
+    private bool PopulateAddresses()
     {
         var selectedUrl = (_addresses.SelectedItem as TimerAddress)?.Url;
-        _addresses.Items.Clear();
-        AddAddress("Local HTTP", "http://127.0.0.1:" + _settings.HttpPort + "/");
-        if (_hasHttps) AddAddress("Local HTTPS", "https://127.0.0.1:" + _settings.HttpsPort + "/");
+        var updatedAddresses = new List<TimerAddress>();
+        AddAddress(updatedAddresses, "Local HTTP", "http://127.0.0.1:" + _settings.HttpPort + "/");
+        if (_hasHttps) AddAddress(updatedAddresses, "Local HTTPS", "https://127.0.0.1:" + _settings.HttpsPort + "/");
 
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var network in NetworkInterface.GetAllNetworkInterfaces())
@@ -364,10 +350,14 @@ internal sealed class LauncherWindow : Window
                 var ip = address.Address.ToString();
                 if (IPAddress.IsLoopback(address.Address) || ip.StartsWith("169.254.", StringComparison.Ordinal) || !seen.Add(ip)) continue;
                 var type = NetworkType(network);
-                AddAddress(type + " HTTP", "http://" + ip + ":" + _settings.HttpPort + "/");
-                if (_hasHttps) AddAddress(type + " HTTPS", "https://" + ip + ":" + _settings.HttpsPort + "/");
+                AddAddress(updatedAddresses, type + " HTTP", "http://" + ip + ":" + _settings.HttpPort + "/");
+                if (_hasHttps) AddAddress(updatedAddresses, type + " HTTPS", "https://" + ip + ":" + _settings.HttpsPort + "/");
             }
         }
+        if (HasSameAddresses(updatedAddresses)) return false;
+
+        _addresses.Items.Clear();
+        foreach (var address in updatedAddresses) _addresses.Items.Add(address);
         var selectedIndex = -1;
         if (selectedUrl != null)
         {
@@ -381,6 +371,7 @@ internal sealed class LauncherWindow : Window
             }
         }
         if (_addresses.Items.Count > 0) _addresses.SelectedIndex = selectedIndex >= 0 ? selectedIndex : 0;
+        return true;
     }
 
     private static string NetworkType(NetworkInterface network)
@@ -396,9 +387,30 @@ internal sealed class LauncherWindow : Window
         };
     }
 
-    private void AddAddress(string label, string url)
+    private bool HasSameAddresses(List<TimerAddress> updatedAddresses)
     {
-        _addresses.Items.Add(new TimerAddress { Label = label, Url = url });
+        if (_addresses.Items.Count != updatedAddresses.Count) return false;
+        var current = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var item in _addresses.Items)
+        {
+            if (item is not TimerAddress address) return false;
+            current.Add(AddressKey(address));
+        }
+        foreach (var address in updatedAddresses)
+        {
+            if (!current.Contains(AddressKey(address))) return false;
+        }
+        return true;
+    }
+
+    private static string AddressKey(TimerAddress address)
+    {
+        return address.Label + "\u001f" + address.Url;
+    }
+
+    private static void AddAddress(List<TimerAddress> addresses, string label, string url)
+    {
+        addresses.Add(new TimerAddress { Label = label, Url = url });
     }
 
     private void OnNetworkAddressChanged(object? sender, EventArgs args)
@@ -417,12 +429,12 @@ internal sealed class LauncherWindow : Window
     {
         _networkRefreshTimer.Stop();
         if (_allowClose) return;
-        PopulateAddresses();
-        AppendLog("Network addresses updated.");
+        if (PopulateAddresses()) AppendLog("Network addresses changed.");
     }
 
     private void StartServer(bool openBrowser)
     {
+        BeginNewProbeCycle();
         _startupTimer.Stop();
         _healthTimer.Stop();
         _restartTimer.Stop();
@@ -456,12 +468,6 @@ internal sealed class LauncherWindow : Window
             SetError(ServerScriptNotFoundMessage());
             return;
         }
-
-        _localNetworkProbeStarted = false;
-        // Start the macOS permission request before waiting for the HTTP server.
-        // A wildcard listener may itself be held by Local Network Privacy until
-        // the user answers the system prompt.
-        _ = RequestLocalNetworkAccess();
 
         try
         {
@@ -522,161 +528,114 @@ internal sealed class LauncherWindow : Window
 
     private async void CheckServerReady(object? sender, EventArgs args)
     {
-        _startupAttempts++;
-        if (await CanReach("http://127.0.0.1:" + _settings.HttpPort + "/api/state"))
+        if (_allowClose || _startupCheckInProgress) return;
+        _startupCheckInProgress = true;
+        var generation = _probeGeneration;
+        try
         {
-            _startupTimer.Stop();
-            _ready = true;
-            _restartAttempts = 0;
-            _healthFailures = 0;
-            _openButton.IsEnabled = true;
-            _status.Text = "Server is running";
-            _status.Foreground = Brush(87, 211, 140);
-            AppendLog("Server is ready.");
-            AppendLog("Keep this computer connected to power and disable sleep while the timer is running.");
-            _healthTimer.Start();
-            if (_openBrowserAfterStart) OpenLocalTimer();
-            return;
-        }
-
-        if (_serverProcess == null || _serverProcess.HasExited)
-        {
-            _startupTimer.Stop();
-            return;
-        }
-
-        if (_startupAttempts >= 30 && !_startupAccessNoticeShown)
-        {
-            _startupAccessNoticeShown = true;
-            _status.Text = "Server process is running; waiting for local access...";
-            _status.Foreground = Brush(255, 200, 87);
-            AppendLog("Node.js is running, but the launcher cannot reach the local timer yet.");
-            if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+            _startupAttempts++;
+            var reachable = await CanReach(
+                "http://127.0.0.1:" + _settings.HttpPort + "/api/state",
+                _probeCancellation.Token);
+            if (generation != _probeGeneration || _allowClose) return;
+            if (reachable)
             {
-                AppendLog("Allow FDV Bouldering Timer in System Settings > Privacy & Security > Local Network.");
+                _startupTimer.Stop();
+                _ready = true;
+                _restartAttempts = 0;
+                _healthFailures = 0;
+                _openButton.IsEnabled = true;
+                _status.Text = "Server is running";
+                _status.Foreground = Brush(87, 211, 140);
+                AppendLog("Server is ready.");
+                AppendLog("Keep this computer connected to power and disable sleep while the timer is running.");
+                _healthTimer.Start();
+                if (_openBrowserAfterStart) OpenLocalTimer();
+                return;
             }
+
+            if (_serverProcess == null || _serverProcess.HasExited)
+            {
+                _startupTimer.Stop();
+                return;
+            }
+
+            if (_startupAttempts >= MaximumStartupAttempts && !_startupAccessNoticeShown)
+            {
+                _startupTimer.Stop();
+                _startupAccessNoticeShown = true;
+                _status.Text = "Server process is running, but the local timer is unavailable";
+                _status.Foreground = Brush(255, 200, 87);
+                AppendLog("Node.js is running, but the launcher cannot reach the local timer. Click Restart server to try again.");
+            }
+        }
+        finally
+        {
+            if (generation == _probeGeneration) _startupCheckInProgress = false;
         }
     }
 
-    private static async Task<bool> CanReach(string url)
+    private async Task<bool> CanReach(string url, CancellationToken cancellationToken)
     {
         try
         {
-            using var client = new HttpClient { Timeout = TimeSpan.FromMilliseconds(250) };
-            using var response = await client.GetAsync(url);
+            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            timeout.CancelAfter(TimeSpan.FromMilliseconds(750));
+            using var request = new HttpRequestMessage(HttpMethod.Get, url);
+            using var response = await _healthClient.SendAsync(
+                request,
+                HttpCompletionOption.ResponseHeadersRead,
+                timeout.Token);
             return response.StatusCode == HttpStatusCode.OK;
         }
-        catch
+        catch (OperationCanceledException)
+        {
+            return false;
+        }
+        catch (HttpRequestException)
         {
             return false;
         }
     }
 
-    private async Task RequestLocalNetworkAccess()
-    {
-        if (!RuntimeInformation.IsOSPlatform(OSPlatform.OSX) || _localNetworkProbeStarted) return;
-        _localNetworkProbeStarted = true;
-
-        TimerAddress? networkAddress = null;
-        foreach (var item in _addresses.Items)
-        {
-            if (item is TimerAddress address &&
-                address.Url.StartsWith("http://", StringComparison.OrdinalIgnoreCase) &&
-                !address.Url.Contains("127.0.0.1", StringComparison.Ordinal))
-            {
-                networkAddress = address;
-                break;
-            }
-        }
-        if (networkAddress == null)
-        {
-            AppendLog("No active local-network address was found; local timer access is available.");
-            return;
-        }
-
-        AppendLog("Requesting macOS local-network access...");
-        // macOS may keep DNSServiceBrowse blocked while its permission dialog is
-        // unanswered, so never invoke it on Avalonia's UI thread.
-        var bonjourBrowseTask = Task.Run(StartBonjourBrowse);
-        try
-        {
-            // DNSServiceBrowse is the macOS-supported trigger for the Local Network
-            // privacy prompt. Keep the browse alive while the HTTP probe waits for
-            // the user to answer it.
-            await Task.Delay(250);
-            using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
-            var probeUrl = new Uri(new Uri(networkAddress.Url), "favicon.ico?launcher-local-network-probe=1");
-            using var response = await client.GetAsync(probeUrl);
-            if (response.IsSuccessStatusCode)
-            {
-                AppendLog("Local-network access is available: " + networkAddress.Url);
-                return;
-            }
-        }
-        catch
-        {
-        }
-        finally
-        {
-            _ = StopBonjourBrowseWhenReady(bonjourBrowseTask);
-        }
-        _status.Text = "Server is running locally; local-network access is blocked";
-        _status.Foreground = Brush(255, 200, 87);
-        AppendLog("Local-network access is not available. Allow FDV Bouldering Timer in System Settings > Privacy & Security > Local Network, then click Restart server.");
-    }
-
-    private IntPtr StartBonjourBrowse()
-    {
-        try
-        {
-            var errorCode = DnsServiceBrowse(
-                out var serviceRef,
-                0,
-                0,
-                BonjourServiceType,
-                IntPtr.Zero,
-                BonjourBrowseCallback,
-                IntPtr.Zero);
-            if (errorCode == 0) return serviceRef;
-            AppendLog("macOS Bonjour permission request failed with error " + errorCode + ".");
-        }
-        catch (Exception error)
-        {
-            AppendLog("Unable to start the macOS Bonjour permission request: " + error.Message);
-        }
-        return IntPtr.Zero;
-    }
-
-    private static async Task StopBonjourBrowseWhenReady(Task<IntPtr> browseTask)
-    {
-        var serviceRef = await browseTask;
-        if (serviceRef != IntPtr.Zero) DnsServiceRefDeallocate(serviceRef);
-    }
-
     private async void CheckServerHealth(object? sender, EventArgs args)
     {
-        if (_allowClose || !_ready) return;
+        if (_allowClose || !_ready || _healthCheckInProgress) return;
         if (_serverProcess == null || _serverProcess.HasExited)
         {
             ScheduleServerRestart("server process exited");
             return;
         }
 
-        if (await CanReach("http://127.0.0.1:" + _settings.HttpPort + "/api/state"))
+        _healthCheckInProgress = true;
+        var generation = _probeGeneration;
+        try
         {
-            _healthFailures = 0;
-            return;
-        }
+            var reachable = await CanReach(
+                "http://127.0.0.1:" + _settings.HttpPort + "/api/state",
+                _probeCancellation.Token);
+            if (generation != _probeGeneration || _allowClose || !_ready) return;
+            if (reachable)
+            {
+                _healthFailures = 0;
+                return;
+            }
 
-        _healthFailures++;
-        if (_healthFailures < 6) return;
-        AppendLog("Health check failed for " + _healthFailures + " seconds; restarting server.");
-        ScheduleServerRestart("server health check failed");
+            _healthFailures++;
+            if (_healthFailures < 6) return;
+            AppendLog("Health check failed for " + _healthFailures + " seconds; restarting server.");
+            ScheduleServerRestart("server health check failed");
+        }
+        finally
+        {
+            if (generation == _probeGeneration) _healthCheckInProgress = false;
+        }
     }
 
     private void ScheduleServerRestart(string reason)
     {
         if (_allowClose) return;
+        CancelPendingProbes();
         _startupTimer.Stop();
         _healthTimer.Stop();
         _restartTimer.Stop();
@@ -947,6 +906,7 @@ internal sealed class LauncherWindow : Window
     private void StopAndExit()
     {
         _allowClose = true;
+        CancelPendingProbes();
         StopNetworkMonitoring();
         _startupTimer.Stop();
         _healthTimer.Stop();
@@ -961,11 +921,27 @@ internal sealed class LauncherWindow : Window
         StopNetworkMonitoring();
         if (_allowClose) return;
         _allowClose = true;
+        CancelPendingProbes();
         _startupTimer.Stop();
         _healthTimer.Stop();
         _restartTimer.Stop();
         _intentionalStop = true;
         StopServerProcess();
+    }
+
+    private void BeginNewProbeCycle()
+    {
+        CancelPendingProbes();
+        _probeCancellation.Dispose();
+        _probeCancellation = new CancellationTokenSource();
+    }
+
+    private void CancelPendingProbes()
+    {
+        _probeGeneration++;
+        _probeCancellation.Cancel();
+        _startupCheckInProgress = false;
+        _healthCheckInProgress = false;
     }
 
     private void StopNetworkMonitoring()

@@ -1552,6 +1552,29 @@
     .start-list-title-bar[hidden] { display: none; }
     .start-list-incident-title { color: var(--text); font-weight: 850; white-space: nowrap; }
     .start-list-incident-controls { min-width: 0; display: flex; align-items: center; justify-content: flex-end; gap: 5px; }
+    .start-list-incident-wave {
+      flex: 0 0 28px;
+      width: 28px;
+      height: 28px;
+      display: grid;
+      place-items: center;
+      border: 1px solid var(--line);
+      border-radius: 5px;
+      color: var(--muted);
+      background: transparent;
+      cursor: pointer;
+    }
+    .start-list-incident-wave:hover { border-color: rgba(255, 200, 87, .65); }
+    .start-list-incident-wave input {
+      display: block;
+      width: 16px;
+      height: 16px;
+      min-height: 16px;
+      padding: 0;
+      margin: 0;
+      accent-color: var(--yellow);
+      cursor: pointer;
+    }
     .start-list-incident-cycle { display: flex; align-items: center; gap: 4px; color: var(--muted); white-space: nowrap; }
     .start-list-incident-cycle input { width: 58px; min-height: 28px; padding-inline: 4px; text-align: center; }
     .start-list-incident-actions { min-width: 0; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 5px; }
@@ -3075,6 +3098,7 @@
         startListLoaded: "Участников: {rows}; столбцов: {columns}; трасс: {routes}", startListInvalid: "Не удалось прочитать таблицу: нужны заголовки и хотя бы одна строка участника",
         startListCycle: "Цикл {cycle}", startListRoute: "Трасса {route}", startListRouteMenu: "Меню трассы", cycleNumber: "Номер цикла",
         routeIncidentCycle: "Цикл", routeIncidentPause: "Приостановить", routeIncidentResume: "Возобновить",
+        routeIncidentPauseWave: "Остановить всю волну с этого цикла",
         routeIncidentStartCycleHint: "Цикл, начиная с которого трасса будет приостановлена или остановлена полностью",
         routeIncidentResumeCycleHint: "Цикл, начиная с которого трасса возобновит работу или будет остановлена",
         routeIncidentStop: "Остановить", routeIncidentCancelStop: "Отменить остановку", routeIncidentClearPause: "Удалить приостановку", routeIncidentClose: "Закрыть меню трассы",
@@ -3172,6 +3196,7 @@
         startListLoaded: "Participants: {rows}; columns: {columns}; routes: {routes}", startListInvalid: "Could not read the table: headers and at least one participant row are required",
         startListCycle: "Cycle {cycle}", startListRoute: "Route {route}", startListRouteMenu: "Route menu", cycleNumber: "Cycle number",
         routeIncidentCycle: "Cycle", routeIncidentPause: "Pause", routeIncidentResume: "Resume",
+        routeIncidentPauseWave: "Hold the entire wave from this cycle",
         routeIncidentStartCycleHint: "Cycle from which the route will be paused or stopped permanently",
         routeIncidentResumeCycleHint: "Cycle from which the route will resume operation or be stopped",
         routeIncidentStop: "Stop", routeIncidentCancelStop: "Cancel stop", routeIncidentClearPause: "Remove pause", routeIncidentClose: "Close route menu",
@@ -7874,6 +7899,10 @@
       if (!menu) return;
       const selectedRoute = startListIncidentSelections[listIndex];
       const routeIndex = Number.isInteger(selectedRoute) ? selectedRoute : -1;
+      const previousRouteIndex = Number(slot.dataset.startListIncidentRoute);
+      const preserveDraft = previousRouteIndex === routeIndex;
+      const previousCycleInput = preserveDraft ? menu.querySelector("[data-start-list-incident-cycle]") : null;
+      const previousWaveInput = preserveDraft ? menu.querySelector("[data-start-list-pause-wave]") : null;
       slot.querySelectorAll("[data-start-list-route]").forEach((button) => {
         button.classList.toggle("is-selected", Number(button.dataset.startListRoute) === routeIndex);
       });
@@ -7885,7 +7914,14 @@
       }
       slot.dataset.startListIncidentRoute = String(routeIndex);
       const incidents = list.incidents || [];
-      const cycleValue = defaultRouteIncidentCycle(position);
+      const cycleValue = previousCycleInput
+        ? Math.max(1, Math.min(9999, Math.round(Number(previousCycleInput.value) || 1)))
+        : defaultRouteIncidentCycle(position);
+      const cycleIsFuture = cycleValue > position.cycle;
+      const previousCycleWasFuture = previousWaveInput?.dataset.startListPauseWaveFuture === "1";
+      const pauseWaveChecked = previousWaveInput
+        ? (previousCycleWasFuture === cycleIsFuture ? previousWaveInput.checked : cycleIsFuture)
+        : cycleIsFuture;
       const activePause = window.FDVStartList.editablePauseForRoute(
         routeIndex,
         incidents,
@@ -7908,8 +7944,11 @@
         stop ? `<div class="start-list-incident-note"><button class="start-list-incident-remove" type="button" data-start-list-incident-action="cancel-stop" title="${escapeHtml(t("routeIncidentCancelStop"))}" aria-label="${escapeHtml(t("routeIncidentCancelStop"))}">×</button><span>${escapeHtml(formatStartListText("routeIncidentStoppedFrom", { cycle: stop.startCycle }))}</span></div>` : "",
         errorText ? `<div class="start-list-incident-note error"><span>${escapeHtml(errorText)}</span></div>` : ""
       ].filter(Boolean).join("");
+      const pauseWaveHint = t("routeIncidentPauseWave");
+      const pauseWaveControl = !activePause ? `<label class="start-list-incident-wave" title="${escapeHtml(pauseWaveHint)}"><input type="checkbox" data-start-list-pause-wave data-start-list-pause-wave-future="${cycleIsFuture ? "1" : "0"}" ${pauseWaveChecked ? "checked" : ""} aria-label="${escapeHtml(pauseWaveHint)}"></label>` : "";
       const incidentControls = actions ? `<div class="start-list-incident-controls">
         <label class="start-list-incident-cycle" data-start-list-incident-cycle-control title="${escapeHtml(cycleHint)}"><span>${escapeHtml(t("routeIncidentCycle"))}</span><input type="number" min="1" max="9999" step="1" value="${cycleValue}" data-start-list-incident-cycle title="${escapeHtml(cycleHint)}"></label>
+        ${pauseWaveControl}
         <div class="start-list-incident-actions" data-start-list-incident-action-state="${actionState}">${actions}</div>
       </div>` : "<div></div>";
       menu.innerHTML = `
@@ -7927,12 +7966,19 @@
 
     function updateStartListIncidentActions(slot) {
       const cycleInput = slot?.querySelector("[data-start-list-incident-cycle]");
+      const pauseWaveInput = slot?.querySelector("[data-start-list-pause-wave]");
       const actions = slot?.querySelector(".start-list-incident-actions");
       const listIndex = Number(slot?.dataset.startListIndex);
       const routeIndex = Number(slot?.dataset.startListIncidentRoute);
       const list = state.startLists[listIndex];
       if (!cycleInput || !actions || !list || !Number.isInteger(routeIndex)) return;
       const cycle = Math.max(1, Math.min(9999, Math.round(Number(cycleInput.value) || 1)));
+      if (pauseWaveInput) {
+        const cycleIsFuture = cycle > currentStartListPosition().cycle;
+        const previousCycleWasFuture = pauseWaveInput.dataset.startListPauseWaveFuture === "1";
+        if (cycleIsFuture !== previousCycleWasFuture) pauseWaveInput.checked = cycleIsFuture;
+        pauseWaveInput.dataset.startListPauseWaveFuture = cycleIsFuture ? "1" : "0";
+      }
       const incidents = list.incidents || [];
       const activePause = window.FDVStartList.editablePauseForRoute(
         routeIndex,
@@ -7940,6 +7986,8 @@
         cycle,
         currentStartListPosition().cycle
       );
+      const pauseWaveControl = pauseWaveInput?.closest(".start-list-incident-wave");
+      if (pauseWaveControl) pauseWaveControl.hidden = Boolean(activePause);
       const stop = window.FDVStartList.stopForRoute(routeIndex, incidents);
       const actionState = startListIncidentActionState(activePause, stop);
       if (actions.dataset.startListIncidentActionState !== actionState) {
@@ -8007,6 +8055,7 @@
       const list = state.startLists[listIndex];
       if (!list) return;
       const cycleInput = slot.querySelector("[data-start-list-incident-cycle]");
+      const pauseWaveInput = slot.querySelector("[data-start-list-pause-wave]");
       const cycle = Math.max(1, Math.min(9999, Math.round(Number(cycleInput?.value) || defaultRouteIncidentCycle())));
       if (cycleInput) cycleInput.value = String(cycle);
       let incidents = [...(list.incidents || [])];
@@ -8029,7 +8078,9 @@
           renderStartListIncidentMenu(slot, list, listIndex, currentStartListPosition(), t("routeIncidentNoParticipant"));
           return;
         }
-        incidents.push({ kind: "pause", route: routeIndex + 1, startCycle: cycle, resumeCycle: null, participantIndex });
+        const pause = { kind: "pause", route: routeIndex + 1, startCycle: cycle, resumeCycle: null, participantIndex };
+        if (pauseWaveInput?.checked) pause.blocksStartCycleWave = true;
+        incidents.push(pause);
       }
       if (action === "resume" && activePause) {
         incidents = incidents.map((incident) => incident === activePause

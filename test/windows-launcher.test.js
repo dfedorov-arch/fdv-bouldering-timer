@@ -29,5 +29,8 @@ test("Windows launcher refreshes network links from debounced system events", ()
   assert.match(source, /NetworkChange\.NetworkAddressChanged \+= OnNetworkAddressChanged/);
   assert.match(source, /_networkRefreshTimer\.Interval = 750/);
   assert.match(source, /_networkRefreshTimer\.Tick \+= RefreshNetworkAddresses/);
+  assert.match(source, /if \(HasSameAddresses\(updatedAddresses\)\) return false/);
+  assert.match(source, /if \(PopulateAddresses\(\)\) AppendLog\("Network addresses changed\."\)/);
+  assert.doesNotMatch(source, /AppendLog\("Network addresses updated\."\)/);
   assert.match(source, /NetworkChange\.NetworkAddressChanged -= OnNetworkAddressChanged/);
 });

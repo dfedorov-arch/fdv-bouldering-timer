@@ -14,22 +14,30 @@ test("macOS server keeps the proven wildcard listener used by working releases",
   assert.doesNotMatch(source, /\["127\.0\.0\.1", \.\.\.localNetworkAddresses\(\)\]/);
 });
 
-test("macOS launcher requests local-network access before waiting for server readiness", () => {
+test("macOS launcher does not initiate local-network discovery", () => {
   const source = fs.readFileSync(path.join(projectRoot, "launcher", "unix", "Program.cs"), "utf8");
   const buildSource = fs.readFileSync(path.join(projectRoot, "launcher", "unix", "build-launcher.sh"), "utf8");
-  const requestIndex = source.indexOf("_ = RequestLocalNetworkAccess();");
-  const processStartIndex = source.indexOf("_serverProcess.Start();");
-  const readinessIndex = source.indexOf("private async void CheckServerReady");
-  assert.ok(requestIndex >= 0);
-  assert.ok(requestIndex < processStartIndex);
-  assert.ok(requestIndex < readinessIndex);
-  assert.match(source, /DNSServiceBrowse/);
-  assert.match(source, /_fdv-bouldering-timer\._tcp/);
-  assert.match(source, /favicon\.ico\?launcher-local-network-probe=1/);
-  assert.match(source, /Server is running locally; local-network access is blocked/);
-  assert.match(source, /Privacy & Security > Local Network/);
-  assert.match(buildSource, /<key>NSBonjourServices<\/key>/);
-  assert.match(buildSource, /_fdv-bouldering-timer\._tcp/);
+  const releaseSource = fs.readFileSync(path.join(projectRoot, "scripts", "build-portable-releases.sh"), "utf8");
+  assert.doesNotMatch(source, /RequestLocalNetworkAccess/);
+  assert.doesNotMatch(source, /DNSServiceBrowse/);
+  assert.doesNotMatch(source, /launcher-local-network-probe/);
+  assert.doesNotMatch(source, /Privacy & Security > Local Network/);
+  assert.doesNotMatch(buildSource, /NSBonjourServices/);
+  assert.doesNotMatch(buildSource, /NSLocalNetworkUsageDescription/);
+  assert.doesNotMatch(releaseSource, /NSBonjourServices/);
+  assert.doesNotMatch(releaseSource, /NSLocalNetworkUsageDescription/);
+});
+
+test("launcher serializes and bounds local health probes", () => {
+  const source = fs.readFileSync(path.join(projectRoot, "launcher", "unix", "Program.cs"), "utf8");
+  assert.match(source, /if \(_allowClose \|\| _startupCheckInProgress\) return/);
+  assert.match(source, /if \(_allowClose \|\| !_ready \|\| _healthCheckInProgress\) return/);
+  assert.match(source, /if \(_startupAttempts >= MaximumStartupAttempts/);
+  assert.match(source, /_startupTimer\.Stop\(\)/);
+  assert.match(source, /CancellationTokenSource\.CreateLinkedTokenSource/);
+  assert.match(source, /CancelPendingProbes\(\)/);
+  assert.match(source, /UseProxy = false/);
+  assert.doesNotMatch(source, /using var client = new HttpClient/);
 });
 
 test("macOS launcher removes quarantine only from its bundled Node.js runtime", () => {
@@ -65,5 +73,8 @@ test("launcher reloads settings on restart and refreshes addresses on network ch
   assert.match(startServer, /PopulateAddresses\(\)/);
   assert.match(source, /NetworkChange\.NetworkAddressChanged \+= OnNetworkAddressChanged/);
   assert.match(source, /Interval = TimeSpan\.FromMilliseconds\(750\)/);
+  assert.match(source, /if \(HasSameAddresses\(updatedAddresses\)\) return false/);
+  assert.match(source, /if \(PopulateAddresses\(\)\) AppendLog\("Network addresses changed\."\)/);
+  assert.doesNotMatch(source, /AppendLog\("Network addresses updated\."\)/);
   assert.match(source, /NetworkChange\.NetworkAddressChanged -= OnNetworkAddressChanged/);
 });
