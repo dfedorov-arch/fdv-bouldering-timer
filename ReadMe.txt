@@ -20,27 +20,29 @@ FDV Bouldering Timer — локальный сетевой таймер для �
 --------------
 
 1. Распакуйте релиз полностью.
-2. Windows: запустите fdv-bouldering-timer.exe. macOS/Linux: используйте приложение или штатный скрипт запуска из своей папки.
+2. Windows: запустите fdv-bouldering-timer.exe. macOS/Linux: используйте приложение или штатный скрипт запуска из своей папки. Готовые установщики доступны в GitHub Releases и через Komi Store для Windows, macOS, Linux и Android.
 3. На серверном компьютере откройте http://127.0.0.1:8008/.
-4. Включите «Основной браузер» или нажмите Ctrl+M / Ctrl+Ь.
+4. Включите «Основной браузер» или нажмите Ctrl+M.
 5. На остальных устройствах откройте адрес Wi-Fi/Ethernet, показанный приложением запуска.
 6. Выберите формат и параметры. «Старт» запускает немедленно; маленькая кнопка ▶ у времени начала создаёт отложенный старт.
 
 Основные команды
 ----------------
 
-- Старт: Z / Я.
-- Пауза: Ctrl+Q / Ctrl+Й.
-- Стоп: P / З.
-- Полный экран основного браузера: Ctrl+F / Ctrl+А.
-- Назначение основного браузера: Ctrl+M / Ctrl+Ь.
+- Старт: Z.
+- Пауза: Ctrl+Q.
+- Стоп: P.
+- Полный экран основного браузера: Ctrl+F.
+- Назначение основного браузера: Ctrl+M.
+
+Горячие клавиши работают при английской и русской раскладке.
 
 На паузе основной браузер может перетаскивать полосу прогресса. Пока кнопка мыши или касание удерживаются, синхронизация с сервером не должна возвращать полосу назад.
 
 Стартовые списки
 ----------------
 
-Можно загрузить до четырёх стартовых списков из XLSX, XLS, CSV, TSV, TXT или MXL. В пользовательском интерфейсе они обозначаются LIST 1–4. Термин «протокол» остаётся только во внутренних именах совместимости и в значении HTTP/HTTPS.
+Можно загрузить до четырёх стартовых списков из XLSX, CSV, TSV, TXT или MXL. В пользовательском интерфейсе они обозначаются LIST 1–4. Термин «протокол» остаётся только во внутренних именах совместимости и в значении HTTP/HTTPS.
 
 - Таблицы показывают подготовку, лазание, завершение, паузы и остановки трасс.
 - Значения участников не сокращаются многоточием; при нехватке ширины используется горизонтальная прокрутка. Сокращаться может заголовок.
@@ -88,7 +90,12 @@ Legacy предназначен для старых ТВ-браузеров. О�
 Автономная версия
 -----------------
 
-fdv-bouldering-timer-standalone.html работает одним файлом без Node.js и сети, но не синхронизирует другие браузеры. Android APK с пометкой standalone — тот же одиночный автономный таймер: в нём нет сервера, сетевых экранов и синхронизации. Обычный index.html также может работать напрямую после генерации lib/offline-audio.js.
+fdv-bouldering-timer-standalone.html работает одним файлом без Node.js и сети, но не синхронизирует другие браузеры. Android APK FDV Bouldering Timer — тот же одиночный автономный таймер: в нём нет сервера, сетевых экранов и синхронизации. Komi Store устанавливает подходящий файл GitHub Release на Windows, macOS, Linux или Android.
+
+HTTP и HTTPS
+------------
+
+HTTP подходит для обычной локальной работы. HTTPS создаёт защищённый контекст: на поддерживаемых устройствах доступны Wake Lock (экран не гаснет), сервис-воркер для повторного открытия кэшированной страницы и современный API буфера обмена. Звук и полный экран всё равно требуют касания, а Wake Lock зависит от браузера и энергосбережения ОС. Создайте сертификат штатным скриптом, перезапустите сервер и откройте https://…:8443/. Самоподписанный сертификат нужно подтвердить на каждом устройстве и пересоздать после смены IP или компьютера.
 
 
 English
@@ -110,7 +117,7 @@ Quick start
 -----------
 
 1. Extract the complete release.
-2. Start fdv-bouldering-timer.exe on Windows or the supplied app/script on macOS or Linux.
+2. Start fdv-bouldering-timer.exe on Windows or the supplied app/script on macOS or Linux. Ready installers are available in GitHub Releases and through Komi Store for Windows, macOS, Linux, and Android.
 3. Open http://127.0.0.1:8008/ on the server computer.
 4. Enable Primary browser or press Ctrl+M.
 5. Open the Wi-Fi/Ethernet address shown by the launcher on each display.
@@ -121,7 +128,7 @@ Keys: Z Start, Ctrl+Q Pause, P Stop, Ctrl+F fullscreen, Ctrl+M primary browser. 
 Start lists
 -----------
 
-Load up to four lists from XLSX, XLS, CSV, TSV, TXT, or MXL. The user interface calls them LIST 1–4; old “protocol” names remain only in internal compatibility identifiers and the HTTP/HTTPS meaning.
+Load up to four lists from XLSX, CSV, TSV, TXT, or MXL. The user interface calls them LIST 1–4; old “protocol” names remain only in internal compatibility identifiers and the HTTP/HTTPS meaning.
 
 Participant cells are never ellipsized. Each display selects its own visible LIST badges. With exactly two visible lists, a cyan button switches one or two columns; an orange outline marks a non-default layout. Route incidents can suspend and resume a route at a current or future cycle, and participants or routes can be excluded and restored.
 
@@ -150,4 +157,9 @@ Primary and remote-display sound are controlled separately. A tap is required to
 
 Startup values, ports, colors, timer font, and sound profile are read from params.txt. The complete bilingual guide is help.html; the documentation map is docs/documentation-map.md.
 
-fdv-bouldering-timer-standalone.html is a one-file offline timer without multi-browser synchronization. The Android APK marked standalone is the same single-device timer: it has no server, LAN displays, or synchronization.
+fdv-bouldering-timer-standalone.html is a one-file offline timer without multi-browser synchronization. The Android APK, FDV Bouldering Timer, is the same single-device timer: it has no server, LAN displays, or synchronization. Komi Store installs the matching GitHub Release asset on Windows, macOS, Linux, or Android.
+
+HTTP and HTTPS
+--------------
+
+HTTP is sufficient for ordinary local use. HTTPS creates a secure context: supported devices can use Wake Lock to keep the display awake, a service worker can reopen a cached page without internet, and the modern clipboard API can copy links. Sound and fullscreen still need a user gesture, and Wake Lock depends on browser and OS power-saving policy. Create a certificate with the supplied platform script, restart the server, and open https://…:8443/. Accept the self-signed certificate on every device and recreate it after changing the server computer or LAN IP.
