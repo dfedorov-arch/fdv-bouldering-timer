@@ -39,6 +39,8 @@ HTTP достаточно для обычной локальной работы.
 
 ## Стартовые списки
 
+За цикл до возобновления трассы значки этой паузы исчезают, а участники следующего выхода видят жёлтые треугольники подготовки.
+
 Переключатель **Стартовые списки** открывает область таблиц. Кнопка `+` добавляет до четырёх независимых списков. Для двух списков можно выбрать одну или две колонки. Каждый удалённый экран может показывать свой набор и свою раскладку.
 
 Таблица показывает расчётное продвижение участников и не управляет временем таймера. При планировании паузы трассы на будущий цикл флажок после номера цикла позволяет удержать всю связанную волну; его можно снять, чтобы сохранить прежнее продвижение участников на предыдущих трассах. Подробно о формате файлов, маркерах, инцидентах трасс и автопрокрутке см. в [полном руководстве](help.html#start-lists).
@@ -115,6 +117,8 @@ HTTP is sufficient for ordinary local use. HTTPS gives supported browsers a secu
 Create a certificate with the supplied platform script, restart the server, and open `https://…:8443/`. The local certificate is self-signed, so accept it on every display. Recreate it after changing the server computer or its LAN IP.
 
 ### Start lists
+
+One cycle before a route resumes, markers for that pause disappear and participants starting next see yellow preparation triangles.
 
 Enable **Start lists** to open the table area. Add up to four independent lists. When exactly two lists are open, choose a stacked or parallel layout. Every remote screen may show a different list subset and may override the two-list layout.
 

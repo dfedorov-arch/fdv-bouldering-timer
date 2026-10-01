@@ -18,6 +18,8 @@ Release installers are assembled by `.github/workflows/release.yml`: MSI for Win
 
 Current application screenshots belong in `help-assets/`. A screenshot that shows removed controls, obsolete terminology, or the old diagnostic order must not be referenced; use a neutral layout until a current-build capture is available. Launcher icons and launcher-window images are replaced only when those launchers change.
 
+`help-assets/route-resume-preparation.png` shows the held wave preparing at cycle 17 before route 2 resumes at cycle 18; it is captured by the isolated modern route-resumption visual test.
+
 ## Website documentation
 
 | File | Purpose |

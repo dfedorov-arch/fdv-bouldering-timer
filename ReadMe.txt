@@ -49,6 +49,7 @@ FDV Bouldering Timer — локальный сетевой таймер для �
 - Для каждого экрана отдельно выбираются видимые LIST.
 - Если выбраны ровно два списка, голубая кнопка переключает одну или две колонки. Оранжевый контур означает раскладку, отличающуюся от стандартной.
 - Трассу можно приостановить и возобновить с текущего или будущего цикла. Запланированные границы сразу показываются в тексте инцидента и таблице.
+- За цикл до возобновления значки этой паузы исчезают; участники, выходящие в следующем цикле, видят жёлтые треугольники подготовки.
 - При выборе будущего цикла автоматически включается флажок «Остановить всю волну с этого цикла»: участники связанной волны не выходят и на предыдущие трассы. Оператор может снять флажок; для текущего или прошедшего цикла он по умолчанию выключен.
 - Участников и трассы можно исключать и восстанавливать.
 
@@ -128,6 +129,8 @@ Keys: Z Start, Ctrl+Q Pause, P Stop, Ctrl+F fullscreen, Ctrl+M primary browser. 
 
 Start lists
 -----------
+
+One cycle before a route resumes, markers for that pause disappear and participants starting in the next cycle see yellow preparation triangles.
 
 Load up to four lists from XLSX, CSV, TSV, TXT, or MXL. The user interface calls them LIST 1–4; old “protocol” names remain only in internal compatibility identifiers and the HTTP/HTTPS meaning.
 
