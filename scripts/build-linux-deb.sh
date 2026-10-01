@@ -22,6 +22,7 @@ trap cleanup EXIT
 
 mkdir -p "$ROOT/opt/fdv-bouldering-timer" "$ROOT/usr/share/applications"
 cp -R "$PACKAGE_DIR"/. "$ROOT/opt/fdv-bouldering-timer/"
+cp "$(dirname "$0")/../installer/common/fdv-installed.marker" "$ROOT/opt/fdv-bouldering-timer/"
 mkdir -p "$ROOT/DEBIAN"
 cat > "$ROOT/DEBIAN/control" <<EOF
 Package: fdv-bouldering-timer

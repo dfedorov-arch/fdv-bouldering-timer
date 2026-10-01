@@ -12,15 +12,17 @@ const {
 } = require("./lib/timer-domain");
 const { createTimerTransitions } = require("./lib/timer-transitions");
 const startListDomain = require("./lib/start-list");
+const { runtimeStateStoragePlan, prepareRuntimeStateStorage } = require("./lib/runtime-state-storage");
 
 const root = __dirname;
 const paramsPath = path.join(root, "params.txt");
-const runtimeStateDir = path.join(root, "runtime-state");
-const runtimeStatePath = path.join(runtimeStateDir, "timer-state.json");
+let runtimeStateDir = path.join(root, "runtime-state");
+let runtimeStatePath = path.join(runtimeStateDir, "timer-state.json");
+const legacyRuntimeStatePath = runtimeStatePath;
 const beepsPath = path.join(root, "beeps");
 const fontsPath = path.join(root, "fonts");
 const offlineAudioPath = path.join(root, "lib", "offline-audio.js");
-const BUILD_NUMBER = 392;
+const BUILD_NUMBER = 393;
 const serverInstanceId = crypto.randomUUID();
 const SNAPSHOT_SCHEMA_VERSION = 1;
 const SNAPSHOT_MAX_AGE_MS = 12 * 60 * 60 * 1000;
@@ -874,9 +876,10 @@ function assignTimerState(source = {}) {
 }
 
 function restoreTimerSnapshot() {
-  if (!fs.existsSync(runtimeStatePath)) return false;
+  const restorePath = fs.existsSync(runtimeStatePath) ? runtimeStatePath : legacyRuntimeStatePath;
+  if (!fs.existsSync(restorePath)) return false;
   try {
-    const snapshot = JSON.parse(fs.readFileSync(runtimeStatePath, "utf8"));
+    const snapshot = JSON.parse(fs.readFileSync(restorePath, "utf8"));
     if (!snapshot || snapshot.schemaVersion !== SNAPSHOT_SCHEMA_VERSION || !snapshot.timerState) return false;
     const savedAtWall = Number(snapshot.savedAtWall);
     const now = wallNow();
@@ -986,7 +989,7 @@ function restoreTimerSnapshot() {
     }
 
     timerState.version = Math.max(1, numberOrDefault(timerState.version, 1)) + 1;
-    console.log("Timer state restored from runtime-state/timer-state.json");
+    console.log(`Timer state restored from ${restorePath}`);
     return true;
   } catch (error) {
     console.warn(`Timer state snapshot was not restored: ${error.message}`);
@@ -2240,6 +2243,15 @@ function handleRequest(req, res) {
   });
 }
 
+let runtimeStorage = runtimeStateStoragePlan(root);
+try {
+  runtimeStorage = prepareRuntimeStateStorage(runtimeStorage);
+} catch (error) {
+  console.warn(`Timer state directory is not writable: ${error.message}`);
+}
+runtimeStateDir = runtimeStorage.directory;
+runtimeStatePath = path.join(runtimeStateDir, "timer-state.json");
+console.log(`Timer state directory: ${runtimeStateDir}${runtimeStorage.usedFallback ? " (application directory is not writable)" : ""}`);
 const restoredFromSnapshot = restoreTimerSnapshot();
 if (restoredFromSnapshot) {
   finalizeScheduledCountdown();

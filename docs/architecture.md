@@ -81,7 +81,9 @@ The ordinary mode keeps only a compact audio-clock progress measurement. Extende
 
 ## Persistence
 
-Server state is written atomically to `runtime-state/timer-state.json` through a temporary file. Browser offline snapshots use compact change keys and a five-second safety checkpoint instead of serializing complete moving state on every render. Start-list data is revisioned and not embedded repeatedly when unchanged.
+Server state is written atomically to `timer-state.json` through a temporary file. `lib/runtime-state-storage.js` chooses the location: portable packages keep `runtime-state/` beside the server; MSI, PKG, and DEB install `fdv-installed.marker` and select per-user state storage. Windows uses `%LOCALAPPDATA%/FDV Bouldering Timer/runtime-state`, macOS uses `~/Library/Application Support/FDV Bouldering Timer/runtime-state`, and Linux uses `${XDG_STATE_HOME:-~/.local/state}/fdv-bouldering-timer/runtime-state` (relative XDG paths are ignored). A one-time startup write probe also handles old unmarked installations: only `EACCES`, `EPERM`, or `EROFS` in the portable directory trigger fallback to the per-user directory. The selected directory is logged by the server and therefore visible in the launcher. No recurring directory probes are added.
+
+If the selected snapshot does not exist, startup may restore the previous snapshot beside the application and then save it in the selected directory. The old file is retained. Once a new snapshot exists it takes precedence; invalid or expired new state must not fall back to an obsolete old file. Browser offline snapshots use compact change keys and a five-second safety checkpoint instead of serializing complete moving state on every render. Start-list data is revisioned and not embedded repeatedly when unchanged.
 
 Schema changes require a version migration or explicit safe fallback. Integration tests cover active, paused, scheduled, Final, and restart recovery paths.
 

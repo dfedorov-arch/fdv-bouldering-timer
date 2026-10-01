@@ -134,6 +134,63 @@ async function stopServer(child) {
   });
 }
 
+test("installed server migrates a portable snapshot and saves subsequent state per user", { timeout: 20000 }, async (t) => {
+  const fixture = fs.mkdtempSync(path.join(os.tmpdir(), "fdv-installed-state-"));
+  copyFixture(fixture);
+  const userHome = path.join(fixture, "operator-home");
+  const port = await freePort();
+  const httpsPort = await freePort();
+  const output = [];
+  const environment = { ...process.env, HOST: "127.0.0.1", PORT: String(port), HTTPS_PORT: String(httpsPort),
+    LOCALAPPDATA: path.join(userHome, "AppData", "Local"), HOME: userHome, USERPROFILE: userHome,
+    XDG_STATE_HOME: path.join(userHome, "state") };
+  const spawnServer = () => {
+    const child = spawn(process.execPath, [path.join(fixture, "serve-bouldering-timer.js")], {
+      cwd: fixture, env: environment, stdio: ["ignore", "pipe", "pipe"]
+    });
+    child.stdout.on("data", (chunk) => output.push(chunk.toString()));
+    child.stderr.on("data", (chunk) => output.push(chunk.toString()));
+    return child;
+  };
+  let child = spawnServer();
+  t.after(async () => {
+    await stopServer(child);
+    fs.rmSync(fixture, { recursive: true, force: true });
+  });
+  const baseUrl = `http://127.0.0.1:${port}`;
+  await waitForServer(baseUrl, child, output);
+  await postAction(baseUrl, { type: "startLists", startLists: [{ headers: ["#", "Name"],
+    rows: [["1", "Participant"]], routeCount: 2,
+    incidents: [{ kind: "pause", route: 2, startCycle: 17, resumeCycle: 18, participantIndex: 0, resolution: "resume" }] }] });
+  await postAction(baseUrl, { type: "seek", elapsed: 5040 });
+  await stopServer(child);
+  const legacyPath = path.join(fixture, "runtime-state", "timer-state.json");
+  const originalSnapshot = fs.readFileSync(legacyPath, "utf8");
+  fs.copyFileSync(path.join(projectRoot, "installer", "common", "fdv-installed.marker"), path.join(fixture, "fdv-installed.marker"));
+  child = spawnServer();
+  const migrated = await waitForServer(baseUrl, child, output);
+  assert.equal(migrated.elapsedBeforePause, 5040);
+  assert.equal(migrated.startLists[0].incidents[0].resumeCycle, 18);
+  const { runtimeStateStoragePlan } = require("../lib/runtime-state-storage");
+  const newPath = path.join(runtimeStateStoragePlan(fixture, { environment, homeDirectory: userHome }).directory, "timer-state.json");
+  assert.ok(fs.existsSync(newPath));
+  await postAction(baseUrl, { type: "seek", elapsed: 5355 });
+  await stopServer(child);
+  assert.equal(JSON.parse(fs.readFileSync(newPath, "utf8")).timerState.elapsedBeforePause, 5355);
+  assert.equal(fs.readFileSync(legacyPath, "utf8"), originalSnapshot);
+  child = spawnServer();
+  const restored = await waitForServer(baseUrl, child, output);
+  assert.equal(restored.elapsedBeforePause, 5355);
+  assert.equal(restored.startLists[0].incidents[0].startCycle, 17);
+  assert.doesNotMatch(output.join(""), /snapshot was not saved|directory is not writable/);
+  await stopServer(child);
+  fs.writeFileSync(newPath, "{}\n");
+  child = spawnServer();
+  const invalidNewSnapshot = await waitForServer(baseUrl, child, output);
+  assert.equal(invalidNewSnapshot.elapsedBeforePause, 0);
+  assert.equal(invalidNewSnapshot.startLists[0], null);
+});
+
 test("production server validates settings, rejects stale commands, and deduplicates retries", { timeout: 20000 }, async (t) => {
   const fixture = fs.mkdtempSync(path.join(os.tmpdir(), "fdv-timer-test-"));
   copyFixture(fixture);

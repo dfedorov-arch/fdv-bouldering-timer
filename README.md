@@ -31,6 +31,10 @@
 
 Все экраны должны находиться в одной локальной сети. Перед соревнованием проверьте каждый физический экран, звук и поведение при отключении Wi-Fi.
 
+## Сохранение состояния
+
+Состояние установленной версии сохраняется в пользовательском каталоге (Windows: `%LOCALAPPDATA%\FDV Bouldering Timer\runtime-state`); portable-версия сохраняет его рядом с таймером. Если каталог portable-версии закрыт для записи, сервер автоматически использует пользовательский каталог. Путь виден в журнале лаунчера.
+
 ## HTTP и HTTPS
 
 HTTP достаточно для обычной локальной работы. HTTPS с сертификатом таймера создаёт для браузера защищённый контекст: на поддерживаемых телефонах и планшетах становится доступен **Wake Lock** (экран не гаснет во время работы), сервис-воркер может сохранить страницу для повторного открытия без интернета, а современный API буфера обмена позволяет надёжнее копировать адреса. Полноэкранный режим и звук всё равно требуют пользовательского касания, а Wake Lock зависит также от браузера и настроек энергосбережения ОС.
@@ -109,6 +113,10 @@ A network-synchronized timer for bouldering competitions. One browser controls t
 4. Enable **Primary browser**, select the format, and verify sound and every physical display before the event.
 
 All devices must be on the same local network. See the [full guide](help.html?lang=en) for list imports, diagnostics, Legacy behavior, offline recovery, HTTPS, and troubleshooting.
+
+### State storage
+
+Installed packages save state in a per-user directory (Windows: `%LOCALAPPDATA%\FDV Bouldering Timer\runtime-state`); portable packages keep it beside the timer. If the portable directory is read-only, the server falls back to per-user storage. The launcher log shows the selected path.
 
 ### HTTP and HTTPS
 

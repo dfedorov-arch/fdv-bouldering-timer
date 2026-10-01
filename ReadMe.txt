@@ -53,6 +53,11 @@ FDV Bouldering Timer — локальный сетевой таймер для �
 - При выборе будущего цикла автоматически включается флажок «Остановить всю волну с этого цикла»: участники связанной волны не выходят и на предыдущие трассы. Оператор может снять флажок; для текущего или прошедшего цикла он по умолчанию выключен.
 - Участников и трассы можно исключать и восстанавливать.
 
+Сохранение состояния
+--------------------
+
+Установленная версия сохраняет состояние в пользовательском каталоге: Windows — %LOCALAPPDATA%\FDV Bouldering Timer\runtime-state; macOS — ~/Library/Application Support/FDV Bouldering Timer/runtime-state; Linux — ~/.local/state/fdv-bouldering-timer/runtime-state (или каталог XDG_STATE_HOME). Portable-версия сохраняет состояние рядом с таймером; если запись запрещена, используется пользовательский каталог. Выбранный путь показывается в журнале лаунчера.
+
 Экраны и диагностика
 --------------------
 
@@ -126,6 +131,11 @@ Quick start
 6. Select a format and durations. Start runs immediately; the small ▶ beside Start time creates a scheduled start.
 
 Keys: Z Start, Ctrl+Q Pause, P Stop, Ctrl+F fullscreen, Ctrl+M primary browser. While paused, the primary browser can drag the progress bar; server synchronization does not take control while the pointer is held.
+
+State storage
+-------------
+
+Installed packages save state per user: Windows — %LOCALAPPDATA%\FDV Bouldering Timer\runtime-state; macOS — ~/Library/Application Support/FDV Bouldering Timer/runtime-state; Linux — ~/.local/state/fdv-bouldering-timer/runtime-state (or XDG_STATE_HOME). Portable packages keep state beside the timer, with a per-user fallback if writing there is denied. The launcher log shows the selected directory.
 
 Start lists
 -----------

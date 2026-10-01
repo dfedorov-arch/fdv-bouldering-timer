@@ -150,6 +150,7 @@ jobs:
           mkdir -p package pkg-root/Applications
           tar -xzf "dist/fdv-bouldering-timer-${GITHUB_REF_NAME}-macos-${{ matrix.arch }}.tar.gz" -C package
           cp -R "package/fdv-bouldering-timer-${GITHUB_REF_NAME}-macos-${{ matrix.arch }}" "pkg-root/Applications/FDV Bouldering Timer"
+          cp installer/common/fdv-installed.marker "pkg-root/Applications/FDV Bouldering Timer/"
           pkgbuild --root pkg-root --identifier ru.fdv.boulderingtimer --version "${GITHUB_REF_NAME#v}" --install-location / "dist/fdv-bouldering-timer-${GITHUB_REF_NAME}-macos-${{ matrix.arch }}.pkg"
       - uses: actions/upload-artifact@v4
         with:

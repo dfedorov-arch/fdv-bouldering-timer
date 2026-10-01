@@ -52,6 +52,8 @@ if (uniqueBuilds.size !== 1) {
   "lib/vendor/SHEETJS-LICENSE.txt",
   "lib/timer-domain.js",
   "lib/timer-transitions.js",
+  "lib/runtime-state-storage.js",
+  "installer/common/fdv-installed.marker",
   "beeps",
   "fonts",
   "help-assets"

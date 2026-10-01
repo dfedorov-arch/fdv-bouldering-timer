@@ -21,6 +21,10 @@
     <CustomAction Id="LaunchTimer" Directory="INSTALLFOLDER"
                   ExeCommand="fdv-bouldering-timer.exe" Execute="immediate"
                   Return="asyncNoWait" Impersonate="yes" />
+    <Component Id="InstalledPackageMarker" Directory="INSTALLFOLDER" Guid="*">
+      <File Id="InstalledMarkerFile" Source="$(sys.SOURCEFILEDIR)..\common\fdv-installed.marker"
+            Name="fdv-installed.marker" KeyPath="yes" />
+    </Component>
     <Component Id="StartMenuShortcut" Directory="FDVStartMenuFolder" Guid="*"
                Condition="CREATE_START_MENU_SHORTCUT">
       <Shortcut Id="StartTimer" Name="FDV Bouldering Timer"
@@ -72,6 +76,7 @@
       <ComponentGroupRef Id="PayloadComponents" />
       <ComponentRef Id="StartMenuShortcut" />
       <ComponentRef Id="DesktopShortcut" />
+      <ComponentRef Id="InstalledPackageMarker" />
     </Feature>
   </Package>
 </Wix>
