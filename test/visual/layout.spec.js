@@ -12,9 +12,11 @@ const {
 } = require("./helpers");
 
 let server;
+let initialState;
 
 test.beforeAll(async () => {
   server = await startLayoutServer();
+  initialState = await (await fetch(`${server.baseUrl}/api/state`)).json();
 });
 
 test.afterAll(async () => {
@@ -22,6 +24,17 @@ test.afterAll(async () => {
 });
 
 test.beforeEach(async () => {
+  // Format-specific tests must not leave Festival or different timing behind.
+  await action(server.baseUrl, "primary", { primaryClientId: "performance-baseline" });
+  await action(server.baseUrl, "settings", {
+    activePreset: initialState.activePreset,
+    settings: initialState.draftSettings
+  });
+  await action(server.baseUrl, "reset", {
+    activePreset: initialState.runtimePreset,
+    settings: initialState.activeSettings
+  });
+  await action(server.baseUrl, "startListEnabled", { enabled: initialState.startListEnabled });
   await stabilizeTimer(server.baseUrl);
 });
 
