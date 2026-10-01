@@ -12,9 +12,11 @@ const {
 } = require("./helpers");
 
 let server;
+let initialState;
 
 test.beforeAll(async () => {
   server = await startLayoutServer();
+  initialState = await (await fetch(`${server.baseUrl}/api/state`)).json();
 });
 
 test.afterAll(async () => {
@@ -22,8 +24,62 @@ test.afterAll(async () => {
 });
 
 test.beforeEach(async () => {
+  // Format-specific tests must not leave Festival or different timing behind.
+  await action(server.baseUrl, "primary", { primaryClientId: "performance-baseline" });
+  await action(server.baseUrl, "settings", {
+    activePreset: initialState.activePreset,
+    settings: initialState.draftSettings
+  });
+  await action(server.baseUrl, "reset", {
+    activePreset: initialState.runtimePreset,
+    settings: initialState.activeSettings
+  });
+  await action(server.baseUrl, "startListEnabled", { enabled: initialState.startListEnabled });
   await stabilizeTimer(server.baseUrl);
 });
+
+for (const modern of [true, false]) {
+  test(`${modern ? "Modern" : "Legacy"} prepares the paused wave one cycle before route resumption`, async ({ browser }, testInfo) => {
+    const previous = await (await fetch(`${server.baseUrl}/api/state`)).json();
+    const list = {
+      headers: ["#", "ФИО"],
+      rows: Array.from({ length: 32 }, (_, index) => [String(index + 1),
+        index === 14 ? "Печенин Ярослав" : index === 16 ? "Назин Вадим" : `Участник ${index + 1}`]),
+      routeCount: 5,
+      incidents: [{ kind: "pause", route: 2, startCycle: 17, resumeCycle: 18,
+        participantIndex: 14, resolution: "resume", blocksStartCycleWave: true }]
+    };
+    let opened;
+    try {
+      await action(server.baseUrl, "reset");
+      await action(server.baseUrl, "settings", { activePreset: "classic",
+        settings: { rotationMinutes: 5, breakSeconds: 15 } });
+      await action(server.baseUrl, "start");
+      await action(server.baseUrl, "startLists", { startLists: [list] });
+      await stabilizeTimer(server.baseUrl, 15 * 315);
+      const open = modern ? openModern : openLegacy;
+      opened = await open(browser, server.baseUrl, `visual-resume-${modern}`, { width: 1280, height: 900 }, [0]);
+      const table = opened.page.locator(modern ? ".start-list-table" : ".protocol-table");
+      const row = (index) => table.locator("tbody tr").nth(index);
+      const marker = (index, route, status) => row(index).locator("td").nth(2 + route).locator(`.route-marker.${status}`);
+      await expect(marker(14, 1, "paused")).toHaveCount(1);
+      await expect(marker(16, 0, "paused")).toHaveCount(1);
+      await stabilizeTimer(server.baseUrl, 16 * 315);
+      await expect(marker(14, 1, "ready")).toBeVisible();
+      await expect(marker(16, 0, "ready")).toBeVisible();
+      await expect(table.locator(".route-marker.paused")).toHaveCount(0);
+      const screenshot = testInfo.outputPath(`route-resume-${modern ? "modern" : "legacy"}.png`);
+      await opened.page.screenshot({ path: screenshot });
+      await testInfo.attach("Preparation before route resumption", { path: screenshot, contentType: "image/png" });
+      await stabilizeTimer(server.baseUrl, 17 * 315);
+      await expect(marker(14, 1, "active")).toHaveCount(1);
+      await expect(marker(16, 0, "active")).toHaveCount(1);
+    } finally {
+      await opened?.context.close();
+      await action(server.baseUrl, "startLists", { startLists: previous.startLists });
+    }
+  });
+}
 
 test("Festival hides the unavailable start-list switch", async ({ browser }) => {
   await action(server.baseUrl, "reset");

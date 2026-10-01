@@ -49,8 +49,14 @@ FDV Bouldering Timer — локальный сетевой таймер для �
 - Для каждого экрана отдельно выбираются видимые LIST.
 - Если выбраны ровно два списка, голубая кнопка переключает одну или две колонки. Оранжевый контур означает раскладку, отличающуюся от стандартной.
 - Трассу можно приостановить и возобновить с текущего или будущего цикла. Запланированные границы сразу показываются в тексте инцидента и таблице.
+- За цикл до возобновления значки этой паузы исчезают; участники, выходящие в следующем цикле, видят жёлтые треугольники подготовки.
 - При выборе будущего цикла автоматически включается флажок «Остановить всю волну с этого цикла»: участники связанной волны не выходят и на предыдущие трассы. Оператор может снять флажок; для текущего или прошедшего цикла он по умолчанию выключен.
 - Участников и трассы можно исключать и восстанавливать.
+
+Сохранение состояния
+--------------------
+
+Установленная версия сохраняет состояние в пользовательском каталоге: Windows — %LOCALAPPDATA%\FDV Bouldering Timer\runtime-state; macOS — ~/Library/Application Support/FDV Bouldering Timer/runtime-state; Linux — ~/.local/state/fdv-bouldering-timer/runtime-state (или каталог XDG_STATE_HOME). Portable-версия сохраняет состояние рядом с таймером; если запись запрещена, используется пользовательский каталог. Выбранный путь показывается в журнале лаунчера.
 
 Экраны и диагностика
 --------------------
@@ -126,8 +132,15 @@ Quick start
 
 Keys: Z Start, Ctrl+Q Pause, P Stop, Ctrl+F fullscreen, Ctrl+M primary browser. While paused, the primary browser can drag the progress bar; server synchronization does not take control while the pointer is held.
 
+State storage
+-------------
+
+Installed packages save state per user: Windows — %LOCALAPPDATA%\FDV Bouldering Timer\runtime-state; macOS — ~/Library/Application Support/FDV Bouldering Timer/runtime-state; Linux — ~/.local/state/fdv-bouldering-timer/runtime-state (or XDG_STATE_HOME). Portable packages keep state beside the timer, with a per-user fallback if writing there is denied. The launcher log shows the selected directory.
+
 Start lists
 -----------
+
+One cycle before a route resumes, markers for that pause disappear and participants starting in the next cycle see yellow preparation triangles.
 
 Load up to four lists from XLSX, CSV, TSV, TXT, or MXL. The user interface calls them LIST 1–4; old “protocol” names remain only in internal compatibility identifiers and the HTTP/HTTPS meaning.
 

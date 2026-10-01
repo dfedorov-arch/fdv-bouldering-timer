@@ -4,6 +4,8 @@ FDV Bouldering Timer for macOS
 Русский
 -------
 
+Установленная через PKG версия сохраняет состояние в ~/Library/Application Support/FDV Bouldering Timer/runtime-state. Portable-версия использует runtime-state рядом с программой; если запись запрещена, сервер выбирает пользовательский каталог. Выбранный путь виден в журнале лаунчера.
+
 1. Распакуйте архив целиком.
 2. Запустите FDV Bouldering Timer.app или файл fdv-bouldering-timer рядом с ним.
 3. Приложение сервера покажет локальный и сетевые адреса, запустит сервер и откроет браузер.
@@ -32,6 +34,8 @@ Node.js уже включён в runtime/mac/bin/node. Порты и настр�
 
 English
 -------
+
+The PKG installation saves state in ~/Library/Application Support/FDV Bouldering Timer/runtime-state. Portable packages use runtime-state beside the application, with a per-user fallback if writing there is denied. The launcher log shows the selected directory.
 
 1. Extract the complete archive.
 2. Run FDV Bouldering Timer.app or the adjacent fdv-bouldering-timer file.

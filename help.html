@@ -969,10 +969,11 @@
           <li>Текущий участник, подготовка, отдых и результаты трасс подсвечиваются автоматически по циклу и выбранному формату.</li>
           <li>Кнопка возле номера трассы открывает управление инцидентами: трассу можно приостановить и возобновить с выбранного, в том числе будущего, цикла.</li>
           <li>Флажок после номера цикла имеет подсказку «Остановить всю волну с этого цикла». Для будущего цикла он включается автоматически и удерживает участников связанной волны также на предыдущих трассах. Флажок можно снять вручную; для текущего или прошедшего цикла он по умолчанию выключен, поэтому уже вышедший участник может закончить попытку.</li>
-          <li>Запланированные границы инцидента сразу показываются в описании и маркерами в таблице; они не исчезают до наступления выбранного цикла.</li>
+          <li>Запланированные границы инцидента сразу показываются в описании и маркерами в таблице. За один цикл до возобновления значки этой паузы исчезают: участники, выходящие в следующем цикле, видят жёлтые треугольники подготовки.</li>
           <li>Участника или трассу можно исключить и позже восстановить. Подтверждения явно указывают, какой список изменяется.</li>
           <li>На экранах таблицы доступны только для просмотра, прокручиваются автоматически и продолжают локально обновляться при краткой потере связи.</li>
         </ul>
+        <figure><img src="help-assets/route-resume-preparation.png" alt="Цикл 17 перед возобновлением трассы 2: Печенин и Назин отмечены жёлтыми треугольниками подготовки, значков паузы в строках нет"><figcaption>Трасса 2 возобновляется с цикла 18: уже в цикле 17 Печенин и Назин видят подготовку к выходу.</figcaption></figure>
         <p class="note">Два списка можно разместить в параллельных колонках или один под другим; раскладка переопределяется отдельно для каждого экрана.</p>
         <a class="back-to-toc" href="#contents">↑ К оглавлению</a>
       </section>
@@ -1132,7 +1133,8 @@
           <li>portable Node.js, если используется путь из <code>params.txt</code></li>
           <li>или один файл <code>fdv-bouldering-timer-standalone.html</code>, если нужен только автономный таймер без сервера</li>
         </ul>
-        <p>Сертификаты можно перенести, но после смены компьютера или сетевого IP надёжнее создать их заново. Текущее состояние и прошедшее время хранятся в памяти сервера и после его остановки не переносятся.</p>
+        <p>Сертификаты можно перенести, но после смены компьютера или сетевого IP надёжнее создать их заново. Сохранённое состояние portable-версии находится в каталоге <code>runtime-state</code> рядом с таймером. Установленная версия хранит его отдельно: Windows — <code>%LOCALAPPDATA%\FDV Bouldering Timer\runtime-state</code>, macOS — <code>~/Library/Application Support/FDV Bouldering Timer/runtime-state</code>, Linux — <code>~/.local/state/fdv-bouldering-timer/runtime-state</code> (или в каталоге <code>XDG_STATE_HOME</code>). При переносе установленного таймера этот каталог копируется отдельно, если нужно сохранить состояние.</p>
+        <p class="note">Если запись рядом с программой запрещена, сервер автоматически выбирает пользовательский каталог — это также поддерживает старые установки в Program Files. Выбранный путь показывается в журнале лаунчера. Старое сохранение переносится при первом запуске, если в новом каталоге ещё нет сохранения; восстановление возможно для сохранений не старше 12 часов.</p>
 
         <h3>8.2. Node.js</h3>
         <p>Используйте актуальную LTS-версию Node.js. Все варианты загрузки доступны на <a href="https://nodejs.org/en/download">официальной странице Node.js</a>. Есть два варианта:</p>
@@ -1504,10 +1506,11 @@ xattr -dr com.apple.quarantine "/полный/путь/к/fdv-bouldering-timer-m
           <li>Climbing, preparation, rest, and route-result markers follow the current cycle and competition format automatically.</li>
           <li>The route control opens incident management. A route can be suspended and restored from a selected current or future cycle.</li>
           <li>The checkbox after the cycle number is labelled “Hold the entire wave from this cycle”. It turns on automatically for a future cycle and also holds the related participants on upstream routes. The operator may clear it; for a current or past cycle it defaults off so a participant who has already started may finish.</li>
-          <li>Both planned incident boundaries are shown immediately in the description and table markers.</li>
+          <li>Both planned incident boundaries are shown immediately in the description and table markers. One cycle before resumption, markers for that pause disappear and participants starting in the next cycle see yellow preparation triangles.</li>
           <li>Participants and routes can be excluded and restored; confirmations identify the affected list.</li>
           <li>Display tables are read-only, auto-scroll, and continue local updates through a short network interruption.</li>
         </ul>
+        <figure><img src="help-assets/route-resume-preparation.png" alt="Cycle 17 before route 2 resumes: Pechenin and Nazin have yellow preparation triangles and participant pause markers are cleared"><figcaption>Route 2 resumes at cycle 18: Pechenin and Nazin see preparation markers as early as cycle 17.</figcaption></figure>
         <p class="note">Two lists can use parallel columns or a stacked layout; the choice can be overridden independently for each display.</p>
         <a class="back-to-toc" href="#en-contents">↑ Back to contents</a>
       </section>
@@ -1610,6 +1613,8 @@ xattr -dr com.apple.quarantine "/полный/путь/к/fdv-bouldering-timer-m
         <p class="success">Ready-to-use installers and portable packages are published in <a href="https://github.com/dfedorov-arch/fdv-bouldering-timer/releases">GitHub Releases</a>: MSI for Windows, PKG for macOS, DEB for Debian/Ubuntu Linux, and a standalone APK for Android. For single-browser offline use on any OS, use the single-file <code>fdv-bouldering-timer-standalone.html</code> or open the <a href="https://dfedorov-arch.github.io/fdv-bouldering-timer/">GitHub Pages standalone version</a>. It works on every OS, including iPhone and Android; on those devices it can be saved to the home screen as a web app.</p>
         <p><strong>Komi Store:</strong> FDV Bouldering Timer can also be found and installed through <a href="https://komistore.app/">Komi Store</a> on Windows, macOS, Linux, and Android. The store selects the matching GitHub Release asset. On Android that asset is the standalone APK, not the network server.</p>
         <h3>8.1. Files to copy</h3>
+        <p>Portable packages keep saved state in <code>runtime-state</code> beside the timer. Installed packages store it separately: Windows — <code>%LOCALAPPDATA%\FDV Bouldering Timer\runtime-state</code>, macOS — <code>~/Library/Application Support/FDV Bouldering Timer/runtime-state</code>, Linux — <code>~/.local/state/fdv-bouldering-timer/runtime-state</code> (or under <code>XDG_STATE_HOME</code>). Copy that directory separately if state needs to move with an installed timer.</p>
+        <p class="note">If writing beside the application is denied, the server automatically uses per-user storage, including for older Program Files installations. The launcher log shows the selected path. The old snapshot is imported only when no new snapshot exists; snapshots older than 12 hours are not restored.</p>
         <p>The easiest option is to download the current installer: it already includes everything needed for the operating system. If that is not possible, download a portable archive or copy an already deployed timer folder from another computer. Stop the timer before copying. Keep <code>index.html</code>, <code>legacy.html</code>, <code>lib</code>, <code>serve-bouldering-timer.js</code>, <code>params.txt</code>, <code>beeps</code>, <code>help.html</code>, <code>help-assets</code>, OS launcher scripts, and portable Node.js if used. Or use only <code>fdv-bouldering-timer-standalone.html</code> when you need the offline timer without the server.</p>
         <h3>8.2. Node.js</h3>
         <p>Use a current Node.js LTS from <a href="https://nodejs.org/en/download">nodejs.org</a>. Install it system-wide or download a Standalone Binary. Default portable paths are <code>runtime\win\node.exe</code>, <code>runtime/mac/bin/node</code>, and <code>runtime/linux/bin/node</code>; change them in <code>params.txt</code> when needed.</p>

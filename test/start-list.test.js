@@ -264,7 +264,7 @@ test("temporary route incident pauses the affected wave and shifts it after resu
   const resumed = [{ ...pending[0], resumeCycle: 18 }];
   assert.equal(startList.marker(10, 2, 14, "rotation", resumed), "paused");
   assert.equal(startList.rowStatus(10, 5, 14, "rotation", resumed), "");
-  assert.equal(startList.marker(10, 2, 17, "rotation", resumed), "paused");
+  assert.equal(startList.marker(10, 2, 17, "rotation", resumed), "ready");
   assert.equal(startList.marker(10, 2, 18, "rotation", resumed), "active");
   assert.equal(startList.marker(11, 2, 18, "rotation", resumed), "ready");
   assert.equal(startList.marker(13, 1, 18, "rotation", resumed), "ready");
@@ -306,6 +306,45 @@ test("a pause planned before its start cycle also holds concurrent upstream atte
     incidents: planned
   });
   assert.equal(sanitized.incidents[0].blocksStartCycleWave, true);
+});
+
+test("the cycle before a whole-wave resume shows preparation and removes all pause markers", () => {
+  const resumed = [{ kind: "pause", route: 2, startCycle: 17, resumeCycle: 18,
+    participantIndex: 14, resolution: "resume", blocksStartCycleWave: true }];
+  assert.equal(startList.marker(14, 1, 16, "rotation", resumed), "paused");
+  assert.equal(startList.marker(16, 0, 16, "rotation", resumed), "paused");
+  for (const phase of ["rotation", "break"]) {
+    assert.equal(startList.marker(14, 1, 17, phase, resumed), "ready");
+    assert.equal(startList.marker(16, 0, 17, phase, resumed), "ready");
+    assert.equal(startList.rowStatus(14, 5, 17, phase, resumed), "ready");
+    assert.equal(startList.rowStatus(16, 5, 17, phase, resumed), "ready");
+    for (let participant = 0; participant < 32; participant += 1) {
+      for (let route = 0; route < 5; route += 1) {
+        assert.notEqual(startList.marker(participant, route, 17, phase, resumed), "paused");
+      }
+    }
+    assert.equal(startList.marker(15, 1, 17, phase, resumed), "");
+    assert.equal(startList.marker(17, 0, 17, phase, resumed), "");
+  }
+  assert.equal(startList.marker(14, 1, 18, "rotation", resumed), "active");
+  assert.equal(startList.marker(16, 0, 18, "rotation", resumed), "active");
+  assert.equal(startList.marker(15, 1, 18, "rotation", resumed), "ready");
+  assert.equal(startList.marker(17, 0, 18, "rotation", resumed), "ready");
+});
+
+test("preparation before resuming leaves unresolved and independently paused routes marked", () => {
+  const pending = { kind: "pause", route: 2, startCycle: 17, resumeCycle: null,
+    participantIndex: 14, blocksStartCycleWave: true };
+  assert.equal(startList.marker(14, 1, 17, "rotation", [pending]), "paused");
+  const later = { ...pending, resumeCycle: 20, resolution: "resume" };
+  assert.equal(startList.marker(14, 1, 18, "rotation", [later]), "paused");
+  assert.equal(startList.marker(14, 1, 19, "rotation", [later]), "ready");
+  const stopped = { ...pending, resumeCycle: 18, resolution: "stop" };
+  assert.equal(startList.marker(14, 1, 17, "rotation", [stopped]), "paused");
+  const separate = { kind: "pause", route: 5, startCycle: 17, resumeCycle: null, participantIndex: 8 };
+  const incidents = [{ ...pending, resumeCycle: 18, resolution: "resume" }, separate];
+  assert.equal(startList.marker(14, 1, 17, "rotation", incidents), "paused");
+  assert.equal(startList.marker(8, 4, 17, "rotation", incidents), "paused");
 });
 
 test("a pause entered during its start cycle lets concurrent upstream attempts finish", () => {

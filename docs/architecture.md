@@ -55,6 +55,8 @@ Participant progression is derived from effective cycle order after exclusions a
 
 Tables are read-only in screen mode, including after the primary browser enters its Screen view. Modern rendering separates structural rebuilds from dynamic cell updates and defers width fitting outside timer-critical display boundaries. Legacy builds stable tables and updates marker classes incrementally where possible.
 
+For a temporary suspension resolved by resuming, participant pause markers disappear from `resumeCycle - 1` onward. The unchanged shifted attempt schedule supplies ready markers for attempts starting at `resumeCycle`, including upstream participants held by `blocksStartCycleWave`. Route headers and incident editing still treat the route as paused until `resumeCycle`. An unresolved suspension, a suspension resolved by stopping, or another ongoing suspension retains its own markers. This rule lives in the shared ES5-compatible display module and adds no timers or geometry recalculations.
+
 ## Browser registry and diagnostics
 
 One browser can be primary. It always occupies position 1 and is not movable. Other clients may be reordered; pinning persists their intended position through disconnect/reconnect. When at least three browsers exist, the primary can enable matching browser numbers on cards and screen timer areas.
@@ -79,7 +81,9 @@ The ordinary mode keeps only a compact audio-clock progress measurement. Extende
 
 ## Persistence
 
-Server state is written atomically to `runtime-state/timer-state.json` through a temporary file. Browser offline snapshots use compact change keys and a five-second safety checkpoint instead of serializing complete moving state on every render. Start-list data is revisioned and not embedded repeatedly when unchanged.
+Server state is written atomically to `timer-state.json` through a temporary file. `lib/runtime-state-storage.js` chooses the location: portable packages keep `runtime-state/` beside the server; MSI, PKG, and DEB install `fdv-installed.marker` and select per-user state storage. Windows uses `%LOCALAPPDATA%/FDV Bouldering Timer/runtime-state`, macOS uses `~/Library/Application Support/FDV Bouldering Timer/runtime-state`, and Linux uses `${XDG_STATE_HOME:-~/.local/state}/fdv-bouldering-timer/runtime-state` (relative XDG paths are ignored). A one-time startup write probe also handles old unmarked installations: only `EACCES`, `EPERM`, or `EROFS` in the portable directory trigger fallback to the per-user directory. The selected directory is logged by the server and therefore visible in the launcher. No recurring directory probes are added.
+
+If the selected snapshot does not exist, startup may restore the previous snapshot beside the application and then save it in the selected directory. The old file is retained. Once a new snapshot exists it takes precedence; invalid or expired new state must not fall back to an obsolete old file. Browser offline snapshots use compact change keys and a five-second safety checkpoint instead of serializing complete moving state on every render. Start-list data is revisioned and not embedded repeatedly when unchanged.
 
 Schema changes require a version migration or explicit safe fallback. Integration tests cover active, paused, scheduled, Final, and restart recovery paths.
 

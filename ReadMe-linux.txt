@@ -4,6 +4,8 @@ FDV Bouldering Timer for Linux
 Русский
 -------
 
+Установленная через DEB версия сохраняет состояние в ~/.local/state/fdv-bouldering-timer/runtime-state (или в каталоге XDG_STATE_HOME). Portable-версия использует runtime-state рядом с программой; если запись запрещена, сервер выбирает пользовательский каталог. Выбранный путь виден в журнале лаунчера.
+
 1. Распакуйте архив целиком.
 2. При необходимости выполните:
 
@@ -30,6 +32,8 @@ Node.js уже включён в runtime/linux/bin/node. Linux-пакеты ра
 
 English
 -------
+
+The DEB installation saves state in ~/.local/state/fdv-bouldering-timer/runtime-state (or under XDG_STATE_HOME). Portable packages use runtime-state beside the application, with a per-user fallback if writing there is denied. The launcher log shows the selected directory.
 
 1. Extract the complete archive.
 2. Run when required:

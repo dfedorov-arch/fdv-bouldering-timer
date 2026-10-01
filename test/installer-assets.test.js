@@ -58,6 +58,16 @@ test("Android package is a local standalone timer and suppresses browser install
   assert.doesNotMatch(manifest, /android\.permission\.INTERNET/);
 });
 
+test("desktop installers include the installed marker while portable builds omit it", () => {
+  const product = read("installer/windows/Product.wxs");
+  assert.match(product, /<File Id="InstalledMarkerFile"[\s\S]*?fdv-installed\.marker/);
+  assert.match(product, /<ComponentRef Id="InstalledPackageMarker"/);
+  assert.match(read("scripts/build-linux-deb.sh"), /cp [^\n]*installer\/common\/fdv-installed\.marker/);
+  assert.match(read(".github/workflows/release.yml"), /cp installer\/common\/fdv-installed\.marker "pkg-root\/Applications\/FDV Bouldering Timer\/"/);
+  assert.doesNotMatch(read("scripts/build-portable-releases.sh"), /fdv-installed\.marker/);
+  assert.ok(fs.existsSync(path.join(root, "installer/common/fdv-installed.marker")));
+});
+
 test("local standalone restores never inherit a browser viewer role", () => {
   const index = read("index.html");
   assert.match(index, /const restoredPrimaryClientId = localStandalone\s*\? null/);

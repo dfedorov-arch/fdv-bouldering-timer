@@ -31,6 +31,10 @@
 
 Все экраны должны находиться в одной локальной сети. Перед соревнованием проверьте каждый физический экран, звук и поведение при отключении Wi-Fi.
 
+## Сохранение состояния
+
+Состояние установленной версии сохраняется в пользовательском каталоге (Windows: `%LOCALAPPDATA%\FDV Bouldering Timer\runtime-state`); portable-версия сохраняет его рядом с таймером. Если каталог portable-версии закрыт для записи, сервер автоматически использует пользовательский каталог. Путь виден в журнале лаунчера.
+
 ## HTTP и HTTPS
 
 HTTP достаточно для обычной локальной работы. HTTPS с сертификатом таймера создаёт для браузера защищённый контекст: на поддерживаемых телефонах и планшетах становится доступен **Wake Lock** (экран не гаснет во время работы), сервис-воркер может сохранить страницу для повторного открытия без интернета, а современный API буфера обмена позволяет надёжнее копировать адреса. Полноэкранный режим и звук всё равно требуют пользовательского касания, а Wake Lock зависит также от браузера и настроек энергосбережения ОС.
@@ -38,6 +42,8 @@ HTTP достаточно для обычной локальной работы.
 Создайте сертификат штатным скриптом для своей ОС, перезапустите сервер и открывайте именно адрес `https://…:8443/`. Сертификат локальный и самоподписанный: на каждом устройстве сначала подтвердите переход к нему. После смены IP-адреса или компьютера создайте сертификат заново. Подробности — в [руководстве](help.html#https).
 
 ## Стартовые списки
+
+За цикл до возобновления трассы значки этой паузы исчезают, а участники следующего выхода видят жёлтые треугольники подготовки.
 
 Переключатель **Стартовые списки** открывает область таблиц. Кнопка `+` добавляет до четырёх независимых списков. Для двух списков можно выбрать одну или две колонки. Каждый удалённый экран может показывать свой набор и свою раскладку.
 
@@ -108,6 +114,10 @@ A network-synchronized timer for bouldering competitions. One browser controls t
 
 All devices must be on the same local network. See the [full guide](help.html?lang=en) for list imports, diagnostics, Legacy behavior, offline recovery, HTTPS, and troubleshooting.
 
+### State storage
+
+Installed packages save state in a per-user directory (Windows: `%LOCALAPPDATA%\FDV Bouldering Timer\runtime-state`); portable packages keep it beside the timer. If the portable directory is read-only, the server falls back to per-user storage. The launcher log shows the selected path.
+
 ### HTTP and HTTPS
 
 HTTP is sufficient for ordinary local use. HTTPS gives supported browsers a secure context: **Wake Lock** can keep a phone or tablet display awake, a service worker can retain the page for reopening without internet, and the modern clipboard API can copy connection links more reliably. Fullscreen and audio still require a user gesture, and Wake Lock also depends on the browser and OS power-saving policy.
@@ -115,6 +125,8 @@ HTTP is sufficient for ordinary local use. HTTPS gives supported browsers a secu
 Create a certificate with the supplied platform script, restart the server, and open `https://…:8443/`. The local certificate is self-signed, so accept it on every display. Recreate it after changing the server computer or its LAN IP.
 
 ### Start lists
+
+One cycle before a route resumes, markers for that pause disappear and participants starting next see yellow preparation triangles.
 
 Enable **Start lists** to open the table area. Add up to four independent lists. When exactly two lists are open, choose a stacked or parallel layout. Every remote screen may show a different list subset and may override the two-list layout.
 

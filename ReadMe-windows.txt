@@ -4,6 +4,8 @@ FDV Bouldering Timer for Windows
 Русский
 -------
 
+Установленная через MSI версия сохраняет состояние в %LOCALAPPDATA%\FDV Bouldering Timer\runtime-state. Portable-версия использует runtime-state рядом с программой; если запись запрещена, сервер выбирает пользовательский каталог. Выбранный путь виден в журнале лаунчера.
+
 1. Распакуйте архив целиком.
 2. Запустите fdv-bouldering-timer.exe.
 3. Приложение сервера покажет локальный и сетевые адреса, запустит сервер и откроет браузер.
@@ -18,6 +20,8 @@ Node.js уже включён в runtime\win\node.exe. Порты и настр�
 
 English
 -------
+
+The MSI installation saves state in %LOCALAPPDATA%\FDV Bouldering Timer\runtime-state. Portable packages use runtime-state beside the application; if writing there is denied, the server uses per-user storage. The launcher log shows the selected directory.
 
 1. Extract the complete archive.
 2. Run fdv-bouldering-timer.exe.

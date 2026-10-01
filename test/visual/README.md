@@ -23,6 +23,8 @@ Never update snapshots only to make a test pass. Prefer a numeric geometry asser
 
 ## Current coverage
 
+The modern and Legacy route-resumption scenario verifies cycles 16 → 17 → 18: preparation for the held wave appears at cycle 17, all markers for that pause disappear, and the same participants climb at cycle 18. It uses an isolated server and saves screenshots in the test artifacts.
+
 The scenarios in `layout.spec.js` cover:
 
 - a held Festival progress-bar drag while server synchronization continues;
