@@ -44,13 +44,19 @@ FDV Bouldering Timer — локальный сетевой таймер для �
 
 Можно загрузить до четырёх стартовых списков из XLSX, CSV, TSV, TXT или MXL. В пользовательском интерфейсе они обозначаются LIST 1–4. Термин «протокол» остаётся только во внутренних именах совместимости и в значении HTTP/HTTPS.
 
+На экранах с видимыми списками под таймером отображается плашка номера ротации (только для чтения), в том числе в полном экране и Legacy. Без списков плашка скрыта. Перед запланированным стартом показывается «Ожидание старта».
+
 - Таблицы показывают подготовку, лазание, завершение, паузы и остановки трасс.
 - Значения участников не сокращаются многоточием; при нехватке ширины используется горизонтальная прокрутка. Сокращаться может заголовок.
 - Для каждого экрана отдельно выбираются видимые LIST.
 - Если выбраны ровно два списка, голубая кнопка переключает одну или две колонки. Оранжевый контур означает раскладку, отличающуюся от стандартной.
-- Трассу можно приостановить и возобновить с текущего или будущего цикла. Запланированные границы сразу показываются в тексте инцидента и таблице.
-- За цикл до возобновления значки этой паузы исчезают; участники, выходящие в следующем цикле, видят жёлтые треугольники подготовки.
-- При выборе будущего цикла автоматически включается флажок «Остановить всю волну с этого цикла»: участники связанной волны не выходят и на предыдущие трассы. Оператор может снять флажок; для текущего или прошедшего цикла он по умолчанию выключен.
+- Трассу можно приостановить и возобновить с текущей или будущей ротации. Запланированные границы сразу показываются в тексте инцидента и таблице.
+- За ротацию до возобновления значки этой паузы исчезают; участники, выходящие в следующей ротации, видят жёлтые треугольники подготовки.
+- При известном конце паузы значки отмечают лазание в период остановки и подготовку только к трассам 2 и далее. Подготовка к первой трассе не получает значок паузы. Сдвиг расписания сохраняется. Без заданного возобновления прежние значки остаются. Описание заканчивается последней приостановленной ротацией: пауза с 17 и возобновление с 19 означают «с ротации 17 по ротацию 18».
+- Запланированные паузы с удержанием всей волны рассчитываются по порядку ротаций. Изменение более ранней паузы автоматически пересчитывает участников последующих пауз, включая уже сохранённые списки.
+- Полная остановка трассы с той же или более ранней ротации делает её будущую паузу неактивной: лишних значков паузы и задержек на остальных трассах нет. Если пауза началась до полной остановки, её накопленный сдвиг сохраняется.
+- При удалении такой остановки обе границы паузы сохраняются: пауза с 17 по 17 снова возобновляется с ротации 18.
+- При выборе будущей ротации автоматически включается флажок «Остановить всю волну с этой ротации»: участники связанной волны не выходят и на предыдущие трассы. Оператор может снять флажок; для текущей или прошедшей ротации он по умолчанию выключен.
 - Участников и трассы можно исключать и восстанавливать.
 
 Сохранение состояния
@@ -140,11 +146,17 @@ Installed packages save state per user: Windows — %LOCALAPPDATA%\FDV Boulderin
 Start lists
 -----------
 
-One cycle before a route resumes, markers for that pause disappear and participants starting in the next cycle see yellow preparation triangles.
+One rotation before a route resumes, markers for that pause disappear and participants starting in the next rotation see yellow preparation triangles.
+With scheduled resumption, pause icons cover climbing during the suspended interval and preparation only for routes 2 and later. First-route preparation has no pause icon. The schedule shift remains unchanged. Without scheduled resumption, existing markers are retained. The description ends at the last suspended rotation: a pause starting at 17 and resuming at 19 reads “from rotation 17 through rotation 18”.
+Planned whole-wave pauses follow rotation order. Changing an earlier pause automatically recalculates participant anchors for later pauses, including previously saved lists.
+A permanent stop at or before a route pause's start supersedes that pause, with no extra pause markers or delays on other routes. A pause that began before the stop retains its accumulated delay.
+Cancelling such a stop preserves both pause boundaries: a pause from 17 through 17 resumes at rotation 18 again.
 
 Load up to four lists from XLSX, CSV, TSV, TXT, or MXL. The user interface calls them LIST 1–4; old “protocol” names remain only in internal compatibility identifiers and the HTTP/HTTPS meaning.
 
-Participant cells are never ellipsized. Each display selects its own visible LIST badges. With exactly two visible lists, a cyan button switches one or two columns; an orange outline marks a non-default layout. Route incidents can suspend and resume a route at a current or future cycle. Choosing a future pause cycle enables “Hold the entire wave from this cycle” by default so the related wave does not start on upstream routes; the operator may clear it, and it defaults off for a current or past cycle. Participants or routes can also be excluded and restored.
+Screens with visible lists show a read-only rotation badge below the timer, including fullscreen and Legacy. Without lists the badge is hidden. Before a scheduled start it says “Waiting for start”.
+
+Participant cells are never ellipsized. Each display selects its own visible LIST badges. With exactly two visible lists, a cyan button switches one or two columns; an orange outline marks a non-default layout. Route incidents can suspend and resume a route at a current or future rotation. Choosing a future pause rotation enables “Hold the entire wave from this rotation” by default so the related wave does not start on upstream routes; the operator may clear it, and it defaults off for a current or past rotation. Participants or routes can also be excluded and restored.
 
 Browsers and diagnostics
 ------------------------

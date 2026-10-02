@@ -16,11 +16,6 @@
     </StandardDirectory>
     <Property Id="CREATE_START_MENU_SHORTCUT" Value="1" />
     <Property Id="WIXUI_INSTALLDIR" Value="INSTALLFOLDER" />
-    <Property Id="WIXUI_EXITDIALOGOPTIONALCHECKBOX" Value="1" />
-    <Property Id="WIXUI_EXITDIALOGOPTIONALCHECKBOXTEXT" Value="Запустить таймер после установки" />
-    <CustomAction Id="LaunchTimer" Directory="INSTALLFOLDER"
-                  ExeCommand="fdv-bouldering-timer.exe" Execute="immediate"
-                  Return="asyncNoWait" Impersonate="yes" />
     <Component Id="InstalledPackageMarker" Directory="INSTALLFOLDER" Guid="*">
       <File Id="InstalledMarkerFile" Source="$(sys.SOURCEFILEDIR)..\common\fdv-installed.marker"
             Name="fdv-installed.marker" KeyPath="yes" />
@@ -68,9 +63,6 @@
           <Publish Event="SpawnDialog" Value="CancelDlg" Condition="1" />
         </Control>
       </Dialog>
-      <Publish Dialog="ExitDialog" Control="Finish" Event="DoAction"
-               Value="LaunchTimer" Order="1"
-               Condition="WIXUI_EXITDIALOGOPTIONALCHECKBOX = 1" />
     </UI>
     <Feature Id="MainFeature" Title="FDV Bouldering Timer" Level="1">
       <ComponentGroupRef Id="PayloadComponents" />

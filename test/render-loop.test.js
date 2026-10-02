@@ -5,6 +5,7 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
 const vm = require("node:vm");
+const startList = require("../lib/start-list");
 
 const index = fs.readFileSync(path.resolve(__dirname, "..", "index.html"), "utf8");
 const server = fs.readFileSync(path.resolve(__dirname, "..", "serve-bouldering-timer.js"), "utf8");
@@ -15,6 +16,84 @@ function inlineFunction(name) {
   assert.ok(match, `${name} must exist in index.html`);
   return vm.runInNewContext(`(${match[0]})`);
 }
+
+test("stopping before or at a planned pause start preserves its end through cancellation", async () => {
+  const match = index.match(/async function applyStartListIncidentAction\([^)]*\) \{[\s\S]*?\n    \}/);
+  assert.ok(match);
+  for (const stopCycle of [16, 17]) {
+    for (const resumeCycle of [18, 20, 17, null]) {
+      const initial = startList.sanitize({ headers: ["#", "ФИО"],
+        rows: Array.from({ length: 32 }, (_, index) => [String(index + 1), `Участник ${index + 1}`]),
+        routeCount: 5,
+        incidents: [{ kind: "pause", route: 2, startCycle: 17, resumeCycle,
+          participantIndex: 14, blocksStartCycleWave: true,
+          ...(resumeCycle === null ? {} : { resolution: "resume" }) }] });
+      const original = JSON.stringify(initial.incidents);
+      const state = { startLists: [initial] };
+      const cycleInput = { value: String(stopCycle) };
+      const apply = vm.runInNewContext(`(${match[0]})`, {
+        state, window: { FDVStartList: startList },
+        currentStartListPosition: () => ({ cycle: 15 }),
+        defaultRouteIncidentCycle: () => 15,
+        commitStartLists: async (lists) => { state.startLists = lists; }
+      });
+      const slot = { querySelector: selector => selector === "[data-start-list-incident-cycle]" ? cycleInput : null };
+      await apply(slot, 0, 1, "stop");
+      assert.equal(JSON.stringify(state.startLists[0].incidents.filter(i => i.kind === "pause")), original);
+      // Emulate persistence/reload and a repeated save while stopped.
+      state.startLists = state.startLists.map(list => startList.sanitize(JSON.parse(JSON.stringify(list))));
+      await apply(slot, 0, 1, "cancel-stop");
+      assert.equal(JSON.stringify(state.startLists[0].incidents), original);
+    }
+  }
+});
+
+test("numbered timer repetitions use Rotation terminology without renaming state placeholders", () => {
+  const legacy = fs.readFileSync(path.resolve(__dirname, "..", "legacy.html"), "utf8");
+  for (const [label, numberLabel] of [["Ротация", "Номер ротации"], ["Rotation", "Rotation number"]]) {
+    assert.ok(index.includes(`cycle: "${label}"`));
+    assert.ok(index.includes(`startListCycle: "${label} {cycle}"`));
+    assert.ok(index.includes(`routeIncidentCycle: "${label}"`));
+    assert.ok(index.includes(`cycleNumber: "${numberLabel}"`));
+  }
+  assert.ok(legacy.includes('(english ? "Rotation " : "Ротация ") + cycle'));
+  assert.doesNotMatch(index, /Цикл|Номер цикла|Cycle number|from this cycle/);
+  assert.match(index, /"Paused from rotation \{cycle\}"/);
+  assert.match(index, /"Была приостановлена с ротации \{start\} по ротацию \{end\}"/);
+});
+
+test("pause history ends at the last suspended rotation, not the resumption", () => {
+  const translationsMatch = index.match(/const translations = (\{[\s\S]*?\n    \});/);
+  const formatterMatch = index.match(/function formatRoutePauseState\(incident, cycle\) \{[\s\S]*?\n    \}/);
+  assert.ok(translationsMatch);
+  assert.ok(formatterMatch);
+  const translations = vm.runInNewContext(`(${translationsMatch[1]})`);
+  const pause = { startCycle: 17, resumeCycle: 19, resolution: "resume" };
+  const original = JSON.stringify(pause);
+  for (const language of ["ru", "en"]) {
+    const format = vm.runInNewContext(`(${formatterMatch[0]})`, {
+      formatStartListText: (key, values) => translations[language][key]
+        .replace(/\{(\w+)\}/g, (_, name) => String(values[name]))
+    });
+    for (const cycle of [12, 17, 18, 19, 25]) {
+      assert.equal(format(pause, cycle), language === "ru"
+        ? "Была приостановлена с ротации 17 по ротацию 18"
+        : "Was paused from rotation 17 through rotation 18");
+    }
+    assert.equal(format({ ...pause, resumeCycle: 18 }, 12), language === "ru"
+      ? "Была приостановлена с ротации 17 по ротацию 17"
+      : "Was paused from rotation 17 through rotation 17");
+    assert.equal(format({ ...pause, resumeCycle: null }, 12), language === "ru"
+      ? "Приостановлена с ротации 17" : "Paused from rotation 17");
+    assert.equal(format({ ...pause, resolution: "stop" }, 20), language === "ru"
+      ? "Приостановка с ротации 17 завершена остановкой на ротации 19"
+      : "Pause from rotation 17 ended with a stop at rotation 19");
+    assert.equal(format({ ...pause, resumeCycle: 17 }, 20), language === "ru"
+      ? "Нет приостановленных ротаций: возобновление с ротации 17"
+      : "No paused rotations: resumes at rotation 17");
+  }
+  assert.equal(JSON.stringify(pause), original);
+});
 
 test("display rendering targets synchronized second boundaries without an animation-frame loop", () => {
   assert.doesNotMatch(index, /requestAnimationFrame\(tick\)/);
@@ -290,7 +369,7 @@ test("start-list route incident controls render pause, stop, resume and cancella
   assert.match(index, /function updateStartListIncidentActions\(slot\)[\s\S]*?editablePauseForRoute\([\s\S]*?currentStartListPosition\(\)\.cycle[\s\S]*?startListIncidentActions\(activePause, stop\)/);
   assert.match(index, /data-start-list-incident-action="cancel-stop"/);
   assert.match(index, /FDVStartList\.participantAtOrAfterCycle[\s\S]*?kind: "pause"[\s\S]*?resumeCycle: null/);
-  assert.match(index, /routeIncidentPauseWave: "Остановить всю волну с этого цикла"[\s\S]*?routeIncidentPauseWave: "Hold the entire wave from this cycle"/);
+  assert.match(index, /routeIncidentPauseWave: "Остановить всю волну с этой ротации"[\s\S]*?routeIncidentPauseWave: "Hold the entire wave from this rotation"/);
   assert.match(index, /const pauseWaveControl = [\s\S]*?class="start-list-incident-wave"[\s\S]*?data-start-list-pause-wave/);
   assert.match(index, /class="start-list-incident-cycle"[^\n]*<\/label>\s*\$\{pauseWaveControl\}\s*<div class="start-list-incident-actions"/);
   assert.match(index, /\.start-list-incident-wave input \{[\s\S]*?display: block;[\s\S]*?height: 16px;[\s\S]*?min-height: 16px;/);
@@ -371,7 +450,7 @@ test("the leftmost row cell toggles a participant's protocol exclusion", () => {
   assert.match(index, /function toggleStartListParticipantExclusion[\s\S]*?excludedParticipants\.includes\(participantIndex\)[\s\S]*?commitStartLists/);
   assert.match(index, /addEventListener\("keydown"[\s\S]*?event\.key !== "Enter" && event\.key !== " "/);
   assert.match(index, /participantScheduleIndex\(participantIndex, excludedParticipants, list\.rows\.length\)/);
-  assert.match(index, /rebaseIncidents\(list\?\.incidents, list\?\.excludedParticipants, list\?\.rows\?\.length\)/);
+  assert.match(index, /calculationIncidents\(list\?\.incidents, list\?\.excludedParticipants, list\?\.rows\?\.length, startListSchedule\(list\)\)/);
   assert.match(index, /function startListExclusionsChanged\(currentList, nextList\)[\s\S]*?normalizeExcludedParticipants[\s\S]*?currentExcluded[\s\S]*?nextExcluded/);
   assert.match(index, /startListExclusionsChanged\(state\.startLists\[index\], lists\[index\]\)[\s\S]*?pendingStartListScrollRestores\[index\] = null;[\s\S]*?lastStartListScrollAnchors\[index\] = null/);
 });
@@ -498,7 +577,7 @@ test("Final controls expose old and new start-list schedules without a break fie
   assert.match(index, /const timerParametersLocked = \(state\.running && !beforeScheduledStart\)[\s\S]*?finalRoundProgressLocked\(\);[\s\S]*?climbMinutes\.disabled = !available \|\| timerParametersLocked[\s\S]*?finalRoundFormatInputs/);
   assert.match(index, /function finalRoundProgressLocked\(\)[\s\S]*?startListFinalCycle[\s\S]*?completedCycles > 0/);
   assert.match(index, /function formatSelectionLocked\(\)[\s\S]*?waitingForManualStart[\s\S]*?finalRoundProgressLocked\(\)/);
-  assert.match(index, /finalPresetLockedHint: 'Чтобы выбрать другой формат, сначала остановите таймер кнопкой "Стоп" и перейдите на Цикл 1'/);
+  assert.match(index, /finalPresetLockedHint: 'Чтобы выбрать другой формат, сначала остановите таймер кнопкой "Стоп" и перейдите на ротацию 1'/);
   assert.match(index, /finalRoundFormatField\.title = t\("finalRoundFormatHint"\)[\s\S]*?finalRestField\.title = t\("finalRestRotationsHint"\)[\s\S]*?finalRestRotations\.title/);
   assert.match(index, /applyLanguage\(language\);\s*\n\s*const fileMode = isLocalStandalonePage\(\);/);
   assert.match(index, /\.final-round-option input:checked \{[\s\S]*?background-image: linear-gradient\(var\(--text\), var\(--text\)\)/);

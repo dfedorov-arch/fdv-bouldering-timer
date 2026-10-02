@@ -180,8 +180,17 @@ async function openModern(browser, baseUrl, clientId, viewport, indexes) {
   return { context, page };
 }
 
-async function openLegacy(browser, baseUrl, clientId, viewport, indexes, stickyFallback = false) {
-  const context = await browser.newContext({ viewport });
+async function openLegacy(browser, baseUrl, clientId, viewport, indexes, stickyFallback = false, emulateOldTv = false) {
+  const context = await browser.newContext({ viewport, userAgent: emulateOldTv
+    ? "Mozilla/5.0 (Linux; Android 4.2.2; AND1E TV Build/JDQ39) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/29.0.1547.80 Safari/537.36"
+    : undefined });
+  if (emulateOldTv) {
+    await context.addInitScript(() => {
+      for (const api of ["FontFace", "ResizeObserver", "visualViewport"]) {
+        Object.defineProperty(window, api, { configurable: true, value: undefined });
+      }
+    });
+  }
   const page = await context.newPage();
   await clientState(baseUrl, clientId);
   await action(baseUrl, "legacyMode", { targetClientId: clientId, enabled: true });

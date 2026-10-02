@@ -39,12 +39,288 @@ test.beforeEach(async () => {
 });
 
 for (const modern of [true, false]) {
+  for (const viewport of [{ width: 360, height: 778 }, { width: 962, height: 541 }, { width: 1000, height: 1000 }]) {
+    test(`${modern ? "Modern" : "Legacy"} list screen shows a read-only cycle at ${viewport.width}x${viewport.height}`, async ({ browser }, testInfo) => {
+      await action(server.baseUrl, "reset", { activePreset: "classic",
+        settings: { rotationSeconds: 300, breakSeconds: 15, oneShot: false } });
+      await stabilizeTimer(server.baseUrl, 630);
+      const id = `visual-cycle-${modern}-${viewport.width}`;
+      const opened = await (modern ? openModern : openLegacy)(browser, server.baseUrl, id, viewport, [0, 1]);
+      const badge = opened.page.locator(modern ? ".cycle-chip" : "#cycleBadge");
+      try {
+        await expect(badge).toBeVisible();
+        if (modern) {
+          await expect(badge.locator("input")).toHaveValue("3");
+          await expect(badge.locator("span")).toHaveText("Ротация");
+          await expect(badge.locator("input")).toHaveAttribute("aria-label", "Номер ротации");
+        } else await expect(badge).toHaveText("Ротация 3");
+        if (modern) {
+          await expect(badge.locator("input")).toBeDisabled();
+          await expect(opened.page.locator("#progressTrack")).toBeHidden();
+          await expect(opened.page.locator(".compact-actions")).toBeHidden();
+          // Native fullscreen uses the same flag in addition to :fullscreen.
+          await opened.page.evaluate(() => document.body.classList.add("fullscreen"));
+          await expect(badge).toBeVisible();
+        }
+        await action(server.baseUrl, "clientServerTime", { targetClientId: id, enabled: true });
+        await expect(opened.page.locator(modern ? "#serverClockDisplay" : "#serverClock")).toBeVisible();
+        await wait(350);
+        const geometry = await opened.page.evaluate((modern) => {
+          const pane = document.querySelector(modern ? ".timer-column" : "#timerPane").getBoundingClientRect();
+          const timer = document.querySelector(modern ? ".time" : "#time").getBoundingClientRect();
+          const chip = document.querySelector(modern ? ".cycle-chip" : "#cycleBadge").getBoundingClientRect();
+          const clock = document.querySelector(modern ? "#serverClockDisplay" : "#serverClock").getBoundingClientRect();
+          return { pane: pane.toJSON(), timer: timer.toJSON(), chip: chip.toJSON(), clock: clock.toJSON() };
+        }, modern);
+        expect(geometry.chip.left).toBeGreaterThanOrEqual(geometry.pane.left - 1);
+        expect(geometry.chip.right).toBeLessThanOrEqual(geometry.pane.right + 1);
+        expect(geometry.chip.bottom).toBeLessThanOrEqual(geometry.pane.bottom + 1);
+        expect(geometry.clock.bottom).toBeLessThanOrEqual(geometry.chip.top + 1);
+        if (modern) expect(geometry.timer.bottom).toBeLessThanOrEqual(geometry.clock.top + 1);
+        const screenshot = testInfo.outputPath(`list-cycle-${modern ? "modern" : "legacy"}-${viewport.width}.png`);
+        await opened.page.screenshot({ path: screenshot });
+        await testInfo.attach("List screen cycle", { path: screenshot, contentType: "image/png" });
+        await stabilizeTimer(server.baseUrl, 930);
+        await expect(badge).toHaveClass(/cycle-break/);
+        await action(server.baseUrl, "language", { language: "en" });
+        await expect(badge).toContainText("Rotation");
+        if (modern) await expect(badge.locator("input")).toHaveAttribute("aria-label", "Rotation number");
+        if (viewport.width === 1000) {
+          await selectProtocols(server.baseUrl, id, []);
+          await expect(badge).toBeHidden();
+          await selectProtocols(server.baseUrl, id, [0, 1]);
+          await expect(badge).toBeVisible();
+          await action(server.baseUrl, "settings", { activePreset: "final",
+            settings: { rotationMinutes: 4, breakSeconds: 0, oneShot: true } });
+          await action(server.baseUrl, "reset", { activePreset: "final",
+            settings: { rotationSeconds: 240, breakSeconds: 0, oneShot: true } });
+          await action(server.baseUrl, "seekCycle", { cycle: 7 });
+          if (modern) await expect(badge.locator("input")).toHaveValue("7");
+          else await expect(badge).toHaveText("Rotation 7");
+        }
+        await action(server.baseUrl, "reset", { activePreset: viewport.width === 1000 ? "final" : "classic",
+          settings: { rotationSeconds: 300, breakSeconds: 15, oneShot: viewport.width === 1000 } });
+        await action(server.baseUrl, "start", { activePreset: viewport.width === 1000 ? "final" : "classic",
+          startMode: "scheduled", startHours: (new Date().getHours() + 1) % 24, startMinutes: new Date().getMinutes() });
+        await expect(badge).toHaveClass(/cycle-waiting/);
+        await expect(badge).toHaveText("Waiting for start");
+        await action(server.baseUrl, "startListEnabled", { enabled: false });
+        await expect(badge).toBeHidden();
+      } finally {
+        await action(server.baseUrl, "language", { language: "ru" });
+        await action(server.baseUrl, "clientServerTime", { targetClientId: id, enabled: false });
+        await opened.context.close();
+      }
+    });
+  }
+
+  test(`${modern ? "Modern" : "Legacy"} first-route pause marks two held starts, not first-route preparation`, async ({ browser }, testInfo) => {
+    const previous = await (await fetch(`${server.baseUrl}/api/state`)).json();
+    const id = `visual-first-route-${modern}`;
+    let opened;
+    try {
+      await action(server.baseUrl, "reset", { activePreset: "classic",
+        settings: { rotationSeconds: 300, breakSeconds: 15, oneShot: false } });
+      await action(server.baseUrl, "startLists", { startLists: [{
+        headers: ["#", "ФИО"],
+        rows: Array.from({ length: 32 }, (_, index) => [String(index + 1), `Участник ${index + 1}`]),
+        routeCount: 5,
+        incidents: [{ kind: "pause", route: 1, startCycle: 17, resumeCycle: 19,
+          participantIndex: 16, resolution: "resume", blocksStartCycleWave: true }]
+      }] });
+      await stabilizeTimer(server.baseUrl, 11 * 315);
+      opened = await (modern ? openModern : openLegacy)(browser, server.baseUrl, id, { width: 1280, height: 900 }, [0]);
+      const table = opened.page.locator(modern ? ".start-list-table" : ".protocol-table");
+      const marker = (index, status) => table.locator("tbody tr").nth(index).locator("td").nth(2).locator(`.route-marker.${status}`);
+      for (const elapsed of [11 * 315, 16 * 315]) {
+        await stabilizeTimer(server.baseUrl, elapsed);
+        await expect(marker(16, "paused")).toHaveCount(1);
+        await expect(marker(17, "paused")).toHaveCount(1);
+        await expect(marker(18, "paused")).toHaveCount(0);
+        await expect(table.locator(".route-marker.paused")).toHaveCount(2);
+      }
+      if (modern) {
+        await action(server.baseUrl, "primary", { primaryClientId: id });
+        await opened.page.waitForFunction(() => document.body.classList.contains("controls-ready")
+          && !document.body.classList.contains("viewer-mode"));
+        await opened.page.locator('[data-start-list-route="0"]').click();
+        const note = opened.page.locator(".start-list-incident-note span").first();
+        await expect(note).toHaveText("Была приостановлена с ротации 17 по ротацию 18");
+        await action(server.baseUrl, "language", { language: "en", clientId: id });
+        await expect(note).toHaveText("Was paused from rotation 17 through rotation 18");
+        await action(server.baseUrl, "language", { language: "ru", clientId: id });
+        await expect(note).toHaveText("Была приостановлена с ротации 17 по ротацию 18");
+        const screenshot = testInfo.outputPath("first-route-pause-menu.png");
+        await opened.page.locator(".start-list-slot").first().screenshot({ path: screenshot });
+        await testInfo.attach("First-route pause interval and exactly two icons", { path: screenshot, contentType: "image/png" });
+      }
+      await stabilizeTimer(server.baseUrl, 17 * 315);
+      await expect(marker(16, "ready")).toHaveCount(1);
+      await expect(table.locator(".route-marker.paused")).toHaveCount(0);
+      await stabilizeTimer(server.baseUrl, 18 * 315);
+      await expect(marker(16, "active")).toHaveCount(1);
+    } finally {
+      await action(server.baseUrl, "primary", { primaryClientId: "performance-baseline" });
+      await action(server.baseUrl, "language", { language: "ru" });
+      await opened?.context.close();
+      await action(server.baseUrl, "startLists", { startLists: previous.startLists });
+    }
+  });
+
+  for (const stopCycle of [16, 17]) {
+    test(`${modern ? "Modern" : "Legacy"} stop at ${stopCycle} supersedes route pause at 17`, async ({ browser }, testInfo) => {
+      const previous = await (await fetch(`${server.baseUrl}/api/state`)).json();
+      const id = `visual-stop-before-pause-${modern}-${stopCycle}`;
+      const pause = { kind: "pause", route: 2, startCycle: 17, resumeCycle: 18,
+        participantIndex: 14, resolution: "resume", blocksStartCycleWave: true };
+      const list = { headers: ["#", "ФИО"],
+        rows: Array.from({ length: 32 }, (_, index) => [String(index + 1), `Участник ${index + 1}`]),
+        routeCount: 5, incidents: [pause] };
+      let opened;
+      try {
+        await action(server.baseUrl, "reset", { activePreset: "classic",
+          settings: { rotationSeconds: 300, breakSeconds: 15, oneShot: false } });
+        await action(server.baseUrl, "startLists", { startLists: [list] });
+        await stabilizeTimer(server.baseUrl, 14 * 315);
+        opened = await (modern ? openModern : openLegacy)(browser, server.baseUrl, id,
+          { width: 1280, height: 900 }, [0]);
+        const table = opened.page.locator(modern ? ".start-list-table" : ".protocol-table");
+        const marker = (participant, route, status) => table.locator("tbody tr").nth(participant - 1)
+          .locator("td").nth(route + 1).locator(`.route-marker.${status}`);
+        await expect(marker(17, 1, "paused")).toHaveCount(1);
+        if (modern) {
+          // A stop at/before the pause start must preserve its original end.
+          await action(server.baseUrl, "primary", { primaryClientId: id });
+          await opened.page.waitForFunction(() => !document.body.classList.contains("viewer-mode"));
+          await opened.page.locator('[data-start-list-route="1"]').click();
+          await opened.page.locator('[data-start-list-incident-cycle]').fill(String(stopCycle));
+          // Opening a route menu deliberately ignores action clicks for 500 ms.
+          await wait(550);
+          await opened.page.locator('[data-start-list-incident-action="stop"]').click();
+          const note = opened.page.locator(".start-list-incident-note span").first();
+          await expect(note).toHaveText(`Пауза с ротации 17 не действует: трасса остановлена с ротации ${stopCycle}`);
+          await action(server.baseUrl, "language", { language: "en", clientId: id });
+          await expect(note).toHaveText(`Pause from rotation 17 does not apply: route stopped from rotation ${stopCycle}`);
+          await action(server.baseUrl, "language", { language: "ru", clientId: id });
+          await expect(table.locator(".route-marker.paused")).toHaveCount(0);
+          const stoppedState = await (await fetch(`${server.baseUrl}/api/state`)).json();
+          expect(stoppedState.startLists[0].incidents.find(incident => incident.kind === "pause")).toEqual(pause);
+          const screenshot = testInfo.outputPath(`stop-before-pause-${stopCycle}.png`);
+          await opened.page.locator(".start-list-slot").first().screenshot({ path: screenshot });
+          await testInfo.attach("Stop supersedes planned pause", { path: screenshot, contentType: "image/png" });
+        } else {
+          // Old saved zero-length stop-ended intervals remain suppressed too.
+          const stoppedPause = stopCycle === 17 ? { ...pause, resumeCycle: 17, resolution: "stop" } : pause;
+          await action(server.baseUrl, "startLists", { startLists: [{ ...list,
+            incidents: [stoppedPause, { kind: "stop", route: 2, startCycle: stopCycle }] }] });
+        }
+        for (const cycle of [16, 17, 18]) {
+          await stabilizeTimer(server.baseUrl, (cycle - 1) * 315);
+          await expect(table.locator(".route-marker.paused")).toHaveCount(0);
+          await expect(marker(cycle, 1, "active")).toHaveCount(1);
+          await expect(marker(15, 2, "stopped")).toHaveCount(1);
+        }
+        await opened.page.reload({ waitUntil: "domcontentloaded" });
+        await expect(table.locator(".route-marker.paused")).toHaveCount(0);
+        await expect(marker(18, 1, "active")).toHaveCount(1);
+        await stabilizeTimer(server.baseUrl, 14 * 315);
+        if (modern) {
+          await action(server.baseUrl, "primary", { primaryClientId: id });
+          await opened.page.waitForFunction(() => document.body.classList.contains("controls-ready")
+            && !document.body.classList.contains("viewer-mode"));
+          await opened.page.locator('[data-start-list-route="1"]').click();
+          await wait(550);
+          await opened.page.locator('[data-start-list-incident-action="cancel-stop"]').click();
+          const note = opened.page.locator(".start-list-incident-note span").first();
+          await expect(note).toHaveText("Была приостановлена с ротации 17 по ротацию 17");
+          await action(server.baseUrl, "language", { language: "en", clientId: id });
+          await expect(note).toHaveText("Was paused from rotation 17 through rotation 17");
+          await action(server.baseUrl, "language", { language: "ru", clientId: id });
+          const restoredState = await (await fetch(`${server.baseUrl}/api/state`)).json();
+          expect(restoredState.startLists[0].incidents).toEqual([pause]);
+          const screenshot = testInfo.outputPath(`restored-pause-stop-${stopCycle}.png`);
+          await opened.page.locator(".start-list-slot").first().screenshot({ path: screenshot });
+          await testInfo.attach("Cancelled stop restores both pause boundaries", { path: screenshot, contentType: "image/png" });
+        } else {
+          // A read-only Legacy display receives the restored state from primary.
+          await action(server.baseUrl, "startLists", { startLists: [list] });
+        }
+        await expect(marker(15, 2, "paused")).toHaveCount(1);
+        await expect(marker(16, 2, "paused")).toHaveCount(1);
+        await expect(marker(17, 1, "paused")).toHaveCount(1);
+        await expect(table.locator(".route-marker.paused")).toHaveCount(3);
+        await stabilizeTimer(server.baseUrl, 16 * 315);
+        await expect(table.locator(".route-marker.paused")).toHaveCount(0);
+        await expect(marker(15, 2, "ready")).toHaveCount(1);
+        await stabilizeTimer(server.baseUrl, 17 * 315);
+        await expect(marker(15, 2, "active")).toHaveCount(1);
+      } finally {
+        await action(server.baseUrl, "primary", { primaryClientId: "performance-baseline" });
+        await action(server.baseUrl, "language", { language: "ru" });
+        await opened?.context.close();
+        await action(server.baseUrl, "startLists", { startLists: previous.startLists });
+      }
+    });
+  }
+
+  test(`${modern ? "Modern" : "Legacy"} earlier planned pause rebases an already saved later pause`, async ({ browser }, testInfo) => {
+    const previous = await (await fetch(`${server.baseUrl}/api/state`)).json();
+    const later = { kind: "pause", route: 2, startCycle: 17, resumeCycle: 18,
+      participantIndex: 14, resolution: "resume", blocksStartCycleWave: true };
+    const earlier = { kind: "pause", route: 3, startCycle: 14, resumeCycle: 16,
+      participantIndex: 9, resolution: "resume", blocksStartCycleWave: true };
+    const list = { headers: ["#", "ФИО"],
+      rows: Array.from({ length: 32 }, (_, index) => [String(index + 1), `Участник ${index + 1}`]),
+      routeCount: 5, incidents: [later] };
+    let opened;
+    try {
+      await action(server.baseUrl, "reset", { activePreset: "classic",
+        settings: { rotationSeconds: 300, breakSeconds: 15, oneShot: false } });
+      await action(server.baseUrl, "startLists", { startLists: [list] });
+      await stabilizeTimer(server.baseUrl, 11 * 315);
+      opened = await (modern ? openModern : openLegacy)(browser, server.baseUrl,
+        `visual-pause-order-${modern}`, { width: 1280, height: 900 }, [0]);
+      const table = opened.page.locator(modern ? ".start-list-table" : ".protocol-table");
+      const marker = (participant, route, status) => table.locator("tbody tr").nth(participant - 1)
+        .locator("td").nth(route + 1).locator(`.route-marker.${status}`);
+      await expect(marker(15, 2, "paused")).toHaveCount(1);
+      await action(server.baseUrl, "startLists", { startLists: [{ ...list, incidents: [later, earlier] }] });
+      await stabilizeTimer(server.baseUrl, 14 * 315);
+      await expect(marker(10, 3, "ready")).toHaveCount(1);
+      await expect(marker(13, 2, "paused")).toHaveCount(1);
+      await expect(marker(14, 2, "paused")).toHaveCount(1);
+      await expect(marker(15, 1, "paused")).toHaveCount(1);
+      await expect(table.locator(".route-marker.paused")).toHaveCount(3);
+      const screenshot = testInfo.outputPath(`ordered-pauses-${modern ? "modern" : "legacy"}.png`);
+      await opened.page.screenshot({ path: screenshot });
+      await testInfo.attach("Earlier pause prepares without clearing the later pause", { path: screenshot, contentType: "image/png" });
+      // Reload from persisted, deliberately stale participant anchors as well.
+      await opened.page.reload({ waitUntil: "domcontentloaded" });
+      await expect(marker(13, 2, "paused")).toHaveCount(1);
+      await stabilizeTimer(server.baseUrl, 15 * 315);
+      await expect(marker(13, 2, "paused")).toHaveCount(1);
+      await stabilizeTimer(server.baseUrl, 16 * 315);
+      await expect(marker(13, 2, "ready")).toHaveCount(1);
+      for (let participant = 1; participant <= 32; participant += 1) {
+        await expect(marker(participant, 2, "active")).toHaveCount(0);
+      }
+      await stabilizeTimer(server.baseUrl, 17 * 315);
+      await expect(marker(13, 2, "active")).toHaveCount(1);
+      const saved = await (await fetch(`${server.baseUrl}/api/state`)).json();
+      expect(saved.startLists[0].incidents.find(pause => pause.route === 2).participantIndex).toBe(14);
+    } finally {
+      await opened?.context.close();
+      await action(server.baseUrl, "startLists", { startLists: previous.startLists });
+    }
+  });
+
   test(`${modern ? "Modern" : "Legacy"} prepares the paused wave one cycle before route resumption`, async ({ browser }, testInfo) => {
     const previous = await (await fetch(`${server.baseUrl}/api/state`)).json();
     const list = {
       headers: ["#", "ФИО"],
       rows: Array.from({ length: 32 }, (_, index) => [String(index + 1),
-        index === 14 ? "Печенин Ярослав" : index === 16 ? "Назин Вадим" : `Участник ${index + 1}`]),
+        index === 14 ? "Печенин Ярослав" : index === 15 ? "Шеклей Николай"
+          : index === 16 ? "Назин Вадим" : index === 17 ? "Кровиков Давид" : `Участник ${index + 1}`]),
       routeCount: 5,
       incidents: [{ kind: "pause", route: 2, startCycle: 17, resumeCycle: 18,
         participantIndex: 14, resolution: "resume", blocksStartCycleWave: true }]
@@ -63,7 +339,14 @@ for (const modern of [true, false]) {
       const row = (index) => table.locator("tbody tr").nth(index);
       const marker = (index, route, status) => row(index).locator("td").nth(2 + route).locator(`.route-marker.${status}`);
       await expect(marker(14, 1, "paused")).toHaveCount(1);
+      await expect(marker(15, 1, "paused")).toHaveCount(1);
       await expect(marker(16, 0, "paused")).toHaveCount(1);
+      await expect(marker(17, 0, "paused")).toHaveCount(0);
+      await expect(table.locator(".route-marker.paused")).toHaveCount(3);
+      await expect(marker(18, 0, "paused")).toHaveCount(0);
+      const plannedScreenshot = testInfo.outputPath(`bounded-pause-${modern ? "modern" : "legacy"}.png`);
+      await opened.page.screenshot({ path: plannedScreenshot });
+      await testInfo.attach("Bounded pause includes climbing and preparation", { path: plannedScreenshot, contentType: "image/png" });
       await stabilizeTimer(server.baseUrl, 16 * 315);
       await expect(marker(14, 1, "ready")).toBeVisible();
       await expect(marker(16, 0, "ready")).toBeVisible();
@@ -80,6 +363,27 @@ for (const modern of [true, false]) {
     }
   });
 }
+
+test("Primary fullscreen with lists keeps the cycle visible but not editable", async ({ browser }) => {
+  const id = "visual-primary-cycle-fullscreen";
+  const opened = await openModern(browser, server.baseUrl, id, { width: 1280, height: 900 }, [0]);
+  try {
+    await action(server.baseUrl, "primary", { primaryClientId: id });
+    await opened.page.waitForFunction(() => document.body.classList.contains("controls-ready")
+      && !document.body.classList.contains("viewer-mode"));
+    await expect(opened.page.locator("#cycleInput")).toBeEnabled();
+    await opened.page.locator("#fullBtn").click();
+    await opened.page.waitForFunction(() => Boolean(document.fullscreenElement));
+    await expect(opened.page.locator(".cycle-chip")).toBeVisible();
+    await expect(opened.page.locator("#cycleInput")).toBeDisabled();
+    await expect(opened.page.locator("#progressTrack")).toBeHidden();
+    await opened.page.evaluate(() => document.exitFullscreen());
+    await expect(opened.page.locator("#cycleInput")).toBeEnabled();
+  } finally {
+    await action(server.baseUrl, "primary", { primaryClientId: "performance-baseline" });
+    await opened.context.close();
+  }
+});
 
 test("Festival hides the unavailable start-list switch", async ({ browser }) => {
   await action(server.baseUrl, "reset");
@@ -174,7 +478,7 @@ test("Large phone fullscreen keeps the server clock inside a timer-only screen",
     await page.evaluate(() => document.body.classList.add("fullscreen"));
     const geometry = await page.evaluate(() => {
       const stage = document.querySelector(".stage").getBoundingClientRect();
-      const timerColumn = document.querySelector(".timer-column").getBoundingClientRect();
+      const timerColumn = document.querySelector(".timer-wrap").getBoundingClientRect();
       const clock = document.getElementById("serverClockDisplay").getBoundingClientRect();
       return {
         viewportHeight: window.innerHeight,
@@ -481,16 +785,16 @@ test("Diagnostics switches the layout of exactly two lists on one screen", async
     await expect(screenCard.locator(".start-list-layout-overridden")).toHaveCount(0);
     const listLabels = await screenCard.locator("[data-start-list-client]").allTextContents();
     expect(listLabels).toEqual(["LIST 1", "LIST 2", "LIST 3", "LIST 4"]);
-    const layoutIcon = await layoutButton.evaluate((button) => {
+    // Diagnostics can replace a card between resolving a locator and reading
+    // its pseudo-element style. Retry that read, retaining the exact values.
+    await expect.poll(() => layoutButton.evaluate((button) => {
       const before = getComputedStyle(button, "::before");
       const after = getComputedStyle(button, "::after");
       return {
         beforeWidth: parseFloat(before.width),
         afterDisplay: after.display
       };
-    });
-    expect(layoutIcon.beforeWidth).toBe(2);
-    expect(layoutIcon.afterDisplay).toBe("none");
+    })).toEqual({ beforeWidth: 2, afterDisplay: "none" });
     const pinButton = screenCard.locator("[data-browser-pin]");
     await expect(pinButton.locator("g")).toHaveAttribute("transform", "rotate(45 8 8)");
     await expect(pinButton.locator(".browser-pin-needle")).toHaveClass(/sharp/);
@@ -539,8 +843,8 @@ test("Diagnostics switches the layout of exactly two lists on one screen", async
     expect(clockGeometry.clockHeight).toBeLessThan(clockGeometry.timerHeight / 2);
     expect(clockGeometry.clockWidth / clockGeometry.fontSize).toBeLessThan(6.5);
     expect(clockGeometry.clockTop).toBeGreaterThanOrEqual(clockGeometry.timerBottom);
-    expect(Math.abs(clockGeometry.bottomGap - clockGeometry.clockHeight), JSON.stringify(clockGeometry)).toBeLessThanOrEqual(1);
-    expect(clockGeometry.footerDisplay).toBe("none");
+    expect(clockGeometry.bottomGap, JSON.stringify(clockGeometry)).toBeGreaterThanOrEqual(0);
+    expect(clockGeometry.footerDisplay).toBe("block");
     expect(clockGeometry.progressDisplay).toBe("none");
     expect(clockGeometry.fontFamily).toContain("FDV LCD");
     expect(Number(clockGeometry.fontWeight)).toBeGreaterThanOrEqual(700);
@@ -588,15 +892,12 @@ test("Diagnostics switches the layout of exactly two lists on one screen", async
     await expect(layoutButton).toHaveClass(/start-list-layout-overridden/);
     await expect(screenCard.locator("[data-start-list-client].start-list-selected")).toHaveCount(2);
     await expect(screenCard.locator("[data-start-list-client].start-list-layout-overridden")).toHaveCount(0);
-    const parallelIcon = await layoutButton.evaluate((button) => ({
+    await expect.poll(() => layoutButton.evaluate((button) => ({
       width: parseFloat(getComputedStyle(button, "::before").width),
       centerGap: parseFloat(getComputedStyle(button, "::after").left)
         - parseFloat(getComputedStyle(button, "::before").left),
       secondDisplay: getComputedStyle(button, "::after").display
-    }));
-    expect(parallelIcon.width).toBe(2);
-    expect(parallelIcon.centerGap).toBe(6);
-    expect(parallelIcon.secondDisplay).not.toBe("none");
+    }))).toEqual({ width: 2, centerGap: 6, secondDisplay: "block" });
     await fetch(`${server.baseUrl}/api/action`, {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -627,13 +928,59 @@ test("Diagnostics switches the layout of exactly two lists on one screen", async
   }
 });
 
+for (const portrait of [false, true]) {
+  test(`Old TV Legacy releases the list area without resize events (${portrait ? "portrait" : "landscape"})`, async ({ browser }, testInfo) => {
+    const id = `visual-old-tv-hide-${portrait}`;
+    const viewport = portrait ? { width: 360, height: 778 } : { width: 962, height: 541 };
+    const opened = await openLegacy(browser, server.baseUrl, id, viewport, [0], true, true);
+    const readGeometry = () => opened.page.evaluate(() => ({
+      pane: document.getElementById("timerPane").getBoundingClientRect().toJSON(),
+      wrap: document.getElementById("wrap").getBoundingClientRect().toJSON(),
+      clock: document.getElementById("serverClock").getBoundingClientRect().toJSON()
+    }));
+    try {
+      await action(server.baseUrl, "clientServerTime", { targetClientId: id, enabled: true });
+      await expect(opened.page.locator("#serverClock")).toBeVisible();
+      // Let all initial font/layout fallback callbacks finish before hiding.
+      await wait(1200);
+      for (const globalDisable of [false, true]) {
+        if (globalDisable) await action(server.baseUrl, "startListEnabled", { enabled: false });
+        else await selectProtocols(server.baseUrl, id, []);
+        await expect(opened.page.locator("#protocolPane")).toBeHidden();
+        await expect.poll(async () => (await readGeometry()).pane.width).toBe(viewport.width);
+        await expect.poll(async () => (await readGeometry()).pane.height).toBe(viewport.height);
+        await expect.poll(async () => (await readGeometry()).wrap.width).toBe(viewport.width);
+        await expect.poll(async () => (await readGeometry()).wrap.height).toBe(viewport.height);
+        const geometry = await readGeometry();
+        expect(Math.abs((geometry.clock.left + geometry.clock.right) / 2 - viewport.width / 2)).toBeLessThanOrEqual(1);
+        expect(geometry.clock.bottom).toBeLessThanOrEqual(viewport.height);
+        await expect(opened.page.locator("#cycleBadge")).toBeHidden();
+        const image = testInfo.outputPath(`old-tv-list-hidden-${portrait ? "portrait" : "landscape"}-${globalDisable}.png`);
+        await opened.page.screenshot({ path: image });
+        await testInfo.attach("Old TV with lists hidden", { path: image, contentType: "image/png" });
+        if (globalDisable) await action(server.baseUrl, "startListEnabled", { enabled: true });
+        else await selectProtocols(server.baseUrl, id, [0]);
+        await expect(opened.page.locator("#protocolPane")).toBeVisible();
+        await expect(opened.page.locator("#cycleBadge")).toBeVisible();
+        await expect.poll(async () => {
+          const rect = (await readGeometry()).pane;
+          return portrait ? rect.height < viewport.height : rect.width < viewport.width;
+        }).toBe(true);
+      }
+    } finally {
+      await action(server.baseUrl, "clientServerTime", { targetClientId: id, enabled: false });
+      await action(server.baseUrl, "startListEnabled", { enabled: true });
+      await opened.context.close();
+    }
+  });
+}
+
 test("Legacy screen renders the optional server clock below its main timer", async ({ browser }) => {
   const clientId = "visual-legacy-server-clock";
   const opened = await openLegacy(browser, server.baseUrl, clientId, { width: 1000, height: 800 }, [0]);
   try {
     await action(server.baseUrl, "startListEnabled", { enabled: false });
     await opened.page.waitForFunction(() => !document.body.classList.contains("protocol-visible"));
-    await opened.page.evaluate(() => window.dispatchEvent(new Event("resize")));
     await wait(250);
     await expect(opened.page.locator("#serverClock")).toBeHidden();
     const timerBeforeClock = await opened.page.evaluate(() => {

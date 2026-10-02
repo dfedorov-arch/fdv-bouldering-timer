@@ -829,7 +829,7 @@
           <li><strong>Браузеры</strong> — подключённые устройства и их диагностика.</li>
         </ul>
         <h3>Поле таймера</h3>
-        <p>Показывает оставшееся время текущего отрезка, ротацию или перерыв, номер цикла, следующее действие и прогресс.</p>
+        <p>Показывает оставшееся время текущего отрезка, ротацию или перерыв, номер ротации, следующее действие и прогресс.</p>
         <p class="note">Параметры активного запуска фиксируются на сервере. Чтобы выбрать другой формат, сначала остановите таймер кнопкой «Стоп».</p>
         <a class="back-to-toc" href="#contents">↑ К оглавлению</a>
       </section>
@@ -837,22 +837,22 @@
       <section id="formats" class="panel">
         <span class="chapter-kicker">Глава 3</span>
         <h2>Форматы соревнований</h2>
-        <p class="lead">Формат определяет единицы параметров, цикличность и поведение после окончания времени.</p>
+        <p class="lead">Формат определяет единицы параметров, повторение и поведение после окончания времени.</p>
 
         <div id="format-classic" class="platform">
           <h3>3.1. Классика</h3>
-          <p>Классический формат по французской системе. Ротация и короткий перерыв повторяются циклически без заранее заданного числа циклов.</p>
+          <p>Классический формат по французской системе. Ротация и короткий перерыв повторяются без заранее заданного числа ротаций.</p>
           <ul>
             <li>Время ротации задаётся в минутах, перерыв — в секундах.</li>
             <li>После окончания ротации автоматически начинается перерыв, затем следующая ротация.</li>
-            <li>Номер цикла увеличивается после каждой пары «ротация + перерыв».</li>
+            <li>Номер ротации увеличивается после каждой пары «ротация + перерыв».</li>
             <li>Если перерыв равен нулю, следующая ротация начинается сразу.</li>
           </ul>
         </div>
 
         <div id="format-festival" class="platform">
           <h3>3.2. Фестиваль</h3>
-          <p>Циклический формат с длинным раундом и длительным перерывом. Он работает по той же схеме повторения, что и «Классика», но обе длительности задаются в минутах.</p>
+          <p>Повторяющийся формат с длинным раундом и длительным перерывом. Он работает по той же схеме повторения, что и «Классика», но обе длительности задаются в минутах.</p>
           <ul>
             <li>После раунда начинается перерыв, после перерыва — следующий раунд.</li>
             <li>Чекбокс «Объявления времени» включает или выключает сигналы за 60, 30, 10 и 5 минут до конца раунда.</li>
@@ -867,7 +867,7 @@
           <ul>
             <li>Время ротации задаётся в минутах; отдельного перерыва таймера в этом формате нет.</li>
             <li>«Старый» формат раунда проводит всех участников сначала по первой трассе, затем по второй и далее.</li>
-            <li>«Новый» формат переводит участника на следующую трассу после заданного количества полных ротаций отдыха; значение по умолчанию — 3. После трассы в цикле 1 участник готовится в цикле 4 и выходит на следующую трассу в цикле 5.</li>
+            <li>«Новый» формат переводит участника на следующую трассу после заданного количества полных ротаций отдыха; значение по умолчанию — 3. После трассы в ротации 1 участник готовится в ротации 4 и выходит на следующую трассу в ротации 5.</li>
             <li>Выбор формата раунда влияет только на продвижение загруженного стартового списка.</li>
             <li>После ротации таймер останавливается на <code>00:00</code>; в обычном основном интерфейсе это состояние дополнительно отмечается как завершённое.</li>
             <li>Для следующего финального запуска достаточно снова нажать «Старт» или <kbd>Z</kbd>.</li>
@@ -879,8 +879,8 @@
           <tbody>
             <tr><td>Ротация / раунд</td><td>Минуты</td><td>Минуты</td><td>Минуты</td></tr>
             <tr><td>Перерыв</td><td>Секунды</td><td>Минуты</td><td>Нет</td></tr>
-            <tr><td>Повторение</td><td>Бесконечные циклы</td><td>Бесконечные циклы</td><td>Один запуск</td></tr>
-            <tr><td>После окончания</td><td>Следующий цикл</td><td>Следующий цикл</td><td><code>00:00</code>, затем «Старт» для нового запуска</td></tr>
+            <tr><td>Повторение</td><td>Бесконечные ротации</td><td>Бесконечные ротации</td><td>Один запуск</td></tr>
+            <tr><td>После окончания</td><td>Следующая ротация</td><td>Следующая ротация</td><td><code>00:00</code>, затем «Старт» для нового запуска</td></tr>
           </tbody>
         </table>
         <a class="back-to-toc" href="#contents">↑ К оглавлению</a>
@@ -892,9 +892,9 @@
         <p>Поля часов и минут не изменяют действие обычной кнопки «Старт». Чтобы использовать указанное время, нажмите отдельную маленькую кнопку <strong>▶</strong> справа от надписи «Время начала старта». Горячей клавиши у неё нет.</p>
         <h3>Классика и Фестиваль</h3>
         <ul>
-          <li><strong>Время в будущем:</strong> показывается обратный отсчёт, в назначенный момент первый цикл стартует автоматически.</li>
+          <li><strong>Время в будущем:</strong> показывается обратный отсчёт, в назначенный момент первая ротация стартует автоматически.</li>
           <li><strong>Время сегодня уже прошло:</strong> таймер восстанавливает текущую ротацию или перерыв так, будто соревнование началось в указанное время.</li>
-          <li>При восстановлении учитываются все прошедшие циклы; на экране сразу появляется актуальный номер цикла и остаток текущего отрезка.</li>
+          <li>При восстановлении учитываются все прошедшие ротации; на экране сразу появляется актуальный номер ротации и остаток текущего отрезка.</li>
         </ul>
         <h3>Финал</h3>
         <ul>
@@ -966,14 +966,24 @@
         <p>Ширина колонки определяется таблицей, а строка управления при необходимости сжимается за счёт кнопки «Загрузить список…». Заголовок таблицы может сокращаться многоточием; значения в строках участников не сокращаются и при необходимости создают горизонтальную прокрутку.</p>
         <h3>6.2. Ход соревнования</h3>
         <ul>
-          <li>Текущий участник, подготовка, отдых и результаты трасс подсвечиваются автоматически по циклу и выбранному формату.</li>
-          <li>Кнопка возле номера трассы открывает управление инцидентами: трассу можно приостановить и возобновить с выбранного, в том числе будущего, цикла.</li>
-          <li>Флажок после номера цикла имеет подсказку «Остановить всю волну с этого цикла». Для будущего цикла он включается автоматически и удерживает участников связанной волны также на предыдущих трассах. Флажок можно снять вручную; для текущего или прошедшего цикла он по умолчанию выключен, поэтому уже вышедший участник может закончить попытку.</li>
-          <li>Запланированные границы инцидента сразу показываются в описании и маркерами в таблице. За один цикл до возобновления значки этой паузы исчезают: участники, выходящие в следующем цикле, видят жёлтые треугольники подготовки.</li>
+          <li>Текущий участник, подготовка, отдых и результаты трасс подсвечиваются автоматически по ротации и выбранному формату.</li>
+          <li>Кнопка возле номера трассы открывает управление инцидентами: трассу можно приостановить и возобновить с выбранной, в том числе будущей, ротации.</li>
+          <li>Флажок после номера ротации имеет подсказку «Остановить всю волну с этой ротации». Для будущей ротации он включается автоматически и удерживает участников связанной волны также на предыдущих трассах. Флажок можно снять вручную; для текущей или прошедшей ротации он по умолчанию выключен, поэтому уже вышедший участник может закончить попытку.</li>
+          <li>Запланированные границы инцидента сразу показываются в описании и маркерами в таблице. За одну ротацию до возобновления значки этой паузы исчезают: участники, выходящие в следующей ротации, видят жёлтые треугольники подготовки.</li>
+          <li>Если задана ротация возобновления, значки паузы охватывают лазание в период остановки, а подготовку — только к трассам 2 и далее, когда участник уже начал соревнование. Подготовка к первой трассе не получает значок паузы. Например, при паузе трассы 2 с ротации 17 и возобновлении с 18, с удержанием всей волны, заранее отмечены №15–16 на трассе 2 и №17 на трассе 1. У последующих участников значков нет, но расписание остаётся сдвинутым. Если возобновление не задано или пауза заканчивается полной остановкой трассы, прежние значки сохраняются.</li>
+          <li>В описании паузы «по ротацию» означает последнюю приостановленную ротацию, а в поле возобновления указывается первая рабочая. Если трасса 1 приостановлена с 17 и возобновляется с 19, описание показывает «с ротации 17 по ротацию 18»: значки паузы стоят у №17 и №18, но не у №19, который только готовился бы к первой трассе.</li>
+          <li>Паузы с удержанием всей волны рассчитываются по порядку ротаций, независимо от порядка добавления. Изменение более ранней паузы автоматически пересчитывает участников последующих пауз, включая уже сохранённые списки. Например, если после паузы трассы 2 на ротацию 17 добавить паузу трассы 3 на ротации 14–15, в ротации 15 снимаются только значки третьей паузы: №13–14 на трассе 2 и №15 на трассе 1 остаются отмечены второй паузой. №13 готовится в ротации 17 и выходит на трассу 2 только в 18.</li>
+          <li>Полная остановка трассы с той же или более ранней ротации делает запланированную паузу неактивной. Например, пауза трассы 2 на ротацию 17 не задерживает первую трассу, если трасса 2 полностью остановлена с 16 или с 17. В меню появляется пояснение, почему пауза не действует. Её запись сохраняется, но значков и сдвига от неё нет. Отмена полной остановки снова позволяет учитывать сохранённую паузу. Если пауза началась до полной остановки, её накопленный сдвиг сохраняется.</li>
           <li>Участника или трассу можно исключить и позже восстановить. Подтверждения явно указывают, какой список изменяется.</li>
           <li>На экранах таблицы доступны только для просмотра, прокручиваются автоматически и продолжают локально обновляться при краткой потере связи.</li>
         </ul>
-        <figure><img src="help-assets/route-resume-preparation.png" alt="Цикл 17 перед возобновлением трассы 2: Печенин и Назин отмечены жёлтыми треугольниками подготовки, значков паузы в строках нет"><figcaption>Трасса 2 возобновляется с цикла 18: уже в цикле 17 Печенин и Назин видят подготовку к выходу.</figcaption></figure>
+        <figure><img src="help-assets/bounded-route-pause.png" alt="Заранее заданная пауза с возобновлением: значки у №15–16 на трассе 2 и №17 на трассе 1, ниже значков паузы нет"><figcaption>Подготовка отмечается паузой только к трассам 2 и далее; подготовка к первой трассе не получает значок паузы.</figcaption></figure>
+        <figure><img src="help-assets/first-route-pause.png" alt="Трасса 1 приостановлена с ротации 17 по 18, возобновление с 19: значки паузы только у №17 и №18"><figcaption>Возобновление с ротации 19 означает паузу по ротацию 18 включительно, а не по 19.</figcaption></figure>
+        <figure><img src="help-assets/ordered-route-pauses.png" alt="Ротация 15: участник №10 готовится к возобновлению трассы 3, а №13–14 на трассе 2 и №15 на трассе 1 сохраняют значки последующей паузы"><figcaption>Подготовка к возобновлению одной трассы не снимает значки другой запланированной паузы.</figcaption></figure>
+        <figure><img src="help-assets/stop-supersedes-pause.png" alt="Трасса 2 полностью остановлена с ротации 17: меню поясняет, что пауза с 17 не действует, значков паузы на первой трассе нет"><figcaption>Полная остановка до начала паузы или одновременно с ней отменяет её влияние на остальные трассы.</figcaption></figure>
+        <p>Такая остановка не перезаписывает заданное окончание паузы. Если пауза была с ротации 17 по 17, после удаления остановки с 16 или с 17 она снова возобновляется с 18. Это работает и после перезагрузки страницы. Пауза, изначально заданная без окончания, остаётся без окончания.</p>
+        <figure><img src="help-assets/restored-route-pause.png" alt="После удаления полной остановки трассы 2 восстановлена пауза с ротации 17 по 17 и её исходные три значка"><figcaption>Удаление остановки восстанавливает исходные границы запланированной паузы.</figcaption></figure>
+        <figure><img src="help-assets/route-resume-preparation.png" alt="Ротация 17 перед возобновлением трассы 2: Печенин и Назин отмечены жёлтыми треугольниками подготовки, значков паузы в строках нет"><figcaption>Трасса 2 возобновляется с ротации 18: уже в ротации 17 Печенин и Назин видят подготовку к выходу.</figcaption></figure>
         <p class="note">Два списка можно разместить в параллельных колонках или один под другим; раскладка переопределяется отдельно для каждого экрана.</p>
         <a class="back-to-toc" href="#contents">↑ К оглавлению</a>
       </section>
@@ -993,6 +1003,8 @@
         <p class="success"><strong>Основной IP:</strong> даже если управляющий браузер открыт через <code>127.0.0.1</code>, приложение старается показать пригодный для других устройств сетевой IP. Только IP основного браузера кликабелен и копирует готовую ссылку.</p>
 
         <h3 id="screen-control">7.2. Что можно делать из основного браузера</h3>
+        <p>Если на экране виден хотя бы один стартовый список, под таймером отображается номер текущей ротации. Плашка остаётся видимой в полном экране и Legacy, но не позволяет менять ротацию. Во время перерыва её контур жёлтый, во время ротации — зелёный; перед запланированным стартом показывается «Ожидание старта». На экране без списков плашка скрыта.</p>
+        <figure><img src="help-assets/list-screen-cycle.png" alt="Экран со стартовыми списками и плашкой Ротация 3 под таймером"><figcaption>Номер ротации на экране со стартовыми списками.</figcaption></figure>
         <ul>
           <li>Одновременно запускать, ставить на паузу и сбрасывать таймер на всех экранах.</li>
           <li>Менять формат, параметры и язык интерфейса для подключённых браузеров.</li>
@@ -1435,7 +1447,7 @@ xattr -dr com.apple.quarantine "/полный/путь/к/fdv-bouldering-timer-m
         </div>
         <div class="platform">
           <h3>3.3. Final</h3>
-          <p>A one-shot format. Each Start runs one rotation and then waits for the operator. The Old list schedule sends every participant through route 1 before route 2; the New schedule moves a participant to the next route after a configurable number of complete rest rotations (3 by default). A participant on route 1 in cycle 1 prepares in cycle 4 and climbs the next route in cycle 5. This choice affects only a loaded start list.</p>
+          <p>A one-shot format. Each Start runs one rotation and then waits for the operator. The Old list schedule sends every participant through route 1 before route 2; the New schedule moves a participant to the next route after a configurable number of complete rest rotations (3 by default). A participant on route 1 in rotation 1 prepares in rotation 4 and climbs the next route in rotation 5. This choice affects only a loaded start list.</p>
         </div>
         <table class="comparison">
           <thead><tr><th>Property</th><th>Classic</th><th>Festival</th><th>Final</th></tr></thead>
@@ -1443,7 +1455,7 @@ xattr -dr com.apple.quarantine "/полный/путь/к/fdv-bouldering-timer-m
             <tr><td>Rotation / round</td><td>Minutes</td><td>Minutes</td><td>Minutes</td></tr>
             <tr><td>Break</td><td>Seconds</td><td>Minutes</td><td>None</td></tr>
             <tr><td>Repeating</td><td>Unlimited</td><td>Unlimited</td><td>One run</td></tr>
-            <tr><td>After completion</td><td>Next cycle</td><td>Next cycle</td><td><code>00:00</code></td></tr>
+            <tr><td>After completion</td><td>Next rotation</td><td>Next rotation</td><td><code>00:00</code></td></tr>
           </tbody>
         </table>
         <a class="back-to-toc" href="#en-contents">↑ Back to contents</a>
@@ -1455,8 +1467,8 @@ xattr -dr com.apple.quarantine "/полный/путь/к/fdv-bouldering-timer-m
         <p>The hours and minutes fields do not change the normal Start button. Press the separate small <strong>▶</strong> button next to Start time. It has no keyboard shortcut.</p>
         <h3>Classic and Festival</h3>
         <ul>
-          <li>A future time starts a countdown and the first cycle starts automatically.</li>
-          <li>If today's time has passed, the timer restores the current cycle as if the competition started at that time.</li>
+          <li>A future time starts a countdown and the first rotation starts automatically.</li>
+          <li>If today's time has passed, the timer restores the current rotation as if the competition started at that time.</li>
         </ul>
         <h3>Final</h3>
         <ul>
@@ -1503,14 +1515,24 @@ xattr -dr com.apple.quarantine "/полный/путь/к/fdv-bouldering-timer-m
         <p>The column follows the table width. Its toolbar may compress the Load list… label, while participant data is never ellipsized; a horizontal scrollbar is provided when necessary.</p>
         <h3>6.2. Competition progress</h3>
         <ul>
-          <li>Climbing, preparation, rest, and route-result markers follow the current cycle and competition format automatically.</li>
-          <li>The route control opens incident management. A route can be suspended and restored from a selected current or future cycle.</li>
-          <li>The checkbox after the cycle number is labelled “Hold the entire wave from this cycle”. It turns on automatically for a future cycle and also holds the related participants on upstream routes. The operator may clear it; for a current or past cycle it defaults off so a participant who has already started may finish.</li>
-          <li>Both planned incident boundaries are shown immediately in the description and table markers. One cycle before resumption, markers for that pause disappear and participants starting in the next cycle see yellow preparation triangles.</li>
+          <li>Climbing, preparation, rest, and route-result markers follow the current rotation and competition format automatically.</li>
+          <li>The route control opens incident management. A route can be suspended and restored from a selected current or future rotation.</li>
+          <li>The checkbox after the rotation number is labelled “Hold the entire wave from this rotation”. It turns on automatically for a future rotation and also holds the related participants on upstream routes. The operator may clear it; for a current or past rotation it defaults off so a participant who has already started may finish.</li>
+          <li>Both planned incident boundaries are shown immediately in the description and table markers. One rotation before resumption, markers for that pause disappear and participants starting in the next rotation see yellow preparation triangles.</li>
+          <li>With scheduled resumption, pause icons cover climbing within the suspended interval and preparation only for routes 2 and later, after a participant has entered competition. First-route preparation has no pause icon. For example, with route 2 paused at rotation 17, resuming at 18, and the whole wave held, participants 15–16 are marked on route 2 and participant 17 on route 1 beforehand. Later participants have no pause icon but retain their shifted timetable. Open-ended pauses and those ended by permanently stopping the route keep their existing markers.</li>
+          <li>The description ends at the last suspended rotation; the resumption field names the first working rotation. If route 1 is paused starting at 17 and resumes at 19, the description reads “from rotation 17 through rotation 18”: only participants 17 and 18 have pause icons, not participant 19 preparing for the first attempt.</li>
+          <li>Whole-wave pauses follow rotation order, regardless of creation order. Changing an earlier pause automatically recalculates participant anchors for subsequent pauses, including previously saved lists. For example, after planning a route 2 pause at rotation 17, add a route 3 pause for rotations 14–15. At rotation 15 only the earlier pause markers clear: participants 13–14 on route 2 and participant 15 on route 1 retain the later pause markers. Participant 13 prepares at rotation 17 and starts route 2 only at 18.</li>
+          <li>A permanent route stop at or before a planned pause's start supersedes that pause. For example, a route 2 pause at rotation 17 does not delay route 1 if route 2 is permanently stopped from 16 or 17. The menu explains why the pause does not apply. Its record is retained, but adds no markers or delay. Cancelling the permanent stop allows the saved pause to apply again. A pause that began before the stop retains its accumulated delay.</li>
           <li>Participants and routes can be excluded and restored; confirmations identify the affected list.</li>
           <li>Display tables are read-only, auto-scroll, and continue local updates through a short network interruption.</li>
         </ul>
-        <figure><img src="help-assets/route-resume-preparation.png" alt="Cycle 17 before route 2 resumes: Pechenin and Nazin have yellow preparation triangles and participant pause markers are cleared"><figcaption>Route 2 resumes at cycle 18: Pechenin and Nazin see preparation markers as early as cycle 17.</figcaption></figure>
+        <figure><img src="help-assets/bounded-route-pause.png" alt="Scheduled pause with resumption: only participants 15–16 on route 2 and participant 17 on route 1 have pause icons"><figcaption>Preparation has a pause icon only for routes 2 and later, not for the first attempt.</figcaption></figure>
+        <figure><img src="help-assets/first-route-pause.png" alt="Route 1 paused from rotation 17 through 18, resuming at 19: only participants 17 and 18 have pause icons"><figcaption>Resuming at rotation 19 means the pause ends at rotation 18 inclusive, not at 19.</figcaption></figure>
+        <figure><img src="help-assets/ordered-route-pauses.png" alt="Rotation 15: participant 10 prepares for route 3 resumption while participants 13–14 on route 2 and participant 15 on route 1 retain the later pause markers"><figcaption>Preparation for one route's resumption does not clear another planned pause.</figcaption></figure>
+        <figure><img src="help-assets/stop-supersedes-pause.png" alt="Route 2 stopped from rotation 17: the menu explains that its pause from 17 does not apply, with no pause icons on route 1"><figcaption>A permanent stop before or at a pause's start supersedes its effect on other routes.</figcaption></figure>
+        <p>Such a stop does not overwrite a scheduled pause ending. A pause from rotation 17 through 17 resumes at 18 again after removing a stop from 16 or 17, including after a page reload. A pause originally set without an ending remains open-ended.</p>
+        <figure><img src="help-assets/restored-route-pause.png" alt="After cancelling route 2's permanent stop, the pause from rotation 17 through 17 and its original three markers are restored"><figcaption>Cancelling the stop restores the planned pause's original boundaries.</figcaption></figure>
+        <figure><img src="help-assets/route-resume-preparation.png" alt="Rotation 17 before route 2 resumes: Pechenin and Nazin have yellow preparation triangles and participant pause markers are cleared"><figcaption>Route 2 resumes at rotation 18: Pechenin and Nazin see preparation markers as early as rotation 17.</figcaption></figure>
         <p class="note">Two lists can use parallel columns or a stacked layout; the choice can be overridden independently for each display.</p>
         <a class="back-to-toc" href="#en-contents">↑ Back to contents</a>
       </section>
@@ -1526,6 +1548,8 @@ xattr -dr com.apple.quarantine "/полный/путь/к/fdv-bouldering-timer-m
         </ol>
         <p>Other browsers become clean timer-only displays. They receive the same server state and continually correct their local time against the server. For older TV browsers, switch an individual display to Legacy mode from the browser list.</p>
         <h3>7.2. Primary browser controls</h3>
+        <p>Displays with at least one visible start list show the current rotation below the timer, including fullscreen and Legacy. The badge is read-only: its border is green during rotation and yellow during a break; before a scheduled start it says “Waiting for start”. The badge is hidden on displays without lists.</p>
+        <figure><img src="help-assets/list-screen-cycle.png" alt="Display with start lists and a read-only Rotation 3 badge below the timer"><figcaption>The rotation badge on a display with start lists.</figcaption></figure>
         <ul>
           <li><strong>Sound in primary browser</strong> controls only that browser.</li>
           <li><strong>Sound in other browsers</strong> enables sound on remote displays.</li>

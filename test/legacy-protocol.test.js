@@ -47,6 +47,13 @@ test("Legacy derives protocol progress from its locally extrapolated timer", () 
   assert.match(legacy, /renderProtocols\(view\)/);
 });
 
+test("Legacy refits on list visibility transitions without relying on resize events", () => {
+  const render = legacy.slice(legacy.indexOf("function renderProtocols(view)"), legacy.indexOf("function renderCycleBadge(view)"));
+  assert.match(render, /var visibilityChanged = hasClass\(document\.body, "protocol-visible"\) !== visible;/);
+  assert.match(render, /protocolPaneEl\.style\.display = visible \? "block" : "none";[\s\S]*?if \(visibilityChanged\) \{\s*invalidateTimerFit\(\);\s*fitTimerText\(\);\s*\}[\s\S]*?if \(!visible\)/);
+  assert.doesNotMatch(render, /setInterval|setTimeout|dispatchEvent/);
+});
+
 test("Legacy protocol tables fit their pane and use dark themed scrollbars", () => {
   assert.match(legacy, /list\.routeCount === 1 \? \(english \? "R" : "T"\) : String\(i \+ 1\)/);
   assert.match(legacy, /-webkit-text-size-adjust: none;/);
@@ -201,10 +208,21 @@ test("Legacy renders the optional synchronized server clock below an otherwise u
   assert.match(legacy, /<div id="serverClock"><span id="serverClockText">00:00:00<\/span><\/div>/);
   assert.match(legacy, /#serverClock \{[\s\S]*?position: absolute;[\s\S]*?bottom: 0;/);
   assert.match(legacy, /serverClockEl\.offsetHeight \+ "px"/);
-  assert.match(legacy, /timerClockTransform = "translateY\(-" \+ serverClockEl\.offsetHeight \+ "px\)"/);
+  assert.match(legacy, /var listsWithClock = protocolIsVisible\(\);/);
+  assert.match(legacy, /listsWithClock\s*\? \(serverClockEl\.offsetHeight \+ 10\) \/ 2 : serverClockEl\.offsetHeight/);
   assert.match(legacy, /setBodyFlag\("server-clock-visible", showServerClock\);/);
   assert.match(legacy, /formatServerClockTime\(serverNow\(\)\)/);
   assert.match(legacy, /state && state\.showServerTime/);
+});
+
+test("Legacy list screens show a cached read-only cycle badge without a new fitting loop", () => {
+  assert.match(legacy, /body\.protocol-visible #cycleBadge \{ display: block; \}/);
+  assert.match(legacy, /if \(protocolIsVisible\(\)\) h = Math\.max\(48, h - 66\);/);
+  const update = legacy.slice(legacy.indexOf("function renderCycleBadge(view)"), legacy.indexOf("function render()"));
+  assert.match(update, /startListFinalCycle/);
+  assert.match(update, /currentTimerCycle\(\)/);
+  assert.match(update, /cycleBadgeEl\.innerHTML !== label/);
+  assert.doesNotMatch(update, /fitTimerText|setInterval|setTimeout|offsetHeight|getBoundingClientRect/);
 });
 
 test("Legacy uses the configured countdown colors while waiting for a scheduled start", () => {

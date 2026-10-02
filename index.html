@@ -2599,6 +2599,31 @@
       }
     }
 
+    /* Screens with lists retain only the read-only cycle chip, not controls. */
+    body.start-list-visible.viewer-mode .timer-column > footer,
+    body.start-list-visible.fullscreen .timer-column > footer {
+      display: block !important;
+    }
+
+    body.start-list-visible.viewer-mode .schedule.with-cycle,
+    body.start-list-visible.fullscreen .schedule.with-cycle {
+      display: grid !important;
+      margin-top: 12px;
+      pointer-events: none;
+    }
+
+    body.start-list-visible.viewer-mode .server-clock-display,
+    body.start-list-visible.fullscreen .server-clock-display {
+      position: static;
+      transform: none;
+      margin-top: 12px;
+    }
+
+    @media (display-mode: fullscreen) {
+      body.start-list-visible .timer-column > footer { display: block; }
+      body.start-list-visible .schedule.with-cycle { display: grid; }
+    }
+
     @media (max-width: 560px) and (orientation: portrait) {
       body.start-list-visible .stage {
         min-height: 0;
@@ -2975,7 +3000,7 @@
             </div>
             <div id="serverClockDisplay" class="server-clock-display" aria-label="Время сервера" hidden>00:00:00</div>
             <div class="meta" aria-live="polite">
-              <div id="cycleMeta" class="meta-item">Цикл 1</div>
+              <div id="cycleMeta" class="meta-item">Ротация 1</div>
               <div id="rotationMeta" class="meta-item">Ротация 04:00</div>
               <div id="nextMeta" class="meta-item">Далее: старт</div>
             </div>
@@ -3051,7 +3076,7 @@
       timeline: []
     };
 
-    const pageBuildNumber = 393;
+    const pageBuildNumber = 400;
     const projectUrl = "https://github.com/dfedorov-arch/fdv-bouldering-timer";
     const buildLinkConfirmDelayMs = 550;
     const offlineSnapshotKey = "fdvBoulderingTimerOfflineSnapshot";
@@ -3096,28 +3121,30 @@
         screenListsParallel: "Расположить два списка в две колонки", screenListsStacked: "Расположить два списка в одну колонку",
         startListHint: "XLSX, MXL, CSV, TSV или TXT с заголовками в первой строке", clearStartList: "Удалить",
         startListLoaded: "Участников: {rows}; столбцов: {columns}; трасс: {routes}", startListInvalid: "Не удалось прочитать таблицу: нужны заголовки и хотя бы одна строка участника",
-        startListCycle: "Цикл {cycle}", startListRoute: "Трасса {route}", startListRouteMenu: "Меню трассы", cycleNumber: "Номер цикла",
-        routeIncidentCycle: "Цикл", routeIncidentPause: "Приостановить", routeIncidentResume: "Возобновить",
-        routeIncidentPauseWave: "Остановить всю волну с этого цикла",
-        routeIncidentStartCycleHint: "Цикл, начиная с которого трасса будет приостановлена или остановлена полностью",
-        routeIncidentResumeCycleHint: "Цикл, начиная с которого трасса возобновит работу или будет остановлена",
+        startListCycle: "Ротация {cycle}", startListRoute: "Трасса {route}", startListRouteMenu: "Меню трассы", cycleNumber: "Номер ротации",
+        routeIncidentCycle: "Ротация", routeIncidentPause: "Приостановить", routeIncidentResume: "Возобновить",
+        routeIncidentPauseWave: "Остановить всю волну с этой ротации",
+        routeIncidentStartCycleHint: "Ротация, начиная с которой трасса будет приостановлена или остановлена полностью",
+        routeIncidentResumeCycleHint: "Ротация, начиная с которой трасса возобновит работу или будет остановлена",
         routeIncidentStop: "Остановить", routeIncidentCancelStop: "Отменить остановку", routeIncidentClearPause: "Удалить приостановку", routeIncidentClose: "Закрыть меню трассы",
-        routeIncidentPausedFrom: "Приостановлена с цикла {cycle}", routeIncidentStoppedFrom: "Остановлена с цикла {cycle}",
-        routeIncidentPausedRange: "Была приостановлена с цикла {start} по цикл {resume}",
-        routeIncidentPausedUntilStop: "Приостановка с цикла {start} завершена остановкой на цикле {stop}",
-        routeIncidentNoParticipant: "В выбранном цикле на этой трассе нет участника.",
+        routeIncidentPausedFrom: "Приостановлена с ротации {cycle}", routeIncidentStoppedFrom: "Остановлена с ротации {cycle}",
+        routeIncidentPausedRange: "Была приостановлена с ротации {start} по ротацию {end}",
+        routeIncidentNoPausedRotations: "Нет приостановленных ротаций: возобновление с ротации {resume}",
+        routeIncidentPauseSuperseded: "Пауза с ротации {start} не действует: трасса остановлена с ротации {stop}",
+        routeIncidentPausedUntilStop: "Приостановка с ротации {start} завершена остановкой на ротации {stop}",
+        routeIncidentNoParticipant: "В выбранной ротации на этой трассе нет участника.",
         routeMarkerReady: "Готовится", routeMarkerActive: "На трассе", routeMarkerDone: "Закончил", routeMarkerPaused: "Техническая пауза", routeMarkerStopped: "Трасса остановлена",
         startListExcludeParticipant: "Исключить участника из списка?", startListRestoreParticipant: "Вернуть участника в список?",
         controls: "Управление", start: "Старт", pause: "Пауза", reset: "Стоп", sectionHide: "Скрыть", sectionShow: "Показать",
         showBrowserNumbers: "Показать номера браузеров", hideBrowserNumbers: "Скрыть номера браузеров", serverTime: "Время сервера",
         pinBrowser: "Закрепить место браузера", unpinBrowser: "Открепить место браузера", moveBrowserUp: "Переместить браузер выше", moveBrowserDown: "Переместить браузер ниже",
         presetLockedHint: "Чтобы выбрать другой формат, сначала остановите таймер кнопкой «Стоп»",
-        finalPresetLockedHint: 'Чтобы выбрать другой формат, сначала остановите таймер кнопкой "Стоп" и перейдите на Цикл 1',
+        finalPresetLockedHint: 'Чтобы выбрать другой формат, сначала остановите таймер кнопкой "Стоп" и перейдите на ротацию 1',
         screen: "Экран", exitScreen: "Выйти из режима Экран", browsers: "Браузеры", ready: "Готов", readiness: "Готовность",
         waitingStart: "Ожидание старта", untilStart: "До начала старта",
         waitingManual: "Ожидание ручного старта", readyStart: "Готов к старту",
         pressStart: "Нажмите Старт", nextManual: "Далее: ручной старт",
-        completed: "Завершено", roundRunning: "Раунд идет", cycle: "Цикл",
+        completed: "Завершено", roundRunning: "Раунд идет", cycle: "Ротация",
         rotation: "Ротация", round: "Раунд", break: "Перерыв", nextStart: "Далее: старт",
         nextRotation: "Далее: ротация", nextBreak: "Далее: перерыв",
         nextComplete: "Далее: завершение", noData: "Нет данных", thisBrowser: "этот",
@@ -3194,28 +3221,30 @@
         screenListsParallel: "Place the two lists in two columns", screenListsStacked: "Place the two lists in one column",
         startListHint: "XLSX, MXL, CSV, TSV or TXT with headers in the first row", clearStartList: "Remove",
         startListLoaded: "Participants: {rows}; columns: {columns}; routes: {routes}", startListInvalid: "Could not read the table: headers and at least one participant row are required",
-        startListCycle: "Cycle {cycle}", startListRoute: "Route {route}", startListRouteMenu: "Route menu", cycleNumber: "Cycle number",
-        routeIncidentCycle: "Cycle", routeIncidentPause: "Pause", routeIncidentResume: "Resume",
-        routeIncidentPauseWave: "Hold the entire wave from this cycle",
-        routeIncidentStartCycleHint: "Cycle from which the route will be paused or stopped permanently",
-        routeIncidentResumeCycleHint: "Cycle from which the route will resume operation or be stopped",
+        startListCycle: "Rotation {cycle}", startListRoute: "Route {route}", startListRouteMenu: "Route menu", cycleNumber: "Rotation number",
+        routeIncidentCycle: "Rotation", routeIncidentPause: "Pause", routeIncidentResume: "Resume",
+        routeIncidentPauseWave: "Hold the entire wave from this rotation",
+        routeIncidentStartCycleHint: "Rotation from which the route will be paused or stopped permanently",
+        routeIncidentResumeCycleHint: "Rotation from which the route will resume operation or be stopped",
         routeIncidentStop: "Stop", routeIncidentCancelStop: "Cancel stop", routeIncidentClearPause: "Remove pause", routeIncidentClose: "Close route menu",
-        routeIncidentPausedFrom: "Paused from cycle {cycle}", routeIncidentStoppedFrom: "Stopped from cycle {cycle}",
-        routeIncidentPausedRange: "Was paused from cycle {start} through cycle {resume}",
-        routeIncidentPausedUntilStop: "Pause from cycle {start} ended with a stop at cycle {stop}",
-        routeIncidentNoParticipant: "There is no participant on this route in the selected cycle.",
+        routeIncidentPausedFrom: "Paused from rotation {cycle}", routeIncidentStoppedFrom: "Stopped from rotation {cycle}",
+        routeIncidentPausedRange: "Was paused from rotation {start} through rotation {end}",
+        routeIncidentNoPausedRotations: "No paused rotations: resumes at rotation {resume}",
+        routeIncidentPauseSuperseded: "Pause from rotation {start} does not apply: route stopped from rotation {stop}",
+        routeIncidentPausedUntilStop: "Pause from rotation {start} ended with a stop at rotation {stop}",
+        routeIncidentNoParticipant: "There is no participant on this route in the selected rotation.",
         routeMarkerReady: "Preparing", routeMarkerActive: "On route", routeMarkerDone: "Finished", routeMarkerPaused: "Technical pause", routeMarkerStopped: "Route stopped",
         startListExcludeParticipant: "Exclude participant from the list?", startListRestoreParticipant: "Return participant to the list?",
         controls: "Controls", start: "Start", pause: "Pause", reset: "Stop", sectionHide: "Hide", sectionShow: "Show",
         showBrowserNumbers: "Show browser numbers", hideBrowserNumbers: "Hide browser numbers", serverTime: "Server time",
         pinBrowser: "Pin browser position", unpinBrowser: "Unpin browser position", moveBrowserUp: "Move browser up", moveBrowserDown: "Move browser down",
         presetLockedHint: "To select another format, first stop the timer with the Stop button",
-        finalPresetLockedHint: "To select another format, stop the timer with Stop and return to Cycle 1",
+        finalPresetLockedHint: "To select another format, stop the timer with Stop and return to Rotation 1",
         screen: "Screen", exitScreen: "Exit screen mode", browsers: "Browsers", ready: "Ready", readiness: "Ready",
         waitingStart: "Waiting for start", untilStart: "Until start",
         waitingManual: "Waiting for manual start", readyStart: "Ready to start",
         pressStart: "Press Start", nextManual: "Next: manual start",
-        completed: "Completed", roundRunning: "Round running", cycle: "Cycle",
+        completed: "Completed", roundRunning: "Round running", cycle: "Rotation",
         rotation: "Rotation", round: "Round", break: "Break", nextStart: "Next: start",
         nextRotation: "Next: rotation", nextBreak: "Next: break",
         nextComplete: "Next: finish", noData: "No data", thisBrowser: "this",
@@ -5677,7 +5706,7 @@
       if (!visible) return;
       const clockHeight = els.serverClockDisplay.getBoundingClientRect().height;
       let clockBottomValue = clockHeight;
-      if (isViewerClient) {
+      if (isViewerClient && !document.body.classList.contains("start-list-visible")) {
         const timerWrapRect = els.serverClockDisplay.closest(".timer-wrap")?.getBoundingClientRect();
         const timerColumnRect = els.serverClockDisplay.closest(".timer-column")?.getBoundingClientRect();
         if (timerWrapRect && timerColumnRect) {
@@ -7843,7 +7872,7 @@
     }
 
     function startListCalculationIncidents(list) {
-      return window.FDVStartList.rebaseIncidents(list?.incidents, list?.excludedParticipants, list?.rows?.length);
+      return window.FDVStartList.calculationIncidents(list?.incidents, list?.excludedParticipants, list?.rows?.length, startListSchedule(list));
     }
 
     function startListMarkerLabel(marker) {
@@ -7871,9 +7900,12 @@
           stop: incident.resumeCycle
         });
       }
+      if (incident.resumeCycle <= incident.startCycle) {
+        return formatStartListText("routeIncidentNoPausedRotations", { resume: incident.resumeCycle });
+      }
       return formatStartListText("routeIncidentPausedRange", {
         start: incident.startCycle,
-        resume: incident.resumeCycle
+        end: incident.resumeCycle - 1
       });
     }
 
@@ -7936,7 +7968,10 @@
       const singleRoute = list.routeCount === 1;
       const pauseNotes = routePauses.map((incident) => {
         const incidentIndex = incidents.indexOf(incident);
-        const pauseNote = formatRoutePauseState(incident, position.cycle);
+        const supersedingStop = window.FDVStartList.stopSupersedingPause(incident, incidents);
+        const pauseNote = supersedingStop
+          ? formatStartListText("routeIncidentPauseSuperseded", { start: incident.startCycle, stop: supersedingStop.startCycle })
+          : formatRoutePauseState(incident, position.cycle);
         return `<div class="start-list-incident-note"><button class="start-list-incident-remove" type="button" data-start-list-incident-action="clear-pause" data-start-list-incident-index="${incidentIndex}" title="${escapeHtml(t("routeIncidentClearPause"))}" aria-label="${escapeHtml(t("routeIncidentClearPause"))}">&times;</button><span>${escapeHtml(pauseNote)}</span></div>`;
       });
       const notesHtml = [
@@ -8021,10 +8056,11 @@
           ? { ...incident, resumeCycle: Math.max(incident.startCycle, cycle), resolution: "resume" }
           : incident)
         : incidents;
-      const calculationIncidents = window.FDVStartList.rebaseIncidents(
+      const calculationIncidents = window.FDVStartList.calculationIncidents(
         previewIncidents,
         list.excludedParticipants,
-        list.rows.length
+        list.rows.length,
+        startListSchedule(list)
       );
       const participantIndex = window.FDVStartList.participantAtOrAfterCycle(
         routeIndex,
@@ -8089,7 +8125,8 @@
       }
       if (action === "stop") {
         incidents = incidents.filter((incident) => !(incident.kind === "stop" && incident.route === routeIndex + 1));
-        incidents = incidents.map((incident) => incident === activePause
+        // A stop at/before the start suppresses the pause without rewriting it.
+        incidents = incidents.map((incident) => incident === activePause && cycle > incident.startCycle
           ? { ...incident, resumeCycle: Math.max(incident.startCycle, cycle), resolution: "stop" }
           : incident);
         incidents.push({ kind: "stop", route: routeIndex + 1, startCycle: cycle });
@@ -10324,7 +10361,8 @@
     }
 
     function cycleInputEditable() {
-      return controlsAvailable() && !state.running && !isViewerClient && !state.countdownOnly;
+      return controlsAvailable() && !state.running && !isViewerClient
+        && !document.body.classList.contains("fullscreen") && !state.countdownOnly;
     }
 
     function setCycleMeta(cycle = displayedCycleNumber()) {
@@ -10376,7 +10414,12 @@
         setElementText(els.rotationMeta, `${t("start")} ${new Date(state.serverStartedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`);
         setElementText(els.nextMeta, untilStart > 0 ? t("nextManual") : t("pressStart"));
         setProgressWidth(0, true);
-        setScheduleMarkup(`<div class="chip current"><span>${untilStart > 0 ? t("untilStart") : t("waitingManual")}</span></div>`);
+        if ((isViewerClient || document.body.classList.contains("fullscreen"))
+          && document.body.classList.contains("start-list-visible")) {
+          drawSchedule(null);
+        } else {
+          setScheduleMarkup(`<div class="chip current"><span>${untilStart > 0 ? t("untilStart") : t("waitingManual")}</span></div>`);
+        }
         invalidateRuntimeUiCache();
         syncButtons();
         return;
@@ -10494,6 +10537,7 @@
         state.runtimePreset,
         segmentKey,
         state.running,
+        cycleInputEditable(),
         settings.rotationSeconds,
         settings.breakSeconds,
         settings.oneShot

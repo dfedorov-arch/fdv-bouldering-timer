@@ -20,7 +20,19 @@ Desktop installers include `fdv-installed.marker` to select per-user server stat
 
 Current application screenshots belong in `help-assets/`. A screenshot that shows removed controls, obsolete terminology, or the old diagnostic order must not be referenced; use a neutral layout until a current-build capture is available. Launcher icons and launcher-window images are replaced only when those launchers change.
 
-`help-assets/route-resume-preparation.png` shows the held wave preparing at cycle 17 before route 2 resumes at cycle 18; it is captured by the isolated modern route-resumption visual test.
+`help-assets/route-resume-preparation.png` shows the held wave preparing at rotation 17 before route 2 resumes at rotation 18; it is captured by the isolated modern route-resumption visual test.
+
+`help-assets/bounded-route-pause.png` shows the same planned pause before resumption, with exactly three pause icons: participants 15–16 on route 2 and participant 17 on route 1. Preparation for the first route has no pause icon; it comes from that isolated test.
+
+`help-assets/first-route-pause.png` shows a first-route pause starting at 17 and resuming at 19: the description ends at 18 and exactly participants 17–18 have pause icons. The modern first-route visual test captures it and verifies the description in Russian and English; the Legacy test verifies the same marker selection.
+
+`help-assets/ordered-route-pauses.png` shows rotation 15 with preparation before route 3 resumes and the three retained markers of the later route 2 pause. The isolated pause-order test verifies initial creation order, reload from stale saved anchors, preparation at 17, and climbing at 18 in Modern and Legacy.
+
+`help-assets/stop-supersedes-pause.png` shows the incident menu explanation for a route 2 permanent stop at its planned pause start (rotation 17), with no upstream pause markers. The isolated modern stop-before-pause test captures it, verifies both languages, and has equivalent Legacy and earlier-stop (16) cases.
+
+`help-assets/restored-route-pause.png` shows the same route 2 pause restored with its original ending (17 through 17, resume 18) after cancelling the equal-start permanent stop. The isolated modern test captures it after a page reload and verifies the exact original saved payload and both languages.
+
+`help-assets/list-screen-cycle.png` shows the current-rotation badge and optional clock on a modern secondary display with start lists; it is captured on an isolated visual-test server.
 
 ## Website documentation
 
