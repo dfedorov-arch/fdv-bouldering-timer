@@ -236,7 +236,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           cd dist
-          sha256sum * > SHA256SUMS.txt
+          sha256sum fdv-bouldering-timer-* > SHA256SUMS.txt
           cd ..
           printf '%s\n' \
             "Installers: Windows MSI, macOS PKG (Intel and Apple Silicon), and Linux DEB (x64 and ARM64)." \
