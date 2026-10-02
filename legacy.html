@@ -550,6 +550,34 @@
       z-index: 1;
     }
 
+    #cycleBadge {
+      display: none;
+      position: absolute;
+      left: 50%;
+      bottom: 12px;
+      z-index: 2;
+      max-width: 90%;
+      height: 42px;
+      padding: 0 18px;
+      box-sizing: border-box;
+      border: 1px solid #2dd18b;
+      border-radius: 8px;
+      background: #171b22;
+      color: #f4f7fb;
+      font-size: 13px;
+      font-weight: bold;
+      line-height: 40px;
+      text-align: center;
+      white-space: nowrap;
+      -webkit-transform: translateX(-50%);
+      transform: translateX(-50%);
+      pointer-events: none;
+    }
+
+    body.protocol-visible #cycleBadge { display: block; }
+    #cycleBadge.cycle-break,
+    #cycleBadge.cycle-waiting { border-color: #ffc857; }
+
     #browserNumberBadge {
       display: none;
       position: absolute;
@@ -579,6 +607,7 @@
 <body>
   <div id="timerPane">
     <div id="browserNumberBadge"></div>
+    <div id="cycleBadge"></div>
     <div id="wrap">
       <div id="timerContent">
         <div id="time">--:--</div>
@@ -588,10 +617,10 @@
   </div>
   <div id="protocolPane"><div id="protocolLayout"></div></div>
 
-  <script src="lib/start-list-display.js?v=393"></script>
+  <script src="lib/start-list-display.js?v=400"></script>
   <script>
     (function () {
-      var legacyBuildNumber = 393;
+      var legacyBuildNumber = 400;
       var state = null;
       var serverOffset = 0;
       var lastContact = 0;
@@ -921,6 +950,7 @@
       }
       var wrapEl = document.getElementById("wrap");
       var timeEl = document.getElementById("time");
+      var cycleBadgeEl = document.getElementById("cycleBadge");
       var serverClockEl = document.getElementById("serverClock");
       var serverClockTextEl = document.getElementById("serverClockText");
       var serverClockVisible = false;
@@ -1213,6 +1243,8 @@
         var h = timerPaneEl.clientHeight || (portrait ? timerHeight : fullHeight);
         if (w < 1) w = 360;
         if (h < 1) h = 640;
+        // Reserve a fixed footer only while lists are displayed. No polling fit.
+        if (protocolIsVisible()) h = Math.max(48, h - 66);
         wrapEl.style.width = w + "px";
         wrapEl.style.height = h + "px";
         timeEl.style.width = w + "px";
@@ -1274,7 +1306,7 @@
         if (w < 1 || h < 1) return;
         var maxW = w * 0.985;
         var clockHeight = state && state.showServerTime && serverClockEl ? serverClockEl.offsetHeight + 10 : 0;
-        var maxH = Math.max(48, h * 0.96);
+        var maxH = Math.max(48, h * 0.96 - (protocolIsVisible() ? clockHeight : 0));
         var low = 48;
         var high = Math.min(1800, Math.max(220, w, h * 1.45));
         var i, mid, testW, testH;
@@ -2151,10 +2183,11 @@
       }
 
       function evaluateProtocolCells(view, position, schedule, candidates) {
-        var incidents = window.FDVStartListDisplay.rebaseIncidents(
+        var incidents = window.FDVStartListDisplay.calculationIncidents(
           view.list.incidents,
           view.list.excludedParticipants,
-          view.list.rows.length
+          view.list.rows.length,
+          schedule
         );
         var dirtyRows = {};
         var participantIndex;
@@ -2415,16 +2448,23 @@
 
       function renderProtocols(view) {
         var visible = protocolIsVisible();
+        var visibilityChanged = hasClass(document.body, "protocol-visible") !== visible;
         var position;
         var progressKey;
         var key;
         setBodyFlag("protocol-visible", visible);
         protocolPaneEl.style.display = visible ? "block" : "none";
+        if (visible) ensureProtocolStructure();
+        // Old TVs may emit no resize event when lists disappear. Reclaim the
+        // viewport on the visibility transition, not on every state update.
+        if (visibilityChanged) {
+          invalidateTimerFit();
+          fitTimerText();
+        }
         if (!visible) {
           protocolProgressKey = "";
           return;
         }
-        ensureProtocolStructure();
         position = currentProtocolPosition(view);
         progressKey = protocolRevision + ":" + String(position.cycle) + ":" + position.phase
           + ":" + protocolScheduleKey(protocolSchedule(legacyProtocols[0] && legacyProtocols[0].list));
@@ -2441,6 +2481,21 @@
           protocolSizeKey = "";
           syncViewportSize();
         }
+      }
+
+      function renderCycleBadge(view) {
+        if (!protocolIsVisible()) return;
+        var english = state.language === "en";
+        var waiting = state.waitingForManualStart || (view.phase === "start" && !isManualStartHoldPending());
+        var cycle = protocolDisplayPreset() === "final"
+          ? Math.max(1, Math.round(Number(state.startListFinalCycle) || 0)
+            + ((state.running || state.completed || Number(state.elapsedBeforePause || 0) > 0) ? 1 : 0))
+          : Math.max(1, currentTimerCycle());
+        var label = waiting ? (english ? "Waiting for start" : "Ожидание старта")
+          : (english ? "Rotation " : "Ротация ") + cycle;
+        var className = waiting ? "cycle-waiting" : view.isBreak ? "cycle-break" : "cycle-rotation";
+        if (cycleBadgeEl.innerHTML !== label) cycleBadgeEl.innerHTML = label;
+        if (cycleBadgeEl.className !== className) cycleBadgeEl.className = className;
       }
 
       function render() {
@@ -2463,9 +2518,11 @@
           var serverClockLabel = formatServerClockTime(serverNow());
           if (serverClockTextEl.innerHTML !== serverClockLabel) serverClockTextEl.innerHTML = serverClockLabel;
           serverClockEl.style.display = "inline-block";
-          var serverClockBottom = serverClockEl.offsetHeight + "px";
+          var listsWithClock = protocolIsVisible();
+          var serverClockBottom = listsWithClock ? "0px" : serverClockEl.offsetHeight + "px";
           if (serverClockEl.style.bottom !== serverClockBottom) serverClockEl.style.bottom = serverClockBottom;
-          var timerClockTransform = "translateY(-" + serverClockEl.offsetHeight + "px)";
+          var timerClockTransform = "translateY(-" + (listsWithClock
+            ? (serverClockEl.offsetHeight + 10) / 2 : serverClockEl.offsetHeight) + "px)";
           if (timeEl.style.webkitTransform !== timerClockTransform) timeEl.style.webkitTransform = timerClockTransform;
           if (timeEl.style.transform !== timerClockTransform) timeEl.style.transform = timerClockTransform;
         } else {
@@ -2482,6 +2539,7 @@
         setBodyFlag("warning-active", view.warning);
         setBodyFlag("offline", !online);
         renderProtocols(view);
+        renderCycleBadge(view);
         var countdownPhase = view.phase === "start" || Boolean(state && state.waitingForManualStart);
         timerPaneEl.style.backgroundColor = countdownPhase ? timerColors.countdownBg : view.isBreak ? timerColors.breakBg : view.warning ? timerColors.warningBg : timerColors.rotationBg;
         document.body.style.backgroundColor = "#161b22";
