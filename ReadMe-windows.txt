@@ -6,8 +6,8 @@ FDV Bouldering Timer for Windows
 
 Установленная через MSI версия сохраняет состояние в %LOCALAPPDATA%\FDV Bouldering Timer\runtime-state. Portable-версия использует runtime-state рядом с программой; если запись запрещена, сервер выбирает пользовательский каталог. Выбранный путь виден в журнале лаунчера.
 
-1. Распакуйте архив целиком.
-2. Запустите fdv-bouldering-timer.exe.
+1. Установите MSI, выбрав каталог и нужные ярлыки, или распакуйте portable-архив целиком.
+2. После установки запустите FDV Bouldering Timer через меню «Пуск» или созданный ярлык. Автозапуска из MSI нет. Для portable-версии запустите fdv-bouldering-timer.exe.
 3. Приложение сервера покажет локальный и сетевые адреса, запустит сервер и откроет браузер.
 4. На других экранах откройте сетевой адрес из окна приложения, например http://192.168.1.68:8008/.
 5. Если Windows Firewall спросит доступ для Node.js, разрешите частные сети.
@@ -23,8 +23,8 @@ English
 
 The MSI installation saves state in %LOCALAPPDATA%\FDV Bouldering Timer\runtime-state. Portable packages use runtime-state beside the application; if writing there is denied, the server uses per-user storage. The launcher log shows the selected directory.
 
-1. Extract the complete archive.
-2. Run fdv-bouldering-timer.exe.
+1. Install the MSI, choosing the destination and shortcuts, or extract the complete portable archive.
+2. After installation, launch FDV Bouldering Timer from the Start menu or a created shortcut. The MSI does not launch it automatically. For portable packages, run fdv-bouldering-timer.exe.
 3. The server app displays local and network addresses, starts the server, and opens the browser.
 4. On other displays, open a network address from the app window, for example http://192.168.1.68:8008/.
 5. If Windows Firewall asks about Node.js, allow private networks.

@@ -21,8 +21,9 @@ test("release workflow produces installable assets for every supported operating
   assert.doesNotMatch(installerUi, /LicenseAgreementDlg/);
   assert.match(product, /Создать ярлык в меню «Пуск»/);
   assert.match(product, /Создать ярлык на рабочем столе/);
-  assert.match(product, /Запустить таймер после установки/);
-  assert.match(product, /Condition="WIXUI_EXITDIALOGOPTIONALCHECKBOX = 1"/);
+  assert.doesNotMatch(product, /WIXUI_EXITDIALOGOPTIONALCHECKBOX|LaunchTimer|Запустить таймер после установки/);
+  assert.doesNotMatch(product, /Event="DoAction"/);
+  assert.match(installerUi, /Dialog="ExitDialog" Control="Finish" Event="EndDialog"/);
   assert.match(workflow, /linux-installers:[\s\S]*?\.deb/);
   assert.match(workflow, /macos-installers:[\s\S]*?\.pkg/);
   assert.match(workflow, /android-apk:[\s\S]*?android-standalone\.apk/);
