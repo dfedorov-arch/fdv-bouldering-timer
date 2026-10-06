@@ -15,6 +15,7 @@ FDV Bouldering Timer — локальный сетевой таймер для �
 - Классика: повторяющиеся ротация и короткий перерыв.
 - Фестиваль: длинный раунд и перерыв, дополнительные объявления за 60, 30, 10 и 5 минут.
 - Финал: одна ротация за запуск; следующая начинается вручную. Поддерживаются старый и новый порядок продвижения участников.
+- При завершении на 00:00 фон и цифры сразу получают цвета перерыва (по умолчанию красный фон), без запуска отдельного перерыва. Пройденные трассы в списках обозначаются тёмно-синими ромбами.
 
 Быстрый запуск
 --------------
@@ -88,6 +89,8 @@ Legacy и временная потеря сети
 
 Legacy предназначен для старых ТВ-браузеров. Он показывает таймер, выбранные LIST и при включённом TIME часы сервера, но не воспроизводит звук. Страница использует XHR вместо SSE и продолжает локальный отсчёт при временной потере сети. Отложенный старт Классики и Фестиваля привязан к абсолютной отметке времени и должен наступить даже без сети; после восстановления экран принимает авторитетное состояние сервера.
 
+В портретном режиме колонки номера и трасс компактные, а ФИО сохраняется целиком без наложения значков. Если данные шире экрана, список можно прокрутить по горизонтали.
+
 Обычный экран также продолжает расчёт из последней временной шкалы. После длительной недоступности сервера предлагается автономный режим. Возврат к серверу выполняется явно, потому что автономные команды не отправляются назад.
 
 Звук
@@ -104,6 +107,8 @@ Legacy предназначен для старых ТВ-браузеров. О�
 -----------------
 
 fdv-bouldering-timer-standalone.html работает одним файлом без Node.js и сети, но не синхронизирует другие браузеры. Android APK FDV Bouldering Timer — тот же одиночный автономный таймер: в нём нет сервера, сетевых экранов и синхронизации. Komi Store устанавливает подходящий файл GitHub Release на Windows, macOS, Linux или Android.
+
+В APK системная панель навигации и вырезы экрана не перекрывают кнопки таймера. Учитывается реальная занятая область; при скрытой панели лишнего отступа нет.
 
 HTTP и HTTPS
 ------------
@@ -125,6 +130,7 @@ Formats
 - Classic: repeating rotation and short break.
 - Festival: long round and break with optional 60, 30, 10, and 5 minute announcements.
 - Final: one rotation per Start, followed by an operator-controlled next attempt; Old and New participant schedules are supported.
+- At completion on 00:00, the timer immediately uses the configured break background and text colors (red background by default), without starting a separate break. Completed routes in lists use dark-blue diamonds.
 
 Quick start
 -----------
@@ -174,6 +180,8 @@ Legacy and network loss
 
 Legacy is intended for older TV browsers. It shows the timer, selected LIST tables, and the optional TIME clock, but has no sound. It uses XHR rather than SSE and continues locally through a temporary network interruption. A scheduled Classic or Festival start is anchored to its absolute timestamp and must occur while offline; reconnecting applies authoritative server state.
 
+Portrait number and route columns are compact; full names do not overlap markers. Lists wider than the screen can be scrolled horizontally.
+
 The modern page also extrapolates from the last known timeline. After a longer server outage it offers Standalone mode. Returning to server state is explicit because standalone commands are not uploaded.
 
 Sound, settings, and help
@@ -184,6 +192,8 @@ Primary and remote-display sound are controlled separately. A tap is required to
 Startup values, ports, colors, timer font, and sound profile are read from params.txt. The complete bilingual guide is help.html; the documentation map is docs/documentation-map.md.
 
 fdv-bouldering-timer-standalone.html is a one-file offline timer without multi-browser synchronization. The Android APK, FDV Bouldering Timer, is the same single-device timer: it has no server, LAN displays, or synchronization. Komi Store installs the matching GitHub Release asset on Windows, macOS, Linux, or Android.
+
+The APK keeps timer buttons clear of system navigation bars and display cutouts, using their actual occupied area with no fixed gap when bars are hidden.
 
 HTTP and HTTPS
 --------------

@@ -37,6 +37,7 @@ The same modern scenarios then cancel the stop through the editor after reload a
 
 The scenarios in `layout.spec.js` cover:
 
+- Final completion: the first appearance of zero uses the default or custom break palette in Modern and Legacy, dark-blue completed route diamonds, and no retained completion colors after reset or in a repeating zero-break rotation;
 - a read-only rotation badge on modern/Legacy list screens at `360×778`, `962×541`, and `1000×1000`, including phase/language changes, Final rotation numbering and countdown, optional clocks, and global/per-screen list hiding;
 - native fullscreen on the primary browser: the rotation remains visible and read-only, and becomes editable again after exit while paused;
 - a held Festival progress-bar drag while server synchronization continues;
@@ -46,6 +47,7 @@ The scenarios in `layout.spec.js` cover:
 - parallel modern lists whose columns follow table width rather than toolbar width;
 - per-screen switching of exactly two lists between one and two columns;
 - the optional server clock on Legacy;
+- Legacy portrait intrinsic columns with one/two lists at 360 and 393 pixels, and four lists with long names/additional columns at 480 pixels: compact number/route cells, full text and contained markers, matching stacked columns, horizontal scroll access, and rotation to landscape and back;
 - Legacy reclaiming the full viewport after global/per-screen list hiding, and restoring list geometry on re-enable, in landscape and portrait with the old TV's Chrome 29 user agent, no FontFace/ResizeObserver/visualViewport APIs, and no synthetic resize events;
 - an offline Legacy Classic countdown starting at the planned absolute time;
 - separation of the server clock and main timer in the old-TV viewport;

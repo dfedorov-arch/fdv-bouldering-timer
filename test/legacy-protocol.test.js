@@ -62,7 +62,7 @@ test("Legacy protocol tables fit their pane and use dark themed scrollbars", () 
   assert.match(legacy, /\.protocol-table \{[\s\S]*?width: auto;[\s\S]*?table-layout: auto;/);
   assert.doesNotMatch(legacy, /\.protocol-table \{[\s\S]*?min-width: 100%;/);
   assert.match(legacy, /\.protocol-table\.protocol-columns-synchronized \{[\s\S]*?width: auto;[\s\S]*?table-layout: fixed;/);
-  assert.match(legacy, /body\.protocol-portrait \.protocol-table \{[\s\S]*?width: 100% !important;[\s\S]*?table-layout: fixed;/);
+  assert.match(legacy, /body\.protocol-portrait \.protocol-table \{[\s\S]*?width: 100% !important;[\s\S]*?table-layout: auto;/);
   assert.match(legacy, /\.protocol-table th\.protocol-data-cell \{[\s\S]*?text-overflow: ellipsis;/);
   assert.match(legacy, /\.protocol-table td\.protocol-data-cell \{[\s\S]*?overflow: visible;[\s\S]*?text-overflow: clip;/);
   assert.match(legacy, /scrollbar-color: #687384 #202630;/);
@@ -148,8 +148,17 @@ test("Legacy uses two protocol columns in a sufficiently wide tall window", () =
   assert.match(legacy, /scheduleViewportFit\(\) \{\s*if \(protocolIsVisible\(\)\) ensureProtocolStructure\(\);/);
 });
 
-test("Legacy exposes horizontal scrolling only for measured landscape overflow", () => {
-  assert.match(legacy, /function updateProtocolHorizontalOverflow\(\)[\s\S]*?overflow = !portrait && view\.table\.scrollWidth > view\.scroll\.clientWidth \+ 2;[\s\S]*?protocol-horizontal-overflow/);
+test("Legacy exposes horizontal scrolling for measured overflow in either orientation", () => {
+  assert.match(legacy, /function updateProtocolHorizontalOverflow\(\)[\s\S]*?overflow = view\.table\.scrollWidth > view\.scroll\.clientWidth \+ 2;[\s\S]*?protocol-horizontal-overflow/);
+  assert.doesNotMatch(legacy, /overflow = !portrait &&/);
+});
+
+test("Legacy portrait tables reserve intrinsic text widths and compact number/route columns", () => {
+  assert.match(legacy, /body\.protocol-portrait \.protocol-table \{\s*width: 100% !important;\s*table-layout: auto;/);
+  assert.match(legacy, /body\.protocol-portrait \.protocol-table \.protocol-data-cell-first \{\s*width: 1px;\s*min-width: 30px;/);
+  assert.match(legacy, /body\.protocol-portrait \.protocol-table \.protocol-data-cell-second \{\s*width: auto;/);
+  assert.match(legacy, /body\.protocol-portrait \.protocol-table \.protocol-route-cell \{\s*width: 26px;\s*min-width: 26px;\s*max-width: 26px;/);
+  assert.match(legacy, /\.protocol-table td\.protocol-data-cell \{\s*overflow: visible;\s*text-overflow: clip;/);
 });
 
 test("Legacy prioritizes the highlighted range and raises density when its full span does not fit", () => {

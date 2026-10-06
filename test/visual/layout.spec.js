@@ -39,6 +39,67 @@ test.beforeEach(async () => {
 });
 
 for (const modern of [true, false]) {
+  for (const customPalette of [false, true]) {
+    test(`${modern ? "Modern" : "Legacy"} completed Final uses ${customPalette ? "custom" : "default"} break palette at zero`, async ({ browser }, testInfo) => {
+      const settings = { rotationSeconds: 240, breakSeconds: 0, oneShot: true };
+      await action(server.baseUrl, "reset", { activePreset: "final", settings });
+      await action(server.baseUrl, "start", { activePreset: "final", settings, startMode: "manual" });
+      await stabilizeTimer(server.baseUrl, 238);
+      const opened = await (modern ? openModern : openLegacy)(browser, server.baseUrl,
+        `visual-final-colors-${modern}-${customPalette}`, { width: 962, height: 541 }, [0]);
+      try {
+        if (customPalette) {
+          // Keep the injected config consistent: unmodified SSE snapshots would
+          // otherwise restore the real server palette while XHR uses the mock.
+          if (modern) await opened.page.route("**/api/events**", (route) => route.abort());
+          await opened.page.route("**/api/state**", async (route) => {
+            const response = await route.fetch();
+            const remote = await response.json();
+            await route.fulfill({ response, json: { ...remote,
+              config: { ...remote.config, breakBackgroundColor: "#612b7c", breakTextColor: "#ffeedd" } } });
+          });
+          await opened.page.reload({ waitUntil: "domcontentloaded" });
+        }
+        const timer = opened.page.locator("#time");
+        const expectTime = (label) => modern ? expect(timer).toHaveAttribute("aria-label", label) : expect(timer).toHaveText(label);
+        const pane = opened.page.locator(modern ? ".timer-column" : "#timerPane");
+        const background = customPalette ? "rgb(97, 43, 124)" : "rgb(240, 90, 89)";
+        await expectTime("00:02");
+        await expect(pane).not.toHaveCSS("background-color", background);
+        await action(server.baseUrl, "start", { activePreset: "final", settings, startMode: "manual" });
+        // Inspect the first DOM mutation that displays zero, not a later server refresh.
+        const zeroAppearance = await opened.page.evaluate((modern) => new Promise((resolve) => {
+          const timer = document.querySelector("#time");
+          const pane = document.querySelector(modern ? ".timer-column" : "#timerPane");
+          const observer = new MutationObserver(() => {
+            if ((modern ? timer.getAttribute("aria-label") : timer.textContent.trim()) !== "00:00") return;
+            observer.disconnect();
+            resolve(getComputedStyle(pane).backgroundColor);
+          });
+          observer.observe(timer, { childList: true, characterData: true, subtree: true, attributes: true, attributeFilter: ["aria-label"] });
+        }), modern);
+        expect(zeroAppearance).toBe(background);
+        await expect(timer).toHaveCSS("color", customPalette ? "rgb(255, 238, 221)" : "rgb(244, 247, 251)");
+        await expect(pane).toHaveCSS("background-color", background);
+        await expect(opened.page.locator(".route-marker.done").first()).toHaveCSS("background-color", "rgb(40, 80, 140)");
+        const screenshot = testInfo.outputPath(`final-completed-${modern ? "modern" : "legacy"}-${customPalette ? "custom" : "default"}.png`);
+        await opened.page.screenshot({ path: screenshot });
+        await testInfo.attach("Completed Final and dark-blue completed routes", { path: screenshot, contentType: "image/png" });
+        // Reset and a repeating zero-break rotation must not inherit completion colors.
+        await action(server.baseUrl, "reset", { activePreset: "classic",
+          settings: { rotationSeconds: 300, breakSeconds: 0, oneShot: false } });
+        await expectTime("05:00");
+        await expect(pane).not.toHaveCSS("background-color", background);
+        await stabilizeTimer(server.baseUrl, 300);
+        await expectTime("05:00");
+        await expect(pane).not.toHaveCSS("background-color", background);
+      } finally {
+        await opened.page.unrouteAll({ behavior: "ignoreErrors" });
+        await opened.context.close();
+      }
+    });
+  }
+
   for (const viewport of [{ width: 360, height: 778 }, { width: 962, height: 541 }, { width: 1000, height: 1000 }]) {
     test(`${modern ? "Modern" : "Legacy"} list screen shows a read-only cycle at ${viewport.width}x${viewport.height}`, async ({ browser }, testInfo) => {
       await action(server.baseUrl, "reset", { activePreset: "classic",
@@ -357,6 +418,99 @@ for (const modern of [true, false]) {
       await stabilizeTimer(server.baseUrl, 17 * 315);
       await expect(marker(14, 1, "active")).toHaveCount(1);
       await expect(marker(16, 0, "active")).toHaveCount(1);
+    } finally {
+      await opened?.context.close();
+      await action(server.baseUrl, "startLists", { startLists: previous.startLists });
+    }
+  });
+}
+
+for (const scenario of [
+  { width: 360, count: 1 }, { width: 393, count: 1 },
+  { width: 360, count: 2 }, { width: 393, count: 2 },
+  { width: 480, count: 4, wide: true }
+]) {
+  test(`Legacy phone intrinsic columns: ${scenario.width}px, ${scenario.count} lists${scenario.wide ? ", wide data" : ""}`, async ({ browser }, testInfo) => {
+    const previous = await (await fetch(`${server.baseUrl}/api/state`)).json();
+    const names = ["Ольховой Сергей", "Майтус Артур", "Волков Станислав", "Фёдоров Фёдор",
+      "Нефедов Леонид", "Федин Арсений", "Ноздрин Иван", "Стариков Владимир", "Барава Павел",
+      "Простосердов Никита", "Лапшин Марк", "Овечкин Ярослав", "Тихов Даниил", "Иванов Никита",
+      "Печенин Ярослав", "Щекачев Николай"];
+    let opened;
+    try {
+      await action(server.baseUrl, "startLists", { startLists: Array.from({ length: scenario.count }, (_, listIndex) => ({
+        headers: scenario.wide ? ["#", "ФИО", "Команда"] : ["#", "ФИО"],
+        rows: Array.from({ length: scenario.wide ? 24 : 128 }, (_, rowIndex) => [
+          String(rowIndex + 1),
+          scenario.wide && rowIndex === listIndex ? "Оченьдлиннаяфамилия Алексей Александрович" : names[(rowIndex + listIndex) % names.length],
+          ...(scenario.wide ? ["Спортивный клуб с длинным названием"] : [])
+        ]),
+        routeCount: scenario.wide ? 8 : 5
+      })) });
+      await action(server.baseUrl, "reset", { activePreset: "classic",
+        settings: { rotationSeconds: 300, breakSeconds: 15, oneShot: false } });
+      await stabilizeTimer(server.baseUrl, 15 * 315);
+      opened = await openLegacy(browser, server.baseUrl, `visual-legacy-columns-${scenario.width}-${scenario.count}`,
+        { width: scenario.width, height: 778 }, Array.from({ length: scenario.count }, (_, index) => index), true);
+      const checkGeometry = async (portrait) => {
+        const tables = await opened.page.evaluate(() => [...document.querySelectorAll(".protocol-table")].map(table => {
+          const scroll = table.parentElement;
+          let textOverflows = 0;
+          let markerOverflows = 0;
+          for (const row of table.tBodies[0].rows) {
+            for (const cell of row.querySelectorAll(".protocol-data-cell")) {
+              const range = document.createRange();
+              range.selectNodeContents(cell);
+              if (range.getBoundingClientRect().right > cell.getBoundingClientRect().right - 1) textOverflows++;
+            }
+            for (const marker of row.querySelectorAll(".route-marker")) {
+              const box = marker.getBoundingClientRect();
+              const cell = marker.parentElement.getBoundingClientRect();
+              if (box.width && (box.left < cell.left || box.right > cell.right)) markerOverflows++;
+            }
+          }
+          return { textOverflows, markerOverflows, firstWidth: table.rows[1].cells[0].offsetWidth,
+            routeWidths: [...table.rows[1].querySelectorAll(".protocol-route-cell")].map(cell => cell.offsetWidth),
+            nameWidth: table.rows[1].cells[1].offsetWidth, dataWidths: [...table.rows[1].querySelectorAll(".protocol-data-cell")].map(cell => cell.offsetWidth),
+            overflow: scroll.scrollWidth > scroll.clientWidth + 2, overflowX: getComputedStyle(scroll).overflowX };
+        }));
+        expect(tables).toHaveLength(scenario.count);
+        for (const table of tables) {
+          expect(table.textOverflows).toBe(0);
+          expect(table.markerOverflows).toBe(0);
+          if (portrait) {
+            expect(table.firstWidth).toBeLessThanOrEqual(40);
+            for (const width of table.routeWidths) expect(width).toBeLessThanOrEqual(28);
+            if (!scenario.wide) {
+              expect(table.nameWidth).toBeGreaterThan(150);
+              expect(table.overflow).toBe(false);
+            } else {
+              expect(table.overflow).toBe(true);
+              expect(table.overflowX).toBe("auto");
+            }
+          }
+        }
+        if (portrait && scenario.count > 1) {
+          for (const table of tables.slice(1)) expect(table.dataWidths).toEqual(tables[0].dataWidths);
+        }
+      };
+      await expect(opened.page.locator("body")).toHaveClass(/protocol-portrait/);
+      await checkGeometry(true);
+      const screenshot = testInfo.outputPath(`legacy-phone-columns-${scenario.width}-${scenario.count}.png`);
+      await opened.page.screenshot({ path: screenshot });
+      await testInfo.attach("Legacy phone: compact number/routes and full participant names", { path: screenshot, contentType: "image/png" });
+      if (scenario.wide) {
+        await opened.page.locator(".protocol-scroll").first().evaluate(scroll => { scroll.scrollLeft = scroll.scrollWidth - scroll.clientWidth; });
+        await expect.poll(() => opened.page.locator(".protocol-scroll").first().evaluate(scroll => scroll.scrollLeft)).toBeGreaterThan(0);
+      }
+      await opened.page.setViewportSize({ width: 962, height: 541 });
+      await expect(opened.page.locator("body")).not.toHaveClass(/protocol-portrait/);
+      await wait(800);
+      await checkGeometry(false);
+      await opened.page.setViewportSize({ width: scenario.width, height: 778 });
+      await expect(opened.page.locator("body")).toHaveClass(/protocol-portrait/);
+      await wait(800);
+      await checkGeometry(true);
     } finally {
       await opened?.context.close();
       await action(server.baseUrl, "startLists", { startLists: previous.startLists });

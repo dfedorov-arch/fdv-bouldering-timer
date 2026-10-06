@@ -126,9 +126,19 @@ test("schedule markup is replaced only when its content changes", () => {
   assert.match(index, /lastScheduleMarkup = markup;\s*els\.schedule\.innerHTML = markup;/);
 });
 
+test("completed one-shot timers select the break palette without changing their phase", () => {
+  assert.match(index, /if \(state\.completed \|\| \(settings\.oneShot && elapsed >= oneShotDuration\)\) \{\s*setElementClass\(document\.body, "break-active", true\);\s*setElementClass\(document\.body, "countdown-active", false\);/);
+  const legacy = fs.readFileSync(path.resolve(__dirname, "..", "legacy.html"), "utf8");
+  assert.match(legacy, /var breakColors = view\.isBreak \|\| view\.phase === "done";/);
+  assert.match(legacy, /breakColors \? timerColors\.breakBg/);
+  assert.match(legacy, /breakColors \? timerColors\.breakText/);
+  assert.match(legacy, /phase: "done", seconds: 0, isBreak: false/);
+  assert.match(legacy, /\.route-marker\.done \{[^}]*background: #28508c;/);
+});
+
 test("start-list switch follows the primary switch and supports four dynamic protocol areas", () => {
   assert.match(index, /\[hidden\] \{ display: none !important; \}/);
-  assert.match(index, /\.route-marker\.done \{[^}]*background: #c83d3d;/);
+  assert.match(index, /\.route-marker\.done \{[^}]*background: #28508c;/);
   assert.match(index, /id="primaryToggle"[\s\S]*?id="startListToggleRow"[\s\S]*?id="startListToggle" type="checkbox"/);
   assert.match(index, /<section id="startListPanel"[\s\S]*?id="startListLayout"/);
   assert.match(index, /data-start-list-add[\s\S]*?data-start-list-file[\s\S]*?data-start-list-routes[\s\S]*?data-start-list-clear/);

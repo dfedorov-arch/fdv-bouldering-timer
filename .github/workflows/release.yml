@@ -151,7 +151,11 @@ jobs:
           tar -xzf "dist/fdv-bouldering-timer-${GITHUB_REF_NAME}-macos-${{ matrix.arch }}.tar.gz" -C package
           cp -R "package/fdv-bouldering-timer-${GITHUB_REF_NAME}-macos-${{ matrix.arch }}" "pkg-root/Applications/FDV Bouldering Timer"
           cp installer/common/fdv-installed.marker "pkg-root/Applications/FDV Bouldering Timer/"
-          pkgbuild --root pkg-root --identifier ru.fdv.boulderingtimer --version "${GITHUB_REF_NAME#v}" --install-location / "dist/fdv-bouldering-timer-${GITHUB_REF_NAME}-macos-${{ matrix.arch }}.pkg"
+          package_path="dist/fdv-bouldering-timer-${GITHUB_REF_NAME}-macos-${{ matrix.arch }}.pkg"
+          plutil -lint installer/macos/components.plist
+          pkgbuild --root pkg-root --component-plist installer/macos/components.plist --identifier ru.fdv.boulderingtimer --version "${GITHUB_REF_NAME#v}" --install-location / "$package_path"
+          pkgutil --expand "$package_path" pkg-expanded
+          test "$(xmllint --xpath 'count(/pkg-info/relocate/bundle)' pkg-expanded/PackageInfo)" = "0"
       - uses: actions/upload-artifact@v4
         with:
           name: macos-pkg-${{ matrix.arch }}

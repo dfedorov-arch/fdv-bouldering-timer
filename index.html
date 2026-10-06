@@ -1782,7 +1782,7 @@
     .start-list-table tr.is-ready td { background: rgba(255, 200, 87, .22); }
     .route-marker { display: inline-block; width: 18px; height: 18px; vertical-align: middle; filter: drop-shadow(0 1px 1px rgba(0,0,0,.55)); }
     .route-marker.active { border: 2px solid #07140d; border-radius: 50%; background: var(--green); }
-    .route-marker.done { border: 2px solid #220707; background: #c83d3d; transform: rotate(45deg) scale(.82); }
+    .route-marker.done { border: 2px solid #101f36; background: #28508c; transform: rotate(45deg) scale(.82); }
     .route-marker.ready { width: 0; height: 0; border-left: 9px solid transparent; border-right: 9px solid transparent; border-bottom: 18px solid var(--yellow); filter: drop-shadow(0 0 1px #1b1400); }
     .route-marker.paused::before,
     .route-marker.paused::after { content: ""; position: absolute; top: 1px; bottom: 1px; width: 5px; border-radius: 1px; background: #8d97a5; }
@@ -3076,7 +3076,7 @@
       timeline: []
     };
 
-    const pageBuildNumber = 400;
+    const pageBuildNumber = 402;
     const projectUrl = "https://github.com/dfedorov-arch/fdv-bouldering-timer";
     const buildLinkConfirmDelayMs = 550;
     const offlineSnapshotKey = "fdvBoulderingTimerOfflineSnapshot";
@@ -10490,7 +10490,7 @@
 
       const oneShotDuration = settings.rotationSeconds + settings.breakSeconds;
       if (state.completed || (settings.oneShot && elapsed >= oneShotDuration)) {
-        setElementClass(document.body, "break-active", false);
+        setElementClass(document.body, "break-active", true);
         setElementClass(document.body, "countdown-active", false);
         setElementText(els.phase, t("completed"));
         setElementClassName(els.phase, "phase ready");
