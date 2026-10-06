@@ -115,6 +115,8 @@ Schema changes require a version migration or explicit safe fallback. Integratio
 
 Desktop launchers start the server on the wildcard listener (`0.0.0.0`) so every active local interface can accept connections. They refresh parsed settings and displayed links whenever the server restarts, and refresh network links when the operating system reports an address change. Address discovery is local interface enumeration only: the macOS/Linux launcher must not initiate Bonjour browsing merely to trigger a Local Network permission prompt. Health probes are serialized and bounded so a stopped or changing server cannot accumulate connections.
 
+The macOS PKG installs its payload at `/Applications/FDV Bouldering Timer`. Its component property list explicitly disables bundle relocation, preventing Installer from redirecting an upgrade to an older portable copy of `FDV Bouldering Timer.app` found elsewhere on disk. The release workflow expands every generated PKG and verifies that its relocation list is empty before publishing it.
+
 ## Generated outputs and release gates
 
 Do not edit generated `dist/` packages or `lib/offline-audio.js` manually. Before release:

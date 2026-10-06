@@ -26,6 +26,12 @@ test("release workflow produces installable assets for every supported operating
   assert.match(installerUi, /Dialog="ExitDialog" Control="Finish" Event="EndDialog"/);
   assert.match(workflow, /linux-installers:[\s\S]*?\.deb/);
   assert.match(workflow, /macos-installers:[\s\S]*?\.pkg/);
+  assert.match(workflow, /pkgbuild --root pkg-root --component-plist installer\/macos\/components\.plist/);
+  assert.match(workflow, /pkgutil --expand "\$package_path" pkg-expanded/);
+  assert.match(workflow, /xmllint --xpath 'count\(\/pkg-info\/relocate\/bundle\)' pkg-expanded\/PackageInfo/);
+  const macComponents = read("installer/macos/components.plist");
+  assert.match(macComponents, /<key>BundleIsRelocatable<\/key>\s*<false\/>/);
+  assert.match(macComponents, /<key>RootRelativeBundlePath<\/key>\s*<string>Applications\/FDV Bouldering Timer\/FDV Bouldering Timer\.app<\/string>/);
   assert.match(workflow, /android-apk:[\s\S]*?android-standalone\.apk/);
   assert.match(workflow, /ANDROID_KEYSTORE_BASE64/);
   assert.match(workflow, /sha256sum fdv-bouldering-timer-\* > SHA256SUMS\.txt/);
