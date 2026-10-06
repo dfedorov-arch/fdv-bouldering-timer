@@ -9,10 +9,11 @@
 ## Возможности
 
 - Форматы **Классика**, **Фестиваль** и **Финал**.
+- При завершении одноразового отсчёта на `00:00` включаются цвета перерыва (по умолчанию красный фон); пройденные трассы отмечаются тёмно-синими ромбами.
 - Немедленный или отложенный старт, пауза, перемотка по полосе прогресса и ручной выбор ротации на паузе.
 - Единое серверное время для всех экранов и точное планирование звуков.
 - Продолжение отсчёта при краткой потере сети; после возврата связи браузер снова принимает состояние сервера.
-- **Legacy**-экран для старых или слабых браузеров и телевизоров.
+- **Legacy**-экран для старых или слабых браузеров и телевизоров; в портретном режиме компактные колонки номера и трасс оставляют больше места ФИО, при необходимости доступна горизонтальная прокрутка.
 - До четырёх **стартовых списков** с импортом XLSX, MXL, CSV, TSV и TXT.
 - Отдельный выбор списков и их раскладки для каждого экрана, включая Legacy.
 - Маркеры подготовки, лазания и завершения; исключение участника; приостановка, возобновление и остановка трассы, включая управляемую остановку всей волны с будущей ротации.
@@ -21,6 +22,8 @@
 - Звуковые профили, поправка задержки звука, диагностика аудиочасов и тест сигналов.
 - Русский и английский интерфейс, HTTP/HTTPS, установщики для Windows, macOS и Linux, portable-сборки и автономный APK для Android.
 - Установка через [Komi Store](https://komistore.app/) на Windows, macOS, Linux и Android: магазин выбирает подходящий файл из GitHub Releases. Android-версия остаётся одиночным автономным таймером без сервера и синхронных экранов.
+
+APK учитывает системную панель навигации и вырезы экрана: кнопки таймера располагаются в доступной области как при кнопочной, так и при жестовой навигации.
 
 ## Быстрый запуск
 
@@ -103,9 +106,10 @@ A network-synchronized timer for bouldering competitions. One browser controls t
 ### Features
 
 - **Classic**, **Festival**, and **Final** competition formats.
+- A completed one-shot timer at `00:00` uses the configured break colors (red background by default); completed routes use dark-blue diamonds.
 - Immediate or scheduled start, pause, progress scrubbing, and paused rotation selection.
 - Server-authoritative timing with local continuation during a short network outage.
-- Simplified **Legacy** display for old or weak browsers and televisions.
+- Simplified **Legacy** display for old or weak browsers and televisions; compact portrait number/route columns leave more room for names, with horizontal scrolling when needed.
 - Up to four **start lists**, imported from XLSX, MXL, CSV, TSV, or TXT.
 - Per-display list selection and two-list layout, including Legacy screens.
 - Participant preparation/climbing/completion markers, exclusions, and route pause/resume/stop incidents, including an operator-controlled whole-wave hold from a future rotation.
@@ -114,6 +118,8 @@ A network-synchronized timer for bouldering competitions. One browser controls t
 - Sound profiles, per-browser audio correction, audio-clock diagnostics, and signal tests.
 - Russian and English UI, HTTP/HTTPS, installers for Windows/macOS/Linux, portable packages, and a standalone Android APK.
 - Installation through [Komi Store](https://komistore.app/) on Windows, macOS, Linux, and Android. It selects a matching GitHub Release asset; the Android APK remains a single-device standalone timer without a server or synchronized displays.
+
+The APK respects system navigation bars and display cutouts, keeping timer buttons in the available area with either button or gesture navigation.
 
 ### Quick start
 

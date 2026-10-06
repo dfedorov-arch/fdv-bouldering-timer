@@ -16,9 +16,13 @@ This file defines the documentation set and its source-of-truth boundaries. Prod
 
 Release installers are assembled by `.github/workflows/release.yml`: MSI for Windows, PKG for macOS, DEB for Debian/Ubuntu Linux, and a signed Android APK. The same release assets can be installed through Komi Store on Windows, macOS, Linux, and Android. The Android asset is deliberately named `android-standalone`: it embeds a one-device timer and does not provide the local network server or synchronized displays.
 
+The Android wrapper's safe-area contract and host-side regression tests are described in `docs/architecture.md`. Window-inset tests use JVM API doubles, not screenshots of an actual Android system navigation bar; hardware verification must cover both three-button and gesture navigation, hidden bars, and rotation. APK-only Java changes do not require a cached HTML application-build increment.
+
 Desktop installers include `fdv-installed.marker` to select per-user server state storage. Portable archives omit that file; older unmarked or read-only directories have a startup permission fallback. State paths and transfer rules are documented in `help.html`, `ReadMe.txt`, and each desktop platform ReadMe.
 
 Current application screenshots belong in `help-assets/`. A screenshot that shows removed controls, obsolete terminology, or the old diagnostic order must not be referenced; use a neutral layout until a current-build capture is available. Launcher icons and launcher-window images are replaced only when those launchers change.
+
+`help-assets/final-completed.png` shows completed Final zero on the default red break background and a dark-blue completed route diamond. It is captured by the isolated modern completion visual test; Modern and Legacy tests also cover a custom break palette, the first zero mutation, reset, and repeating zero-break rotations. Current list screenshots use the build 402 dark-blue diamond color.
 
 `help-assets/route-resume-preparation.png` shows the held wave preparing at rotation 17 before route 2 resumes at rotation 18; it is captured by the isolated modern route-resumption visual test.
 
@@ -33,6 +37,8 @@ Current application screenshots belong in `help-assets/`. A screenshot that show
 `help-assets/restored-route-pause.png` shows the same route 2 pause restored with its original ending (17 through 17, resume 18) after cancelling the equal-start permanent stop. The isolated modern test captures it after a page reload and verifies the exact original saved payload and both languages.
 
 `help-assets/list-screen-cycle.png` shows the current-rotation badge and optional clock on a modern secondary display with start lists; it is captured on an isolated visual-test server.
+
+`help-assets/legacy-phone-columns.png` is an isolated 393-pixel Legacy portrait capture with compact number/route columns and full participant names. The geometry tests also cover one/two lists at 360/393 pixels, four wide-data lists at 480 pixels, three-digit numbers, synchronized column widths, horizontal scroll access, and orientation changes. These run in modern Chromium with compatibility capabilities disabled; actual old-browser hardware still needs operator confirmation.
 
 ## Website documentation
 

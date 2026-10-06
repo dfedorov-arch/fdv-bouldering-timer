@@ -869,9 +869,10 @@
             <li>«Старый» формат раунда проводит всех участников сначала по первой трассе, затем по второй и далее.</li>
             <li>«Новый» формат переводит участника на следующую трассу после заданного количества полных ротаций отдыха; значение по умолчанию — 3. После трассы в ротации 1 участник готовится в ротации 4 и выходит на следующую трассу в ротации 5.</li>
             <li>Выбор формата раунда влияет только на продвижение загруженного стартового списка.</li>
-            <li>После ротации таймер останавливается на <code>00:00</code>; в обычном основном интерфейсе это состояние дополнительно отмечается как завершённое.</li>
+            <li>После ротации таймер останавливается на <code>00:00</code>; одновременно включаются цвета перерыва (по умолчанию красный фон). В обычном основном интерфейсе это состояние дополнительно отмечается как завершённое. Цвета задаются параметрами <code>break_background_color</code> и <code>break_text_color</code>; это не запускает отдельный отсчёт перерыва.</li>
             <li>Для следующего финального запуска достаточно снова нажать «Старт» или <kbd>Z</kbd>.</li>
           </ul>
+          <figure><img src="help-assets/final-completed.png" alt="Завершённый финал: 00:00 на красном фоне перерыва и тёмно-синий ромб пройденной трассы"><figcaption>При появлении нулей фон сразу переключается на цвет перерыва.</figcaption></figure>
         </div>
 
         <table class="comparison">
@@ -967,6 +968,7 @@
         <h3>6.2. Ход соревнования</h3>
         <ul>
           <li>Текущий участник, подготовка, отдых и результаты трасс подсвечиваются автоматически по ротации и выбранному формату.</li>
+          <li>Жёлтый треугольник означает подготовку, зелёный круг — лазание, тёмно-синий ромб — пройденную трассу. Красный крест означает полную остановку трассы, а не завершённую попытку.</li>
           <li>Кнопка возле номера трассы открывает управление инцидентами: трассу можно приостановить и возобновить с выбранной, в том числе будущей, ротации.</li>
           <li>Флажок после номера ротации имеет подсказку «Остановить всю волну с этой ротации». Для будущей ротации он включается автоматически и удерживает участников связанной волны также на предыдущих трассах. Флажок можно снять вручную; для текущей или прошедшей ротации он по умолчанию выключен, поэтому уже вышедший участник может закончить попытку.</li>
           <li>Запланированные границы инцидента сразу показываются в описании и маркерами в таблице. За одну ротацию до возобновления значки этой паузы исчезают: участники, выходящие в следующей ротации, видят жёлтые треугольники подготовки.</li>
@@ -1028,8 +1030,10 @@
           <li>Списки загружаются только при изменении их ревизии. При временной потере сети Legacy-экран продолжает локально обновлять маркеры, подсветку и автопрокрутку по автономному таймеру, а после восстановления связи принимает авторитетное состояние сервера.</li>
           <li>Если включена плашка TIME, под основным таймером показываются компактные часы сервера. Подсказка TAB в Legacy не сообщает Wake Lock, потому что старый браузер не позволяет надёжно определить его состояние.</li>
           <li>Размер цифр подбирается под экран, включая длинные значения фестиваля вроде <code>120:00</code>. После поворота устройства Legacy-экран несколько раз пересчитывает размер и центрирование.</li>
+          <li>В портретном режиме колонки номера и трасс компактные, а ФИО показывается целиком без наложения значков. Если длинные имена или дополнительные колонки не помещаются, список можно прокрутить по горизонтали.</li>
           <li>Повторное нажатие LEGACY из основного браузера возвращает экран на обычную страницу <code>/</code>.</li>
         </ul>
+        <figure><img src="help-assets/legacy-phone-columns.png" alt="Legacy на телефоне: узкие колонки номера и трасс, полные фамилии без наложения значков" style="max-width:393px"><figcaption>Компактные колонки оставляют больше места именам участников.</figcaption></figure>
         <p class="note">Legacy-режим лучше использовать только для устройств, на которых обычный экран не работает или работает слишком тяжело. На современных телефонах, планшетах и компьютерах обычный экран точнее синхронизирует время и поддерживает звук.</p>
 
         <h3 id="diagnostics">7.4. Диагностика подключений</h3>
@@ -1127,6 +1131,7 @@
         <span class="chapter-kicker">Глава 9</span>
         <h2>Перенос и запуск на новом компьютере</h2>
         <p class="lead">Приложение переносимое: копируйте папку целиком, затем подготовьте Node.js, сеть и при необходимости новый сертификат.</p>
+        <p>В APK область таймера учитывает системную панель «Назад / Домой», жестовую навигацию и вырезы экрана. Кнопки остаются вне занятой системной области; при скрытой панели фиксированного нижнего отступа нет.</p>
         <p class="success">Готовые установщики и portable-архивы опубликованы в <a href="https://github.com/dfedorov-arch/fdv-bouldering-timer/releases">GitHub Releases</a>: MSI для Windows, PKG для macOS, DEB для Debian/Ubuntu Linux и автономный APK для Android. Для одиночного автономного запуска на любой ОС можно взять один файл <code>fdv-bouldering-timer-standalone.html</code> или открыть <a href="https://dfedorov-arch.github.io/fdv-bouldering-timer/">автономную версию на GitHub Pages</a>. Она работает на всех ОС, включая iPhone и Android; на этих устройствах её можно сохранить на рабочий стол как веб-приложение.</p>
         <p><strong>Komi Store:</strong> таймер также можно найти и установить через <a href="https://komistore.app/">Komi Store</a> на Windows, macOS, Linux и Android. Магазин выбирает установочный файл из GitHub Releases для текущей ОС. На Android это именно автономный APK, а не сетевой сервер.</p>
 
@@ -1448,6 +1453,8 @@ xattr -dr com.apple.quarantine "/полный/путь/к/fdv-bouldering-timer-m
         <div class="platform">
           <h3>3.3. Final</h3>
           <p>A one-shot format. Each Start runs one rotation and then waits for the operator. The Old list schedule sends every participant through route 1 before route 2; the New schedule moves a participant to the next route after a configurable number of complete rest rotations (3 by default). A participant on route 1 in rotation 1 prepares in rotation 4 and climbs the next route in rotation 5. This choice affects only a loaded start list.</p>
+          <p>When the rotation finishes at <code>00:00</code>, the timer immediately uses the break colors (a red background by default), configured by <code>break_background_color</code> and <code>break_text_color</code>. No separate break countdown starts.</p>
+          <figure><img src="help-assets/final-completed.png" alt="Completed Final: 00:00 on the red break background and a dark-blue completed route diamond"><figcaption>The break background appears with zero, not on a later refresh.</figcaption></figure>
         </div>
         <table class="comparison">
           <thead><tr><th>Property</th><th>Classic</th><th>Festival</th><th>Final</th></tr></thead>
@@ -1516,6 +1523,7 @@ xattr -dr com.apple.quarantine "/полный/путь/к/fdv-bouldering-timer-m
         <h3>6.2. Competition progress</h3>
         <ul>
           <li>Climbing, preparation, rest, and route-result markers follow the current rotation and competition format automatically.</li>
+          <li>A yellow triangle means preparation, a green circle means climbing, and a dark-blue diamond means a completed route. A red cross means a permanent route stop, not a completed attempt.</li>
           <li>The route control opens incident management. A route can be suspended and restored from a selected current or future rotation.</li>
           <li>The checkbox after the rotation number is labelled “Hold the entire wave from this rotation”. It turns on automatically for a future rotation and also holds the related participants on upstream routes. The operator may clear it; for a current or past rotation it defaults off so a participant who has already started may finish.</li>
           <li>Both planned incident boundaries are shown immediately in the description and table markers. One rotation before resumption, markers for that pause disappear and participants starting in the next rotation see yellow preparation triangles.</li>
@@ -1570,8 +1578,10 @@ xattr -dr com.apple.quarantine "/полный/путь/к/fdv-bouldering-timer-m
           <li>List data is downloaded only when its revision changes. During a temporary network loss, the Legacy display continues updating markers, row highlighting, and auto-scroll from its offline timer, then reconciles with the authoritative server state after reconnecting.</li>
           <li>When TIME is enabled, a compact server clock appears below the main timer. The Legacy TAB tooltip omits Wake Lock because an old browser cannot report it reliably.</li>
           <li>The digit size is fitted to the screen, including long Festival values such as <code>120:00</code>. After device rotation the Legacy page recalculates sizing and centering several times.</li>
+          <li>Portrait number and route columns are compact, leaving full names readable without marker overlap. If long names or additional columns do not fit, scroll the list horizontally.</li>
           <li>Click LEGACY again from the primary browser to return that display to the normal <code>/</code> page.</li>
         </ul>
+        <figure><img src="help-assets/legacy-phone-columns.png" alt="Legacy phone: compact number and route columns, full names without overlapping markers" style="max-width:393px"><figcaption>Compact columns leave more room for participant names.</figcaption></figure>
         <p class="note">Use Legacy mode only for devices where the normal display does not work or is too heavy. On modern phones, tablets, and computers the normal display has better synchronization and sound support.</p>
 
         <h3>7.4. Diagnostics</h3>
@@ -1634,6 +1644,7 @@ xattr -dr com.apple.quarantine "/полный/путь/к/fdv-bouldering-timer-m
         <span class="chapter-kicker">Chapter 9</span>
         <h2>Moving and starting on another computer</h2>
         <p class="lead">Copy the entire project folder, prepare Node.js, connect the network, and recreate the certificate if required.</p>
+        <p>The APK's timer area respects system navigation buttons, gesture navigation, and display cutouts. Controls stay clear of the occupied system area, with no fixed bottom gap when bars are hidden.</p>
         <p class="success">Ready-to-use installers and portable packages are published in <a href="https://github.com/dfedorov-arch/fdv-bouldering-timer/releases">GitHub Releases</a>: MSI for Windows, PKG for macOS, DEB for Debian/Ubuntu Linux, and a standalone APK for Android. For single-browser offline use on any OS, use the single-file <code>fdv-bouldering-timer-standalone.html</code> or open the <a href="https://dfedorov-arch.github.io/fdv-bouldering-timer/">GitHub Pages standalone version</a>. It works on every OS, including iPhone and Android; on those devices it can be saved to the home screen as a web app.</p>
         <p><strong>Komi Store:</strong> FDV Bouldering Timer can also be found and installed through <a href="https://komistore.app/">Komi Store</a> on Windows, macOS, Linux, and Android. The store selects the matching GitHub Release asset. On Android that asset is the standalone APK, not the network server.</p>
         <h3>8.1. Files to copy</h3>

@@ -424,7 +424,7 @@
       width: 12px;
       height: 12px;
       margin-top: 1px;
-      background: #f05a59;
+      background: #28508c;
       -webkit-transform: rotate(45deg);
       transform: rotate(45deg);
     }
@@ -489,7 +489,22 @@
 
     body.protocol-portrait .protocol-table {
       width: 100% !important;
-      table-layout: fixed;
+      table-layout: auto;
+    }
+
+    body.protocol-portrait .protocol-table .protocol-data-cell-first {
+      width: 1px;
+      min-width: 30px;
+    }
+
+    body.protocol-portrait .protocol-table .protocol-data-cell-second {
+      width: auto;
+    }
+
+    body.protocol-portrait .protocol-table .protocol-route-cell {
+      width: 26px;
+      min-width: 26px;
+      max-width: 26px;
     }
 
     #timerContent {
@@ -617,10 +632,10 @@
   </div>
   <div id="protocolPane"><div id="protocolLayout"></div></div>
 
-  <script src="lib/start-list-display.js?v=400"></script>
+  <script src="lib/start-list-display.js?v=402"></script>
   <script>
     (function () {
-      var legacyBuildNumber = 400;
+      var legacyBuildNumber = 402;
       var state = null;
       var serverOffset = 0;
       var lastContact = 0;
@@ -2434,14 +2449,13 @@
       }
 
       function updateProtocolHorizontalOverflow() {
-        var portrait = hasClass(document.body, "protocol-portrait");
         var key;
         var view;
         var overflow;
         for (key in protocolViews) {
           if (!Object.prototype.hasOwnProperty.call(protocolViews, key)) continue;
           view = protocolViews[key];
-          overflow = !portrait && view.table.scrollWidth > view.scroll.clientWidth + 2;
+          overflow = view.table.scrollWidth > view.scroll.clientWidth + 2;
           view.scroll.className = "protocol-scroll" + (overflow ? " protocol-horizontal-overflow" : "");
         }
       }
@@ -2535,15 +2549,16 @@
           invalidateTimerFit();
           fitTimerText();
         }
-        setBodyFlag("break-active", view.isBreak);
+        var breakColors = view.isBreak || view.phase === "done";
+        setBodyFlag("break-active", breakColors);
         setBodyFlag("warning-active", view.warning);
         setBodyFlag("offline", !online);
         renderProtocols(view);
         renderCycleBadge(view);
         var countdownPhase = view.phase === "start" || Boolean(state && state.waitingForManualStart);
-        timerPaneEl.style.backgroundColor = countdownPhase ? timerColors.countdownBg : view.isBreak ? timerColors.breakBg : view.warning ? timerColors.warningBg : timerColors.rotationBg;
+        timerPaneEl.style.backgroundColor = countdownPhase ? timerColors.countdownBg : breakColors ? timerColors.breakBg : view.warning ? timerColors.warningBg : timerColors.rotationBg;
         document.body.style.backgroundColor = "#161b22";
-        timeEl.style.color = countdownPhase ? timerColors.countdownText : view.isBreak ? timerColors.breakText : view.warning ? timerColors.warningText : timerColors.rotationText;
+        timeEl.style.color = countdownPhase ? timerColors.countdownText : breakColors ? timerColors.breakText : view.warning ? timerColors.warningText : timerColors.rotationText;
         var label = formatTime(view.seconds);
         if (timeEl.innerHTML !== label) {
           fitTextChanged = rememberFitText(label);

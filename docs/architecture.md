@@ -45,6 +45,8 @@ Runtime commands carry a base version and unique command ID. The server rejects 
 
 Scheduled Classic and Festival starts automatically enter rotation 1 at the absolute target time. Final finishes its preliminary countdown in a waiting state and requires a separate Start. Stop followed by Start clears the scheduled-start label and immediately shows the correct rotation state.
 
+Completed one-shot attempts render zero with the configured break background/text palette at the same display boundary, including local extrapolation before a server completion snapshot arrives. Modern uses `break-active` in its completion branch; Legacy selects break colors for `view.phase === "done"` without changing `view.isBreak` or list scheduling. Readiness, scheduled-start waiting, and repeating zero-break rotations retain their original colors. No extra render timers or geometry fitting are added. Completed route diamonds use dark blue `#28508c` in both clients; permanently stopped route crosses remain red.
+
 ## Start lists
 
 Up to four independent lists can be imported. They are informational and never drive timer duration. The server stores canonical sanitized data, incidents, exclusions, a revision that includes server-instance identity, and per-client display selections.
@@ -66,6 +68,8 @@ Tables are read-only in screen mode, including after the primary browser enters 
 Screens with visible lists retain a read-only rotation badge below the timer, including fullscreen and Legacy. Modern screens reuse the existing schedule chip and footer while progress/actions remain hidden. Legacy reserves a fixed 66-pixel footer for its badge only when lists are visible. Badge text/class updates reuse existing render boundaries; no new interval or recurring geometry fit is introduced. Optional server clocks and the badge occupy separate space. Without lists the original timer-only layout is preserved.
 
 Legacy explicitly refits geometry on list visibility transitions, including global disabling and hiding the last per-screen list. This clears inline list-area reservations even on old TVs that emit no resize event. Unchanged visibility does not trigger this fit.
+
+Portrait Legacy tables use automatic intrinsic column sizing: the first data column has a 30-pixel minimum and route cells use 26 pixels, leaving space for complete participant text. Measured horizontal overflow enables scrolling in either orientation; compatible stacked tables retain shared column widths. Overflow checks remain behind the existing list-progress/revision guard and bounded viewport-fit callbacks, with no new interval or continuous geometry fitting.
 
 For a temporary suspension resolved by resuming, participant pause markers disappear from `resumeCycle - 1` onward. The unchanged shifted attempt schedule supplies ready markers for attempts starting at `resumeCycle`, including upstream participants held by `blocksStartCycleWave`. Route headers and incident editing still treat the route as paused until `resumeCycle`. An unresolved suspension, a suspension resolved by stopping, or another ongoing suspension retains its own markers. This rule lives in the shared ES5-compatible display module and adds no timers or geometry recalculations.
 
@@ -92,6 +96,12 @@ Wake Lock is part of the modern TAB tooltip, not a separate badge. Legacy does n
 The server describes sound events; each eligible modern browser schedules playback against its synchronized timeline. Primary and remote sound permissions are independent, and browsers on the primary computer are suppressed to prevent duplicate sound. User offsets are per client. Mobile autoplay rules require an explicit user gesture.
 
 The ordinary mode keeps only a compact audio-clock progress measurement. Extended performance diagnostics are opt-in and must not add continuous tracing to normal operation.
+
+## Android standalone window
+
+The native APK embeds the generated standalone HTML in a WebView. Android 15+ enforces edge-to-edge for the current target SDK 35, so `MainActivity` places the WebView in a full-size FrameLayout and applies visible `systemBars() | displayCutout()` insets as absolute container padding. The WebView receives the remaining inset rectangle, preventing duplicate system-bar reservation without dropping unrelated keyboard insets. Hidden bars add no fixed gap; gesture navigation uses its actual smaller bottom inset, and landscape bars/cutouts can reserve side space. Android 8–14 retain the original decor-fitted window with zero additional padding.
+
+The listener runs only when Android dispatches window-inset changes. Identical padding is not written again; one initial `requestApplyInsets()` follows `setContentView`. There are no new JavaScript timers, polling, geometry-fitting loops, HTML/CSS changes, or AndroidX dependencies. `test/android-insets.test.js` exercises the actual Activity against JVM API doubles for old/new OS versions, button/gesture/hidden navigation, repeated events, rotation, cutouts, and remaining keyboard insets. This does not replace a real APK build or device/emulator visual check. The platform contract is documented in [Android's edge-to-edge guide](https://developer.android.com/develop/ui/views/layout/edge-to-edge).
 
 ## Persistence
 
