@@ -48,3 +48,11 @@ rotation_last_five_background_color=#0e1116
 
 break_text_color=#f4f7fb
 break_background_color=#f05a59
+
+# Start-list marker colors only (not row backgrounds or diagnostics).
+# Use #RRGGBB or #RGB. Invalid/empty values use the built-in defaults.
+list_ready_color=#ffc857
+list_active_color=#26d07c
+list_done_color=#48488C
+list_paused_color=#8d97a5
+list_stopped_color=#f05a59

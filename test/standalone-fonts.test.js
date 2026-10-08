@@ -22,6 +22,8 @@ test("standalone embeds the DSEG clock fonts instead of requesting relative font
     assert.doesNotMatch(standalone, /url\("fonts\/DSEG7Classic-/);
     assert.match(standalone, /data:font\/woff2;base64,/);
     assert.match(standalone, /data:font\/woff;base64,/);
+    assert.match(standalone, /root\.FDVStartListRouteEditor = api/);
+    assert.doesNotMatch(standalone, /src="lib\/start-list-route-editor\.js"/);
   } finally {
     fs.rmSync(temporaryDirectory, { recursive: true, force: true });
   }

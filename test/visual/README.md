@@ -37,10 +37,13 @@ The same modern scenarios then cancel the stop through the editor after reload a
 
 The scenarios in `layout.spec.js` cover:
 
-- Final completion: the first appearance of zero uses the default or custom break palette in Modern and Legacy, dark-blue completed route diamonds, and no retained completion colors after reset or in a repeating zero-break rotation;
+- Final completion: the first appearance of zero uses the default or custom break palette in Modern and Legacy, blue-purple completed route diamonds, and no retained completion colors after reset or in a repeating zero-break rotation;
+- all five configurable marker colors, short HEX normalization, invalid-value fallback, pseudo-element fills, unchanged geometry and no repeated palette stylesheet writes in Modern/old-TV Legacy;
 - a read-only rotation badge on modern/Legacy list screens at `360×778`, `962×541`, and `1000×1000`, including phase/language changes, Final rotation numbering and countdown, optional clocks, and global/per-screen list hiding;
 - native fullscreen on the primary browser: the rotation remains visible and read-only, and becomes editable again after exit while paused;
 - a held Festival progress-bar drag while server synchronization continues;
+- route-count drafts while running/paused across the ordinary two-second poll, blank/multi-digit input, Tab/Enter commits, rapid spinner changes during a delayed save, and visible save failure with explicit retry;
+- route-count editing with network disabled in the generated single-file standalone HTML and Android HTML (browser test of embedded assets, not a native WebView/device test);
 - manual restart after a completed scheduled start;
 - the LEGACY outline only on browsers that can use the normal interface;
 - a `360×778` modern phone with two stacked start lists;

@@ -417,14 +417,14 @@
 
     .route-marker.active {
       border-radius: 50%;
-      background: #4fd18b;
+      background: #26d07c;
     }
 
     .route-marker.done {
       width: 12px;
       height: 12px;
       margin-top: 1px;
-      background: #28508c;
+      background: #48488c;
       -webkit-transform: rotate(45deg);
       transform: rotate(45deg);
     }
@@ -436,7 +436,7 @@
       top: 1px;
       bottom: 1px;
       width: 4px;
-      background: #a8afb8;
+      background: #8d97a5;
     }
 
     .route-marker.paused:before { left: 2px; }
@@ -632,14 +632,15 @@
   </div>
   <div id="protocolPane"><div id="protocolLayout"></div></div>
 
-  <script src="lib/start-list-display.js?v=402"></script>
+  <script src="lib/start-list-display.js?v=405"></script>
   <script>
     (function () {
-      var legacyBuildNumber = 402;
+      var legacyBuildNumber = 405;
       var state = null;
       var serverOffset = 0;
       var lastContact = 0;
       var appliedFontKey = "";
+      var appliedListMarkerColorKey = "";
       var activeRequest = null;
       var activeRequestStartedAt = 0;
       var pollTimer = null;
@@ -1600,8 +1601,29 @@
         }
       }
 
+      function applyListMarkerColors(config) {
+        var colors = window.FDVStartListDisplay.markerColors(config);
+        var css = ".route-marker.ready{border-bottom-color:" + colors.listReadyColor + ";}"
+          + ".route-marker.active{background-color:" + colors.listActiveColor + ";}"
+          + ".route-marker.done{background-color:" + colors.listDoneColor + ";}"
+          + ".route-marker.paused:before,.route-marker.paused:after{background-color:" + colors.listPausedColor + ";}"
+          + ".route-marker.stopped:before,.route-marker.stopped:after{background-color:" + colors.listStoppedColor + ";}";
+        var style;
+        if (appliedListMarkerColorKey === css) return;
+        style = document.getElementById("legacyListMarkerColors");
+        if (!style) {
+          style = document.createElement("style");
+          style.id = "legacyListMarkerColors";
+          document.getElementsByTagName("head")[0].appendChild(style);
+        }
+        if (style.styleSheet) style.styleSheet.cssText = css;
+        else style.innerHTML = css;
+        appliedListMarkerColorKey = css;
+      }
+
       function applyTimerColors(config) {
         config = config || {};
+        applyListMarkerColors(config);
         timerColors = {
           countdownText: colorValue(config.countdownTextColor, timerColors.countdownText),
           rotationText: colorValue(config.rotationTextColor, timerColors.rotationText),

@@ -9,7 +9,7 @@
 ## Возможности
 
 - Форматы **Классика**, **Фестиваль** и **Финал**.
-- При завершении одноразового отсчёта на `00:00` включаются цвета перерыва (по умолчанию красный фон); пройденные трассы отмечаются тёмно-синими ромбами.
+- При завершении одноразового отсчёта на `00:00` включаются цвета перерыва (по умолчанию красный фон); пройденные трассы отмечаются сине-фиолетовыми ромбами.
 - Немедленный или отложенный старт, пауза, перемотка по полосе прогресса и ручной выбор ротации на паузе.
 - Единое серверное время для всех экранов и точное планирование звуков.
 - Продолжение отсчёта при краткой потере сети; после возврата связи браузер снова принимает состояние сервера.
@@ -45,6 +45,8 @@ HTTP достаточно для обычной локальной работы.
 Создайте сертификат штатным скриптом для своей ОС, перезапустите сервер и открывайте именно адрес `https://…:8443/`. Сертификат локальный и самоподписанный: на каждом устройстве сначала подтвердите переход к нему. После смены IP-адреса или компьютера создайте сертификат заново. Подробности — в [руководстве](help.html#https).
 
 ## Стартовые списки
+
+Число трасс можно менять и при запущенном таймере. Ввод сохраняется по Enter, Tab или при выходе из поля; стрелки поля применяют изменение сразу. Синхронизация не сбрасывает черновик или ожидающее сохранения значение. При ошибке значение остаётся в поле с пояснением — нажмите Enter для повторной попытки.
 
 За ротацию до возобновления трассы значки этой паузы исчезают, а участники следующего выхода видят жёлтые треугольники подготовки.
 
@@ -84,6 +86,8 @@ node serve-bouldering-timer.js
 
 Начальные параметры находятся в `params.txt`. Порты по умолчанию: `8008` для HTTP и `8443` для HTTPS.
 
+Цвета значков списка задаются отдельно: `list_ready_color` — подготовка, `list_active_color` — лазание, `list_done_color` — пройденная трасса (по умолчанию `#48488C`), `list_paused_color` — пауза, `list_stopped_color` — полная остановка. Формат — `#RRGGBB` или `#RGB`; неверное значение заменяется цветом по умолчанию. После изменения перезапустите сервер. Фоны строк и диагностика не меняются. В автономный HTML/APK цвета встраиваются при сборке.
+
 ### Проверка изменений
 
 ```bash
@@ -106,7 +110,7 @@ A network-synchronized timer for bouldering competitions. One browser controls t
 ### Features
 
 - **Classic**, **Festival**, and **Final** competition formats.
-- A completed one-shot timer at `00:00` uses the configured break colors (red background by default); completed routes use dark-blue diamonds.
+- A completed one-shot timer at `00:00` uses the configured break colors (red background by default); completed routes use blue-purple diamonds.
 - Immediate or scheduled start, pause, progress scrubbing, and paused rotation selection.
 - Server-authoritative timing with local continuation during a short network outage.
 - Simplified **Legacy** display for old or weak browsers and televisions; compact portrait number/route columns leave more room for names, with horizontal scrolling when needed.
@@ -142,6 +146,8 @@ Create a certificate with the supplied platform script, restart the server, and 
 
 ### Start lists
 
+Route counts can be changed while running. Typing commits on Enter, Tab, or leaving the field; the field's arrows commit immediately. Synchronization preserves drafts and pending values. A failed save retains the value with an explanation; press Enter to retry.
+
 One rotation before a route resumes, markers for that pause disappear and participants starting next see yellow preparation triangles.
 
 If resumption is scheduled, pause icons cover climbing within the suspended interval and preparation only for routes 2 and later, after participants have entered competition. Preparation for the first route has no pause icon. Later participants retain their shifted schedule without pause icons. The description ends at the last suspended rotation: a pause starting at 17 and resuming at 19 reads “from rotation 17 through rotation 18”.
@@ -159,6 +165,8 @@ Screens with visible lists show a read-only rotation badge below the timer, incl
 The lists visualize the calculated participant schedule; they never control timer timing. When a route pause is planned for a future rotation, the checkbox after the rotation number can hold the entire related wave; clear it to preserve the previous progression behavior on upstream routes. See [the full guide](help.html?lang=en#start-lists) for import rules, markers, exclusions, route incidents, and auto-scrolling.
 
 ### Development
+
+Configure list marker colors in `params.txt`: `list_ready_color` (preparation), `list_active_color` (climbing), `list_done_color` (completed, default `#48488C`), `list_paused_color` (pause), and `list_stopped_color` (permanent stop). Use `#RRGGBB` or `#RGB`; invalid values fall back to defaults. Restart the server after editing. Row backgrounds and diagnostics are unaffected. Standalone HTML/APK embeds the colors at build time.
 
 ```bash
 node serve-bouldering-timer.js

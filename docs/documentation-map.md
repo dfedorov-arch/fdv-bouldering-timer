@@ -22,7 +22,9 @@ Desktop installers include `fdv-installed.marker` to select per-user server stat
 
 Current application screenshots belong in `help-assets/`. A screenshot that shows removed controls, obsolete terminology, or the old diagnostic order must not be referenced; use a neutral layout until a current-build capture is available. Launcher icons and launcher-window images are replaced only when those launchers change.
 
-`help-assets/final-completed.png` shows completed Final zero on the default red break background and a dark-blue completed route diamond. It is captured by the isolated modern completion visual test; Modern and Legacy tests also cover a custom break palette, the first zero mutation, reset, and repeating zero-break rotations. Current list screenshots use the build 402 dark-blue diamond color.
+`help-assets/route-count-save-failed.png` is a real build 403 browser capture from the isolated route-count failure/retry test: the draft stays at 4 while the canonical table still has 5 routes. The regression matrix covers running/paused synchronization, rapid pending commits, failure recovery, and offline HTML/Android-generated pages. Existing display geometry and the build 402 diamond palette are unchanged.
+
+`help-assets/final-completed.png` shows completed Final zero on the default red break background and a blue-purple completed route diamond. It is captured by the isolated modern completion visual test; Modern and Legacy tests also cover a custom break palette, the first zero mutation, reset, and repeating zero-break rotations. Current list screenshots use the build 404 `#48488c` diamond palette. The five `list_*_color` parameters and HEX fallback rules are documented in both manual languages; browser tests cover custom palettes, invalid-value reset, pseudo-elements, unchanged geometry and skipped repeated style writes, including old-TV compatibility.
 
 `help-assets/route-resume-preparation.png` shows the held wave preparing at rotation 17 before route 2 resumes at rotation 18; it is captured by the isolated modern route-resumption visual test.
 

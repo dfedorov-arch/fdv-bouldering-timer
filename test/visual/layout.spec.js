@@ -38,7 +38,230 @@ test.beforeEach(async () => {
   await stabilizeTimer(server.baseUrl);
 });
 
+async function withRouteCountEditor(browser, run) {
+  const previous = await (await fetch(`${server.baseUrl}/api/state`)).json();
+  const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+  const id = "visual-route-count-editor";
+  await context.addInitScript(id => sessionStorage.setItem("boulderingTimerClientId", id), id);
+  const page = await context.newPage();
+  const commands = [];
+  page.on("request", request => {
+    if (!request.url().endsWith("/api/action")) return;
+    const payload = request.postDataJSON();
+    if (payload.type === "startListRoutes") commands.push(payload);
+  });
+  try {
+    await action(server.baseUrl, "startLists", { startLists: [{
+      headers: ["#", "ФИО"], rows: [["1", "Проверка участника"]], routeCount: 5
+    }] });
+    await action(server.baseUrl, "primary", { primaryClientId: id });
+    await page.goto(server.baseUrl, { waitUntil: "domcontentloaded" });
+    await page.waitForFunction(() => document.body.classList.contains("primary-active"));
+    const field = page.locator("[data-start-list-routes]").first();
+    await expect(field).toHaveValue("5");
+    await page.locator("#startBtn").click();
+    await expect(page.locator("#startBtn")).toBeDisabled();
+    const remoteCount = async () => (await (await fetch(`${server.baseUrl}/api/state`)).json()).startLists[0].routeCount;
+    const sync = () => page.evaluate(() => syncFromServer({ forceApply: true, skipBurst: true }));
+    await run({ page, field, commands, remoteCount, sync });
+  } finally {
+    await page.unrouteAll({ behavior: "ignoreErrors" });
+    await context.close();
+    await action(server.baseUrl, "primary", { primaryClientId: "performance-baseline" });
+    await action(server.baseUrl, "startLists", { startLists: previous.startLists });
+  }
+}
+
+for (const running of [true, false]) {
+  test(`Route-count draft survives synchronization ${running ? "running" : "paused"} until Enter or blur`, async ({ browser }) => {
+    await withRouteCountEditor(browser, async ({ page, field, commands, remoteCount, sync }) => {
+      if (!running) await page.locator("#pauseBtn").click();
+      await field.fill("4");
+      await page.waitForTimeout(2600); // Cross the ordinary two-second server poll.
+      await expect(field).toHaveValue("4");
+      expect(commands).toHaveLength(0);
+      expect(await remoteCount()).toBe(5);
+      await field.press("Tab");
+      await expect.poll(remoteCount).toBe(4);
+      await field.fill("");
+      await sync();
+      await expect(field).toHaveValue("");
+      await field.fill("1");
+      await sync();
+      await expect(field).toHaveValue("1");
+      expect(await remoteCount()).toBe(4);
+      await field.fill("12");
+      await field.press("Enter");
+      await expect.poll(remoteCount).toBe(12);
+      await sync();
+      await expect(field).toHaveValue("12");
+      expect(commands.map(command => command.routeCount)).toEqual([4, 12]);
+    });
+  });
+}
+
+test("Route-count rapid spinner changes preserve the last value across a pending save", async ({ browser }) => {
+  await withRouteCountEditor(browser, async ({ page, field, commands, remoteCount, sync }) => {
+    let release;
+    const gate = new Promise(resolve => { release = resolve; });
+    let held = false;
+    await page.route("**/api/action", async route => {
+      if (route.request().postDataJSON().type === "startListRoutes" && !held) {
+        held = true;
+        await gate;
+      }
+      await route.continue();
+    });
+    try {
+      await field.focus();
+      await field.press("ArrowDown");
+      await expect.poll(() => held).toBe(true);
+      await field.press("ArrowDown");
+      await field.press("ArrowDown");
+      await sync();
+      await expect(field).toHaveValue("2");
+      expect(await remoteCount()).toBe(5);
+      expect(commands.map(command => command.routeCount)).toEqual([4]);
+    } finally { release(); }
+    await expect.poll(remoteCount).toBe(2);
+    await sync();
+    await expect(field).toHaveValue("2");
+    expect(commands.map(command => command.routeCount)).toEqual([4, 2]);
+  });
+});
+
+test("Route-count save failure remains visible and Enter retries the retained value", async ({ browser }, testInfo) => {
+  await withRouteCountEditor(browser, async ({ page, field, commands, remoteCount, sync }) => {
+    let failed = false;
+    await page.route("**/api/action", async route => {
+      if (route.request().postDataJSON().type === "startListRoutes" && !failed) {
+        failed = true;
+        const state = await (await fetch(`${server.baseUrl}/api/state?clientId=visual-route-count-editor`)).json();
+        await route.fulfill({ status: 403, json: { ...state, actionDenied: true } });
+      } else await route.continue();
+    });
+    await field.fill("4");
+    await field.press("Enter");
+    await expect(field).toHaveAttribute("aria-invalid", "true");
+    await sync();
+    await expect(field).toHaveValue("4");
+    expect(await remoteCount()).toBe(5);
+    await expect(page.locator("[data-start-list-route-status]").first()).toContainText("не сохранено");
+    const screenshot = testInfo.outputPath("route-count-save-failed.png");
+    await page.locator(".start-list-slot").first().screenshot({ path: screenshot });
+    await testInfo.attach("Retained route count and explicit save failure", { path: screenshot, contentType: "image/png" });
+    const slot = await page.locator(".start-list-slot").first().boundingBox();
+    const table = await page.locator(".start-list-table").first().boundingBox();
+    await page.screenshot({ path: require("node:path").resolve(__dirname, "../../help-assets/route-count-save-failed.png"),
+      clip: { x: slot.x, y: slot.y, width: slot.width, height: table.y + table.height - slot.y + 8 } });
+    await field.press("Enter");
+    await expect.poll(remoteCount).toBe(4);
+    await expect(field).toHaveAttribute("aria-invalid", "false");
+    await expect(page.locator("[data-start-list-route-status]").first()).toBeHidden();
+    expect(commands.map(command => command.routeCount)).toEqual([4, 4]);
+  });
+});
+
+for (const android of [false, true]) {
+  test(`Standalone ${android ? "Android" : "HTML"} route-count editing works without network`, async ({ browser }) => {
+    const fs = require("node:fs");
+    const path = require("node:path");
+    const root = path.resolve(__dirname, "../..");
+    const directory = fs.mkdtempSync(path.join(require("node:os").tmpdir(), "fdv-route-standalone-"));
+    const file = path.join(directory, "timer.html");
+    const built = require("node:child_process").spawnSync(process.execPath,
+      [path.join(root, "scripts/build-standalone-html.js"), file, ...(android ? ["--android"] : [])], { cwd: root, encoding: "utf8" });
+    expect(built.status, built.stderr).toBe(0);
+    const context = await browser.newContext({ viewport: { width: 393, height: 852 }, offline: true });
+    try {
+      const page = await context.newPage();
+      await page.goto(require("node:url").pathToFileURL(file).href, { waitUntil: "domcontentloaded" });
+      await expect(page.locator("#copyrightCredit")).toHaveAttribute("title", "Email: dfedorov@gmail.com | Telegram: @fedorovdv");
+      await page.evaluate(() => applyLanguage("en"));
+      await expect(page.locator("#copyrightCredit")).toHaveAttribute("title", "Email: dfedorov@gmail.com | Telegram: @fedorovdv");
+      await page.evaluate(() => applyLanguage("ru"));
+      await page.locator("#startListToggle").check();
+      await page.evaluate(() => commitStartLists([{
+        headers: ["#", "ФИО"], rows: [["1", "Автономный участник"]], routeCount: 5
+      }]));
+      const field = page.locator("[data-start-list-routes]").first();
+      await expect(field).toHaveValue("5");
+      expect(await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue("--list-done-color").trim())).toBe("#48488c");
+      await field.fill("4");
+      await page.waitForTimeout(2600);
+      await expect(field).toHaveValue("4");
+      expect(await page.evaluate(() => state.startLists[0].routeCount)).toBe(5);
+      await field.press("Enter");
+      await expect.poll(() => page.evaluate(() => state.startLists[0].routeCount)).toBe(4);
+      await expect(field).toHaveValue("4");
+      await expect(page.locator("[data-start-list-route-status]").first()).toBeHidden();
+    } finally {
+      await context.close();
+      fs.rmSync(directory, { recursive: true, force: true });
+    }
+  });
+}
+
 for (const modern of [true, false]) {
+  test(`${modern ? "Modern" : "Legacy"} applies configurable marker colors without changing geometry or repeating stylesheet writes`, async ({ browser }) => {
+    const opened = await (modern ? openModern : openLegacy)(browser, server.baseUrl,
+      `visual-marker-palette-${modern}`, { width: 962, height: 541 }, [0], false, !modern);
+    let palette = { listReadyColor: "#123456", listActiveColor: "#ABC", listDoneColor: "#654321",
+      listPausedColor: "#bada55", listStoppedColor: "#abcdef" };
+    try {
+      if (modern) await opened.page.route("**/api/events**", route => route.abort());
+      await opened.page.route("**/api/state**", async route => {
+        const response = await route.fetch();
+        const remote = await response.json();
+        await route.fulfill({ response, json: { ...remote, config: { ...remote.config, ...palette } } });
+      });
+      await opened.page.reload({ waitUntil: "domcontentloaded" });
+      const readPalette = () => opened.page.evaluate(() => {
+        let probe = document.getElementById("markerPaletteProbe");
+        if (!probe) {
+          probe = document.createElement("div");
+          probe.id = "markerPaletteProbe";
+          probe.style.cssText = "position:absolute;left:-10000px;top:0";
+          probe.innerHTML = ["ready", "active", "done", "paused", "stopped"].map(status => `<span class="route-marker ${status}"></span>`).join("");
+          document.body.appendChild(probe);
+        }
+        return [...probe.children].map(marker => {
+          const status = marker.classList[1];
+          const style = getComputedStyle(marker);
+          const color = status === "ready" ? style.borderBottomColor : status === "paused" || status === "stopped"
+            ? getComputedStyle(marker, "::before").backgroundColor : style.backgroundColor;
+          return { color, geometry: [style.width, style.height, style.transform] };
+        });
+      });
+      await expect.poll(async () => (await readPalette()).map(item => item.color)).toEqual([
+        "rgb(18, 52, 86)", "rgb(170, 187, 204)", "rgb(101, 67, 33)", "rgb(186, 218, 85)", "rgb(171, 205, 239)"
+      ]);
+      const geometry = (await readPalette()).map(item => item.geometry);
+      await opened.page.evaluate(modern => {
+        window.markerPaletteWrites = 0;
+        if (modern) {
+          const style = document.documentElement.style;
+          const original = style.setProperty.bind(style);
+          style.setProperty = (...args) => { if (args[0].startsWith("--list-")) window.markerPaletteWrites++; original(...args); };
+        } else {
+          new MutationObserver(records => { window.markerPaletteWrites += records.length; })
+            .observe(document.getElementById("legacyListMarkerColors"), { childList: true, characterData: true, subtree: true });
+        }
+      }, modern);
+      if (modern) await opened.page.evaluate(() => syncFromServer({ forceApply: true, skipBurst: true }));
+      await opened.page.waitForTimeout(2600);
+      expect(await opened.page.evaluate(() => window.markerPaletteWrites)).toBe(0);
+      palette = { listReadyColor: "bad", listActiveColor: "", listDoneColor: "#oops", listPausedColor: "bad", listStoppedColor: "bad" };
+      if (modern) await opened.page.evaluate(() => syncFromServer({ forceApply: true, skipBurst: true }));
+      await expect.poll(async () => (await readPalette()).map(item => item.color)).toEqual([
+        "rgb(255, 200, 87)", "rgb(38, 208, 124)", "rgb(72, 72, 140)", "rgb(141, 151, 165)", "rgb(240, 90, 89)"
+      ]);
+      expect((await readPalette()).map(item => item.geometry)).toEqual(geometry);
+    } finally {
+      await opened.page.unrouteAll({ behavior: "ignoreErrors" });
+      await opened.context.close();
+    }
+  });
   for (const customPalette of [false, true]) {
     test(`${modern ? "Modern" : "Legacy"} completed Final uses ${customPalette ? "custom" : "default"} break palette at zero`, async ({ browser }, testInfo) => {
       const settings = { rotationSeconds: 240, breakSeconds: 0, oneShot: true };
@@ -81,7 +304,7 @@ for (const modern of [true, false]) {
         expect(zeroAppearance).toBe(background);
         await expect(timer).toHaveCSS("color", customPalette ? "rgb(255, 238, 221)" : "rgb(244, 247, 251)");
         await expect(pane).toHaveCSS("background-color", background);
-        await expect(opened.page.locator(".route-marker.done").first()).toHaveCSS("background-color", "rgb(40, 80, 140)");
+        await expect(opened.page.locator(".route-marker.done").first()).toHaveCSS("background-color", "rgb(72, 72, 140)");
         const screenshot = testInfo.outputPath(`final-completed-${modern ? "modern" : "legacy"}-${customPalette ? "custom" : "default"}.png`);
         await opened.page.screenshot({ path: screenshot });
         await testInfo.attach("Completed Final and dark-blue completed routes", { path: screenshot, contentType: "image/png" });

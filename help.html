@@ -872,7 +872,7 @@
             <li>После ротации таймер останавливается на <code>00:00</code>; одновременно включаются цвета перерыва (по умолчанию красный фон). В обычном основном интерфейсе это состояние дополнительно отмечается как завершённое. Цвета задаются параметрами <code>break_background_color</code> и <code>break_text_color</code>; это не запускает отдельный отсчёт перерыва.</li>
             <li>Для следующего финального запуска достаточно снова нажать «Старт» или <kbd>Z</kbd>.</li>
           </ul>
-          <figure><img src="help-assets/final-completed.png" alt="Завершённый финал: 00:00 на красном фоне перерыва и тёмно-синий ромб пройденной трассы"><figcaption>При появлении нулей фон сразу переключается на цвет перерыва.</figcaption></figure>
+          <figure><img src="help-assets/final-completed.png" alt="Завершённый финал: 00:00 на красном фоне перерыва и сине-фиолетовый ромб пройденной трассы"><figcaption>При появлении нулей фон сразу переключается на цвет перерыва.</figcaption></figure>
         </div>
 
         <table class="comparison">
@@ -966,9 +966,11 @@
         </ol>
         <p>Ширина колонки определяется таблицей, а строка управления при необходимости сжимается за счёт кнопки «Загрузить список…». Заголовок таблицы может сокращаться многоточием; значения в строках участников не сокращаются и при необходимости создают горизонтальную прокрутку.</p>
         <h3>6.2. Ход соревнования</h3>
+        <p>Число трасс можно менять и при работающем таймере. Введённое число сохраняется по Enter, Tab или при выходе из поля; стрелки поля применяют изменение сразу. Промежуточные цифры не отправляются: при вводе 12 число 1 не уменьшит список. Пока сервер сохраняет изменение, показано «Сохраняется…». При ошибке введённое значение остаётся с пояснением; нажмите Enter для повторной попытки. Синхронизация не сбрасывает ввод и не меняет остальные списки.</p>
+        <figure><img src="help-assets/route-count-save-failed.png" alt="Введено 4 трассы, сервер пока хранит 5: значение сохранено в поле, ошибка обозначена красным"><figcaption>При ошибке число не сбрасывается; Enter повторяет сохранение.</figcaption></figure>
         <ul>
           <li>Текущий участник, подготовка, отдых и результаты трасс подсвечиваются автоматически по ротации и выбранному формату.</li>
-          <li>Жёлтый треугольник означает подготовку, зелёный круг — лазание, тёмно-синий ромб — пройденную трассу. Красный крест означает полную остановку трассы, а не завершённую попытку.</li>
+          <li>По умолчанию жёлтый треугольник означает подготовку, зелёный круг — лазание, сине-фиолетовый ромб — пройденную трассу, серые полоски — паузу. Красный крест означает полную остановку трассы, а не завершённую попытку. Цвета этих значков задаются отдельно в <code>params.txt</code>.</li>
           <li>Кнопка возле номера трассы открывает управление инцидентами: трассу можно приостановить и возобновить с выбранной, в том числе будущей, ротации.</li>
           <li>Флажок после номера ротации имеет подсказку «Остановить всю волну с этой ротации». Для будущей ротации он включается автоматически и удерживает участников связанной волны также на предыдущих трассах. Флажок можно снять вручную; для текущей или прошедшей ротации он по умолчанию выключен, поэтому уже вышедший участник может закончить попытку.</li>
           <li>Запланированные границы инцидента сразу показываются в описании и маркерами в таблице. За одну ротацию до возобновления значки этой паузы исчезают: участники, выходящие в следующей ротации, видят жёлтые треугольники подготовки.</li>
@@ -1290,10 +1292,16 @@ xattr -dr com.apple.quarantine "/полный/путь/к/fdv-bouldering-timer-m
             <tr><td><code>rotation_last_five_background_color</code></td><td>Цвет фона в последние 5 секунд ротации</td><td>#0e1116</td></tr>
             <tr><td><code>break_text_color</code></td><td>Цвет цифр во время перерыва</td><td>#f4f7fb</td></tr>
             <tr><td><code>break_background_color</code></td><td>Цвет фона во время перерыва</td><td>#f05a59</td></tr>
+            <tr><td><code>list_ready_color</code></td><td>Треугольник подготовки</td><td>#ffc857</td></tr>
+            <tr><td><code>list_active_color</code></td><td>Круг лазания</td><td>#26d07c</td></tr>
+            <tr><td><code>list_done_color</code></td><td>Ромб пройденной трассы</td><td>#48488C</td></tr>
+            <tr><td><code>list_paused_color</code></td><td>Полоски паузы</td><td>#8d97a5</td></tr>
+            <tr><td><code>list_stopped_color</code></td><td>Крест полной остановки</td><td>#f05a59</td></tr>
           </tbody>
         </table>
         <p class="note">Основной шрифт загружается всеми экранами с локального сервера, поэтому устанавливать его на устройства не требуется. Поместите WOFF2, WOFF, TTF или OTF в каталог <code>fonts</code> и укажите только имя файла без пути. В комплект входят Roboto, Open Sans, Barlow Condensed, Courier Prime и Syne Mono; все они имеют обычный пустой ноль. У Roboto, Open Sans и Barlow Condensed круглые точки двоеточия. Полный список имён находится в <code>fonts/README.txt</code>. Если файл отсутствует или не поддерживается браузером, используется список <code>timer_font</code>. Размер цифр всегда рассчитывается автоматически.</p>
         <p class="note">Значения, изменённые в интерфейсе, действуют в текущем запуске сервера, но не переписывают <code>params.txt</code>.</p>
+        <p>Для цветов значков используйте HEX <code>#RRGGBB</code> или <code>#RGB</code>. Пустое, отсутствующее или неверное значение заменяется стандартным. Цвета одинаковы в Modern и Legacy; формы, фоны строк, кнопки и диагностика не изменяются. После правки перезапустите сервер. В автономный HTML и Android APK параметры встраиваются при сборке: изменение <code>params.txt</code> рядом с готовым файлом на них не влияет.</p>
         <a class="back-to-toc" href="#contents">↑ К оглавлению</a>
       </section>
 
@@ -1341,7 +1349,7 @@ xattr -dr com.apple.quarantine "/полный/путь/к/fdv-bouldering-timer-m
         <a class="back-to-toc" href="#contents">↑ К оглавлению</a>
       </section>
 
-      <p class="footer">2026 Фёдоров Денис + Codex · MIT License · Полное руководство пользователя</p>
+      <p class="footer">2026 Фёдоров Денис · Полное руководство пользователя</p>
     </main>
   </div>
   </div>
@@ -1454,7 +1462,7 @@ xattr -dr com.apple.quarantine "/полный/путь/к/fdv-bouldering-timer-m
           <h3>3.3. Final</h3>
           <p>A one-shot format. Each Start runs one rotation and then waits for the operator. The Old list schedule sends every participant through route 1 before route 2; the New schedule moves a participant to the next route after a configurable number of complete rest rotations (3 by default). A participant on route 1 in rotation 1 prepares in rotation 4 and climbs the next route in rotation 5. This choice affects only a loaded start list.</p>
           <p>When the rotation finishes at <code>00:00</code>, the timer immediately uses the break colors (a red background by default), configured by <code>break_background_color</code> and <code>break_text_color</code>. No separate break countdown starts.</p>
-          <figure><img src="help-assets/final-completed.png" alt="Completed Final: 00:00 on the red break background and a dark-blue completed route diamond"><figcaption>The break background appears with zero, not on a later refresh.</figcaption></figure>
+          <figure><img src="help-assets/final-completed.png" alt="Completed Final: 00:00 on the red break background and a blue-purple completed route diamond"><figcaption>The break background appears with zero, not on a later refresh.</figcaption></figure>
         </div>
         <table class="comparison">
           <thead><tr><th>Property</th><th>Classic</th><th>Festival</th><th>Final</th></tr></thead>
@@ -1521,9 +1529,11 @@ xattr -dr com.apple.quarantine "/полный/путь/к/fdv-bouldering-timer-m
         </ol>
         <p>The column follows the table width. Its toolbar may compress the Load list… label, while participant data is never ellipsized; a horizontal scrollbar is provided when necessary.</p>
         <h3>6.2. Competition progress</h3>
+        <p>Route counts can be changed while running. Typing commits on Enter, Tab, or leaving the field; the field's arrows commit immediately. Intermediate digits are not submitted: typing 12 does not reduce the list to 1 route. “Saving…” appears while awaiting the server. A failed save retains the value with an explanation; press Enter to retry. Synchronization does not overwrite your input or change other lists.</p>
+        <figure><img src="help-assets/route-count-save-failed.png" alt="Draft route count 4 is retained while the server still has 5; a red message indicates the failed save"><figcaption>A failed save retains your value; Enter retries saving.</figcaption></figure>
         <ul>
           <li>Climbing, preparation, rest, and route-result markers follow the current rotation and competition format automatically.</li>
-          <li>A yellow triangle means preparation, a green circle means climbing, and a dark-blue diamond means a completed route. A red cross means a permanent route stop, not a completed attempt.</li>
+          <li>By default, a yellow triangle means preparation, a green circle means climbing, a blue-purple diamond means a completed route, and gray bars mean a pause. A red cross means a permanent route stop, not a completed attempt. Configure these marker colors separately in <code>params.txt</code>.</li>
           <li>The route control opens incident management. A route can be suspended and restored from a selected current or future rotation.</li>
           <li>The checkbox after the rotation number is labelled “Hold the entire wave from this rotation”. It turns on automatically for a future rotation and also holds the related participants on upstream routes. The operator may clear it; for a current or past rotation it defaults off so a participant who has already started may finish.</li>
           <li>Both planned incident boundaries are shown immediately in the description and table markers. One rotation before resumption, markers for that pause disappear and participants starting in the next rotation see yellow preparation triangles.</li>
@@ -1670,6 +1680,7 @@ xattr -dr com.apple.quarantine "/full/path/to/fdv-bouldering-timer-macos-arm64"<
         <span class="chapter-kicker">Chapter 10</span>
         <h2>The params.txt file</h2>
         <p>These values are read when the server starts. Restart after editing the file.</p>
+        <p>Marker colors accept HEX <code>#RRGGBB</code> or <code>#RGB</code>. Empty, missing, or invalid values use defaults. Colors match in Modern and Legacy without changing shapes, row backgrounds, buttons, or diagnostics. Restart the server after editing. Standalone HTML and Android APK embed these values at build time; placing an edited <code>params.txt</code> beside a finished file does not change them.</p>
         <table>
           <thead><tr><th>Parameter</th><th>Purpose</th><th>Example</th></tr></thead>
           <tbody>
@@ -1703,6 +1714,11 @@ xattr -dr com.apple.quarantine "/full/path/to/fdv-bouldering-timer-macos-arm64"<
             <tr><td><code>rotation_last_five_background_color</code></td><td>Last-five rotation background</td><td>#0e1116</td></tr>
             <tr><td><code>break_text_color</code></td><td>Break digit color</td><td>#f4f7fb</td></tr>
             <tr><td><code>break_background_color</code></td><td>Break background</td><td>#f05a59</td></tr>
+            <tr><td><code>list_ready_color</code></td><td>Preparation triangle</td><td>#ffc857</td></tr>
+            <tr><td><code>list_active_color</code></td><td>Climbing circle</td><td>#26d07c</td></tr>
+            <tr><td><code>list_done_color</code></td><td>Completed-route diamond</td><td>#48488C</td></tr>
+            <tr><td><code>list_paused_color</code></td><td>Pause bars</td><td>#8d97a5</td></tr>
+            <tr><td><code>list_stopped_color</code></td><td>Permanent-stop cross</td><td>#f05a59</td></tr>
           </tbody>
         </table>
         <p class="note">Every display loads the primary font from the local server, so it does not need to be installed on each device. Put a WOFF2, WOFF, TTF or OTF file in <code>fonts</code> and specify the file name without a path. Bundled choices include Roboto, Open Sans, Barlow Condensed, Courier Prime and Syne Mono; all have a plain, empty zero. Roboto, Open Sans and Barlow Condensed have round colon dots. See <code>fonts/README.txt</code> for exact file names. If the file is missing or unsupported, the <code>timer_font</code> fallback list is used. Digit size remains automatic.</p>
@@ -1726,7 +1742,7 @@ xattr -dr com.apple.quarantine "/full/path/to/fdv-bouldering-timer-macos-arm64"<
         <a class="back-to-toc" href="#en-contents">↑ Back to contents</a>
       </section>
 
-      <p class="footer">2026 Fedorov Denis + Codex · MIT License · Complete user guide</p>
+      <p class="footer">2026 Fedorov Denis · Complete user guide</p>
     </main>
   </div>
   </div>

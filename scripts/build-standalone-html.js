@@ -63,6 +63,7 @@ function build() {
   const clientActionTransport = read("lib/client-action-transport.js");
   const startListDisplay = read("lib/start-list-display.js");
   const startList = read("lib/start-list.js");
+  const startListRouteEditor = read("lib/start-list-route-editor.js");
   const xlsxMini = read("lib/vendor/xlsx.mini.min.js");
   const manifest = JSON.parse(read("manifest.webmanifest"));
   const appIcon = read("app-icon.svg");
@@ -101,6 +102,10 @@ function build() {
   html = html.replace(
     /\s*<script src="lib\/client-action-transport\.js"><\/script>/,
     `\n  ${scriptTag(clientActionTransport)}`
+  );
+  html = html.replace(
+    /\s*<script src="lib\/start-list-route-editor\.js"><\/script>/,
+    () => `\n  ${scriptTag(startListRouteEditor)}`
   );
 
   if (html.includes('src="lib/') || html.includes("src='lib/")) {

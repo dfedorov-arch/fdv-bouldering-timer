@@ -191,6 +191,82 @@ test("installed server migrates a portable snapshot and saves subsequent state p
   assert.equal(invalidNewSnapshot.startLists[0], null);
 });
 
+test("params marker colors are normalized in server and generated offline config", async (t) => {
+  const fixture = fs.mkdtempSync(path.join(os.tmpdir(), "fdv-marker-colors-test-"));
+  copyFixture(fixture);
+  fs.appendFileSync(path.join(fixture, "params.txt"), "\nlist_ready_color=#ABC\nlist_active_color=#123456\nlist_done_color=#7654AB\nlist_paused_color=invalid\nlist_stopped_color=#123456;}body{display:none}\n");
+  const port = await freePort();
+  const child = spawn(process.execPath, [path.join(fixture, "serve-bouldering-timer.js")], {
+    cwd: fixture, env: { ...process.env, HOST: "127.0.0.1", PORT: String(port), HTTPS_PORT: String(await freePort()) },
+    stdio: ["ignore", "pipe", "pipe"]
+  });
+  const output = [];
+  child.stdout.on("data", chunk => output.push(String(chunk)));
+  child.stderr.on("data", chunk => output.push(String(chunk)));
+  t.after(async () => { await stopServer(child); fs.rmSync(fixture, { recursive: true, force: true }); });
+  const state = await waitForServer(`http://127.0.0.1:${port}`, child, output);
+  const expected = { listReadyColor: "#aabbcc", listActiveColor: "#123456", listDoneColor: "#7654ab",
+    listPausedColor: "#8d97a5", listStoppedColor: "#f05a59" };
+  const source = fs.readFileSync(path.join(fixture, "lib/offline-audio.js"), "utf8");
+  const offline = JSON.parse(source.match(/window\.FDV_OFFLINE_BUNDLE = (.*);\s*$/s)[1]);
+  for (const [key, value] of Object.entries(expected)) {
+    assert.equal(state.config[key], value);
+    assert.equal(offline.config[key], value);
+  }
+});
+
+test("route-count actions update only their list and reject stale list revisions while running", async (t) => {
+  const fixture = fs.mkdtempSync(path.join(os.tmpdir(), "fdv-route-count-test-"));
+  copyFixture(fixture);
+  const port = await freePort();
+  const child = spawn(process.execPath, [path.join(fixture, "serve-bouldering-timer.js")], {
+    cwd: fixture, env: { ...process.env, HOST: "127.0.0.1", PORT: String(port), HTTPS_PORT: String(await freePort()) },
+    stdio: ["ignore", "pipe", "pipe"]
+  });
+  const output = [];
+  child.stdout.on("data", chunk => output.push(String(chunk)));
+  child.stderr.on("data", chunk => output.push(String(chunk)));
+  t.after(async () => { await stopServer(child); fs.rmSync(fixture, { recursive: true, force: true }); });
+  const baseUrl = `http://127.0.0.1:${port}`;
+  await waitForServer(baseUrl, child, output);
+  await postAction(baseUrl, { type: "start", activePreset: "classic", settings: { rotationSeconds: 300, breakSeconds: 15, oneShot: false } });
+  const loaded = await postAction(baseUrl, { type: "startLists", startLists: [
+    { headers: ["#", "Name"], rows: [["1", "First"]], routeCount: 5,
+      incidents: [{ kind: "pause", route: 2, startCycle: 3 }] },
+    { headers: ["#", "Name"], rows: [["1", "Second"]], routeCount: 6 }
+  ] });
+  const changed = await postAction(baseUrl, { type: "startListRoutes", listIndex: 0, routeCount: 4,
+    expectedStartListRevision: loaded.body.startListRevision });
+  assert.equal(changed.status, 200);
+  assert.equal(changed.body.running, true);
+  assert.deepEqual(changed.body.startLists.map(list => list.routeCount), [4, 6]);
+  assert.deepEqual(changed.body.startLists[0].incidents, loaded.body.startLists[0].incidents);
+  assert.deepEqual(changed.body.startLists[1], loaded.body.startLists[1]);
+  const stale = await postAction(baseUrl, { type: "startListRoutes", listIndex: 1, routeCount: 3,
+    expectedStartListRevision: loaded.body.startListRevision });
+  assert.equal(stale.status, 409);
+  assert.equal(stale.body.startListConflict, true);
+  assert.deepEqual(stale.body.startLists.map(list => list.routeCount), [4, 6]);
+  for (const [listIndex, routeCount] of [[-1, 4], [2, 4], [0, 0], [0, 21], [0, 1.5]]) {
+    const invalid = await postAction(baseUrl, { type: "startListRoutes", listIndex, routeCount,
+      expectedStartListRevision: changed.body.startListRevision });
+    assert.equal(invalid.status, 400);
+  }
+  const same = await postAction(baseUrl, { type: "startListRoutes", listIndex: 0, routeCount: 4,
+    expectedStartListRevision: changed.body.startListRevision });
+  assert.equal(same.status, 200);
+  assert.equal(same.body.startListRevision, changed.body.startListRevision);
+  const second = await postAction(baseUrl, { type: "startListRoutes", listIndex: 1, routeCount: 3,
+    expectedStartListRevision: changed.body.startListRevision });
+  assert.deepEqual(second.body.startLists.map(list => list.routeCount), [4, 3]);
+  const denied = await postAction(baseUrl, { type: "primary", primaryClientId: "integration-test" });
+  assert.equal(denied.status, 200);
+  const other = await fetch(`${baseUrl}/api/action`, { method: "POST", headers: { "content-type": "application/json" },
+    body: JSON.stringify({ clientId: "other-browser", type: "startListRoutes", listIndex: 0, routeCount: 2,
+      expectedStartListRevision: second.body.startListRevision }) });
+  assert.equal(other.status, 403);
+});
+
 test("production server validates settings, rejects stale commands, and deduplicates retries", { timeout: 20000 }, async (t) => {
   const fixture = fs.mkdtempSync(path.join(os.tmpdir(), "fdv-timer-test-"));
   copyFixture(fixture);
