@@ -48,6 +48,7 @@ if (uniqueBuilds.size !== 1) {
   "sw.js",
   "scripts/build-standalone-html.js",
   "lib/client-action-transport.js",
+  "lib/start-list-route-editor.js",
   "lib/vendor/xlsx.mini.min.js",
   "lib/vendor/SHEETJS-LICENSE.txt",
   "lib/timer-domain.js",
@@ -65,6 +66,10 @@ if (process.platform !== "win32"
 }
 
 const index = read("index.html");
+if (!index.includes('<script src="lib/start-list-route-editor.js"></script>')
+    || !read("sw.js").includes('"/lib/start-list-route-editor.js"')) {
+  throw new Error("Route-count editor must load and be cached for offline use");
+}
 if (!index.includes('<script src="lib/client-action-transport.js"></script>')) {
   throw new Error("index.html does not load lib/client-action-transport.js");
 }

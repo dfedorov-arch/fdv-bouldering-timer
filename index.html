@@ -86,6 +86,11 @@
       --timer-rotation-bg: #0e1116;
       --timer-warning-bg: #0e1116;
       --timer-break-bg: #f05a59;
+      --list-ready-color: #ffc857;
+      --list-active-color: #26d07c;
+      --list-done-color: #48488c;
+      --list-paused-color: #8d97a5;
+      --list-stopped-color: #f05a59;
     }
 
     * { box-sizing: border-box; }
@@ -1427,6 +1432,9 @@
     .start-list-file-button input { display: none; }
     .start-list-route-field { flex: 0 0 auto; display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 11px; white-space: nowrap; }
     .start-list-route-field input { width: 48px; min-height: 34px; padding-inline: 5px; text-align: center; }
+    .start-list-route-status { color: var(--muted); font-size: 11px; }
+    .start-list-route-status.is-error { color: var(--red); }
+    [data-start-list-routes][aria-invalid="true"] { border-color: var(--red); }
     .start-list-summary { display: none; }
     .start-list-clear { position: relative; flex: 0 0 34px; width: 34px; padding: 0; color: var(--red); background: transparent; font-size: 0; line-height: 1; }
     .start-list-add::before,
@@ -1781,17 +1789,17 @@
     .start-list-table tr.is-active td { background: rgba(79, 209, 139, .22); }
     .start-list-table tr.is-ready td { background: rgba(255, 200, 87, .22); }
     .route-marker { display: inline-block; width: 18px; height: 18px; vertical-align: middle; filter: drop-shadow(0 1px 1px rgba(0,0,0,.55)); }
-    .route-marker.active { border: 2px solid #07140d; border-radius: 50%; background: var(--green); }
-    .route-marker.done { border: 2px solid #101f36; background: #28508c; transform: rotate(45deg) scale(.82); }
-    .route-marker.ready { width: 0; height: 0; border-left: 9px solid transparent; border-right: 9px solid transparent; border-bottom: 18px solid var(--yellow); filter: drop-shadow(0 0 1px #1b1400); }
+    .route-marker.active { border: 2px solid #07140d; border-radius: 50%; background: var(--list-active-color); }
+    .route-marker.done { border: 2px solid #101f36; background: var(--list-done-color); transform: rotate(45deg) scale(.82); }
+    .route-marker.ready { width: 0; height: 0; border-left: 9px solid transparent; border-right: 9px solid transparent; border-bottom: 18px solid var(--list-ready-color); filter: drop-shadow(0 0 1px #1b1400); }
     .route-marker.paused::before,
-    .route-marker.paused::after { content: ""; position: absolute; top: 1px; bottom: 1px; width: 5px; border-radius: 1px; background: #8d97a5; }
+    .route-marker.paused::after { content: ""; position: absolute; top: 1px; bottom: 1px; width: 5px; border-radius: 1px; background: var(--list-paused-color); }
     .route-marker.paused { position: relative; }
     .route-marker.paused::before { left: 2px; }
     .route-marker.paused::after { right: 2px; }
     .route-marker.stopped { position: relative; }
     .route-marker.stopped::before,
-    .route-marker.stopped::after { content: ""; position: absolute; left: 8px; top: 0; width: 3px; height: 19px; border-radius: 2px; background: var(--red); }
+    .route-marker.stopped::after { content: ""; position: absolute; left: 8px; top: 0; width: 3px; height: 19px; border-radius: 2px; background: var(--list-stopped-color); }
     .route-marker.stopped::before { transform: rotate(45deg); }
     .route-marker.stopped::after { transform: rotate(-45deg); }
 
@@ -2977,7 +2985,7 @@
       </section>
       <div class="control-footer">
         <a id="helpLink" class="help-link" href="help.html?lang=ru" target="_blank" rel="noopener">Руководство</a>
-        <div class="credits" id="copyrightCredit" title="Говорил, что делать, Codex - делал :)">2026 <a id="authorName" class="author-link" href="mailto:DFedorov@gmail.com" aria-describedby="buildProjectHint" aria-expanded="false">Фёдоров Денис</a><span id="buildSeparator" class="build-separator" hidden> | </span><a id="buildInfo" class="build-info" href="https://github.com/dfedorov-arch/fdv-bouldering-timer" target="_blank" rel="noopener" aria-describedby="buildProjectHint" aria-expanded="false" hidden></a></div>
+        <div class="credits" id="copyrightCredit" title="Email: dfedorov@gmail.com | Telegram: @fedorovdv">2026 <a id="authorName" class="author-link" href="mailto:DFedorov@gmail.com" aria-describedby="buildProjectHint" aria-expanded="false">Фёдоров Денис</a><span id="buildSeparator" class="build-separator" hidden> | </span><a id="buildInfo" class="build-info" href="https://github.com/dfedorov-arch/fdv-bouldering-timer" target="_blank" rel="noopener" aria-describedby="buildProjectHint" aria-expanded="false" hidden></a></div>
         <div id="buildProjectHint" class="build-project-hint" role="status" hidden></div>
       </div>
     </aside>
@@ -3032,6 +3040,7 @@
   </script>
   <script src="lib/start-list-display.js"></script>
   <script src="lib/start-list.js"></script>
+  <script src="lib/start-list-route-editor.js"></script>
   <script src="lib/client-action-transport.js"></script>
   <script>
     const presets = {
@@ -3076,7 +3085,7 @@
       timeline: []
     };
 
-    const pageBuildNumber = 402;
+    const pageBuildNumber = 405;
     const projectUrl = "https://github.com/dfedorov-arch/fdv-bouldering-timer";
     const buildLinkConfirmDelayMs = 550;
     const offlineSnapshotKey = "fdvBoulderingTimerOfflineSnapshot";
@@ -3121,6 +3130,7 @@
         screenListsParallel: "Расположить два списка в две колонки", screenListsStacked: "Расположить два списка в одну колонку",
         startListHint: "XLSX, MXL, CSV, TSV или TXT с заголовками в первой строке", clearStartList: "Удалить",
         startListLoaded: "Участников: {rows}; столбцов: {columns}; трасс: {routes}", startListInvalid: "Не удалось прочитать таблицу: нужны заголовки и хотя бы одна строка участника",
+        startListRoutesSaving: "Сохраняется…", startListRoutesSaveFailed: "Число трасс не сохранено. Повторите ввод и нажмите Enter.",
         startListCycle: "Ротация {cycle}", startListRoute: "Трасса {route}", startListRouteMenu: "Меню трассы", cycleNumber: "Номер ротации",
         routeIncidentCycle: "Ротация", routeIncidentPause: "Приостановить", routeIncidentResume: "Возобновить",
         routeIncidentPauseWave: "Остановить всю волну с этой ротации",
@@ -3152,7 +3162,7 @@
         ms: "мс", sec: "с", switchLanguage: "Switch to English",
         primaryHint: "Основной браузер: Ctrl+M / Ctrl+Ь",
         fullscreenHint: "Браузеры могут потребовать тап по экрану для перехода в полный экран",
-        author: "Фёдоров Денис", authorHint: "Говорил, что делать, Codex - делал :)",
+        author: "Фёдоров Денис", authorHint: "Email: dfedorov@gmail.com | Telegram: @fedorovdv",
         audioOffsetPrompt: "Поправка звука для этого браузера, мс. Отрицательное значение запускает звук раньше:",
         audioOffsetUser: "Пользовательская поправка звука",
         testStartSignal: "Старт",
@@ -3221,6 +3231,7 @@
         screenListsParallel: "Place the two lists in two columns", screenListsStacked: "Place the two lists in one column",
         startListHint: "XLSX, MXL, CSV, TSV or TXT with headers in the first row", clearStartList: "Remove",
         startListLoaded: "Participants: {rows}; columns: {columns}; routes: {routes}", startListInvalid: "Could not read the table: headers and at least one participant row are required",
+        startListRoutesSaving: "Saving…", startListRoutesSaveFailed: "Route count was not saved. Re-enter it and press Enter.",
         startListCycle: "Rotation {cycle}", startListRoute: "Route {route}", startListRouteMenu: "Route menu", cycleNumber: "Rotation number",
         routeIncidentCycle: "Rotation", routeIncidentPause: "Pause", routeIncidentResume: "Resume",
         routeIncidentPauseWave: "Hold the entire wave from this rotation",
@@ -3251,7 +3262,7 @@
         online: "online", offline: "offline", yes: "yes", no: "no",
         ms: "ms", sec: "s", switchLanguage: "Переключить на русский",
         primaryHint: "Primary browser: Ctrl+M", fullscreenHint: "Browsers may require a screen tap to enter fullscreen",
-        author: "Fedorov Denis", authorHint: "Said what to do, Codex did it :)",
+        author: "Fedorov Denis", authorHint: "Email: dfedorov@gmail.com | Telegram: @fedorovdv",
         audioOffsetPrompt: "Sound offset for this browser, ms. A negative value plays sounds earlier:",
         audioOffsetUser: "User-defined sound offset",
         testStartSignal: "Start",
@@ -4114,6 +4125,24 @@
     let lastStartListRenderKey = "";
     let lastStartListStructureKey = "";
     let startListDataRevision = 0;
+    const startListRouteEditor = window.FDVStartListRouteEditor.create({
+      getList: (index) => state.startLists[index] || null,
+      defaultValue: defaultStartListRouteCount,
+      onUpdate: updateStartListRouteControl,
+      save: async (index, routeCount) => {
+        if (!state.startLists[index]) return false;
+        if (standaloneMode) {
+          const lists = [...state.startLists];
+          lists[index] = window.FDVStartList.sanitize({ ...lists[index], routeCount });
+          await commitStartLists(lists);
+          return true;
+        }
+        const saved = await sendServerAction("startListRoutes", {
+          listIndex: index, routeCount, expectedStartListRevision: lastStartListServerRevision
+        });
+        return saved === true && state.startLists[index]?.routeCount === routeCount;
+      }
+    });
     let lastStartListScrollAnchors = [];
     let pendingStartListScrollRestores = [];
     let storedStartListScrollRestoreLoaded = false;
@@ -5896,6 +5925,12 @@
       setSupported("--timer-rotation-bg", "background-color", config.rotationBackgroundColor);
       setSupported("--timer-warning-bg", "background-color", config.rotationLastFiveBackgroundColor);
       setSupported("--timer-break-bg", "background-color", config.breakBackgroundColor);
+      const colors = window.FDVStartListDisplay.markerColors(config);
+      for (const [status, key] of [["ready", "listReadyColor"], ["active", "listActiveColor"], ["done", "listDoneColor"],
+        ["paused", "listPausedColor"], ["stopped", "listStoppedColor"]]) {
+        const variable = `--list-${status}-color`;
+        if (rootStyle.getPropertyValue(variable) !== colors[key]) rootStyle.setProperty(variable, colors[key]);
+      }
     }
 
     function maybeReloadForNewerServerBuild(nextBuildNumber) {
@@ -7241,6 +7276,7 @@
       const changed = JSON.stringify(nextLists) !== JSON.stringify(state.startLists);
       if (!changed) return false;
       if (options.rememberScroll !== false) rememberStartListScrollPositions(nextLists);
+      startListRouteEditor.reconcile(nextLists);
       state.startLists = nextLists;
       startListDataRevision += 1;
       lastStartListRenderKey = "";
@@ -7378,11 +7414,11 @@
           </label>
           <label class="start-list-route-field">
             <span>${escapeHtml(t("startListRoutes"))}</span>
-            <input type="number" data-start-list-routes min="1" max="20" step="1" value="${list?.routeCount || defaultStartListRouteCount()}">
+            <input type="number" data-start-list-routes min="1" max="20" step="1" value="${escapeHtml(startListRouteEditor.value(index))}">
           </label>
           <div class="start-list-summary" data-start-list-summary aria-live="polite" hidden></div>
           <button class="start-list-clear" type="button" data-start-list-clear title="${escapeHtml(t("clearStartList"))}" aria-label="${escapeHtml(t("clearStartList"))}"${index === 0 && !list ? " disabled" : ""}>×</button>
-        </div>` : "";
+        </div><div class="start-list-route-status" data-start-list-route-status role="status" hidden></div>` : "";
       const incidentMenu = controlsVisible
         ? `<div class="start-list-incident-menu" data-start-list-incident-menu hidden></div>`
         : "";
@@ -7760,15 +7796,36 @@
       });
     }
 
+    function updateStartListRouteControl(index) {
+      const slot = els.startListLayout.querySelector(`[data-start-list-index="${index}"]`);
+      const routes = slot?.querySelector("[data-start-list-routes]");
+      if (!routes) return;
+      const value = startListRouteEditor.value(index);
+      // Even assigning the same value can clear a native input's pending
+      // change event. Preserve the user's editing session until commit.
+      if (routes.value !== value) routes.value = value;
+      const status = startListRouteEditor.status(index);
+      for (const [attribute, active] of [["aria-busy", status === "saving"], ["aria-invalid", status === "error"]]) {
+        const value = String(active);
+        if (routes.getAttribute(attribute) !== value) routes.setAttribute(attribute, value);
+      }
+      const message = slot.querySelector("[data-start-list-route-status]");
+      if (message) {
+        if (message.hidden !== !status) message.hidden = !status;
+        message.classList.toggle("is-error", status === "error");
+        const text = status ? t(status === "error" ? "startListRoutesSaveFailed" : "startListRoutesSaving") : "";
+        if (message.textContent !== text) message.textContent = text;
+      }
+    }
+
     function updateStartListControls() {
       ensureStartListStructure();
       els.startListLayout.querySelectorAll("[data-start-list-index]").forEach((slot) => {
         const index = Number(slot.dataset.startListIndex);
         const list = state.startLists[index] || null;
-        const routes = slot.querySelector("[data-start-list-routes]");
         const summary = slot.querySelector("[data-start-list-summary]");
         const clear = slot.querySelector("[data-start-list-clear]");
-        if (routes) routes.value = String(list?.routeCount || defaultStartListRouteCount());
+        updateStartListRouteControl(index);
         if (summary) summary.textContent = list
           ? formatStartListText("startListLoaded", { rows: list.rows.length, columns: list.headers.length, routes: list.routeCount })
           : t("startListHint");
@@ -11584,12 +11641,7 @@
         return;
       }
       if (!event.target.matches("[data-start-list-routes]")) return;
-      event.target.value = String(Math.max(1, Math.min(20, Math.round(Number(event.target.value) || 1))));
-      const list = state.startLists[index];
-      if (!list) return;
-      const nextLists = [...state.startLists];
-      nextLists[index] = window.FDVStartList.sanitize({ ...list, routeCount: event.target.value });
-      commitStartLists(nextLists);
+      startListRouteEditor.commit(index, event.target.value);
     });
     els.startListLayout.addEventListener("pointerover", (event) => {
       const trigger = startListIncidentCyclePreviewTrigger(event.target);
@@ -11605,11 +11657,18 @@
       }
     });
     els.startListLayout.addEventListener("focusin", (event) => {
+      if (event.target.matches("[data-start-list-routes]")) {
+        startListRouteEditor.focus(Number(event.target.closest("[data-start-list-index]").dataset.startListIndex));
+      }
       const trigger = startListIncidentCyclePreviewTrigger(event.target);
       const control = startListIncidentCycleControlForTrigger(trigger);
       if (control) updateStartListIncidentCyclePreview(control);
     });
     els.startListLayout.addEventListener("focusout", (event) => {
+      if (event.target.matches("[data-start-list-routes]")) {
+        const index = Number(event.target.closest("[data-start-list-index]").dataset.startListIndex);
+        startListRouteEditor.blur(index);
+      }
       const trigger = startListIncidentCyclePreviewTrigger(event.target);
       const nextTrigger = startListIncidentCyclePreviewTrigger(event.relatedTarget);
       const menu = trigger?.closest("[data-start-list-incident-menu]");
@@ -11618,6 +11677,10 @@
       }
     });
     els.startListLayout.addEventListener("input", (event) => {
+      if (event.target.matches("[data-start-list-routes]")) {
+        startListRouteEditor.input(Number(event.target.closest("[data-start-list-index]").dataset.startListIndex), event.target.value);
+        return;
+      }
       if (!event.target.matches("[data-start-list-incident-cycle]")) return;
       const control = event.target.closest("[data-start-list-incident-cycle-control]");
       updateStartListIncidentActions(event.target.closest("[data-start-list-index]"));
@@ -11688,6 +11751,13 @@
       commitStartLists(nextLists);
     });
     els.startListLayout.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" && event.target.matches("[data-start-list-routes]")) {
+        event.preventDefault();
+        const index = Number(event.target.closest("[data-start-list-index]").dataset.startListIndex);
+        startListRouteEditor.commit(index, event.target.value);
+        event.target.blur();
+        return;
+      }
       if (event.key !== "Enter" && event.key !== " ") return;
       const exclusionCell = event.target.closest("[data-start-list-participant-exclusion]");
       const slot = exclusionCell?.closest("[data-start-list-index]");

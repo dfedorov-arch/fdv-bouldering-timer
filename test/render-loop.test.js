@@ -133,12 +133,12 @@ test("completed one-shot timers select the break palette without changing their 
   assert.match(legacy, /breakColors \? timerColors\.breakBg/);
   assert.match(legacy, /breakColors \? timerColors\.breakText/);
   assert.match(legacy, /phase: "done", seconds: 0, isBreak: false/);
-  assert.match(legacy, /\.route-marker\.done \{[^}]*background: #28508c;/);
+  assert.match(legacy, /\.route-marker\.done \{[^}]*background: #48488c;/);
 });
 
 test("start-list switch follows the primary switch and supports four dynamic protocol areas", () => {
   assert.match(index, /\[hidden\] \{ display: none !important; \}/);
-  assert.match(index, /\.route-marker\.done \{[^}]*background: #28508c;/);
+  assert.match(index, /\.route-marker\.done \{[^}]*background: var\(--list-done-color\);/);
   assert.match(index, /id="primaryToggle"[\s\S]*?id="startListToggleRow"[\s\S]*?id="startListToggle" type="checkbox"/);
   assert.match(index, /<section id="startListPanel"[\s\S]*?id="startListLayout"/);
   assert.match(index, /data-start-list-add[\s\S]*?data-start-list-file[\s\S]*?data-start-list-routes[\s\S]*?data-start-list-clear/);
@@ -170,7 +170,7 @@ test("start-list switch follows the primary switch and supports four dynamic pro
   assert.match(index, /loadStartListCompact: "Загрузить…"/);
   assert.match(index, /class="start-list-file-button" title="\$\{escapeHtml\(formatStartListText\("loadStartListNumber"[\s\S]*?<span>\$\{escapeHtml\(formatStartListText\("loadStartListNumber", \{ number: index \+ 1 \}\)\)\}<\/span>/);
   assert.match(index, /function defaultStartListRouteCount\(\) \{\s*return isFinalMode\(\) \? 4 : 5;\s*\}/);
-  assert.match(index, /value="\$\{list\?\.routeCount \|\| defaultStartListRouteCount\(\)\}"/);
+  assert.match(index, /value="\$\{escapeHtml\(startListRouteEditor\.value\(index\)\)\}"/);
   assert.match(index, /start-list-available clickable[\s\S]*?start-list-selected/);
   assert.match(index, /\.diag-chip\.start-list-selected \{[\s\S]*?background: var\(--cyan\);\s*\}/);
   assert.doesNotMatch(index, /\.diag-chip\.start-list-selected \{[^}]*box-shadow/);
@@ -317,14 +317,15 @@ test("modern start lists raise density for highlighted rows and constrained hori
   assert.match(index, /window\.addEventListener\("resize"[\s\S]*?applyStartListVerticalDensity\(\)[\s\S]*?reanchorStartListScrolls\(\)/);
 });
 
-test("copyright keeps a restrained visible credit and the full collaboration note in its tooltip", () => {
+test("copyright keeps a restrained visible credit and author contacts in both tooltip languages", () => {
   assert.match(index, /class="credits" id="copyrightCredit"[^>]*>2026 <a id="authorName" class="author-link" href="mailto:DFedorov@gmail\.com" aria-describedby="buildProjectHint" aria-expanded="false">Фёдоров Денис<\/a>/);
   assert.match(index, /\.author-link\.armed:hover,[\s\S]*?border-color: var\(--cyan\)/);
   assert.match(index, /authorEmailHint: "Если хотите написать мне — нажмите ещё раз"/);
   assert.match(index, /function activateAuthorEmailLink\(event\)[\s\S]*?if \(!authorLinkArmed\)[\s\S]*?event\.preventDefault\(\)[\s\S]*?authorLinkArmed = true[\s\S]*?now - authorLinkArmedAt < buildLinkConfirmDelayMs/);
   assert.match(index, /els\.authorName\.addEventListener\("click", activateAuthorEmailLink\)/);
   assert.doesNotMatch(index, /id="codexCredit"/);
-  assert.match(index, /authorHint: "Говорил, что делать, Codex - делал :\)"/);
+  assert.equal((index.match(/authorHint: "Email: dfedorov@gmail\.com \| Telegram: @fedorovdv"/g) || []).length, 2);
+  assert.match(index, /id="copyrightCredit" title="Email: dfedorov@gmail\.com \| Telegram: @fedorovdv"/);
   assert.match(index, /els\.copyrightCredit\.title = t\("authorHint"\)/);
 });
 

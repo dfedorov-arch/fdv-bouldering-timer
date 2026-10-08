@@ -12,6 +12,7 @@ const {
 } = require("./lib/timer-domain");
 const { createTimerTransitions } = require("./lib/timer-transitions");
 const startListDomain = require("./lib/start-list");
+const { markerColors } = require("./lib/start-list-display");
 const { runtimeStateStoragePlan, prepareRuntimeStateStorage } = require("./lib/runtime-state-storage");
 
 const root = __dirname;
@@ -22,7 +23,7 @@ const legacyRuntimeStatePath = runtimeStatePath;
 const beepsPath = path.join(root, "beeps");
 const fontsPath = path.join(root, "fonts");
 const offlineAudioPath = path.join(root, "lib", "offline-audio.js");
-const BUILD_NUMBER = 402;
+const BUILD_NUMBER = 405;
 const serverInstanceId = crypto.randomUUID();
 const SNAPSHOT_SCHEMA_VERSION = 1;
 const SNAPSHOT_MAX_AGE_MS = 12 * 60 * 60 * 1000;
@@ -107,6 +108,7 @@ function resetPerformanceDiagnostics() {
   return performanceSnapshot();
 }
 const defaultConfig = {
+  ...markerColors(),
   httpPort: 8008,
   httpsPort: 8443,
   classicRotationMinutes: 4,
@@ -340,6 +342,13 @@ const config = {
   rotationBackgroundColor: textParam(params, "rotation_background_color", defaultConfig.rotationBackgroundColor),
   rotationLastFiveBackgroundColor: textParam(params, "rotation_last_five_background_color", defaultConfig.rotationLastFiveBackgroundColor),
   breakBackgroundColor: textParam(params, "break_background_color", defaultConfig.breakBackgroundColor),
+  ...markerColors({
+    listReadyColor: params.list_ready_color,
+    listActiveColor: params.list_active_color,
+    listDoneColor: params.list_done_color,
+    listPausedColor: params.list_paused_color,
+    listStoppedColor: params.list_stopped_color
+  }),
   soundProfile: initialSoundProfile,
   soundProfiles
 };
@@ -2043,6 +2052,25 @@ function handleRequest(req, res) {
       if (type === "festivalAnnouncements") {
         timerState.festivalAnnouncements = Boolean(body.enabled);
         timerState.version += 1;
+      }
+
+      if (type === "startListRoutes") {
+        const listIndex = Number(body.listIndex);
+        const routeCount = Number(body.routeCount);
+        if (!Number.isInteger(listIndex) || listIndex < 0 || listIndex >= timerState.startLists.length
+            || !timerState.startLists[listIndex] || !Number.isInteger(routeCount) || routeCount < 1 || routeCount > 20) {
+          sendJson(res, 400, { ...actionPublicState(), actionDenied: true });
+          return;
+        }
+        if (body.expectedStartListRevision !== modernStartListRevision()) {
+          sendJson(res, 409, { ...actionPublicState(), startListConflict: true });
+          return;
+        }
+        if (timerState.startLists[listIndex].routeCount !== routeCount) {
+          timerState.startLists[listIndex] = startListDomain.sanitize({ ...timerState.startLists[listIndex], routeCount });
+          startListDataRevision += 1;
+          timerState.version += 1;
+        }
       }
 
       if (type === "startLists") {

@@ -15,7 +15,7 @@ FDV Bouldering Timer — локальный сетевой таймер для �
 - Классика: повторяющиеся ротация и короткий перерыв.
 - Фестиваль: длинный раунд и перерыв, дополнительные объявления за 60, 30, 10 и 5 минут.
 - Финал: одна ротация за запуск; следующая начинается вручную. Поддерживаются старый и новый порядок продвижения участников.
-- При завершении на 00:00 фон и цифры сразу получают цвета перерыва (по умолчанию красный фон), без запуска отдельного перерыва. Пройденные трассы в списках обозначаются тёмно-синими ромбами.
+- При завершении на 00:00 фон и цифры сразу получают цвета перерыва (по умолчанию красный фон), без запуска отдельного перерыва. Пройденные трассы в списках обозначаются сине-фиолетовыми ромбами.
 
 Быстрый запуск
 --------------
@@ -42,6 +42,8 @@ FDV Bouldering Timer — локальный сетевой таймер для �
 
 Стартовые списки
 ----------------
+
+Число трасс сохраняется по Enter, Tab или при выходе из поля; стрелки применяют изменение сразу. Синхронизация не сбрасывает ввод, в том числе при запущенном таймере. При ошибке значение остаётся с пояснением; Enter повторяет сохранение.
 
 Можно загрузить до четырёх стартовых списков из XLSX, CSV, TSV, TXT или MXL. В пользовательском интерфейсе они обозначаются LIST 1–4. Термин «протокол» остаётся только во внутренних именах совместимости и в значении HTTP/HTTPS.
 
@@ -103,6 +105,8 @@ Legacy предназначен для старых ТВ-браузеров. О�
 
 Начальные параметры, порты, цвета, шрифт и профиль звука задаются в params.txt и читаются при запуске сервера. Полное двуязычное руководство: help.html. Техническая карта документации: docs/documentation-map.md.
 
+Цвета значков списка: list_ready_color — подготовка, list_active_color — лазание, list_done_color — пройденная трасса (#48488C), list_paused_color — пауза, list_stopped_color — полная остановка. Формат #RRGGBB или #RGB; неверные значения заменяются стандартными. Перезапустите сервер после изменения. Фоны строк и диагностика не меняются; в автономный HTML/APK цвета встраиваются при сборке.
+
 Автономная версия
 -----------------
 
@@ -130,7 +134,7 @@ Formats
 - Classic: repeating rotation and short break.
 - Festival: long round and break with optional 60, 30, 10, and 5 minute announcements.
 - Final: one rotation per Start, followed by an operator-controlled next attempt; Old and New participant schedules are supported.
-- At completion on 00:00, the timer immediately uses the configured break background and text colors (red background by default), without starting a separate break. Completed routes in lists use dark-blue diamonds.
+- At completion on 00:00, the timer immediately uses the configured break background and text colors (red background by default), without starting a separate break. Completed routes in lists use blue-purple diamonds.
 
 Quick start
 -----------
@@ -151,6 +155,8 @@ Installed packages save state per user: Windows — %LOCALAPPDATA%\FDV Boulderin
 
 Start lists
 -----------
+
+Route counts commit on Enter, Tab, or leaving the field; arrows commit immediately. Synchronization preserves input, including while running. Failed saves retain the value with an explanation; Enter retries saving.
 
 One rotation before a route resumes, markers for that pause disappear and participants starting in the next rotation see yellow preparation triangles.
 With scheduled resumption, pause icons cover climbing during the suspended interval and preparation only for routes 2 and later. First-route preparation has no pause icon. The schedule shift remains unchanged. Without scheduled resumption, existing markers are retained. The description ends at the last suspended rotation: a pause starting at 17 and resuming at 19 reads “from rotation 17 through rotation 18”.
@@ -190,6 +196,8 @@ Sound, settings, and help
 Primary and remote-display sound are controlled separately. A tap is required to unlock audio. A second browser on the primary computer does not duplicate sound. AUDIO provides a −500 to +500 ms user offset and signal tests. WAV and MP3 profiles live under beeps.
 
 Startup values, ports, colors, timer font, and sound profile are read from params.txt. The complete bilingual guide is help.html; the documentation map is docs/documentation-map.md.
+
+Marker colors: list_ready_color (preparation), list_active_color (climbing), list_done_color (completed, #48488C), list_paused_color (pause), list_stopped_color (permanent stop). Use #RRGGBB or #RGB; invalid values use defaults. Restart the server after editing. Row backgrounds/diagnostics are unchanged; standalone HTML/APK embeds colors at build time.
 
 fdv-bouldering-timer-standalone.html is a one-file offline timer without multi-browser synchronization. The Android APK, FDV Bouldering Timer, is the same single-device timer: it has no server, LAN displays, or synchronization. Komi Store installs the matching GitHub Release asset on Windows, macOS, Linux, or Android.
 

@@ -20,10 +20,13 @@ Persisted running state retains an absolute timeline anchor. Restart recovery mu
 
 ## Runtime modules
 
+The author credit's native hover tooltip exposes `Email: dfedorov@gmail.com | Telegram: @fedorovdv` in both languages and generated standalone/Android HTML. Changing the tooltip does not alter the author link's two-step email activation. Native tooltips are verified through DOM attributes, not page screenshot pixels.
+
 - `serve-bouldering-timer.js`: HTTP/HTTPS, API actions, SSE, client registry, ordering/pinning, per-display list selection/layout, snapshots, state versions, sound commands, diagnostics, and static files.
 - `lib/timer-domain.js`: settings normalization, validation, scheduled clock-time calculations, and domain helpers.
 - `lib/timer-transitions.js`: pure runtime transitions. It performs no I/O and does not mutate the previous state.
 - `lib/client-action-transport.js`: browser command delivery, retry/timeout handling, base-version conflicts, and control-denial results.
+- `lib/start-list-route-editor.js`: local route-count drafts and serialized/coalesced saves; also embedded in standalone/Android HTML and cached by the service worker.
 - `index.html`: modern UI, rendering, clock synchronization, sound scheduling, start-list editing, diagnostics, standalone behavior, and interaction.
 - `legacy.html`: old-browser shell.
 - `lib/legacy-start-list.js` and `lib/start-list-display.js`: Legacy-compatible list rendering, participant progression, incidents, and layout.
@@ -45,13 +48,19 @@ Runtime commands carry a base version and unique command ID. The server rejects 
 
 Scheduled Classic and Festival starts automatically enter rotation 1 at the absolute target time. Final finishes its preliminary countdown in a waiting state and requires a separate Start. Stop followed by Start clears the scheduled-start label and immediately shows the correct rotation state.
 
-Completed one-shot attempts render zero with the configured break background/text palette at the same display boundary, including local extrapolation before a server completion snapshot arrives. Modern uses `break-active` in its completion branch; Legacy selects break colors for `view.phase === "done"` without changing `view.isBreak` or list scheduling. Readiness, scheduled-start waiting, and repeating zero-break rotations retain their original colors. No extra render timers or geometry fitting are added. Completed route diamonds use dark blue `#28508c` in both clients; permanently stopped route crosses remain red.
+Completed one-shot attempts render zero with the configured break background/text palette at the same display boundary, including local extrapolation before a server completion snapshot arrives. Modern uses `break-active` in its completion branch; Legacy selects break colors for `view.phase === "done"` without changing `view.isBreak` or list scheduling. Readiness, scheduled-start waiting, and repeating zero-break rotations retain their original colors. No extra render timers or geometry fitting are added. Completed route diamonds default to blue-purple `#48488c`; permanently stopped route crosses default to red.
 
 ## Start lists
+
+The shared ES5 `FDVStartListDisplay.markerColors` normalizes the five `list_*_color` parameters (ready, active, done, paused, stopped) to six-digit HEX. Only #RGB/#RRGGBB is accepted; missing/invalid values independently fall back to defaults. Server config and generated offline config include the normalized palette. Modern applies separate `--list-*-color` variables only when different; Legacy uses a single validated stylesheet (including pseudo-elements) and skips unchanged palette keys, without CSS-variable/modern-API dependency. It changes marker fill colors only, not geometry, row highlights, controls or diagnostics; no new timers or fitting. Standalone/PWA/Android HTML embeds the same defaults/config during generation.
 
 Up to four independent lists can be imported. They are informational and never drive timer duration. The server stores canonical sanitized data, incidents, exclusions, a revision that includes server-instance identity, and per-client display selections.
 
 Modern clients retain the last complete payload for the matching revision. Unchanged state responses can omit large list arrays. Legacy requests send their known revision and receive full selected data only when data, server instance, or selection changes.
+
+Route-count input is a local draft until native change (blur/Tab or spinner) or Enter. Clock synchronization must not assign even the same input value: that can reset native change tracking. Pending drafts survive snapshots; rapid committed values coalesce to the latest while one request is in flight. Acknowledgements cannot erase newer uncommitted input. Failed saves retain the draft with an explicit localized error and require retry. Replacing/deleting the participant list cancels its draft/queued save and ignores late acknowledgements. Reconciliation compares list identity only on canonical list changes, not timer ticks; no extra timers or geometry fitting are introduced.
+
+The modern `startListRoutes` action carries `listIndex`, `routeCount` (integer 1–20), and `expectedStartListRevision`. It updates only that canonical list, retains other lists, and enforces primary-browser authority. A changed list revision returns 409 and fresh canonical state without applying the edit; the operator can confirm again. A no-op does not increment revision. Standalone uses the same editor with local sanitized list updates instead of network commands.
 
 Each secondary display can select a different subset. With exactly two visible lists, it also stores a per-display stacked/parallel override. Turning the global Start lists switch off hides lists everywhere but preserves those selections.
 
