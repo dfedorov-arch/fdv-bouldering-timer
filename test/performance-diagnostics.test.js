@@ -284,11 +284,11 @@ test("server diagnostics require an explicit startup flag", () => {
   assert.match(server, /function performanceSnapshot\(\)[\s\S]*?clock:\s*\{[\s\S]*?serverInstanceId/);
   assert.match(server, /performanceCount\("startListSanitizations"\)/);
   assert.match(server, /performanceCount\("sseStateBytes"/);
-  assert.match(server, /function repairTimerClockContinuity\(\)[\s\S]*?systemUptimeNow\(\)[\s\S]*?clockContinuityCorrectionMs[\s\S]*?recordClockContinuityAnomaly[\s\S]*?timerStartedAtMono -= correction[\s\S]*?FDV_SERVER_CLOCK_REPAIR/);
+  assert.match(server, /function repairTimerClockContinuity\(\)[\s\S]*?systemUptimeNow\(\)[\s\S]*?assessClockContinuity[\s\S]*?recordClockContinuityAnomaly[\s\S]*?timerStartedAtMono -= correction[\s\S]*?FDV_SERVER_CLOCK_REPAIR/);
   assert.match(server, /function elapsedSeconds\([^)]*\)[\s\S]*?repairTimerClockContinuity\(\)/);
   assert.match(server, /function snapshotPayload\(\)[\s\S]*?savedAtUptimeMs = systemUptimeNow\(\)[\s\S]*?savedElapsedDifferenceMs[\s\S]*?clockDiagnostics:\s*publicClockDiagnostics\(\)/);
   assert.match(server, /function restoreTimerSnapshot\(\)[\s\S]*?runningElapsedAfterRestore\([\s\S]*?savedAtUptimeMs,[\s\S]*?currentUptimeMs/);
   assert.match(server, /timerClockDiagnostics\.lastRestore = sanitizeClockDiagnosticRecord\([\s\S]*?snapshotAgeDifferenceMs[\s\S]*?restoredElapsedMs/);
   assert.match(server, /function diagnosticsPayload\(\)[\s\S]*?clockDiagnostics:\s*publicClockDiagnostics\(\)/);
-  assert.match(index, /negativeClockAnomalies[\s\S]*?snapshotClockDifference[\s\S]*?restoreClockDifference[\s\S]*?serverClockStatus/);
+  assert.match(index, /const serverClockStatus = isPrimary \? serverClockDiagnosticStatus\(clockDiagnostics\)/);
 });

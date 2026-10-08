@@ -134,6 +134,53 @@ async function stopServer(child) {
   });
 }
 
+test("stopped Final exits without seeking Rotation 1 and the cleared progress survives restart", { timeout: 20000 }, async (t) => {
+  const fixture = fs.mkdtempSync(path.join(os.tmpdir(), "fdv-final-exit-"));
+  copyFixture(fixture);
+  const port = await freePort();
+  const httpsPort = await freePort();
+  const output = [];
+  const environment = { ...process.env, HOST: "127.0.0.1", PORT: String(port), HTTPS_PORT: String(httpsPort) };
+  const spawnServer = () => {
+    const child = spawn(process.execPath, [path.join(fixture, "serve-bouldering-timer.js")], {
+      cwd: fixture, env: environment, stdio: ["ignore", "pipe", "pipe"]
+    });
+    child.stdout.on("data", chunk => output.push(chunk.toString()));
+    child.stderr.on("data", chunk => output.push(chunk.toString()));
+    return child;
+  };
+  let child = spawnServer();
+  t.after(async () => { await stopServer(child); fs.rmSync(fixture, { recursive: true, force: true }); });
+  const baseUrl = `http://127.0.0.1:${port}`;
+  await waitForServer(baseUrl, child, output);
+  await postAction(baseUrl, { type: "startLists", startLists: [{ headers: ["#", "Name"],
+    rows: [["1", "Test participant"]], routeCount: 2 }] });
+  for (const activePreset of ["classic", "festival"]) {
+    await postAction(baseUrl, { type: "settings", activePreset: "final",
+      settings: { rotationMinutes: 4, breakSeconds: 0, oneShot: true } });
+    await postAction(baseUrl, { type: "seekCycle", cycle: 18 });
+    const stopped = await postAction(baseUrl, { type: "reset", activePreset: "final",
+      settings: { rotationSeconds: 240, breakSeconds: 0, oneShot: true } });
+    assert.ok(stopped.body.startListFinalCycle >= 17);
+    assert.equal(stopped.body.running, false);
+    assert.equal(stopped.body.elapsedBeforePause, 0);
+    const changed = await postAction(baseUrl, { type: "settings", activePreset,
+      settings: { rotationMinutes: 4, breakSeconds: 15, oneShot: false } });
+    assert.equal(changed.status, 200);
+    assert.equal(changed.body.activePreset, activePreset);
+    assert.equal(changed.body.runtimePreset, activePreset);
+    assert.equal(changed.body.startListFinalCycle, 0);
+    assert.equal(changed.body.activeSettings.oneShot, false);
+    assert.equal(changed.body.startLists[0].rows[0][1], "Test participant");
+    await stopServer(child);
+    child = spawnServer();
+    const restored = await waitForServer(baseUrl, child, output);
+    assert.equal(restored.runtimePreset, activePreset);
+    assert.equal(restored.startListFinalCycle, 0);
+    assert.equal(restored.startLists[0].rows[0][1], "Test participant");
+  }
+});
+
 test("installed server migrates a portable snapshot and saves subsequent state per user", { timeout: 20000 }, async (t) => {
   const fixture = fs.mkdtempSync(path.join(os.tmpdir(), "fdv-installed-state-"));
   copyFixture(fixture);

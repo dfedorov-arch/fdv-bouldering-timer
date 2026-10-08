@@ -6,8 +6,9 @@ const path = require("path");
 const crypto = require("crypto");
 const { performance } = require("perf_hooks");
 const {
-  clockContinuityCorrectionMs,
+  assessClockContinuity,
   createTimerDomain,
+  monotonicClockIncludesSleep,
   runningElapsedAfterRestore
 } = require("./lib/timer-domain");
 const { createTimerTransitions } = require("./lib/timer-transitions");
@@ -23,7 +24,7 @@ const legacyRuntimeStatePath = runtimeStatePath;
 const beepsPath = path.join(root, "beeps");
 const fontsPath = path.join(root, "fonts");
 const offlineAudioPath = path.join(root, "lib", "offline-audio.js");
-const BUILD_NUMBER = 405;
+const BUILD_NUMBER = 409;
 const serverInstanceId = crypto.randomUUID();
 const SNAPSHOT_SCHEMA_VERSION = 1;
 const SNAPSHOT_MAX_AGE_MS = 12 * 60 * 60 * 1000;
@@ -31,6 +32,10 @@ const PRIMARY_RESTORE_GRACE_MS = 10000;
 const MANUAL_START_AUDIO_LEAD_MS = 600;
 const CLOCK_CONTINUITY_GAP_MS = 3000;
 const CLOCK_CONTINUITY_MISMATCH_MS = 100;
+const CLOCK_CONTINUITY_UPTIME_TOLERANCE_MS = 1000;
+const CLOCK_STATUS_RECENT_MS = 30000;
+// The bundled macOS runtime uses sleep-inclusive mach_continuous_time.
+const MONOTONIC_INCLUDES_SLEEP = monotonicClockIncludesSleep(process.platform, process.versions.uv);
 const CLOCK_DIAGNOSTICS_HISTORY_MAX = 12;
 const COMMAND_CACHE_MAX = 256;
 const DIAGNOSTICS_BROADCAST_MS = 2500;
@@ -460,6 +465,9 @@ let nextAudioTestId = 1;
 let stateTransitionTimer = null;
 let snapshotWriteTimer = null;
 let timerStartedAtMono = 0;
+let timerStartPending = false;
+let clockRepairEffectsPending = false;
+let currentTimerClockEvent = null;
 let timerClockContinuityWallAt = wallNow();
 let timerClockContinuityMonoAt = monoNow();
 let timerClockContinuityUptimeAt = systemUptimeNow();
@@ -615,21 +623,35 @@ function setTimerStartedAt(startedAtWall) {
   if (!Number.isFinite(start) || start <= 0) {
     timerState.startedAt = 0;
     timerStartedAtMono = 0;
+    timerStartPending = false;
     return;
   }
   timerState.startedAt = start;
-  timerStartedAtMono = monoNow() + (start - wallNow());
+  const currentWall = wallNow();
+  const currentMono = monoNow();
+  timerStartedAtMono = currentMono + (start - currentWall);
+  timerStartPending = start > currentWall;
+  resetTimerClockContinuity(currentWall, currentMono);
 }
 
 function setTimerStartedFromElapsed(elapsed, effectiveWallNow = wallNow()) {
   const safeElapsed = Math.max(0, numberOrDefault(elapsed, 0));
   timerState.startedAt = effectiveWallNow - safeElapsed * 1000;
   timerStartedAtMono = monoNow() - safeElapsed * 1000;
+  timerStartPending = false;
+  resetTimerClockContinuity();
 }
 
 function clearTimerStartedAt() {
   timerState.startedAt = 0;
   timerStartedAtMono = 0;
+  timerStartPending = false;
+}
+
+function resetTimerClockContinuity(currentWall = wallNow(), currentMono = monoNow(), currentUptime = systemUptimeNow()) {
+  timerClockContinuityWallAt = currentWall;
+  timerClockContinuityMonoAt = currentMono;
+  timerClockContinuityUptimeAt = currentUptime;
 }
 
 function finiteClockDiagnostic(value) {
@@ -642,6 +664,8 @@ function sanitizeClockDiagnosticRecord(source) {
   const record = {};
   for (const key of [
     "kind",
+    "status",
+    "reason",
     "serverInstanceId",
     "recordedAtWallMs",
     "wallDeltaMs",
@@ -664,7 +688,7 @@ function sanitizeClockDiagnosticRecord(source) {
     "uptimeElapsedAtRestoreMs",
     "restoredElapsedMs"
   ]) {
-    if (key === "kind" || key === "serverInstanceId") {
+    if (key === "kind" || key === "status" || key === "reason" || key === "serverInstanceId") {
       if (source[key] !== null && source[key] !== undefined) record[key] = String(source[key]).slice(0, 80);
       continue;
     }
@@ -702,7 +726,16 @@ function recordClockContinuityAnomaly(details) {
 }
 
 function publicClockDiagnostics() {
+  const ageMs = currentTimerClockEvent ? Math.max(0, monoNow() - currentTimerClockEvent.observedAtMono) : 0;
+  const fresh = currentTimerClockEvent && ageMs <= CLOCK_STATUS_RECENT_MS;
   return {
+    current: {
+      status: fresh ? currentTimerClockEvent.status : "neutral",
+      reason: fresh ? currentTimerClockEvent.reason : "stable",
+      correctionMs: fresh ? currentTimerClockEvent.correctionMs : 0,
+      ageMs: Math.round(ageMs),
+      monotonicIncludesSleep: MONOTONIC_INCLUDES_SLEEP
+    },
     continuityAnomalyCount: timerClockDiagnostics.continuityAnomalyCount,
     negativeContinuityAnomalyCount: timerClockDiagnostics.negativeContinuityAnomalyCount,
     history: timerClockDiagnostics.history.map((record) => ({ ...record })),
@@ -718,26 +751,40 @@ function repairTimerClockContinuity() {
   const wallDelta = currentWall - timerClockContinuityWallAt;
   const monotonicDelta = currentMono - timerClockContinuityMonoAt;
   const uptimeDelta = currentUptime - timerClockContinuityUptimeAt;
-  if (!timerState.running || !timerStartedAtMono || timerState.startedAt > currentWall) {
-    timerClockContinuityWallAt = currentWall;
-    timerClockContinuityMonoAt = currentMono;
-    timerClockContinuityUptimeAt = currentUptime;
+  if (!timerState.running || !timerStartedAtMono) {
+    resetTimerClockContinuity(currentWall, currentMono, currentUptime);
+    currentTimerClockEvent = null;
     return 0;
   }
-  if (wallDelta >= 0 && monotonicDelta >= 0 && uptimeDelta >= 0 && uptimeDelta < CLOCK_CONTINUITY_GAP_MS) return 0;
-  timerClockContinuityWallAt = currentWall;
-  timerClockContinuityMonoAt = currentMono;
-  timerClockContinuityUptimeAt = currentUptime;
-  const correction = clockContinuityCorrectionMs(
+  if (timerStartPending) {
+    // Future starts keep their absolute wall target, even if system time changes.
+    timerStartedAtMono = currentMono + (timerState.startedAt - currentWall);
+    timerStartPending = timerState.startedAt > currentWall;
+    resetTimerClockContinuity(currentWall, currentMono, currentUptime);
+    return 0;
+  }
+  if (wallDelta >= 0 && monotonicDelta >= 0 && uptimeDelta >= 0
+    && Math.max(monotonicDelta, uptimeDelta) < CLOCK_CONTINUITY_GAP_MS
+    && Math.abs(wallDelta - monotonicDelta) <= CLOCK_CONTINUITY_UPTIME_TOLERANCE_MS + CLOCK_CONTINUITY_MISMATCH_MS) return 0;
+  resetTimerClockContinuity(currentWall, currentMono, currentUptime);
+  const assessment = assessClockContinuity(
     wallDelta,
     monotonicDelta,
     uptimeDelta,
     CLOCK_CONTINUITY_GAP_MS,
-    CLOCK_CONTINUITY_MISMATCH_MS
+    CLOCK_CONTINUITY_MISMATCH_MS,
+    { uptimeToleranceMs: CLOCK_CONTINUITY_UPTIME_TOLERANCE_MS, monotonicIncludesSleep: MONOTONIC_INCLUDES_SLEEP }
   );
-  if (!correction) return 0;
+  if (assessment.status === "neutral") {
+    if (currentTimerClockEvent?.status === "bad") currentTimerClockEvent = null;
+    return 0;
+  }
+  const correction = assessment.correctionMs;
+  currentTimerClockEvent = { ...assessment, observedAtMono: currentMono };
   const elapsedBeforeMs = Math.max(0, currentMono - timerStartedAtMono);
   recordClockContinuityAnomaly({
+    status: assessment.status,
+    reason: assessment.reason,
     wallDeltaMs: wallDelta,
     monotonicDeltaMs: monotonicDelta,
     uptimeDeltaMs: uptimeDelta,
@@ -748,9 +795,14 @@ function repairTimerClockContinuity() {
     elapsedAfterMs: Math.max(0, elapsedBeforeMs + correction),
     startedAtWallMs: timerState.startedAt
   });
+  if (!correction && assessment.reason !== "wall-clock-adjustment") return 0;
   timerStartedAtMono -= correction;
-  performanceCount("timerClockContinuityRepairs");
-  console.warn(`FDV_SERVER_CLOCK_REPAIR ${JSON.stringify({
+  // Rebase the public wall anchor without changing elapsed on a wall-clock step.
+  timerState.startedAt = currentWall - (elapsedBeforeMs + correction);
+  timerState.version += 1;
+  queueClockRepairEffects();
+  if (correction) performanceCount("timerClockContinuityRepairs");
+  console.warn(`${correction ? "FDV_SERVER_CLOCK_REPAIR" : "FDV_SERVER_CLOCK_ADJUSTMENT"} ${JSON.stringify({
     serverInstanceId,
     wallDeltaMs: Number(wallDelta.toFixed(3)),
     monotonicDeltaMs: Number(monotonicDelta.toFixed(3)),
@@ -762,9 +814,25 @@ function repairTimerClockContinuity() {
   return correction;
 }
 
+function queueClockRepairEffects() {
+  if (clockRepairEffectsPending) return;
+  clockRepairEffectsPending = true;
+  // Elapsed is read from state/snapshot builders too. Defer their side effects
+  // to avoid nested broadcasts and snapshot writes inside those reads.
+  setImmediate(() => {
+    clockRepairEffectsPending = false;
+    finalizeScheduledCountdown();
+    finalizeOneShot();
+    armCurrentStateTransition();
+    scheduleSnapshotWrite(true);
+    broadcastState();
+    broadcastDiagnostics(true);
+  });
+}
+
 function elapsedSecondsAtWall(targetWallNow = wallNow()) {
   if (!timerState.running) return timerState.elapsedBeforePause;
-  if (timerState.startedAt > targetWallNow) return 0;
+  if (timerStartPending && timerState.startedAt > targetWallNow) return 0;
   const currentElapsed = elapsedSeconds();
   const wallDeltaSeconds = (targetWallNow - wallNow()) / 1000;
   return Math.max(0, currentElapsed + wallDeltaSeconds);
@@ -772,7 +840,7 @@ function elapsedSecondsAtWall(targetWallNow = wallNow()) {
 
 function publicStartedAt(sentAtWall, elapsed) {
   if (!timerState.running || !timerState.startedAt) return timerState.startedAt;
-  if (timerState.startedAt > sentAtWall) return timerState.startedAt;
+  if (timerStartPending) return timerState.startedAt;
   return Math.round(sentAtWall - Math.max(0, elapsed) * 1000);
 }
 
@@ -1457,7 +1525,7 @@ function finalizeOneShot(now = wallNow()) {
   const duration = Math.max(0,
     numberOrDefault(timerState.activeSettings.rotationSeconds, 0)
     + numberOrDefault(timerState.activeSettings.breakSeconds, 0));
-  if (now < timerState.startedAt || elapsedSeconds() < duration) return;
+  if ((timerStartPending && now < timerState.startedAt) || elapsedSeconds() < duration) return;
   timerState.running = false;
   timerState.completed = true;
   timerState.elapsedBeforePause = duration;

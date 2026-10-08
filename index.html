@@ -3085,7 +3085,7 @@
       timeline: []
     };
 
-    const pageBuildNumber = 405;
+    const pageBuildNumber = 409;
     const projectUrl = "https://github.com/dfedorov-arch/fdv-bouldering-timer";
     const buildLinkConfirmDelayMs = 550;
     const offlineSnapshotKey = "fdvBoulderingTimerOfflineSnapshot";
@@ -3149,7 +3149,7 @@
         showBrowserNumbers: "Показать номера браузеров", hideBrowserNumbers: "Скрыть номера браузеров", serverTime: "Время сервера",
         pinBrowser: "Закрепить место браузера", unpinBrowser: "Открепить место браузера", moveBrowserUp: "Переместить браузер выше", moveBrowserDown: "Переместить браузер ниже",
         presetLockedHint: "Чтобы выбрать другой формат, сначала остановите таймер кнопкой «Стоп»",
-        finalPresetLockedHint: 'Чтобы выбрать другой формат, сначала остановите таймер кнопкой "Стоп" и перейдите на ротацию 1',
+        finishFinalConfirm: 'Вы уверены, что хотите завершить "Финал"?',
         screen: "Экран", exitScreen: "Выйти из режима Экран", browsers: "Браузеры", ready: "Готов", readiness: "Готовность",
         waitingStart: "Ожидание старта", untilStart: "До начала старта",
         waitingManual: "Ожидание ручного старта", readyStart: "Готов к старту",
@@ -3250,7 +3250,7 @@
         showBrowserNumbers: "Show browser numbers", hideBrowserNumbers: "Hide browser numbers", serverTime: "Server time",
         pinBrowser: "Pin browser position", unpinBrowser: "Unpin browser position", moveBrowserUp: "Move browser up", moveBrowserDown: "Move browser down",
         presetLockedHint: "To select another format, first stop the timer with the Stop button",
-        finalPresetLockedHint: "To select another format, stop the timer with Stop and return to Rotation 1",
+        finishFinalConfirm: 'Are you sure you want to end "Final"?',
         screen: "Screen", exitScreen: "Exit screen mode", browsers: "Browsers", ready: "Ready", readiness: "Ready",
         waitingStart: "Waiting for start", untilStart: "Until start",
         waitingManual: "Waiting for manual start", readyStart: "Ready to start",
@@ -4188,6 +4188,7 @@
     let lastSseEventAt = performance.now();
     let sseRestarts = 0;
     let commandSeq = 0;
+    let presetChangeInFlight = false;
     let serverClockRateHighConfidence = false;
     let serverClockRateConfidence = "default";
     let serverClockRateGateReason = "";
@@ -4211,6 +4212,10 @@
     let lastBurstSyncAt = 0;
     let lastDisplayTimeLabel = "";
     let lastDisplayMinuteDigits = 0;
+    const displayRollbackThresholdMs = 100;
+    const displayRollbackHoldMs = 100;
+    let timerDisplayCheckpoint = null;
+    let displayRollbackTimer = null;
     let lastScheduleMarkup = "";
     let lastScheduleStateKey = "";
     let lastProgressScale = "";
@@ -6143,25 +6148,35 @@
     }
 
     async function setPreset(name) {
-      if (!controlsAvailable()) return;
+      if (!controlsAvailable() || presetChangeInFlight || !presets[name]) return;
       if (formatSelectionLocked()) return;
+      const finishFinal = finalRoundProgressLocked();
+      if (finishFinal && (name === "final" || !window.confirm(t("finishFinalConfirm")))) return;
+      presetChangeInFlight = true;
+      try {
       state.activePreset = name;
       els.presets.forEach((button) => button.classList.toggle("active", button.dataset.preset === name));
       if (presets[name]) {
         setInputsFromDraft(presets[name]);
       }
       if (!standaloneMode) {
-        sendServerAction("settings", {
+        const sent = await sendServerAction("settings", {
           activePreset: state.activePreset,
           settings: draftSettings()
         });
+        if (sent !== true) return;
       } else {
+        if (finishFinal) state.startListFinalCycle = 0;
         saveOfflineSnapshot();
       }
       if (state.running || state.elapsedBeforePause > 0) {
         return;
       }
-      hardReset(false);
+      await hardReset(false);
+      } finally {
+        presetChangeInFlight = false;
+        syncButtons();
+      }
     }
 
     function setCustomPreset() {
@@ -6398,9 +6413,7 @@
       if (options.replaceAudioSchedule) clearSignalTimers(false, true);
 
       if (!state.running) {
-        clearSignalTimers();
-        lastSegmentIndex = -1;
-        if (state.elapsedBeforePause === 0) lastPhaseSignalKey = "";
+        clearStoppedTimerSignals();
       } else if (state.countdownOnly) {
         clearSignalTimers();
         lastSegmentIndex = -1;
@@ -7213,6 +7226,14 @@
       if (absoluteDelay > 250) return "bad";
       if (absoluteDelay >= 100) return "warn";
       return "good";
+    }
+
+    function serverClockDiagnosticStatus(diagnostics) {
+      const current = diagnostics?.current;
+      if (!current || current.ageMs === null || current.ageMs === undefined) return "neutral";
+      const ageMs = Number(current.ageMs);
+      if (!Number.isFinite(ageMs) || ageMs < 0 || ageMs > 30000) return "neutral";
+      return current.status === "bad" || current.status === "warn" ? current.status : "neutral";
     }
 
     function worstDiagnosticStatus(...statuses) {
@@ -8679,17 +8700,27 @@
         const negativeClockAnomalies = Math.max(0, Number(clockDiagnostics.negativeContinuityAnomalyCount) || 0);
         const snapshotClockDifference = Number(clockDiagnostics.lastSnapshot?.savedElapsedDifferenceMs);
         const restoreClockDifference = Number(clockDiagnostics.lastRestore?.snapshotAgeDifferenceMs);
-        const clockDifferenceMagnitude = Math.max(
-          Number.isFinite(snapshotClockDifference) ? Math.abs(snapshotClockDifference) : 0,
-          Number.isFinite(restoreClockDifference) ? Math.abs(restoreClockDifference) : 0
-        );
-        const serverClockStatus = !isPrimary
-          ? "neutral"
-          : negativeClockAnomalies > 0 || clockDifferenceMagnitude > 250
-            ? "bad"
-            : clockDifferenceMagnitude > 100
-              ? "warn"
-              : "neutral";
+        const serverClockStatus = isPrimary ? serverClockDiagnosticStatus(clockDiagnostics) : "neutral";
+        const clockReason = serverClockStatus === "neutral" ? "stable" : clockDiagnostics.current?.reason;
+        const clockCorrection = formatMs(clockDiagnostics.current?.correctionMs || 0);
+        const serverClockReasonsRu = {
+          stable: "часы сервера: нет текущих аномалий",
+          "suspension-repaired": `часы сервера: восстановлено ${clockCorrection} после сна`,
+          "wall-clock-adjustment": "часы сервера: изменено системное время, отсчёт сохранён",
+          "uptime-disagreement": "часы сервера: расхождение uptime, отсчёт сохранён",
+          "ambiguous-clock-gap": "часы сервера: неподтверждённое расхождение источников времени",
+          "invalid-clock-sample": "часы сервера: некорректные показания источника времени"
+        };
+        const serverClockReasonsEn = {
+          stable: "server clock: no current anomalies",
+          "suspension-repaired": `server clock: restored ${clockCorrection} after suspension`,
+          "wall-clock-adjustment": "server clock: system time changed, elapsed time preserved",
+          "uptime-disagreement": "server clock: uptime disagreement, elapsed time preserved",
+          "ambiguous-clock-gap": "server clock: unconfirmed disagreement between time sources",
+          "invalid-clock-sample": "server clock: invalid time-source readings"
+        };
+        const serverClockTextRu = isPrimary ? `; ${serverClockReasonsRu[clockReason] || serverClockReasonsRu["ambiguous-clock-gap"]}` : "";
+        const serverClockTextEn = isPrimary ? `; ${serverClockReasonsEn[clockReason] || serverClockReasonsEn["ambiguous-clock-gap"]}` : "";
         const syncStatus = worstDiagnosticStatus(
           worstDiagnosticStatus(baseSyncStatus, currentRenderStatus),
           serverClockStatus
@@ -8817,10 +8848,10 @@
             : "inactive";
         const syncChipRu = standaloneSelf
           ? diagChip("SYNC", "neutral", standaloneNeutralTitle)
-          : diagChip("SYNC", syncStatus, `${hasSyncError ? "Оценка ошибки синхронизации" : "Приблизительная оценка по задержке сети"}: ${formatMs(estimatedSyncError)}; разброс ${formatMs(client.syncJitter)}; замеров ${client.syncSamples || "n/a"}${syncRateDetailsText}; ${renderDelayTextRu}; ${renderThresholdsRu}`);
+          : diagChip("SYNC", syncStatus, `${hasSyncError ? "Оценка ошибки синхронизации" : "Приблизительная оценка по задержке сети"}: ${formatMs(estimatedSyncError)}; разброс ${formatMs(client.syncJitter)}; замеров ${client.syncSamples || "n/a"}${syncRateDetailsText}; ${renderDelayTextRu}; ${renderThresholdsRu}${serverClockTextRu}`);
         const syncChipEn = standaloneSelf
           ? diagChip("SYNC", "neutral", standaloneNeutralTitle)
-          : diagChip("SYNC", syncStatus, `${hasSyncError ? "Estimated synchronization error" : "Approximate estimate from network latency"}: ${formatMs(estimatedSyncError)}; jitter ${formatMs(client.syncJitter)}; samples ${client.syncSamples || "n/a"}${syncRateDetailsText}; ${renderDelayTextEn}; ${renderThresholdsEn}`);
+          : diagChip("SYNC", syncStatus, `${hasSyncError ? "Estimated synchronization error" : "Approximate estimate from network latency"}: ${formatMs(estimatedSyncError)}; jitter ${formatMs(client.syncJitter)}; samples ${client.syncSamples || "n/a"}${syncRateDetailsText}; ${renderDelayTextEn}; ${renderThresholdsEn}${serverClockTextEn}`);
         const legacySyncChipRu = diagChip("SYNC", legacySyncStatus, `${renderDelayTextRu}; ${renderThresholdsRu}`);
         const legacySyncChipEn = diagChip("SYNC", legacySyncStatus, `${renderDelayTextEn}; ${renderThresholdsEn}`);
         const sseSupported = client.eventSourceSupported === true;
@@ -10035,7 +10066,10 @@
     }
 
     function schedulePhaseTransitionAt(segment, targetServerTime, finalTransition = false) {
-      const phaseKey = finalTransition ? `${segment.cycle}:finish` : nextPhaseSignalKey(segment);
+      // A Final segment always has cycle 1; use its persistent attempt number
+      // rather than a wall-time anchor that can move slightly during clock sync.
+      const finalAttempt = Math.max(0, Math.round(Number(state.startListFinalCycle) || 0));
+      const phaseKey = finalTransition ? `${segment.cycle}:finish:${finalAttempt}` : nextPhaseSignalKey(segment);
       const soundKind = transitionSoundKind(segment, finalTransition);
       if (lastPhaseSignalKey === phaseKey || scheduledPhaseSignalKeys.has(phaseKey)) return;
       scheduledPhaseSignalKeys.add(phaseKey);
@@ -10097,6 +10131,16 @@
       scheduledSignalKeys.clear();
       retainedSignalKeys.forEach((key) => scheduledSignalKeys.add(key));
       if (!preserveTransition) scheduledPhaseSignalKeys.clear();
+    }
+
+    function clearStoppedTimerSignals() {
+      const oneShot = Boolean(state.activeSettings?.oneShot);
+      const completedFinal = oneShot && state.completed && !state.countdownOnly;
+      // Natural completion must not race the final buffer/fallback. Manual
+      // Pause/Stop must cancel even a buffer due within the usual 200 ms margin.
+      clearSignalTimers(completedFinal, oneShot && !completedFinal);
+      lastSegmentIndex = -1;
+      if (state.elapsedBeforePause === 0) lastPhaseSignalKey = "";
     }
 
     function applySoundPreferenceChange() {
@@ -10427,6 +10471,68 @@
       setElementText(els.cycleMeta, `${t("cycle")} ${normalizedCycle}`);
     }
 
+    // Presentation only: never feed this frame back into clocks or audio scheduling.
+    function protectTimerDisplayFrame(frame, now, enabled, identity, clockRate = 1) {
+      const previous = timerDisplayCheckpoint;
+      if (!enabled || !Number.isFinite(frame.elapsed) || !Number.isFinite(now)) {
+        timerDisplayCheckpoint = null;
+        return frame;
+      }
+      if (previous && previous.identity === identity) {
+        const rollbackMs = (previous.frame.elapsed - frame.elapsed) * 1000;
+        const samePhase = previous.frame.segment?.start === frame.segment?.start
+          && previous.frame.segment?.type === frame.segment?.type;
+        const previousSeconds = previous.frame.segment
+          ? Math.max(0, Math.ceil(previous.frame.segment.end - previous.frame.elapsed)) : 0;
+        const nextSeconds = frame.segment
+          ? Math.max(0, Math.ceil(frame.segment.end - frame.elapsed)) : 0;
+        // Account for time since the last paint: a large correction must not
+        // qualify merely because most of it was cancelled by normal elapsed time.
+        const estimatedCorrectionMs = rollbackMs
+          + (now - previous.acceptedAt) * Math.max(0.01, clockRate);
+        const reversesDisplay = !samePhase
+          || (nextSeconds === previousSeconds + 1);
+        if (rollbackMs > 0 && rollbackMs <= displayRollbackThresholdMs + 1e-6
+          && reversesDisplay && now >= previous.acceptedAt
+          && (previous.holdStartedAt !== null
+            || estimatedCorrectionMs <= displayRollbackThresholdMs + 1e-6)) {
+          if (previous.holdStartedAt === null) previous.holdStartedAt = now;
+          if (now - previous.holdStartedAt < displayRollbackHoldMs) return previous.frame;
+        }
+      }
+      timerDisplayCheckpoint = { identity, frame, acceptedAt: now, holdStartedAt: null };
+      return frame;
+    }
+
+    function scheduleDisplayRollbackRelease(held) {
+      if (!held) {
+        if (displayRollbackTimer !== null) window.clearTimeout(displayRollbackTimer);
+        displayRollbackTimer = null;
+        return;
+      }
+      if (displayRollbackTimer !== null) return;
+      const remainingMs = displayRollbackHoldMs
+        - (performance.now() - timerDisplayCheckpoint.holdStartedAt);
+      displayRollbackTimer = window.setTimeout(() => {
+        displayRollbackTimer = null;
+        render("display-rollback-release");
+      }, Math.max(0, Math.ceil(remainingMs)));
+    }
+
+    function renderCanonicalSegmentSignals(segment, elapsed) {
+      if (!segment) return;
+      const remaining = segment.end - elapsed;
+      const duration = segment.end - segment.start;
+      const segmentKey = `${segment.cycle}:${segment.type}`;
+      if (state.running && segmentKey !== lastSegmentIndex) {
+        lastSegmentIndex = segmentKey;
+        scheduleSegmentSignals(segment, remaining, duration, true);
+      }
+      if (state.running && !document.hidden && remaining <= 6) {
+        scheduleFinalWarnings(segment);
+      }
+    }
+
     function render(renderSource = "direct") {
       const transitionRenderStartedAt = performanceLongRunDiagnostics ? performance.now() : null;
       const transitionRenderStartedServerTime = performanceLongRunDiagnostics ? serverNow() : null;
@@ -10448,9 +10554,24 @@
       }
       finalizeStandaloneState();
       const timeline = state.timeline.length ? state.timeline : buildTimeline();
-      const elapsed = elapsedSeconds();
-      const segment = getCurrentSegment(elapsed);
+      const canonicalElapsed = elapsedSeconds();
+      const canonicalSegment = getCurrentSegment(canonicalElapsed);
       const settings = activeSettings();
+      const canonicalFrame = { elapsed: canonicalElapsed, segment: canonicalSegment };
+      const displayIdentity = [
+        lastServerInstanceId, lastServerVersion, language, state.runtimePreset,
+        settings.rotationSeconds, settings.breakSeconds, settings.oneShot,
+        standaloneMode ? `${state.startedAt}:${state.serverStartedAt}:${state.accumulatedPause}` : "",
+        state.elapsedBeforePause
+      ].join(":");
+      const displayFrame = protectTimerDisplayFrame(canonicalFrame, performance.now(),
+        state.running && !state.completed && !state.countdownOnly && !state.waitingForManualStart
+          && !isManualStartHoldPending() && !isScrubbing && !document.hidden && !resumeSnapPending
+          && (!state.serverStartedAt || state.serverStartedAt <= serverNow()),
+        displayIdentity, serverClockRate);
+      scheduleDisplayRollbackRelease(displayFrame !== canonicalFrame);
+      const elapsed = displayFrame.elapsed;
+      const segment = displayFrame.segment;
       const isReady = !state.running && !state.completed && state.elapsedBeforePause === 0;
       syncAudioTestButtons();
       syncButtonsWhenScheduledStartStateChanges();
@@ -10549,6 +10670,8 @@
       if (state.completed || (settings.oneShot && elapsed >= oneShotDuration)) {
         setElementClass(document.body, "break-active", true);
         setElementClass(document.body, "countdown-active", false);
+        // A visually held completion must not suppress the canonical audio path.
+        if (!state.completed) renderCanonicalSegmentSignals(canonicalSegment, canonicalElapsed);
         setElementText(els.phase, t("completed"));
         setElementClassName(els.phase, "phase ready");
         setDisplayTime(0);
@@ -10621,14 +10744,7 @@
       setProgressWidth(donePercent, progressSegmentChanged || isScrubbing);
       lastProgressSegmentKey = segmentKey;
 
-      if (state.running && segmentKey !== lastSegmentIndex) {
-        lastSegmentIndex = segmentKey;
-        scheduleSegmentSignals(segment, remaining, duration, true);
-      }
-
-      if (state.running && !document.hidden && remaining <= 6) {
-        scheduleFinalWarnings(segment);
-      }
+      renderCanonicalSegmentSignals(canonicalSegment, canonicalElapsed);
       if (performanceLongRunDiagnostics && performanceLastRenderedPhaseKey !== segmentKey) {
         const transitionRenderCompletedAt = performance.now();
         const transitionRenderCompletedServerTime = serverNow();
@@ -10775,8 +10891,7 @@
       return state.running
         || state.elapsedBeforePause > 0
         || state.completed
-        || state.waitingForManualStart
-        || finalRoundProgressLocked();
+        || state.waitingForManualStart;
     }
 
     function presetDefaultTitle(name) {
@@ -10790,8 +10905,7 @@
 
     function updatePresetControlState(available = controlsAvailable()) {
       const locked = available && formatSelectionLocked();
-      const finalSelected = state.runtimePreset === "final" || state.activePreset === "final";
-      const lockedHint = finalSelected ? t("finalPresetLockedHint") : t("presetLockedHint");
+      const lockedHint = t("presetLockedHint");
       els.presets.forEach((button) => {
         button.disabled = !available;
         button.classList.toggle("format-locked", locked);
@@ -10858,13 +10972,14 @@
       state.running = false;
       state.serverStartedAt = 0;
       state.pausedAt = performance.now();
-      clearSignalTimers();
+      clearStoppedTimerSignals();
       syncButtons();
       render();
       saveOfflineSnapshot();
     }
 
     function resetStandaloneTimer(shouldSignal = false) {
+      const stoppedOneShot = Boolean(activeSettings().oneShot);
       const completedFinalAttempt = state.runtimePreset === "final"
         && ((state.running && !state.countdownOnly) || state.completed || state.elapsedBeforePause > 0);
       if (completedFinalAttempt) state.startListFinalCycle += 1;
@@ -10882,7 +10997,7 @@
       state.activeSettings = activeSettingsFromDraft();
       lastSegmentIndex = -1;
       lastPhaseSignalKey = "";
-      clearSignalTimers();
+      clearSignalTimers(false, stoppedOneShot);
       buildTimeline(state.activeSettings);
       if (shouldSignal) signal("finish");
       syncButtons();

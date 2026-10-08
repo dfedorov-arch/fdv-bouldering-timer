@@ -222,7 +222,8 @@ test("protocol rendering yields to timer paint and sound scheduling", () => {
   assert.match(index, /performanceCount\("startListCriticalWindowDeferrals"\)/);
   assert.match(index, /function scheduleStartListRender\(\)[\s\S]*?startListRenderQueued[\s\S]*?performanceCount\("startListRenderCoalesced"\)[\s\S]*?queueStartListRenderAfterPaint\(\)/);
   assert.doesNotMatch(index, /function render\([^)]*\) \{[\s\S]*?const isReady[^;]*;\s*renderStartList\(\);/);
-  assert.match(index, /function render\([^)]*\)[\s\S]*?scheduleSegmentSignals\(segment, remaining, duration, true\);[\s\S]*?finally \{\s*performanceEnd\("render", performanceStartedAt\);\s*scheduleStartListRender\(\);/);
+  assert.match(index, /function renderCanonicalSegmentSignals\([^)]*\)[\s\S]*?scheduleSegmentSignals\(segment, remaining, duration, true\);/);
+  assert.match(index, /function render\([^)]*\)[\s\S]*?renderCanonicalSegmentSignals\(canonicalSegment, canonicalElapsed\);[\s\S]*?finally \{\s*performanceEnd\("render", performanceStartedAt\);\s*scheduleStartListRender\(\);/);
 });
 
 test("phase changes update protocol nodes without rebuilding table structure", () => {
@@ -587,8 +588,11 @@ test("Final controls expose old and new start-list schedules without a break fie
   assert.match(index, /const breakSeconds = finalMode \? 0/);
   assert.match(index, /const timerParametersLocked = \(state\.running && !beforeScheduledStart\)[\s\S]*?finalRoundProgressLocked\(\);[\s\S]*?climbMinutes\.disabled = !available \|\| timerParametersLocked[\s\S]*?finalRoundFormatInputs/);
   assert.match(index, /function finalRoundProgressLocked\(\)[\s\S]*?startListFinalCycle[\s\S]*?completedCycles > 0/);
-  assert.match(index, /function formatSelectionLocked\(\)[\s\S]*?waitingForManualStart[\s\S]*?finalRoundProgressLocked\(\)/);
-  assert.match(index, /finalPresetLockedHint: 'Чтобы выбрать другой формат, сначала остановите таймер кнопкой "Стоп" и перейдите на ротацию 1'/);
+  const formatLock = index.match(/function formatSelectionLocked\(\) \{[\s\S]*?\n    \}/)[0];
+  assert.match(formatLock, /waitingForManualStart/);
+  assert.doesNotMatch(formatLock, /finalRoundProgressLocked/);
+  assert.doesNotMatch(index, /finalPresetLockedHint|return to Rotation 1|перейдите на ротацию 1/);
+  assert.match(index, /finishFinalConfirm: 'Вы уверены, что хотите завершить "Финал"\?'/);
   assert.match(index, /finalRoundFormatField\.title = t\("finalRoundFormatHint"\)[\s\S]*?finalRestField\.title = t\("finalRestRotationsHint"\)[\s\S]*?finalRestRotations\.title/);
   assert.match(index, /applyLanguage\(language\);\s*\n\s*const fileMode = isLocalStandalonePage\(\);/);
   assert.match(index, /\.final-round-option input:checked \{[\s\S]*?background-image: linear-gradient\(var\(--text\), var\(--text\)\)/);
@@ -691,6 +695,22 @@ test("diagnostics report signed render-boundary error and apply the requested th
   assert.match(index, /const syncStatus = worstDiagnosticStatus\([\s\S]*?worstDiagnosticStatus\(baseSyncStatus, currentRenderStatus\),[\s\S]*?serverClockStatus/);
   assert.match(server, /renderDelay: optionalNumber\(sourceValue\(source, "renderDelay"\)/);
   assert.match(server, /renderDelayAge: optionalNumber\(sourceValue\(source, "renderDelayAge"\)/);
+});
+
+test("server SYNC uses fresh health rather than persisted historical anomalies", () => {
+  const status = inlineFunction("serverClockDiagnosticStatus");
+  const history = { negativeContinuityAnomalyCount: 58,
+    lastSnapshot: { savedElapsedDifferenceMs: -650 }, lastRestore: { snapshotAgeDifferenceMs: 750 } };
+  assert.equal(status(history), "neutral");
+  for (const severity of ["warn", "bad"]) {
+    assert.equal(status({ ...history, current: { status: severity, ageMs: 0 } }), severity);
+    assert.equal(status({ ...history, current: { status: severity, ageMs: 30000 } }), severity);
+    assert.equal(status({ ...history, current: { status: severity, ageMs: 30001 } }), "neutral");
+    for (const ageMs of [null, undefined, NaN, -1]) {
+      assert.equal(status({ current: { status: severity, ageMs } }), "neutral");
+    }
+  }
+  assert.equal(status({ ...history, current: { status: "neutral", ageMs: 0 } }), "neutral");
 });
 
 test("timer time remains derived from the synchronized server clock", () => {

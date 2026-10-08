@@ -4,9 +4,11 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const {
   LIMITS,
+  assessClockContinuity,
   boundedInteger,
   clockContinuityCorrectionMs,
   createTimerDomain,
+  monotonicClockIncludesSleep,
   normalizeOptionalClockPart,
   runningElapsedAfterRestore,
   scheduledStartTime
@@ -92,10 +94,61 @@ test("running restore keeps the absolute start when monotonic snapshot elapsed d
 
 test("server clock continuity repair advances through a suspended monotonic clock", () => {
   assert.equal(clockContinuityCorrectionMs(5000, 5000, 5000), 0);
-  assert.equal(clockContinuityCorrectionMs(5000, 4899, 5000), 101);
+  assert.equal(clockContinuityCorrectionMs(63240, 3240, 63000), 60000);
+  assert.equal(clockContinuityCorrectionMs(63350, 3350, 64000), 60000);
   assert.equal(clockContinuityCorrectionMs(2000, 0, 2000), 0);
   assert.equal(clockContinuityCorrectionMs(5000, 4950, 5000), 0);
   assert.equal(clockContinuityCorrectionMs(105000, 5000, 5000), 0);
+  assert.equal(clockContinuityCorrectionMs(5000, 3900, 5000), 0);
+  assert.equal(clockContinuityCorrectionMs(5001, 3900, 5001), 1101);
+});
+
+test("integer uptime cannot move a normally progressing timer at any sampling phase", () => {
+  // Sweep the phase relative to uptime's second boundary over an hour of checks.
+  for (let phase = 0; phase < 1000; phase += 37) {
+    let previousMono = phase;
+    for (let check = 0; check < 1200; check += 1) {
+      const mono = previousMono + (check % 2 ? 3650.25 : 2350.75);
+      const delta = mono - previousMono;
+      const uptimeDelta = Math.floor(mono / 1000) * 1000 - Math.floor(previousMono / 1000) * 1000;
+      assert.equal(clockContinuityCorrectionMs(delta, delta, uptimeDelta), 0);
+      previousMono = mono;
+    }
+  }
+  assert.equal(clockContinuityCorrectionMs(5000, 4899, 5000), 0);
+  assert.equal(clockContinuityCorrectionMs(3000, 3500, 3000), 0);
+});
+
+test("the sleep-inclusive policy is limited to verified macOS runtimes", () => {
+  for (const version of ["1.49.0", "1.52.1"]) assert.equal(monotonicClockIncludesSleep("darwin", version), true);
+  for (const version of ["1.48.0", "1.9.0", "", undefined]) assert.equal(monotonicClockIncludesSleep("darwin", version), false);
+  for (const platform of ["win32", "linux", "unknown"]) assert.equal(monotonicClockIncludesSleep(platform, "1.52.1"), false);
+});
+
+test("sleep-inclusive monotonic clocks never receive uptime corrections", () => {
+  const options = { monotonicIncludesSleep: true };
+  for (const [wall, mono, uptime] of [[63240, 63240, 63000], [63240, 63240, 64000], [63240, 3240, 63000]]) {
+    assert.equal(clockContinuityCorrectionMs(wall, mono, uptime, 3000, 100, options), 0);
+  }
+});
+
+test("system clock changes and ambiguous gaps preserve monotonic elapsed", () => {
+  for (const wall of [105000, -95000]) {
+    const result = assessClockContinuity(wall, 5000, 5000);
+    assert.equal(result.correctionMs, 0);
+    assert.equal(result.reason, "wall-clock-adjustment");
+    assert.equal(result.status, "warn");
+  }
+  assert.equal(assessClockContinuity(-119500, 500, 0).reason, "wall-clock-adjustment");
+  for (const [wall, mono, uptime] of [[123240, 3240, 63000], [3240, 3240, 63000], [63240, 3240, 3000]]) {
+    assert.equal(clockContinuityCorrectionMs(wall, mono, uptime), 0);
+  }
+  assert.equal(assessClockContinuity(123240, 3240, 63000).status, "bad");
+  assert.equal(assessClockContinuity(3000, 4000, 1000).status, "bad");
+  for (const args of [[NaN, 3000, 3000], [3000, Infinity, 3000], [3000, -1, 3000], [3000, 3000, -1]]) {
+    assert.equal(assessClockContinuity(...args).correctionMs, 0);
+    assert.equal(assessClockContinuity(...args).status, "bad");
+  }
 });
 
 test("Final format and rest rotations are normalized", () => {

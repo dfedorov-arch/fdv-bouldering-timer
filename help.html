@@ -871,6 +871,7 @@
             <li>Выбор формата раунда влияет только на продвижение загруженного стартового списка.</li>
             <li>После ротации таймер останавливается на <code>00:00</code>; одновременно включаются цвета перерыва (по умолчанию красный фон). В обычном основном интерфейсе это состояние дополнительно отмечается как завершённое. Цвета задаются параметрами <code>break_background_color</code> и <code>break_text_color</code>; это не запускает отдельный отсчёт перерыва.</li>
             <li>Для следующего финального запуска достаточно снова нажать «Старт» или <kbd>Z</kbd>.</li>
+            <li>Чтобы завершить финал и выбрать другой формат, нажмите «Стоп», затем «Классика» или «Фестиваль» и подтвердите вопрос «Вы уверены, что хотите завершить "Финал"?». Возвращать номер ротации на 1 не нужно. При отмене сохраняется текущий финал; при подтверждении его счётчик сбрасывается, и следующий финал начинается с первой ротации.</li>
           </ul>
           <figure><img src="help-assets/final-completed.png" alt="Завершённый финал: 00:00 на красном фоне перерыва и сине-фиолетовый ромб пройденной трассы"><figcaption>При появлении нулей фон сразу переключается на цвет перерыва.</figcaption></figure>
         </div>
@@ -1462,6 +1463,7 @@ xattr -dr com.apple.quarantine "/полный/путь/к/fdv-bouldering-timer-m
           <h3>3.3. Final</h3>
           <p>A one-shot format. Each Start runs one rotation and then waits for the operator. The Old list schedule sends every participant through route 1 before route 2; the New schedule moves a participant to the next route after a configurable number of complete rest rotations (3 by default). A participant on route 1 in rotation 1 prepares in rotation 4 and climbs the next route in rotation 5. This choice affects only a loaded start list.</p>
           <p>When the rotation finishes at <code>00:00</code>, the timer immediately uses the break colors (a red background by default), configured by <code>break_background_color</code> and <code>break_text_color</code>. No separate break countdown starts.</p>
+          <p>To end Final and choose another format, press Stop, select Classic or Festival, and confirm “Are you sure you want to end "Final"?”. You do not need to return to Rotation 1. Cancel keeps the current Final; confirmation resets its progress, so the next Final begins at the first rotation.</p>
           <figure><img src="help-assets/final-completed.png" alt="Completed Final: 00:00 on the red break background and a blue-purple completed route diamond"><figcaption>The break background appears with zero, not on a later refresh.</figcaption></figure>
         </div>
         <table class="comparison">

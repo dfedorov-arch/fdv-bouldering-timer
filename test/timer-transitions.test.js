@@ -239,6 +239,34 @@ test("changing the draft preset does not change the running timer preset", () =>
   assert.deepEqual(result.state.activeSettings, state.activeSettings);
 });
 
+test("leaving a stopped Final clears its progress atomically with idle settings", () => {
+  for (const activePreset of ["classic", "festival"]) {
+    const state = baseState({ activePreset: "final", runtimePreset: "final", startListFinalCycle: 17 });
+    const before = JSON.stringify(state);
+    const result = transitions.applyTimerAction(state, { type: "settings", activePreset,
+      settings: { rotationMinutes: 4, breakSeconds: 15, oneShot: false } });
+    assert.equal(result.state.startListFinalCycle, 0);
+    assert.equal(result.state.runtimePreset, activePreset);
+    assert.equal(result.state.version, state.version + 1);
+    assert.equal(result.effects.clock, "keep");
+    assert.equal(result.effects.audioWakeCommand, null);
+    assert.equal(JSON.stringify(state), before);
+  }
+});
+
+test("Final progress survives running, paused, completed and waiting states and reselecting Final", () => {
+  for (const overrides of [
+    { running: true }, { elapsedBeforePause: 12 }, { completed: true, elapsedBeforePause: 240 },
+    { countdownOnly: true }, { waitingForManualStart: true }, {}
+  ]) {
+    const state = baseState({ activePreset: "final", runtimePreset: "final", startListFinalCycle: 17, ...overrides });
+    const activePreset = Object.keys(overrides).length ? "classic" : "final";
+    const result = transitions.applyTimerAction(state, { type: "settings", activePreset,
+      settings: { rotationMinutes: 4, breakSeconds: 15, oneShot: activePreset === "final" } });
+    assert.equal(result.state.startListFinalCycle, 17);
+  }
+});
+
 test("resuming a paused timer preserves its runtime preset", () => {
   const state = baseState({
     elapsedBeforePause: 12,
