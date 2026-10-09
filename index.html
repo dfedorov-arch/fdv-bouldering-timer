@@ -3085,7 +3085,7 @@
       timeline: []
     };
 
-    const pageBuildNumber = 409;
+    const pageBuildNumber = 410;
     const projectUrl = "https://github.com/dfedorov-arch/fdv-bouldering-timer";
     const buildLinkConfirmDelayMs = 550;
     const offlineSnapshotKey = "fdvBoulderingTimerOfflineSnapshot";
@@ -4209,6 +4209,10 @@
     let stateApplyRecoveryScheduled = false;
     let syncQuality = { latency: null, offset: null, error: null, jitter: null, samples: 0 };
     let syncSamples = [];
+    let lastMeasuredClockServerInstanceId = "";
+    let serverClockRecoveryTimer = null;
+    let lastServerClockRecoveryAt = -Infinity;
+    const serverClockRecoveryCooldownMs = 2000;
     let lastBurstSyncAt = 0;
     let lastDisplayTimeLabel = "";
     let lastDisplayMinuteDigits = 0;
@@ -5152,6 +5156,7 @@
       const localNow = performance.now();
       const dateNow = Date.now();
       syncSamples = [];
+      lastMeasuredClockServerInstanceId = "";
       resetServerClockRateConfirmation();
       serverClockRate = 1;
       serverClockRateHighConfidence = false;
@@ -5218,33 +5223,56 @@
       return true;
     }
 
+    function requestMeasuredClockSync() {
+      if (standaloneMode || syncRequestInFlight || serverClockRecoveryTimer !== null) return;
+      if (performance.now() - lastServerClockRecoveryAt < serverClockRecoveryCooldownMs) return;
+      serverClockRecoveryTimer = window.setTimeout(() => {
+        serverClockRecoveryTimer = null;
+        if (standaloneMode || syncRequestInFlight) return;
+        lastServerClockRecoveryAt = performance.now();
+        syncFromServer({ skipBurst: true });
+      }, 0);
+    }
+
     function updateServerTiming(remote, timing = {}, options = {}) {
+      if (standaloneMode) return;
       const remoteVersion = Number(remote?.version || 0);
       if (Number.isFinite(remoteVersion) && remoteVersion > lastServerVersion) {
         lastServerVersion = remoteVersion;
       }
-      const date0 = Number(timing.date0 ?? timing.t0);
-      const date1 = Number(timing.date1 ?? timing.t1);
-      const perf0 = Number(timing.perf0 ?? timing.t0);
-      const perf1 = Number(timing.perf1 ?? timing.t1);
-      const remoteNow = Number(remote.now);
+      const timingNumber = value => value === null || value === undefined || value === "" ? NaN : Number(value);
+      const date0 = timingNumber(timing.date0 ?? timing.t0);
+      const date1 = timingNumber(timing.date1 ?? timing.t1);
+      const perf0 = timingNumber(timing.perf0 ?? timing.t0);
+      const perf1 = timingNumber(timing.perf1 ?? timing.t1);
+      const remoteNow = timingNumber(remote?.now);
+      const clockInstanceId = String(remote?.serverInstanceId || lastServerInstanceId || "");
+      const hasMeasuredTiming = Number.isFinite(date0) && Number.isFinite(date1)
+        && Number.isFinite(perf0) && Number.isFinite(perf1) && perf1 >= perf0
+        && Number.isFinite(remoteNow);
+      // A push timestamp describes message creation, not arrival. Its unknown
+      // delivery age must never be mistaken for drift in a calibrated clock.
+      if (!hasMeasuredTiming) {
+        if (!syncSamples.length || clockInstanceId !== lastMeasuredClockServerInstanceId
+          || options.forceClockCorrection
+          || (Number.isFinite(remoteNow) && Math.abs(remoteNow - serverNow()) > 1000)) {
+          requestMeasuredClockSync();
+        }
+        return;
+      }
+      if (serverClockRecoveryTimer !== null) {
+        window.clearTimeout(serverClockRecoveryTimer);
+        serverClockRecoveryTimer = null;
+      }
       const preserveClockRate = Boolean(options.preserveClockRate);
       const holdExistingClockRate = preserveClockRate
         || serverClockRateConfidence === "resume-held"
         || serverClockRateGateReason === "resume-held";
-      if (Number.isFinite(remoteNow)) {
-        const modelDriftMs = Math.abs(remoteNow - serverNow());
-        if (modelDriftMs > 1000) {
-          options = {
-            ...options,
-            forceClockCorrection: true
-          };
-        }
-      }
-      if (options.resetClockSamples) {
+      if (options.resetClockSamples || clockInstanceId !== lastMeasuredClockServerInstanceId) {
         syncSamples = [];
         resetServerClockRateConfirmation();
       }
+      lastMeasuredClockServerInstanceId = clockInstanceId;
       const rawServerReceivedAt = remote.serverReceivedAt;
       const rawServerSentAt = remote.serverSentAt;
       const serverReceivedAt = rawServerReceivedAt === null || rawServerReceivedAt === undefined || rawServerReceivedAt === "" ? NaN : Number(rawServerReceivedAt);
@@ -5404,7 +5432,11 @@
         }
 
         serverTimeOffset = median(clockOffsets);
-        applyServerClockModel(nextServerNow, nextRate, options.forceClockCorrection || syncSamples.length < 3);
+        // Compare with the measured estimate projected to now, not remote.now
+        // from an earlier request/response instant (or before JSON processing).
+        const forceClockCorrection = options.forceClockCorrection || syncSamples.length < 3
+          || Math.abs(nextServerNow - serverNow()) > 1000;
+        applyServerClockModel(nextServerNow, nextRate, forceClockCorrection);
         syncQuality = {
           latency,
           offset: serverTimeOffset,
@@ -5423,17 +5455,6 @@
         };
         refreshTrustedClockAnchor();
         return;
-      }
-      if (Number.isFinite(remoteNow) && (syncSamples.length === 0 || options.forceClockCorrection)) {
-        serverTimeOffset = remoteNow - Date.now();
-        applyServerClockModel(remoteNow, serverClockRate, true);
-        syncQuality = {
-          ...syncQuality,
-          offset: serverTimeOffset,
-          rate: serverClockRate,
-          rateConfidence: serverClockRateConfidence
-        };
-        refreshTrustedClockAnchor();
       }
     }
 
