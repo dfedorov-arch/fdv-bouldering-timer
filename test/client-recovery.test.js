@@ -15,7 +15,7 @@ function source(name) {
 
 // Recovery policy is exercised using the actual page functions. Browser transport,
 // sound output and the independently tested clock estimator are deterministic seams.
-function harness() {
+function harness({ realClockTiming = false } = {}) {
   let perf = 2000;
   let wall = 102000;
   let nextTimer = 0;
@@ -45,6 +45,7 @@ function harness() {
     AbortController, URLSearchParams, console, EventSource: FakeEventSource,
     window: {
       location: { protocol: "http:" }, EventSource: FakeEventSource,
+      FDVClientActionTransport: require("../lib/client-action-transport"),
       setTimeout(callback, delay = 0) {
         const id = ++nextTimer;
         timers.set(id, { callback, at: perf + delay });
@@ -66,7 +67,7 @@ function harness() {
     reconcileServerStateIdentity: remote => ({ stale: Boolean(remote.stale),
       versionChanged: Boolean(remote.changed), instanceChanged: Boolean(remote.newInstance) }),
     maybeBurstSync() {}, renderBrowserList() {}, updatePrimaryComputerFlag() {},
-    syncBrowserNumberDisplay() {}, handleAudioTest() {}, wakeAudioOutput() {},
+    syncBrowserNumberDisplay() {}, updateConnectionWarning() {}, handleAudioTest() {}, wakeAudioOutput() {},
     scheduleDisplayBoundary() {}, refreshTrustedClockAnchor() {},
     requestScreenWakeLock: () => { effects.wake += 1; },
     shouldKeepDisplayFresh: () => true,
@@ -89,14 +90,24 @@ function harness() {
     at: perfTime, latency: 4, networkLatency: 4, perfTime,
     serverTime: 100000 + perfTime, clockOffset: 0, perfOffset: 100000
   }));
+  const estimatorConstants = ["syncSampleWindowMs", "syncMaxSamples", "syncRateMinSpanMs", "syncRateNormalMin",
+    "syncRateNormalMax", "syncRateStableMinSamples", "syncRateStableMaxResidualMs", "syncRateStableMaxHalfDiffPpm",
+    "syncRateStableMaxOutlierShare", "syncRateConfirmationTolerancePpm", "syncRateConfirmationWindows",
+    "syncRateLargeThresholdPpm", "syncRateDeadband", "syncRateSmoothing"]
+    .map(name => html.match(new RegExp(`const ${name} = [^;]+;`))[0]).join("\n");
   vm.runInContext(`
+    ${estimatorConstants}
     let standaloneMode = false, offlineReloadMode = false, serverAvailable = true;
+    let clockCalibrationPending = false;
     let serverTimeAnchor = 100000, serverPerfAnchor = 0, serverClockRate = 1;
     let serverPerfOffset = 100000, serverTimeOffset = 0;
     let serverClockRateHighConfidence = true, serverClockRateConfidence = "normal";
     let serverClockRateGateReason = "normal", pendingServerClockRatePpm = null, pendingServerClockRateCount = 0;
     let syncSamples = ${JSON.stringify(seedSamples)};
     let syncQuality = { error: 2, latency: 4, jitter: 0, samples: 3, rate: 1 };
+    let lastMeasuredClockServerInstanceId = "server-a", serverClockRecoveryTimer = null;
+    let lastServerClockRecoveryAt = -Infinity;
+    const serverClockRecoveryCooldownMs = 2000, trustedClockAnchorIntervalMs = 60000;
     let syncRequestInFlight = false, syncRequestGeneration = 0, syncRequestController = null;
     let pendingClientRecovery = null, activeClientRecovery = null;
     let clientRecoveryTimer = null, clientRecoveryFollowupTimer = null;
@@ -109,6 +120,7 @@ function harness() {
     let trustedServerClockAnchor = { wallAt: 100000, perfAt: 0, serverAt: 100000, serverInstanceId: "server-a" };
     let lastTrustedClockAnchorAt = 100000;
     let lastServerInstanceId = "server-a", lastServerVersion = 7, lastRemoteRunning = true;
+    const retiredServerInstanceIds = new Set();
     let pendingServerState = null, lastStartListServerRevision = "lists-a";
     let isPrimaryClient = false, eventSource = { readyState: 1 }, eventSourceConnected = true;
     let eventStreamGeneration = 3, lastSseEventAt = 2000, sseRestarts = 0;
@@ -116,17 +128,20 @@ function harness() {
     const clientId = "recovery-test";
     let mobileResumeSyncEnabled = false;
     const syncRequestTimeoutMs = 2000, staleResumeAfterMs = 3000, resumeSnapMaxWaitMs = 2600;
-    const clockContinuityGapMs = 3000, clockContinuityMismatchMs = 100;
+    const clockContinuityMismatchMs = 100;
     const offlineSnapshotMaxAgeMs = 86400000, sseSilentRestartMs = 25000;
     const syncRateLargeMin = 0.95, syncRateLargeMax = 1.05;
     ${["serverNow", "clampFloat", "applyServerClockModel", "reanchorServerClockModel",
-      "resetServerClockRateConfirmation", "repairServerClockAfterSuspension", "holdClockRateForResume",
+      "resetServerClockRateConfirmation", "invalidateServerClockCalibration", "browserClockIntervalMismatch",
+      "repairServerClockAfterSuspension", "holdClockRateForResume",
       "clearResumeSnapPending", "beginResumeSnapPending", "shouldResetSignalsOnResume",
       "isLocalStandalonePage", "resumeLocalPageAfterSuspension", "cancelServerSyncForClockRecovery",
       "queueClientRecoverySync", "scheduleClientRecoverySync", "flushClientRecoverySync",
       "resumeClientSync", "handleClientRecoveryEvent", "syncFromServer", "checkSseHeartbeat",
       "markSseEvent", "startEventStream", "restartEventStream", "startDiagnosticsStream",
       "stopDiagnosticsStream"].map(source).join("\n")}
+    ${realClockTiming ? ["median", "percentile", "fitClockRate", "refreshTrustedClockAnchor",
+      "prepareServerClockMeasurement", "requestMeasuredClockSync", "updateServerTiming"].map(source).join("\n") : ""}
   `, context);
   const get = expression => vm.runInContext(expression, context);
   const set = expression => vm.runInContext(expression, context);
@@ -136,10 +151,13 @@ function harness() {
     restartEventStream();
   };
   context.syncDiagnosticsStream = () => { effects.diagnostics += 1; };
+  const actualUpdateServerTiming = realClockTiming ? context.updateServerTiming : null;
   context.updateServerTiming = (remote, timing, options = {}) => {
     effects.timing.push({ remote, timing, options: { ...options } });
+    if (actualUpdateServerTiming) return actualUpdateServerTiming(remote, timing, options);
     if (options.resetClockSamples) set("syncSamples = [];");
     if (timing) {
+      set("clockCalibrationPending = false;");
       set(`syncSamples.push({perfTime: ${perf}, serverTime: ${Number(remote.now)}});`);
       if (options.forceClockCorrection) context.applyServerClockModel(Number(remote.now), get("serverClockRate"), true);
     }
@@ -176,6 +194,14 @@ function harness() {
       requests[index].resolve({ ok: true, headers: { get: () => null }, json: async () => remote });
       await settle();
       await due();
+    },
+    async receiveHeaders(index = requests.length - 1, extra = {}) {
+      let finishBody;
+      const body = new Promise(resolve => { finishBody = resolve; });
+      const remote = { now: 100000 + perf, version: 7, serverInstanceId: "server-a", running: true, ...extra };
+      requests[index].resolve({ ok: true, headers: { get: () => null }, json: () => body });
+      await settle();
+      return async () => { finishBody(remote); await settle(); await due(); };
     },
     async fail(index = requests.length - 1) {
       requests[index].reject(new Error("test network interruption"));
@@ -295,10 +321,11 @@ test("actual clock suspension repairs local time and requests a new forced measu
   h.set("signalsInvalidatedWhileHidden = true;");
   h.advance(30000, 100);
   h.event("focus");
-  assert.equal(h.get("serverNow()"), 132000);
+  assert.equal(h.get("serverNow()"), 102100,
+    "wall time must not move the server clock before measured calibration");
   assert.equal(h.get("syncSamples.length"), 0);
   assert.equal(h.get("syncRequestGeneration"), 1);
-  assert.equal(h.effects.audio.length, 1, "local clock repair must not rebuild sound twice");
+  assert.equal(h.effects.audio.length, 0, "uncalibrated local time must not plan provisional sound");
   await h.due();
   assert.equal(h.requests.length, 1);
   await h.complete(0, { now: 132000 });
@@ -433,9 +460,10 @@ test("standalone file-page visibility restores audio locally without HTTP or str
   assert.equal(h.effects.localList, 1);
 });
 
-test("clock continuity repair respects both the 3 s observation gap and 100 ms mismatch threshold", () => {
+test("clock continuity repair detects 100 ms mismatch even within a short observation interval", () => {
   for (const [wallDelta, perfDelta, repaired] of [
-    [2999, 0, false], [3000, 2901, false], [3000, 2900, true], [3000, 3100, true]
+    [99, 0, false], [100, 0, true], [2000, 1901, false], [2000, 1900, true],
+    [3000, 2901, false], [3000, 2900, true], [3000, 3100, true]
   ]) {
     const h = harness();
     h.advance(wallDelta, perfDelta);
@@ -696,4 +724,140 @@ test("a connecting or closed EventSource is repaired even if its connected flag 
     await h.complete();
     assertLightRequest(h.effects.timing.at(-1).options);
   }
+});
+
+test("a measured poll after stopped performance time calibrates before any later wake event", async () => {
+  const h = harness({ realClockTiming: true });
+  h.advance(30000, 100);
+  const poll = h.context.syncFromServer();
+  await h.complete(0, { now: 132000, serverReceivedAt: 132000, serverSentAt: 132000 });
+  assert.equal(await poll, true);
+  assert.equal(h.get("serverNow()"), 132000,
+    "pre-sleep and post-sleep performance epochs must not be fitted together");
+  assert.equal(h.get("syncSamples.length"), 1);
+  assert.equal(h.get("trustedServerClockAnchor.serverAt"), 132000);
+  assert.equal(h.get("trustedServerClockAnchor.perfAt"), 2100);
+  h.event("focus");
+  assert.equal(h.get("serverNow()"), 132000,
+    "the later wake detector must not overwrite a newly measured server anchor");
+});
+
+test("a measured poll after a two-second sleep discards the old epoch instead of fitting a late countdown", async () => {
+  const h = harness({ realClockTiming: true });
+  h.advance(2000, 0);
+  const poll = h.context.syncFromServer();
+  await h.complete(0, { now: 104000, serverReceivedAt: 104000, serverSentAt: 104000 });
+  assert.equal(await poll, true);
+  assert.equal(h.get("serverNow()"), 104000);
+  assert.equal(h.get("syncSamples.length"), 1,
+    "a short real sleep must not poison the established fit with the stopped performance epoch");
+  assert.equal(h.get("clockCalibrationPending"), false);
+  assert.equal(h.get("trustedServerClockAnchor.serverAt"), 104000);
+});
+
+test("an accepted extreme server rate does not make matching local clock intervals look suspended", async () => {
+  const h = harness({ realClockTiming: true });
+  h.set("serverClockRate = 1.1;");
+  const samples = h.get("JSON.stringify(syncSamples)");
+  h.advance(3000);
+  assert.equal(h.context.repairServerClockAfterSuspension(), false);
+  assert.equal(h.get("clockCalibrationPending"), false);
+  assert.equal(h.get("JSON.stringify(syncSamples)"), samples);
+  const poll = h.context.syncFromServer();
+  h.advance(1500);
+  await h.complete(0, { now: 105750, serverReceivedAt: 105000, serverSentAt: 106500 });
+  assert.equal(await poll, true);
+  assert.equal(h.get("clockCalibrationPending"), false);
+  assert.equal(h.requests.length, 1, "a valid long request needs no extra forced calibration");
+  assert.equal(h.get("syncSamples.length"), 4);
+});
+
+test("continuous performance time does not let an older trusted anchor undo a measured clock correction", () => {
+  const h = harness({ realClockTiming: true });
+  h.context.updateServerTiming({ now: 102500, serverReceivedAt: 102500, serverSentAt: 102500,
+    version: 7, serverInstanceId: "server-a" }, {
+    date0: 102000, date1: 102000, perf0: 2000, perf1: 2000
+  }, { forceClockCorrection: true, resetClockSamples: true });
+  assert.equal(h.get("serverNow()"), 102500);
+  h.advance(3000);
+  h.event("focus");
+  assert.equal(h.get("serverNow()"), 105500);
+  assert.equal(h.get("syncSamples.length"), 1);
+  assert.equal(h.get("syncRequestGeneration"), 0);
+});
+
+test("system wall-clock changes with continuously advancing performance cannot jump competition time", async () => {
+  for (const wallDelta of [3603000, -3597000]) {
+    const h = harness({ realClockTiming: true });
+    h.advance(wallDelta, 3000);
+    h.event("focus");
+    assert.equal(h.get("serverNow()"), 105000, `wall delta ${wallDelta}`);
+    await h.due();
+    await h.complete(0, { now: 105000, serverReceivedAt: 105000, serverSentAt: 105000 });
+    assert.equal(h.get("serverNow()"), 105000);
+    assert.equal(h.get("trustedServerClockAnchor.serverAt"), 105000);
+  }
+});
+
+test("real measured network recovery preserves the good sample history and stable server time", async () => {
+  const h = harness({ realClockTiming: true });
+  h.advance(3000);
+  const oldSamples = h.get("JSON.stringify(syncSamples)");
+  h.event("online");
+  assert.equal(h.get("JSON.stringify(syncSamples)"), oldSamples);
+  await h.due();
+  await h.complete();
+  assert.equal(h.get("syncSamples.length"), 4);
+  assert.equal(h.get("serverNow()"), 105000);
+  assertLightRequest(h.effects.timing.at(-1).options);
+});
+
+test("an HTTP timing interval spanning stopped performance time is rejected until a fresh measured request", async () => {
+  const h = harness({ realClockTiming: true });
+  const spanning = h.context.syncFromServer();
+  h.advance(30000, 100);
+  await h.complete(0, { now: 132000, serverReceivedAt: 102000, serverSentAt: 132000 });
+  await spanning;
+  assert.equal(h.get("serverNow()"), 102100,
+    "an invalid request midpoint must not calibrate competition time");
+  assert.equal(h.get("syncSamples.length"), 0);
+  assert.equal(h.get("clockCalibrationPending"), true);
+  assert.equal(h.requests.length, 2, "clock repair needs a request wholly inside the new performance epoch");
+  await h.complete(1, { now: 132000, serverReceivedAt: 132000, serverSentAt: 132000 });
+  assert.equal(h.get("serverNow()"), 132000);
+  assert.equal(h.get("syncSamples.length"), 1);
+  assert.equal(h.get("clockCalibrationPending"), false);
+});
+
+test("sleep between received headers and JSON application cannot turn an old response into a fresh clock sample", async () => {
+  const h = harness({ realClockTiming: true });
+  const old = h.context.syncFromServer();
+  const finishJson = await h.receiveHeaders(0, { now: 102000, serverReceivedAt: 102000, serverSentAt: 102000 });
+  h.advance(30000, 100);
+  await finishJson();
+  await old;
+  assert.equal(h.get("serverNow()"), 102100);
+  assert.equal(h.get("syncSamples.length"), 0);
+  assert.equal(h.get("clockCalibrationPending"), true);
+  assert.equal(h.requests.length, 2);
+  await h.complete(1, { now: 132000, serverReceivedAt: 132000, serverSentAt: 132000 });
+  assert.equal(h.get("serverNow()"), 132000);
+  assert.equal(h.get("syncSamples.length"), 1);
+  assert.equal(h.get("clockCalibrationPending"), false);
+});
+
+test("a recovered timing-only response restores audio locally without waiting for another state request", async () => {
+  const h = harness({ realClockTiming: true });
+  h.set("clockCalibrationPending = true; syncSamples = []; resumeSnapPending = true;");
+  h.context.updateServerTiming({ now: 102000, serverReceivedAt: 102000, serverSentAt: 102000,
+    version: 7, serverInstanceId: "server-a" }, {
+    date0: 102000, date1: 102000, perf0: 2000, perf1: 2000
+  });
+  assert.equal(h.get("clockCalibrationPending"), false);
+  assert.equal(h.effects.audio.length, 0, "audio restoration must wait until synchronous state application finishes");
+  await h.due();
+  assert.equal(h.effects.audio.length, 1);
+  assert.equal(h.effects.audio[0].reason, "clock-calibrated");
+  assert.equal(h.requests.length, 0);
+  assert.ok(h.effects.render.includes("clock-calibrated"));
 });

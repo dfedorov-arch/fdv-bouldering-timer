@@ -718,12 +718,14 @@ test("timer time remains derived from the synchronized server clock", () => {
   assert.match(index, /source\.start\(start\);/);
 });
 
-test("a suspended performance clock is repaired without replacing the server clock", () => {
+test("a discontinuous browser clock requires measured calibration without a wall-time jump", () => {
   assert.match(index, /const clockContinuityMismatchMs = 100;/);
   assert.match(index, /const trustedClockAnchorIntervalMs = 60000;/);
-  assert.match(index, /perfNow - trustedServerClockAnchor\.perfAt/);
-  assert.match(index, /trustedServerClockAnchor\.serverAt \+ trustedWallDelta/);
-  assert.match(index, /applyServerClockModel\(estimatedServerTime, serverClockRate, true\);/);
+  const repair = index.match(/function repairServerClockAfterSuspension\(\) \{[\s\S]*?\n    \}/)[0];
+  assert.match(repair, /browserClockIntervalMismatch\(wallDelta, perfDelta\)/);
+  assert.match(repair, /invalidateServerClockCalibration\("clock-discontinuity"\)/);
+  assert.doesNotMatch(repair, /applyServerClockModel|estimatedServerTime|trustedServerClockAnchor\.serverAt/);
+  assert.match(index, /if \(!prepareServerClockMeasurement\(\{ date0, date1, perf0, perf1 \}\)\) return;/);
   assert.match(index, /\(Number\.isFinite\(savedServerNow\) \? savedServerNow : savedAtWall\)\s*\+ age;/);
   assert.doesNotMatch(index, /age \* restoredRate/);
   assert.match(index, /syncSamples = \[\];\s*resetServerClockRateConfirmation\(\);/);
@@ -771,8 +773,8 @@ test("page suspension invalidates stale audio and rebuilds only semantically cur
   assert.match(index, /function resumeClientSync\([^)]*\)[\s\S]*?const invalidatedWhileHidden = restorePage && signalsInvalidatedWhileHidden[\s\S]*?rescheduleStandaloneSignals\([\s\S]*?queueClientRecoverySync\(/);
   assert.match(index, /function scheduleRecentPhaseSignalAfterResume\([^)]*\)[\s\S]*?shouldScheduleServerSignal\(targetServerTime, lateGraceMs\)[\s\S]*?rotationBoundary:/);
   assert.match(index, /if \(includePhase\s*&& Date\.now\(\) >= suppressPhaseSignalsUntil/);
-  assert.match(index, /if \(document\.hidden\) \{\s*if \(state\.running\) signalsInvalidatedWhileHidden = true;\s*clearSignalTimers\(false, true\);\s*return;/);
-  assert.match(index, /function scheduleFinalWarnings\(segment\) \{\s*if \(document\.hidden\) \{\s*if \(state\.running\) signalsInvalidatedWhileHidden = true;\s*return;/);
+  assert.match(index, /if \(document\.hidden \|\| clockCalibrationPending\) \{\s*if \(document\.hidden && state\.running\) signalsInvalidatedWhileHidden = true;\s*clearSignalTimers\(false, true\);\s*return;/);
+  assert.match(index, /function scheduleFinalWarnings\(segment\) \{\s*if \(document\.hidden \|\| clockCalibrationPending\) \{\s*if \(document\.hidden && state\.running\) signalsInvalidatedWhileHidden = true;\s*return;/);
   assert.match(index, /if \(state\.running && !document\.hidden && remaining <= 6\) \{\s*scheduleFinalWarnings\(segment\);/);
 });
 

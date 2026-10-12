@@ -124,7 +124,7 @@ test("perf=4 isolates the Android audio-clock keepalive experiment from normal o
   assert.match(index, /recordPerformanceAudioClock\("keepalive-start"[\s\S]*?startLatenessMs:[\s\S]*?scheduledDurationMs:/);
   assert.match(index, /recordPerformanceAudioClock\("keepalive-end"[\s\S]*?boundaryLatenessMs:/);
   assert.match(index, /function schedulePerformanceAudioKeepalive\(segment\)[\s\S]*?Math\.max\(segment\.start, segment\.end - performanceAudioKeepaliveLeadSeconds\)[\s\S]*?scheduleSegmentTimeoutAt/);
-  assert.match(index, /function scheduleSegmentSignals\(segment, remaining, duration, includePhase = true\) \{[\s\S]*?if \(document\.hidden\)[\s\S]*?clearSignalTimers\(true\);\s*if \(!state\.running\) return;\s*schedulePerformanceAudioKeepalive\(segment\);/);
+  assert.match(index, /function scheduleSegmentSignals\(segment, remaining, duration, includePhase = true\) \{[\s\S]*?if \(document\.hidden \|\| clockCalibrationPending\)[\s\S]*?clearSignalTimers\(true\);\s*if \(!state\.running\) return;\s*schedulePerformanceAudioKeepalive\(segment\);/);
   assert.match(index, /function clearSignalTimers\([^)]*\) \{[\s\S]*?performanceAudioKeepaliveExperiment && \(!preserveTransition \|\| forceStopAudio\)[\s\S]*?stopPerformanceAudioKeepalive/);
   assert.match(index, /audioKeepaliveExperiment:\s*performanceAudioKeepaliveExperiment/);
 });

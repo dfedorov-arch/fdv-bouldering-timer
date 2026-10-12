@@ -2,7 +2,10 @@
 
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { createActionTransport } = require("../lib/client-action-transport");
+const fs = require("node:fs");
+const path = require("node:path");
+const vm = require("node:vm");
+const { createActionTransport, reconcileServerStateIdentity } = require("../lib/client-action-transport");
 
 function response(status, body) {
   return {
@@ -77,6 +80,200 @@ test("new server instance accepts a lower state version", () => {
   const stale = reconcile("server-b", 4, { serverInstanceId: "server-b", version: 3 });
   assert.equal(stale.instanceChanged, false);
   assert.equal(stale.stale, true);
+});
+
+test("retired instance response never becomes another server restart", () => {
+  for (const retired of [new Set(["server-a"]), ["server-a"]]) {
+    const old = reconcileServerStateIdentity("server-b", 4,
+      { serverInstanceId: "server-a", version: 31 }, retired);
+    assert.deepEqual(old, {
+      instanceId: "server-b", instanceChanged: false, serverRestarted: false,
+      stale: true, versionChanged: false, retired: true
+    });
+  }
+});
+
+test("retired identity guard preserves startup, current-instance timing and genuine new instances", () => {
+  const startup = reconcileServerStateIdentity("", 0, { serverInstanceId: "server-a", version: 1 }, new Set());
+  assert.equal(startup.instanceId, "server-a");
+  assert.equal(startup.instanceChanged, true);
+  assert.equal(startup.serverRestarted, false);
+  assert.equal(startup.retired, false);
+
+  const retired = new Set(["server-a"]);
+  const oldVersion = reconcileServerStateIdentity("server-b", 4,
+    { serverInstanceId: "server-b", version: 3 }, retired);
+  assert.equal(oldVersion.stale, true);
+  assert.equal(oldVersion.retired, false);
+  const newInstance = reconcileServerStateIdentity("server-b", 4,
+    { serverInstanceId: "server-c", version: 1 }, retired);
+  assert.equal(newInstance.instanceChanged, true);
+  assert.equal(newInstance.retired, false);
+  const withoutId = reconcileServerStateIdentity("server-b", 4, { version: 4 }, retired);
+  assert.equal(withoutId.instanceId, "server-b");
+  assert.equal(withoutId.retired, false);
+  // The optional set does not change the legacy API when it is omitted.
+  assert.equal(reconcileServerStateIdentity("server-b", 4,
+    { serverInstanceId: "server-a", version: 31 }).instanceChanged, true);
+});
+
+test("a delayed retired-instance action response cannot apply state, timing, rejection or conflict retry", async () => {
+  for (const [status, options] of [[200, {}], [200, { applyResponse: false }], [409, {}], [403, {}]]) {
+    let release;
+    let currentInstance = "server-a";
+    let attempts = 0;
+    let timingUpdates = 0;
+    const retired = new Set();
+    const ready = new Promise(resolve => { release = resolve; });
+    const fixture = makeTransport(async () => {
+      attempts += 1;
+      await ready;
+      return response(status, { serverInstanceId: "server-a", version: 31,
+        commandConflict: status === 409, primaryPinDenied: status === 403 });
+    }, {
+      acceptRemote: remote => !reconcileServerStateIdentity(currentInstance, 1, remote, retired).retired,
+      updateTiming: () => { timingUpdates += 1; }
+    });
+    const result = fixture.transport.send("pause", {}, options);
+    // A new session is accepted elsewhere while this response is in flight.
+    retired.add(currentInstance);
+    currentInstance = "server-b";
+    release();
+    assert.equal(await result, "conflict", `${status}: ${JSON.stringify(options)}`);
+    assert.equal(attempts, 1);
+    assert.equal(currentInstance, "server-b");
+    assert.equal(fixture.applied.length, 0);
+    assert.equal(timingUpdates, 0);
+    assert.deepEqual(fixture.failures, []);
+    assert.deepEqual(fixture.applyErrors, []);
+  }
+});
+
+test("same-instance stale snapshot still provides measured timing", async () => {
+  let timingUpdates = 0;
+  const retired = new Set(["server-a"]);
+  const fixture = makeTransport(async () => response(200, { serverInstanceId: "server-b", version: 3 }), {
+    acceptRemote: remote => !reconcileServerStateIdentity("server-b", 4, remote, retired).retired,
+    updateTiming: () => { timingUpdates += 1; }
+  });
+  assert.equal(await fixture.transport.send("settings", {}, { applyResponse: false }), true);
+  assert.equal(timingUpdates, 1);
+  assert.equal(fixture.applied.length, 0);
+});
+
+test("an identity guard failure is reported without network retries or state application", async () => {
+  let attempts = 0;
+  const guardError = new Error("identity guard failed");
+  const fixture = makeTransport(async () => {
+    attempts += 1;
+    return response(200, { serverInstanceId: "server-a", version: 11 });
+  }, { acceptRemote: () => { throw guardError; } });
+  assert.equal(await fixture.transport.send("pause"), "conflict");
+  assert.equal(attempts, 1);
+  assert.equal(fixture.applied.length, 0);
+  assert.deepEqual(fixture.failures, []);
+  assert.equal(fixture.applyErrors.length, 1);
+  assert.equal(fixture.applyErrors[0].error, guardError);
+  const context = fixture.applyErrors[0].context;
+  assert.equal(context.type, "pause");
+  assert.equal(context.phase, "identity");
+  assert.equal(context.status, 200);
+  for (const name of ["date0", "date1", "perf0", "perf1"]) assert.ok(Number.isFinite(context.timing[name]), name);
+});
+
+test("non-runtime retired response returns false without state or network side effects", async () => {
+  const fixture = makeTransport(async () => response(200, { serverInstanceId: "server-a", version: 31 }), {
+    acceptRemote: () => false
+  });
+  assert.equal(await fixture.transport.send("settings"), false);
+  assert.equal(fixture.applied.length, 0);
+  assert.deepEqual(fixture.failures, []);
+});
+
+test("actual runtime controllers do not fall back to local mutations after a retired action response", async () => {
+  const html = fs.readFileSync(path.join(__dirname, "..", "index.html"), "utf8");
+  for (const [name, running, scheduled] of [
+    ["startTimer", false, false], ["pauseTimer", true, false],
+    ["hardReset", true, false], ["toggleScheduledCountdown", true, true]
+  ]) {
+    const match = html.match(new RegExp(`async function ${name}\\([\\s\\S]*?\\) \\{[\\s\\S]*?\\n    \\}`));
+    assert.ok(match, name);
+    let attempts = 0;
+    const fixture = makeTransport(async () => {
+      attempts += 1;
+      return response(200, { serverInstanceId: "server-a", version: 31, running: !running });
+    }, { acceptRemote: () => false });
+    const currentState = {running, completed: false, countdownOnly: scheduled,
+      waitingForManualStart: false, elapsedBeforePause: 0, serverStartedAt: 123000,
+      startedAt: 120000, accumulatedPause: 0, pausedAt: 0, activePreset: "classic", activeSettings: {oneShot: false}};
+    const before = JSON.stringify(currentState);
+    let localRenders = 0;
+    const context = vm.createContext({
+      state: currentState, controlsAvailable: () => true,
+      requestScreenWakeLock() {}, unlockAudio() {},
+      isBeforeScheduledStart: () => scheduled,
+      shouldUseManualStartAudioLead: () => true,
+      activeSettingsFromDraft: () => ({rotationSeconds: 60}), activeSettings: () => currentState.activeSettings,
+      sendServerAction: (...args) => fixture.transport.send(...args),
+      syncButtons() {}, render: () => {localRenders += 1;},
+      clearSignalTimers() {}, elapsedSeconds: () => 17,
+      performance: {now: () => 456000},
+      document: {body: {classList: {remove() {}}}},
+      buildTimeline() {}, signal() {}
+    });
+    vm.runInContext(`let standaloneMode = false, serverAvailable = true, audioContext = null;
+      let lastPhaseSignalKey = "", lastSegmentIndex = "1:rotation", pendingSeekAction = Promise.resolve();
+      ${match[0]}`, context);
+    await context[name]();
+    assert.equal(JSON.stringify(currentState), before, `${name} must retain the current server state`);
+    assert.equal(localRenders, 0, `${name} must not render a local fallback`);
+    assert.equal(attempts, 1);
+    assert.equal(fixture.applied.length, 0);
+    assert.deepEqual(fixture.failures, []);
+  }
+});
+
+test("actual Stop controller ignores an older same-instance reset acknowledgement after a newer start", async () => {
+  const html = fs.readFileSync(path.join(__dirname, "..", "index.html"), "utf8");
+  const hardReset = html.match(/async function hardReset\([\s\S]*?\) \{[\s\S]*?\n    \}/);
+  assert.ok(hardReset);
+  let finishSounds = 0, attempts = 0;
+  const measuredTimings = [];
+  const currentState = {running: true, completed: false, elapsedBeforePause: 0,
+    activePreset: "classic", serverStartedAt: 320000, activeSettings: {oneShot: false}};
+  const before = JSON.stringify(currentState);
+  const fixture = makeTransport(async () => {
+    attempts += 1;
+    return response(200, {serverInstanceId: "server-a", version: 31, running: false});
+  }, {
+    acceptRemote: (remote, context) => {
+      const identity = reconcileServerStateIdentity("server-a", 32, remote, new Set());
+      if (identity.stale) {
+        measuredTimings.push(context.timing);
+        return false;
+      }
+      return true;
+    }
+  });
+  const context = vm.createContext({state: currentState,
+    controlsAvailable: () => true, isBeforeScheduledStart: () => false,
+    activeSettingsFromDraft: () => ({rotationSeconds: 60}),
+    sendServerAction: (...args) => fixture.transport.send(...args),
+    signal: kind => {if (kind === "finish") finishSounds += 1;},
+    clearSignalTimers() {}, syncButtons() {}, render() {}, buildTimeline() {},
+    document: {body: {classList: {remove() {}}}}
+  });
+  vm.runInContext(`let standaloneMode = false, serverAvailable = true;
+    let lastSegmentIndex = "1:rotation", lastPhaseSignalKey = "1:rotation";
+    ${hardReset[0]}`, context);
+  await context.hardReset();
+  assert.equal(JSON.stringify(currentState), before);
+  assert.equal(finishSounds, 0);
+  assert.equal(attempts, 1);
+  assert.equal(fixture.applied.length, 0);
+  assert.equal(measuredTimings.length, 1);
+  for (const name of ["date0", "date1", "perf0", "perf1"]) assert.ok(Number.isFinite(measuredTimings[0][name]), name);
+  assert.deepEqual(fixture.failures, []);
 });
 
 test("audio test uses a pending offset only for its edited target", () => {

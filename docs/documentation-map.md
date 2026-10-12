@@ -61,6 +61,8 @@ Current application screenshots belong in `help-assets/`. A screenshot that show
 | `android/` | Native Android WebView shell and release-signing configuration contract; generated signing keys and `keystore.properties` must never enter Git |
 | `docs/review/*` | Maintained architecture review: current system overview, synchronization analysis, remaining risks, and improvement plan |
 
+The current modern recovery contract is in the Authority and clocks section of `docs/architecture.md`: measured HTTP timing is separate from state/SSE, retired server instances cannot return through late packets, and clock discontinuity requires server verification rather than a wall-clock jump. `README.md`, `ReadMe.txt`, and both `help.html` languages describe the pending-clock warning and suspended signals. The architecture also distinguishes unchanged Legacy wall-clock/XHR behavior and documents the regression matrix and limits of simulated sleep tests. Historical review material must not override that implementation contract.
+
 Project-level files outside the worktree:
 
 - `../PROJECT-CONTEXT.md` is the handoff map for future development sessions.

@@ -3085,7 +3085,7 @@
       timeline: []
     };
 
-    const pageBuildNumber = 411;
+    const pageBuildNumber = 412;
     const projectUrl = "https://github.com/dfedorov-arch/fdv-bouldering-timer";
     const buildLinkConfirmDelayMs = 550;
     const offlineSnapshotKey = "fdvBoulderingTimerOfflineSnapshot";
@@ -4204,6 +4204,8 @@
     let clockContinuityPerfAt = performance.now();
     let trustedServerClockAnchor = null;
     let lastTrustedClockAnchorAt = 0;
+    let clockCalibrationPending = false;
+    const retiredServerInstanceIds = new Set();
     let syncRequestInFlight = false;
     let syncRequestGeneration = 0;
     let syncRequestController = null;
@@ -4300,7 +4302,6 @@
     const serverTimerLookaheadSeconds = 1.25;
     const staleResumeAfterMs = 3000;
     const resumeSnapMaxWaitMs = 2600;
-    const clockContinuityGapMs = 3000;
     const clockContinuityMismatchMs = 100;
     const trustedClockAnchorIntervalMs = 60000;
     const staleSignalGraceMs = 500;
@@ -4395,6 +4396,19 @@
     }
 
     function updateConnectionWarning() {
+      if (clockCalibrationPending) {
+        els.serverConnectionWarning.hidden = false;
+        els.serverConnectionWarning.dataset.state = "clock-pending";
+        els.serverConnectionWarningTitle.textContent = language === "ru"
+          ? "Требуется проверка времени" : "Clock verification required";
+        els.serverConnectionWarningText.textContent = language === "ru"
+          ? "Обнаружено расхождение часов браузера. Отсчёт продолжается по последней монотонной модели; сигналы приостановлены до проверки по серверу. В автономном режиме для нового отсчёта нажмите Стоп, затем Старт."
+          : "Browser clock discontinuity detected. The last monotonic timeline is retained; sound is suspended until server verification. For a new standalone run, press Stop, then Start.";
+        els.enterStandaloneBtn.hidden = standaloneMode || serverAvailable;
+        els.returnToServerBtn.hidden = !standaloneMode || !serverAvailable;
+        updateInstallButton();
+        return;
+      }
       if (!standaloneMode && serverAvailable) {
         els.serverConnectionWarning.hidden = true;
         updateInstallButton();
@@ -4532,8 +4546,8 @@
     function rescheduleStandaloneSignals(options = {}) {
       clearSignalTimers(false, Boolean(options.forceStopAudio));
       lastSegmentIndex = -1;
-      if (document.hidden) {
-        if (state.running) signalsInvalidatedWhileHidden = true;
+      if (document.hidden || clockCalibrationPending) {
+        if (document.hidden && state.running) signalsInvalidatedWhileHidden = true;
         return;
       }
       if (!state.running || state.countdownOnly) return;
@@ -4569,7 +4583,7 @@
     }
 
     function scheduleRecentPhaseSignalAfterResume(segment) {
-      if (document.hidden || !state.running || state.countdownOnly || !segment) return false;
+      if (document.hidden || clockCalibrationPending || !state.running || state.countdownOnly || !segment) return false;
       const targetServerTime = Number(serverTimeForElapsed(segment.start));
       const lateGraceMs = recentPhaseSignalGraceMs(segment);
       if (!Number.isFinite(targetServerTime) || !shouldScheduleServerSignal(targetServerTime, lateGraceMs)) return false;
@@ -5109,7 +5123,7 @@
     }
 
     function refreshTrustedClockAnchor(force = false) {
-      if (standaloneMode || !serverAvailable) return;
+      if (standaloneMode || !serverAvailable || clockCalibrationPending) return;
       const wallNow = Date.now();
       if (!force && trustedServerClockAnchor
         && wallNow - lastTrustedClockAnchorAt < trustedClockAnchorIntervalMs) return;
@@ -5170,48 +5184,21 @@
       serverClockRate = 1;
       serverClockRateHighConfidence = false;
       serverClockRateConfidence = "reset";
+      clockCalibrationPending = false;
       serverPerfAnchor = localNow;
       serverTimeAnchor = dateNow;
       serverPerfOffset = dateNow - localNow;
       syncQuality = { latency: null, offset: null, error: null, jitter: null, samples: 0, rate: 1 };
     }
 
-    function repairServerClockAfterSuspension() {
-      const wallNow = Date.now();
-      const perfNow = performance.now();
-      const wallDelta = Math.max(0, wallNow - clockContinuityWallAt);
-      const perfDelta = Math.max(0, perfNow - clockContinuityPerfAt);
-      clockContinuityWallAt = wallNow;
-      clockContinuityPerfAt = perfNow;
-
-      if (wallDelta < clockContinuityGapMs) return false;
-
-      const currentServerTime = serverNow();
-      const fallbackCorrection = wallDelta - (perfDelta * serverClockRate);
-      const trustedWallDelta = trustedServerClockAnchor
-        ? wallNow - trustedServerClockAnchor.wallAt
-        : NaN;
-      const trustedPerfDelta = trustedServerClockAnchor
-        ? perfNow - trustedServerClockAnchor.perfAt
-        : NaN;
-      const trustedAnchorUsable = trustedServerClockAnchor
-        && Number.isFinite(trustedWallDelta)
-        && Number.isFinite(trustedPerfDelta)
-        && trustedWallDelta >= 0
-        && trustedWallDelta <= offlineSnapshotMaxAgeMs;
-      const estimatedServerTime = trustedAnchorUsable
-        ? trustedServerClockAnchor.serverAt + trustedWallDelta
-        : currentServerTime + fallbackCorrection;
-      const correction = estimatedServerTime - currentServerTime;
-      if (Math.abs(correction) < clockContinuityMismatchMs) return false;
-
-      applyServerClockModel(estimatedServerTime, serverClockRate, true);
+    function invalidateServerClockCalibration(reason) {
+      const wasPending = clockCalibrationPending;
+      clockCalibrationPending = true;
       syncSamples = [];
       resetServerClockRateConfirmation();
       serverClockRateHighConfidence = false;
-      const wakeConfidence = trustedAnchorUsable ? "wake-wall-anchor" : "wake-estimate";
-      serverClockRateConfidence = wakeConfidence;
-      serverClockRateGateReason = wakeConfidence;
+      serverClockRateConfidence = "calibration-pending";
+      serverClockRateGateReason = reason;
       syncQuality = {
         latency: null,
         offset: null,
@@ -5223,12 +5210,53 @@
         rateGateReason: serverClockRateGateReason,
         rateAcceptedPpm: Math.round((serverClockRate - 1) * 1000000)
       };
+      if (!wasPending) {
+        clearSignalTimers(false, true);
+        lastSegmentIndex = -1;
+        lastDisplayTimeLabel = "";
+      }
+      updateConnectionWarning();
+    }
 
-      clearSignalTimers(false, true);
-      lastSegmentIndex = -1;
-      suppressPhaseSignalsUntil = wallNow + 2500;
-      if (state.running && !state.countdownOnly) rescheduleStandaloneSignals();
-      lastDisplayTimeLabel = "";
+    function browserClockIntervalMismatch(wallDuration, perfDuration) {
+      // Equal local clocks must not be rejected just because server rate differs.
+      // A previously accepted rate may also explain continuous perf-clock drift.
+      return Math.min(Math.abs(wallDuration - perfDuration),
+        Math.abs(wallDuration - perfDuration * serverClockRate));
+    }
+
+    function repairServerClockAfterSuspension() {
+      const wallNow = Date.now();
+      const perfNow = performance.now();
+      const wallDelta = wallNow - clockContinuityWallAt;
+      const perfDelta = perfNow - clockContinuityPerfAt;
+      clockContinuityWallAt = wallNow;
+      clockContinuityPerfAt = perfNow;
+      if (perfDelta >= 0 && browserClockIntervalMismatch(wallDelta, perfDelta) < clockContinuityMismatchMs) return false;
+      // Two browser clocks cannot distinguish sleep from a system-clock step.
+      // Keep the monotonic timeline; only a fresh measured server response may
+      // move it. Check this BEFORE a response can replace its trusted anchor.
+      invalidateServerClockCalibration("clock-discontinuity");
+      return true;
+    }
+
+    function prepareServerClockMeasurement(timing) {
+      repairServerClockAfterSuspension();
+      const wallDuration = timing.date1 - timing.date0;
+      const perfDuration = timing.perf1 - timing.perf0;
+      const processingWallDuration = Date.now() - timing.date1;
+      const processingPerfDuration = performance.now() - timing.perf1;
+      if (wallDuration < 0 || processingWallDuration < 0 || processingPerfDuration < 0
+        || browserClockIntervalMismatch(wallDuration, perfDuration) >= clockContinuityMismatchMs
+        || browserClockIntervalMismatch(processingWallDuration, processingPerfDuration) >= clockContinuityMismatchMs) {
+        invalidateServerClockCalibration("request-clock-discontinuity");
+        queueClientRecoverySync({
+          reason: "invalid-clock-measurement", forceClockCorrection: true,
+          resetClockSamples: true, preserveClockRate: true,
+          rescheduleSignals: true, resumeAudioSchedule: true
+        });
+        return false;
+      }
       return true;
     }
 
@@ -5245,6 +5273,9 @@
 
     function updateServerTiming(remote, timing = {}, options = {}) {
       if (standaloneMode) return;
+      const identity = window.FDVClientActionTransport.reconcileServerStateIdentity(
+        lastServerInstanceId, lastServerVersion, remote, retiredServerInstanceIds);
+      if (identity.retired) return;
       const remoteVersion = Number(remote?.version || 0);
       if (Number.isFinite(remoteVersion) && remoteVersion > lastServerVersion) {
         lastServerVersion = remoteVersion;
@@ -5269,11 +5300,15 @@
         }
         return;
       }
+      if (!prepareServerClockMeasurement({ date0, date1, perf0, perf1 })) return;
       if (serverClockRecoveryTimer !== null) {
         window.clearTimeout(serverClockRecoveryTimer);
         serverClockRecoveryTimer = null;
       }
-      const preserveClockRate = Boolean(options.preserveClockRate);
+      const preserveClockRate = Boolean(options.preserveClockRate || clockCalibrationPending);
+      if (clockCalibrationPending && serverClockRateConfidence === "calibration-pending") {
+        serverClockRateConfidence = "resume-held";
+      }
       const holdExistingClockRate = preserveClockRate
         || serverClockRateConfidence === "resume-held"
         || serverClockRateGateReason === "resume-held";
@@ -5443,13 +5478,18 @@
         serverTimeOffset = median(clockOffsets);
         // Compare with the measured estimate projected to now, not remote.now
         // from an earlier request/response instant (or before JSON processing).
-        const forceClockCorrection = options.forceClockCorrection || syncSamples.length < 3
+        const forceClockCorrection = options.forceClockCorrection || clockCalibrationPending || syncSamples.length < 3
           || Math.abs(nextServerNow - serverNow()) > 1000;
+        const recoveredCalibration = clockCalibrationPending;
         applyServerClockModel(nextServerNow, nextRate, forceClockCorrection);
+        clockCalibrationPending = false;
+        if (recoveredCalibration) updateConnectionWarning();
+        const remainingCorrectionMs = Math.abs(nextServerNow - serverNow());
         syncQuality = {
           latency,
           offset: serverTimeOffset,
-          error: (bestLatency / 2) + jitter,
+          error: (bestLatency / 2) + jitter + remainingCorrectionMs,
+          remainingCorrectionMs,
           jitter,
           samples: qualitySamples,
           rate: serverClockRate,
@@ -5462,7 +5502,17 @@
           rateHalfDiffPpm,
           rateOutlierShare
         };
-        refreshTrustedClockAnchor();
+        refreshTrustedClockAnchor(recoveredCalibration);
+        if (recoveredCalibration) {
+          lastSegmentIndex = -1;
+          // Apply authoritative state first. Timing-only action responses must
+          // restore audio too, without waiting for a display snap to finish.
+          window.setTimeout(() => {
+            if (clockCalibrationPending || document.hidden) return;
+            if (lastSegmentIndex === -1) rescheduleStandaloneSignals({ reason: "clock-calibrated" });
+            render("clock-calibrated");
+          }, 0);
+        }
         return;
       }
     }
@@ -5472,9 +5522,11 @@
       const identity = window.FDVClientActionTransport.reconcileServerStateIdentity(
         lastServerInstanceId,
         lastServerVersion,
-        remote
+        remote,
+        retiredServerInstanceIds
       );
       if (identity.instanceChanged) {
+        if (previousInstanceId) retiredServerInstanceIds.add(previousInstanceId);
         if (identity.serverRestarted && performanceDiagnosticsEnabled && !pendingPerformanceServerRestart) {
           const previousElapsedMs = elapsedSeconds() * 1000;
           const previousSegment = state.running && !state.countdownOnly
@@ -5492,7 +5544,10 @@
         lastServerVersion = 0;
         trustedServerClockAnchor = null;
         lastTrustedClockAnchorAt = 0;
-        if (identity.serverRestarted) lastRemoteRunning = false;
+        if (identity.serverRestarted) {
+          lastRemoteRunning = false;
+          invalidateServerClockCalibration("server-instance-change");
+        }
       }
       return identity;
     }
@@ -5575,7 +5630,7 @@
         syncJitter: syncQuality.jitter ?? "",
         syncSamples: syncQuality.samples ?? "",
         syncRate: syncQuality.rate ?? "",
-        syncRateConfidence: syncQuality.rateConfidence ?? serverClockRateConfidence,
+        syncRateConfidence: clockCalibrationPending ? "calibration-pending" : syncQuality.rateConfidence ?? serverClockRateConfidence,
         syncRateGateReason: syncQuality.rateGateReason ?? serverClockRateGateReason,
         syncRateCandidatePpm: finiteOrBlank(syncQuality.rateCandidatePpm),
         syncRateAcceptedPpm: finiteOrBlank(syncQuality.rateAcceptedPpm),
@@ -6314,7 +6369,18 @@
       const performanceStartedAt = performanceStart();
       try {
       if (!remote || typeof remote !== "object") return;
-      reconcileServerStateIdentity(remote);
+      const identity = reconcileServerStateIdentity(remote);
+      if (identity.retired) return;
+      if (identity.stale) {
+        updateServerTiming(remote, options.timing, options);
+        return;
+      }
+      // Visibility may have changed while this response was in flight. Replacing
+      // audio must also rebuild it NOW if visible, not use dispatch-time state.
+      if (options.replaceAudioSchedule) {
+        options = { ...options, rescheduleSignals: !document.hidden,
+          resumeAudioSchedule: !document.hidden };
+      }
       markServerContact();
       if (standaloneMode) {
         pendingServerState = remote;
@@ -6447,7 +6513,7 @@
       } else if (state.countdownOnly) {
         clearSignalTimers();
         lastSegmentIndex = -1;
-      } else if (options.rescheduleSignals || audioOffsetChanged || festivalAnnouncementsChanged) {
+      } else if (!clockCalibrationPending && (options.rescheduleSignals || audioOffsetChanged || festivalAnnouncementsChanged)) {
         const elapsed = elapsedSeconds();
         const segment = getCurrentSegment(elapsed);
         if (segment) {
@@ -6491,6 +6557,7 @@
       const performanceStartedAt = performanceStart();
       try {
       if (!remote || typeof remote !== "object" || standaloneMode) return;
+      if (reconcileServerStateIdentity(remote).stale) return;
       const nextActiveSettings = remote.activeSettings || state.activeSettings;
       const settingsChanged = JSON.stringify(nextActiveSettings || {}) !== JSON.stringify(state.activeSettings || {});
       state.running = Boolean(remote.running);
@@ -6553,7 +6620,30 @@
       }, 100);
     }
 
+    function applyServerTimingResponse(remote, timing) {
+      const identity = window.FDVClientActionTransport.reconcileServerStateIdentity(
+        lastServerInstanceId, lastServerVersion, remote, retiredServerInstanceIds);
+      if (identity.retired) return;
+      if (identity.instanceChanged) {
+        // Even a timing-only action must adopt a genuinely new server's state;
+        // otherwise its clock would be paired with the previous server's run.
+        applyServerState(remote, { timing, rescheduleSignals: true, includePhaseSignal: false });
+        return;
+      }
+      updateServerTiming(remote, timing);
+    }
+
     const clientActionTransport = window.FDVClientActionTransport.createActionTransport({
+      acceptRemote: (remote, context) => {
+        const identity = window.FDVClientActionTransport.reconcileServerStateIdentity(
+          lastServerInstanceId, lastServerVersion, remote, retiredServerInstanceIds);
+        if (identity.retired) return false;
+        if (identity.stale) {
+          updateServerTiming(remote, context.timing);
+          return false;
+        }
+        return true;
+      },
       applyRemote: (remote, options) => applyServerState(remote, options),
       clientDiagnostics,
       fetch: (...args) => fetch(...args),
@@ -6570,8 +6660,11 @@
       ),
       nextCommandId: () => `${clientId}:${commandSessionId}:${++commandSeq}`,
       requestTimeoutMs: syncRequestTimeoutMs,
-      serverNow,
-      updateTiming: (remote, timing) => updateServerTiming(remote, timing),
+      serverNow: () => {
+        checkClockContinuity();
+        return clockCalibrationPending ? undefined : serverNow();
+      },
+      updateTiming: applyServerTimingResponse,
       setTimeout: (...args) => window.setTimeout(...args),
       clearTimeout: (timeout) => window.clearTimeout(timeout),
       now: () => Date.now(),
@@ -6619,6 +6712,8 @@
         remote = await response.json();
         performanceEnd("stateResponseJsonParse", parsePerformanceStartedAt);
         if (requestGeneration !== syncRequestGeneration) return false;
+        if (window.FDVClientActionTransport.reconcileServerStateIdentity(
+          lastServerInstanceId, lastServerVersion, remote, retiredServerInstanceIds).retired) return false;
         markServerContact();
         if (standaloneMode) {
           pendingServerState = remote;
@@ -6741,6 +6836,8 @@
           const parsePerformanceStartedAt = performanceStart();
           const remote = JSON.parse(event.data);
           performanceEnd("sseStateJsonParse", parsePerformanceStartedAt);
+          if (window.FDVClientActionTransport.reconcileServerStateIdentity(
+            lastServerInstanceId, lastServerVersion, remote, retiredServerInstanceIds).retired) return;
           markSseEvent();
           if (standaloneMode) {
             pendingServerState = remote;
@@ -7013,9 +7110,8 @@
           ...recovery,
           forceApply: true,
           skipBurst: true,
-          // Ordinary recovery preserves a cue already playing. After a real
-          // clock repair, replace provisional wall-estimate buffers with the
-          // measured schedule, retaining the previous wake-recovery policy.
+          // Ordinary recovery preserves a cue already playing. A clock recovery
+          // replaces invalidated schedules using the fresh measured clock.
           replaceAudioSchedule: Boolean(recovery.forceClockCorrection),
           rescheduleSignals: recovery.rescheduleSignals && !document.hidden,
           includeRecentPhaseSignal: recovery.includeRecentPhaseSignal && !document.hidden,
@@ -8817,9 +8913,13 @@
             ? language === "ru" ? `выбросов ${Math.round(syncOutlierShare * 100)}%` : `outliers ${Math.round(syncOutlierShare * 100)}%`
             : ""
         ].filter(Boolean).join("; ");
-        const syncRateDetailsText = syncRateDetails ? `; ${syncRateDetails}` : "";
+        const syncRateDetailsText = (syncRateDetails ? `; ${syncRateDetails}` : "")
+          + (client.syncRateConfidence === "calibration-pending"
+            ? language === "ru" ? "; требуется проверка часов по серверу" : "; server clock verification required" : "");
         const netStatus = clientConnected ? thresholdStatus(latency, 100, 200) : "bad";
-        const baseSyncStatus = clientConnected ? thresholdStatus(estimatedSyncError, 100, 300) : "bad";
+        const calibrationPending = client.syncRateConfidence === "calibration-pending";
+        const baseSyncStatus = clientConnected && !calibrationPending
+          ? thresholdStatus(estimatedSyncError, 100, 300) : "bad";
         const hasRenderDelay = client.renderDelay !== null
           && client.renderDelay !== undefined
           && client.renderDelay !== ""
@@ -9826,11 +9926,12 @@
     }
 
     function scheduleManualStartWatchdog(targetServerTime) {
-      if (!canPlaySound() || !Number.isFinite(targetServerTime) || targetServerTime <= 0) return;
+      if (clockCalibrationPending || !canPlaySound() || !Number.isFinite(targetServerTime) || targetServerTime <= 0) return;
       const scheduleGeneration = audioScheduleGeneration;
       const signalKey = manualStartSignalKey(targetServerTime);
       const soundTargetServerTime = audioServerTime(targetServerTime);
       const suppressLateWatchdog = () => {
+        if (clockCalibrationPending) return;
         if (playedSignalKeys.has(signalKey)) return;
         markSignalPlayed(signalKey);
         const suppressedAtServerTime = serverNow();
@@ -9847,7 +9948,7 @@
         });
       };
       scheduleServerTimeoutAt(soundTargetServerTime + manualStartWatchdogDelayMs, () => {
-        if (scheduleGeneration !== audioScheduleGeneration) return;
+        if (clockCalibrationPending || scheduleGeneration !== audioScheduleGeneration) return;
         if (playedSignalKeys.has(signalKey)) return;
         if (serverNow() - soundTargetServerTime > signalLateGraceMs.start) {
           suppressLateWatchdog();
@@ -10306,8 +10407,8 @@
     }
 
     function scheduleSegmentSignals(segment, remaining, duration, includePhase = true) {
-      if (document.hidden) {
-        if (state.running) signalsInvalidatedWhileHidden = true;
+      if (document.hidden || clockCalibrationPending) {
+        if (document.hidden && state.running) signalsInvalidatedWhileHidden = true;
         clearSignalTimers(false, true);
         return;
       }
@@ -10465,8 +10566,8 @@
     }
 
     function scheduleFinalWarnings(segment) {
-      if (document.hidden) {
-        if (state.running) signalsInvalidatedWhileHidden = true;
+      if (document.hidden || clockCalibrationPending) {
+        if (document.hidden && state.running) signalsInvalidatedWhileHidden = true;
         return;
       }
       const finalSignalKey = `${segment.cycle}:${segment.type}:final`;
@@ -10659,7 +10760,7 @@
     }
 
     function renderCanonicalSegmentSignals(segment, elapsed) {
-      if (!segment) return;
+      if (!segment || clockCalibrationPending) return;
       const remaining = segment.end - elapsed;
       const duration = segment.end - segment.start;
       const segmentKey = `${segment.cycle}:${segment.type}`;
@@ -11079,7 +11180,17 @@
       }
     }
 
+    function confirmStandaloneClockContinuity() {
+      if (!clockCalibrationPending) return;
+      clockCalibrationPending = false;
+      reanchorServerClockModel("standalone-local");
+      clockContinuityWallAt = Date.now();
+      clockContinuityPerfAt = performance.now();
+      updateConnectionWarning();
+    }
+
     function startStandaloneTimer() {
+      confirmStandaloneClockContinuity();
       const waitingForManualStart = state.waitingForManualStart;
       if (state.completed && state.runtimePreset === "final") state.startListFinalCycle += 1;
       const isFreshStart = state.elapsedBeforePause === 0 || state.completed || state.waitingForManualStart;
@@ -11118,6 +11229,7 @@
     }
 
     function resetStandaloneTimer(shouldSignal = false) {
+      confirmStandaloneClockContinuity();
       const stoppedOneShot = Boolean(activeSettings().oneShot);
       const completedFinalAttempt = state.runtimePreset === "final"
         && ((state.running && !state.countdownOnly) || state.completed || state.elapsedBeforePause > 0);
@@ -11215,6 +11327,7 @@
       if (audioContext?.state === "suspended") audioContext.resume();
       if (standaloneMode) {
         const now = Date.now();
+        confirmStandaloneClockContinuity();
         const target = new Date(now);
         target.setHours(Number(els.startHours.value || 0), Number(els.startMinutes.value || 0), 0, 0);
         clearStartListIncidentsForNewRound();

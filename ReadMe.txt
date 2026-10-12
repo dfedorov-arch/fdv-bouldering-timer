@@ -86,6 +86,8 @@ LEGACY переключает облегчённую страницу старо
 
 Порог NET: до 100 мс зелёный, 100–200 мс жёлтый, выше 200 мс красный. Порог задержки отрисовки и аудиочасов: до 100 мс зелёный, 100–250 мс жёлтый, выше 250 мс красный.
 
+После расхождения часов браузера SYNC красный до нового измерения по серверу; подсказка и предупреждение «Требуется проверка времени» объясняют причину. Оценка ошибки учитывает и ещё не применённую поправку, а не только сетевую задержку.
+
 Legacy и временная потеря сети
 -----------------------------
 
@@ -93,7 +95,9 @@ Legacy предназначен для старых ТВ-браузеров. О�
 
 В портретном режиме колонки номера и трасс компактные, а ФИО сохраняется целиком без наложения значков. Если данные шире экрана, список можно прокрутить по горизонтали.
 
-Обычный экран также продолжает расчёт из последней временной шкалы. После длительной недоступности сервера предлагается автономный режим. Возврат к серверу выполняется явно, потому что автономные команды не отправляются назад.
+Обычный экран также продолжает расчёт из последней временной шкалы. Обычное возвращение сети сохраняет калибровку часов и корректное расписание звука. После длительной недоступности сервера предлагается автономный режим. На странице, открытой через сервер, восстановление контакта автоматически возвращает серверное состояние; автономные команды и изменения не отправляются назад и отбрасываются. Прямая однофайловая автономная версия сервера не использует.
+
+Сон или перевод системных часов могут нарушить доверие к измерениям времени. В таком случае прежний монотонный отсчёт продолжается с предупреждением, а сигналы приостанавливаются до проверки по серверу: системные часы не используются для скачка времени. Если сервера нет, Стоп, затем Старт задают новый автономный отсчёт, но не восстанавливают точность прежнего. Перед соревнованием отдельно проверьте обрыв сети, сон/пробуждение и переходы ротаций на физических устройствах. Эта новая логика относится к обычному экрану, не к упрощённой синхронизации Legacy.
 
 Звук
 ----
@@ -181,6 +185,8 @@ LEGACY selects the simplified old-browser page. AUDIO reports availability, unlo
 
 NET is green up to 100 ms, yellow from 100 to 200 ms, and red above 200 ms. Render and audio-clock progress are green below 100 ms, yellow from 100 to 250 ms, and red above 250 ms.
 
+After a browser-clock discontinuity, SYNC stays red until a fresh server measurement; its tooltip and the “Clock verification required” warning explain why. The error estimate includes an unapplied correction as well as network delay.
+
 Legacy and network loss
 -----------------------
 
@@ -188,7 +194,9 @@ Legacy is intended for older TV browsers. It shows the timer, selected LIST tabl
 
 Portrait number and route columns are compact; full names do not overlap markers. Lists wider than the screen can be scrolled horizontally.
 
-The modern page also extrapolates from the last known timeline. After a longer server outage it offers Standalone mode. Returning to server state is explicit because standalone commands are not uploaded.
+The modern page also extrapolates from the last known timeline. Ordinary network recovery retains clock calibration and valid sound schedules. After a longer server outage it offers Standalone mode. A server-opened page automatically returns to authoritative server state when contact resumes; standalone commands and changes are not uploaded and are discarded. The direct single-file standalone version has no server.
+
+Sleep or a system-clock change can invalidate clock measurements. The previous monotonic timeline then continues with a warning, while timed signals are suspended until server verification; wall time does not directly jump the timer. Without a server, Stop followed by Start establishes a new standalone run, not verified elapsed time for the previous run. Before competition use, test network loss, sleep/wake, and rotation boundaries on the physical devices. This new recovery policy applies to the normal page, not Legacy's simplified synchronization.
 
 Sound, settings, and help
 -------------------------

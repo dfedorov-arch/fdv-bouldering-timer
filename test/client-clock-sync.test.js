@@ -5,6 +5,7 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
 const vm = require("node:vm");
+const transport = require("../lib/client-action-transport");
 const html = fs.readFileSync(path.join(__dirname, "..", "index.html"), "utf8");
 
 function source(name, optional = false) {
@@ -22,17 +23,22 @@ function harness({ samples = true, sampleOffset = 0 } = {}) {
   const context = vm.createContext({
     performance: { now: () => now }, Date: { now: () => 100000 + now },
     window: {
+      FDVClientActionTransport: transport,
       setTimeout: (callback, delay) => { const id = ++nextTimer; timers.set(id, { callback, at: now + delay }); return id; },
       clearTimeout: id => timers.delete(id)
     },
     scheduleDisplayBoundary: () => {}, refreshTrustedClockAnchor: () => {},
+    clearSignalTimers() {}, rescheduleStandaloneSignals() {}, render() {},
+    updateConnectionWarning() {},
+    state: { running: true, countdownOnly: false },
+    queueClientRecoverySync: options => requests.push({ recovery: options }),
     syncFromServer: options => { requests.push(options); return Promise.resolve(true); }
   });
   const constants = ["syncSampleWindowMs", "syncMaxSamples", "syncRateMinSpanMs", "syncRateLargeMin",
     "syncRateLargeMax", "syncRateNormalMin", "syncRateNormalMax", "syncRateStableMinSamples",
     "syncRateStableMaxResidualMs", "syncRateStableMaxHalfDiffPpm", "syncRateStableMaxOutlierShare",
     "syncRateConfirmationTolerancePpm", "syncRateConfirmationWindows", "syncRateLargeThresholdPpm",
-    "syncRateDeadband", "syncRateSmoothing"]
+    "syncRateDeadband", "syncRateSmoothing", "clockContinuityMismatchMs"]
     .map(name => html.match(new RegExp(`const ${name} = [^;]+;`))[0]).join("\n");
   const seeds = samples ? [0, 500, 1000].map(perfTime => ({
     at: perfTime, latency: 4, networkLatency: 4, perfTime,
@@ -50,10 +56,15 @@ function harness({ samples = true, sampleOffset = 0 } = {}) {
     let pendingServerClockRatePpm = null, pendingServerClockRateCount = 0;
     let serverClockRecoveryTimer = null, lastServerClockRecoveryAt = -Infinity;
     let standaloneMode = false, syncRequestInFlight = false;
+    let clockCalibrationPending = false, retiredServerInstanceIds = new Set();
+    let clockContinuityWallAt = 102000, clockContinuityPerfAt = 2000;
+    let lastSegmentIndex = -1, lastDisplayTimeLabel = "";
     let syncSamples = ${JSON.stringify(seeds)};
     let syncQuality = {error: 2, latency: 4, jitter: 0, samples: ${seeds.length}, rate: 1};
     ${["serverNow", "clampFloat", "median", "percentile", "fitClockRate",
-      "resetServerClockRateConfirmation", "applyServerClockModel", "updateServerTiming"].map(name => source(name)).join("\n")}
+      "resetServerClockRateConfirmation", "applyServerClockModel", "invalidateServerClockCalibration",
+      "reanchorServerClockModel", "confirmStandaloneClockContinuity", "browserClockIntervalMismatch", "repairServerClockAfterSuspension",
+      "prepareServerClockMeasurement", "updateServerTiming"].map(name => source(name)).join("\n")}
     ${source("requestMeasuredClockSync", true)}
   `, context);
   return {
@@ -210,10 +221,55 @@ test("delayed JSON handling is projected to the current clock instead of forcing
 
 test("SSE clock rejection does not short-circuit authoritative timer state application", () => {
   const apply = source("applyServerState");
-  const timingAt = apply.indexOf("updateServerTiming(remote");
+  const timingAt = apply.indexOf("updateServerTiming(remote", apply.indexOf("applyStartupConfig("));
   const stateAt = apply.indexOf("state.running = Boolean(remote.running)");
   assert.ok(timingAt >= 0 && stateAt > timingAt);
   assert.doesNotMatch(apply.slice(timingAt, stateAt), /if\s*\(|return\b/);
   assert.match(apply, /state\.serverStartedAt = Number\(remote\.startedAt/);
   assert.match(apply, /render\("state-update"\)/);
+});
+
+test("SYNC error includes the unapplied part of a capped clock correction", () => {
+  const h = harness({ sampleOffset: 600 });
+  h.measured(600);
+  assert.equal(h.get("serverNow()"), 102250);
+  assert.equal(h.get("syncQuality.remainingCorrectionMs"), 350);
+  assert.equal(h.get("syncQuality.error"), 351);
+  h.measured(600);
+  assert.equal(h.get("syncQuality.remainingCorrectionMs"), 100);
+  assert.equal(h.get("syncQuality.error"), 101);
+  h.measured(600);
+  assert.equal(h.get("syncQuality.remainingCorrectionMs"), 0);
+  assert.equal(h.get("syncQuality.error"), 1);
+});
+
+test("a retired-instance timing response cannot mutate version, history or clock quality", () => {
+  const h = harness();
+  h.set('lastServerInstanceId = "server-b"; lastServerVersion = 1; retiredServerInstanceIds.add("server-a");');
+  const previous = h.get("JSON.stringify({syncSamples,syncQuality,serverTimeAnchor})");
+  h.measured(5000, { version: 999, serverInstanceId: "server-a" });
+  assert.equal(h.get("lastServerVersion"), 1);
+  assert.equal(h.get("JSON.stringify({syncSamples,syncQuality,serverTimeAnchor})"), previous);
+  assert.equal(h.timers.size, 0);
+});
+
+test("a valid measured calibration clears pending confidence while retaining the accepted clock rate", () => {
+  const h = harness();
+  h.context.invalidateServerClockCalibration("test-discontinuity");
+  assert.equal(h.get("clockCalibrationPending"), true);
+  h.measured();
+  assert.equal(h.get("clockCalibrationPending"), false);
+  assert.notEqual(h.get("syncQuality.rateConfidence"), "calibration-pending");
+  assert.equal(h.get("serverClockRate"), 1);
+});
+
+test("an explicit standalone run establishes a local monotonic baseline without a wall-time jump", () => {
+  const h = harness();
+  h.context.invalidateServerClockCalibration("test-discontinuity");
+  h.set("standaloneMode = true;");
+  const before = h.get("serverNow()");
+  h.context.confirmStandaloneClockContinuity();
+  assert.equal(h.get("serverNow()"), before);
+  assert.equal(h.get("clockCalibrationPending"), false);
+  assert.equal(h.get("syncQuality.rateConfidence"), "standalone-local");
 });
