@@ -727,9 +727,9 @@ test("a suspended performance clock is repaired without replacing the server clo
   assert.match(index, /\(Number\.isFinite\(savedServerNow\) \? savedServerNow : savedAtWall\)\s*\+ age;/);
   assert.doesNotMatch(index, /age \* restoredRate/);
   assert.match(index, /syncSamples = \[\];\s*resetServerClockRateConfirmation\(\);/);
-  assert.match(index, /const refreshAudioSchedule = resetStaleSignals \|\| invalidatedWhileHidden/);
+  assert.match(index, /const refreshAudioSchedule = restorePage && \(clockRepaired \|\| resetStaleSignals \|\| invalidatedWhileHidden\)/);
   assert.match(index, /rescheduleStandaloneSignals\(\{[\s\S]*?forceStopAudio:\s*true,[\s\S]*?includeRecentPhaseSignal/);
-  assert.match(index, /await syncFromServer\(\{[\s\S]*?replaceAudioSchedule:\s*refreshAudioSchedule/);
+  assert.match(index, /await syncFromServer\(\{[\s\S]*?replaceAudioSchedule:\s*Boolean\(recovery\.forceClockCorrection\)/);
 });
 
 test("iOS audio falls back when its decoded-buffer context is not running", () => {
@@ -754,7 +754,7 @@ test("all standalone iOS signals keep the authorized media element and server sc
 
 test("a short mobile sleep cannot leave rendering permanently frozen", () => {
   assert.match(index, /function markResumeDisplayStale\(\) \{[\s\S]*?beginResumeSnapPending\(\);/);
-  assert.match(index, /if \(!resetStaleSignals && resumeSnapPending\) clearResumeSnapPending\(false\);/);
+  assert.match(index, /if \(!resetStaleSignals && !clockRepaired && !awaitingClockRecovery && resumeSnapPending\) clearResumeSnapPending\(false\);/);
   assert.doesNotMatch(index, /!resetStaleSignals && \(resumeSyncInProgress \|\| resumeSnapPending\)/);
 });
 
@@ -768,7 +768,7 @@ test("page suspension invalidates stale audio and rebuilds only semantically cur
   assert.match(index, /document\.addEventListener\("visibilitychange"[\s\S]*?invalidateSignalsForPageSuspension\("visibility-hidden"\)/);
   assert.match(index, /window\.addEventListener\("pagehide"[\s\S]*?invalidateSignalsForPageSuspension\("pagehide"\)/);
   assert.match(index, /document\.addEventListener\("freeze"[\s\S]*?invalidateSignalsForPageSuspension\("freeze"\)/);
-  assert.match(index, /function resumeClientSync\([^)]*\)[\s\S]*?const invalidatedWhileHidden = signalsInvalidatedWhileHidden[\s\S]*?rescheduleStandaloneSignals\([\s\S]*?await syncFromServer/);
+  assert.match(index, /function resumeClientSync\([^)]*\)[\s\S]*?const invalidatedWhileHidden = restorePage && signalsInvalidatedWhileHidden[\s\S]*?rescheduleStandaloneSignals\([\s\S]*?queueClientRecoverySync\(/);
   assert.match(index, /function scheduleRecentPhaseSignalAfterResume\([^)]*\)[\s\S]*?shouldScheduleServerSignal\(targetServerTime, lateGraceMs\)[\s\S]*?rotationBoundary:/);
   assert.match(index, /if \(includePhase\s*&& Date\.now\(\) >= suppressPhaseSignalsUntil/);
   assert.match(index, /if \(document\.hidden\) \{\s*if \(state\.running\) signalsInvalidatedWhileHidden = true;\s*clearSignalTimers\(false, true\);\s*return;/);

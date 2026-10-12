@@ -215,3 +215,64 @@ test("ordinary Classic/ Festival boundary keys and stop policy are unchanged", (
   h.stop(false);
   assert.equal(h.get("audioScheduleGeneration"), generation);
 });
+
+test("an audio-only measured recovery preserves a warning already playing and the complete Final ending", () => {
+  const h = harness({ buffered: true });
+  h.plan();
+  h.advance(101020);
+  const firstWarning = h.nodes.find(node => node.kind === "warn" && node.started);
+  assert.ok(firstWarning);
+  const generation = h.get("audioScheduleGeneration");
+  h.plan(); // Recovery response: rebuild future signals, without force-stop.
+  assert.equal(Boolean(firstWarning.cancelled), false);
+  assert.equal(h.get("audioScheduleGeneration"), generation);
+  h.advance(106500);
+  assert.deepEqual(h.sounds.map(sound => sound.kind), ["warn", "warn", "warn", "warn", "warn", "end"]);
+});
+
+test("an audio-only recovery immediately before the boundary retains exactly one imminent transition", () => {
+  for (const oneShot of [false, true]) {
+    for (const buffered of [false, true]) {
+      const h = harness({ oneShot, buffered });
+      h.plan();
+      h.advance(105850);
+      const transition = h.nodes.find(node => node.kind === (oneShot ? "end" : "start"));
+      h.plan();
+      if (buffered) assert.equal(Boolean(transition.cancelled), false);
+      h.advance(106500);
+      assert.equal(h.sounds.filter(sound => sound.kind === (oneShot ? "end" : "start")).length, 1,
+        `oneShot=${oneShot}, buffered=${buffered}`);
+    }
+  }
+});
+
+test("forced wake calibration replaces a future transition buffered from an inaccurate provisional clock", () => {
+  for (const oneShot of [false, true]) {
+    for (const correction of [-1500, -500, 500]) {
+      const h = harness({ oneShot, buffered: true });
+      h.plan();
+      h.advance(105850);
+      const kind = oneShot ? "end" : "start";
+      const oldBuffer = h.nodes.find(node => node.kind === kind);
+      assert.ok(oldBuffer && !oldBuffer.started);
+      h.context.serverNow = () => h.context.audioContext.currentTime * 1000 + correction;
+      h.context.clearSignalTimers(false, true); // Measured clock-repair policy.
+      if (oneShot && correction > 0) h.stop(true); // The measured Final is already complete.
+      else h.plan();
+      assert.equal(oldBuffer.cancelled, true, `oneShot=${oneShot}, correction=${correction}`);
+      if (correction < 0) {
+        h.advance(106001);
+        assert.equal(h.sounds.filter(sound => sound.kind === kind).length, 0);
+        h.advance(106000 - correction + 100);
+        assert.equal(h.sounds.filter(sound => sound.kind === kind).length, 1);
+        assert.equal(h.sounds.find(sound => sound.kind === kind).at, 106000 - correction);
+      } else {
+        h.advance(106100);
+        // A passed one-shot ending may be recovered once within its grace
+        // interval; never keep the obsolete, still-future provisional buffer.
+        assert.ok(h.sounds.filter(sound => sound.kind === kind).length <= 1);
+        assert.equal(oldBuffer.started, false);
+      }
+    }
+  }
+});
