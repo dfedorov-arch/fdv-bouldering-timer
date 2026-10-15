@@ -10,6 +10,8 @@ npm run test:visual:install
 npm run test:visual
 ```
 
+The read-only rotation badge also has a Firefox check. Install that test browser once with `npx playwright install firefox`, then run `npx playwright test --config test/visual/playwright.config.js --browser firefox --grep "Read-only rotation badge"`. It verifies hidden native number arrows on a display, and retained editing/keyboard arrows after making that browser primary.
+
 On failure, open `playwright-report/index.html`. The report contains the expected image, actual image, trace, and pixel difference where applicable.
 
 To approve an intentional visual change:
@@ -22,6 +24,8 @@ To approve an intentional visual change:
 Never update snapshots only to make a test pass. Prefer a numeric geometry assertion when the requirement is measurable.
 
 ## Current coverage
+
+`clock.spec.js` uses an isolated controlled-clock server and the actual modern page. It delays the initial measured HTTP response while allowing SSE and offsets the device clock by five seconds: the page must show synchronization, create no audio plans/nodes or played keys, and recover after measurement. It also steps the server calendar clock forward/backward by two minutes while monotonic time advances normally, asserting unchanged competition anchors/version, no sound-schedule clearing, preserved Web Audio nodes, and continuous elapsed time. The pending-state screenshot is captured as `help-assets/initial-clock-sync.png`.
 
 The modern and Legacy route-resumption scenario verifies rotations 16 → 17 → 18: preparation for the held wave appears at rotation 17, all markers for that pause disappear, and the same participants climb at rotation 18. It uses an isolated server and saves screenshots in the test artifacts.
 
@@ -41,6 +45,7 @@ The scenarios in `layout.spec.js` cover:
 - all five configurable marker colors, short HEX normalization, invalid-value fallback, pseudo-element fills, unchanged geometry and no repeated palette stylesheet writes in Modern/old-TV Legacy;
 - a read-only rotation badge on modern/Legacy list screens at `360×778`, `962×541`, and `1000×1000`, including phase/language changes, Final rotation numbering and countdown, optional clocks, and global/per-screen list hiding;
 - native fullscreen on the primary browser: the rotation remains visible and read-only, and becomes editable again after exit while paused;
+- read-only rotation badges use textfield appearance without native number arrows, including Firefox, while primary editing retains normal number-input controls;
 - a held Festival progress-bar drag while server synchronization continues;
 - route-count drafts while running/paused across the ordinary two-second poll, blank/multi-digit input, Tab/Enter commits, rapid spinner changes during a delayed save, and visible save failure with explicit retry;
 - route-count editing with network disabled in the generated single-file standalone HTML and Android HTML (browser test of embedded assets, not a native WebView/device test);

@@ -22,6 +22,8 @@ Desktop installers include `fdv-installed.marker` to select per-user server stat
 
 Current application screenshots belong in `help-assets/`. A screenshot that shows removed controls, obsolete terminology, or the old diagnostic order must not be referenced; use a neutral layout until a current-build capture is available. Launcher icons and launcher-window images are replaced only when those launchers change.
 
+`help-assets/initial-clock-sync.png` shows build 413 waiting for its first measured server clock while SSE has already supplied a running timer. The isolated `clock.spec.js` test captures the real page and verifies no scheduled/consumed sounds before calibration and recovery afterwards. Both guide languages describe the independent modern timer coordinate, preserved calendar-based starts/recovery, and unchanged Legacy compatibility API.
+
 `help-assets/route-count-save-failed.png` is a real build 403 browser capture from the isolated route-count failure/retry test: the draft stays at 4 while the canonical table still has 5 routes. The regression matrix covers running/paused synchronization, rapid pending commits, failure recovery, and offline HTML/Android-generated pages. Existing display geometry and the build 402 diamond palette are unchanged.
 
 `help-assets/final-completed.png` shows completed Final zero on the default red break background and a blue-purple completed route diamond. It is captured by the isolated modern completion visual test; Modern and Legacy tests also cover a custom break palette, the first zero mutation, reset, and repeating zero-break rotations. Current list screenshots use the build 404 `#48488c` diamond palette. The five `list_*_color` parameters and HEX fallback rules are documented in both manual languages; browser tests cover custom palettes, invalid-value reset, pseudo-elements, unchanged geometry and skipped repeated style writes, including old-TV compatibility.
@@ -60,6 +62,8 @@ Current application screenshots belong in `help-assets/`. A screenshot that show
 | `launcher/*/README.md` | Building and packaging native launchers |
 | `android/` | Native Android WebView shell and release-signing configuration contract; generated signing keys and `keystore.properties` must never enter Git |
 | `docs/review/*` | Maintained architecture review: current system overview, synchronization analysis, remaining risks, and improvement plan |
+
+The current modern recovery contract is in the Authority and clocks section of `docs/architecture.md`: measured HTTP timing is separate from state/SSE, retired server instances cannot return through late packets, and clock discontinuity requires server verification rather than a wall-clock jump. `README.md`, `ReadMe.txt`, and both `help.html` languages describe the pending-clock warning and suspended signals. The architecture also distinguishes unchanged Legacy wall-clock/XHR behavior and documents the regression matrix and limits of simulated sleep tests. Historical review material must not override that implementation contract.
 
 Project-level files outside the worktree:
 

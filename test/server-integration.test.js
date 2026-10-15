@@ -172,6 +172,16 @@ test("stopped Final exits without seeking Rotation 1 and the cleared progress su
     assert.equal(changed.body.startListFinalCycle, 0);
     assert.equal(changed.body.activeSettings.oneShot, false);
     assert.equal(changed.body.startLists[0].rows[0][1], "Test participant");
+    if (process.platform === "win32") {
+      // child.kill(SIGTERM) on Windows terminates the process without its flush
+      // handler. Test restoration of a committed snapshot, not that OS quirk.
+      const snapshotPath = path.join(fixture, "runtime-state", "timer-state.json");
+      const deadline = Date.now() + 3000;
+      while (JSON.parse(fs.readFileSync(snapshotPath, "utf8")).timerState.runtimePreset !== activePreset) {
+        assert.ok(Date.now() < deadline, "settings snapshot was not committed");
+        await new Promise(resolve => setTimeout(resolve, 25));
+      }
+    }
     await stopServer(child);
     child = spawnServer();
     const restored = await waitForServer(baseUrl, child, output);
@@ -790,6 +800,9 @@ test("production server validates settings, rejects stale commands, and deduplic
   assert.equal(restored.flashing, false);
   assert.ok(restored.version > started.body.version);
   assert.notEqual(restored.serverInstanceId, started.body.serverInstanceId);
+  assert.equal(restored.timerClock.version, 1);
+  assert.ok(Math.abs((restored.timerClock.now - restored.timerClock.startedAt) / 1000 - restored.elapsed) < 0.02,
+    "a restarted process rebuilds its timer coordinate from restored elapsed");
   assert.equal(restored.showBrowserNumbers, true);
   assert.equal(restored.clockDiagnostics.negativeContinuityAnomalyCount, 0);
   assert.ok(Number.isFinite(Number(restored.clockDiagnostics.lastRestore.snapshotAgeDifferenceMs)));

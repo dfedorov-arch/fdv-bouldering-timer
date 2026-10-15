@@ -8,7 +8,7 @@ const vm = require("node:vm");
 const index = fs.readFileSync(path.join(__dirname, "..", "index.html"), "utf8");
 
 function source(name) {
-  const match = index.match(new RegExp(`function ${name}\\([\\s\\S]*?\\) \\{[\\s\\S]*?\\n    \\}`));
+  const match = index.match(new RegExp(`(?:async )?function ${name}\\([\\s\\S]*?\\) \\{[\\s\\S]*?\\n    \\}`));
   assert.ok(match, name);
   return match[0];
 }
@@ -41,6 +41,7 @@ function harness({ offset = 0, buffered = false, initialElapsed = 234, oneShot =
     soundBuffer: () => buffered ? { duration: 0.1 } : null,
     soundSource: () => "", syntheticWarningDurationMs: 100, warningSeparationGuardMs: 20,
     canPlaySound: () => true, flash: noop, signal: noop,
+    updateConnectionWarning: noop,
     schedulePerformanceAudioKeepalive: noop, scheduleFestivalAnnouncements: noop,
     scheduleSignalAt: noop, loadAudioBuffers: () => null,
     recordPerformanceAudioSchedule: event => events.push(event),
@@ -68,6 +69,7 @@ function harness({ offset = 0, buffered = false, initialElapsed = 234, oneShot =
   Object.defineProperty(context, "audioContext", { get: () => buffered ? { state: "running", currentTime: now / 1000 } : null });
   vm.runInContext(`
     let audioScheduleGeneration = 0, lastSegmentIndex = -1, lastPhaseSignalKey = "", scheduledFinalSignalKey = "";
+    let clockCalibrationPending = false;
     let signalTimers = [], transitionSignalTimers = [], scheduledAudioNodes = [];
     let scheduledSignalKeys = new Set(), playedSignalKeys = new Set(), scheduledPhaseSignalKeys = new Set();
     ${["elapsedSeconds", "getCurrentSegment", "serverTimeForElapsed", "delayUntilServerTime", "isServerSignalCurrent",
@@ -108,6 +110,168 @@ function harness({ offset = 0, buffered = false, initialElapsed = 234, oneShot =
   };
 }
 
+function recoveryAudioHarness({ initialElapsed = 238, buffered = false, realClockTiming = false } = {}) {
+  const h = harness({ initialElapsed, buffered });
+  const requests = [];
+  const policies = [];
+  const noop = () => {};
+  Object.assign(h.context, {
+    AbortController, URLSearchParams, console,
+    performanceDiagnosticsEnabled: false,
+    clientDiagnostics: () => ({ clientId: "final-recovery-test" }),
+    performanceCount: noop, performanceStart: () => 0, performanceEnd: noop,
+    updateConnectionWarning: noop, scheduleDisplayBoundary: noop, render: noop,
+    markServerContact: noop, markServerFailure: noop,
+    reportStateApplyError: error => { throw error; },
+    reconcileServerStateIdentity: () => ({ stale: false, versionChanged: false, instanceChanged: false }),
+    maybeBurstSync: noop, restartEventStream: noop, syncDiagnosticsStream: noop,
+    reanchorServerClockModel: noop, holdClockRateForResume: noop,
+    requestScreenWakeLock: noop, beginResumeSnapPending: () => false, clearResumeSnapPending: noop,
+    isBeforeScheduledStart: () => false,
+    fetch(url, options) {
+      let resolve, reject;
+      const promise = new Promise((yes, no) => { resolve = yes; reject = no; });
+      requests.push({ url, options, resolve, reject });
+      return promise;
+    }
+  });
+  h.context.window.location = { protocol: "http:" };
+  h.context.window.FDVClientActionTransport = require("../lib/client-action-transport");
+  h.context.document.body = { classList: { add: noop, remove: noop } };
+  const apply = source("applyServerState");
+  const audioAt = apply.indexOf("if (options.replaceAudioSchedule) clearSignalTimers");
+  const audioEnd = apply.indexOf("lastServerVersion =", audioAt);
+  assert.ok(audioAt > 0 && audioEnd > audioAt);
+  const normalize = apply.match(/if \(options\.replaceAudioSchedule\) \{\s*options = [\s\S]*?\n      \}/)?.[0] || "";
+  const estimatorConstants = ["syncSampleWindowMs", "syncMaxSamples", "syncRateMinSpanMs", "syncRateLargeMin",
+    "syncRateLargeMax", "syncRateNormalMin", "syncRateNormalMax", "syncRateStableMinSamples",
+    "syncRateStableMaxResidualMs", "syncRateStableMaxHalfDiffPpm", "syncRateStableMaxOutlierShare",
+    "syncRateConfirmationTolerancePpm", "syncRateConfirmationWindows", "syncRateLargeThresholdPpm",
+    "syncRateDeadband", "syncRateSmoothing"]
+    .map(name => index.match(new RegExp(`const ${name} = [^;]+;`))[0]).join("\n");
+  vm.runInContext(`
+    ${estimatorConstants}
+    let pendingClientRecovery = null, activeClientRecovery = null;
+    let clientRecoveryTimer = null, clientRecoveryFollowupTimer = null;
+    let syncRequestController = null, syncRequestInFlight = false, syncRequestGeneration = 0;
+    let resumeSyncInProgress = false, lastResumeSyncAt = -Infinity;
+    let signalsInvalidatedWhileHidden = false, pageHiddenAt = 0, resumeSnapPending = false;
+    let lastServerVersion = 7, lastRemoteRunning = true, pendingServerState = null, offlineReloadMode = false;
+    let lastServerInstanceId = "server-a";
+    const retiredServerInstanceIds = new Set();
+    let isPrimaryClient = true, lastStartListServerRevision = "", eventSource = { readyState: 1 };
+    let eventSourceConnected = true, lastSseEventAt = 100000, syncSamples = [];
+    let serverClockRate = 1, syncQuality = { error: 2, samples: 3 };
+    let serverTimeAnchor = 100000, serverPerfAnchor = 100000, serverPerfOffset = 0, serverTimeOffset = 0;
+    let serverClockRateHighConfidence = false, serverClockRateConfidence = "normal", serverClockRateGateReason = "normal";
+    let pendingServerClockRatePpm = null, pendingServerClockRateCount = 0, serverAvailable = true;
+    let lastMeasuredClockServerInstanceId = "server-a", serverClockRecoveryTimer = null, lastServerClockRecoveryAt = -Infinity;
+    let clockContinuityWallAt = Date.now(), clockContinuityPerfAt = 100000;
+    let trustedServerClockAnchor = null, lastTrustedClockAnchorAt = 0, lastDisplayTimeLabel = "00:02";
+    const clockContinuityMismatchMs = 100, trustedClockAnchorIntervalMs = 60000;
+    const serverClockRecoveryCooldownMs = 2000;
+    const syncRequestTimeoutMs = 2000, sseSilentRestartMs = 25000;
+    ${["recentPhaseSignalGraceMs", "scheduleRecentPhaseSignalAfterResume", "rescheduleStandaloneSignals",
+      "renderCanonicalSegmentSignals", "cancelServerSyncForClockRecovery", "queueClientRecoverySync",
+      "scheduleClientRecoverySync", "flushClientRecoverySync", "resumeClientSync", "syncFromServer"].map(source).join("\n")}
+    ${realClockTiming ? ["serverNow", "clampFloat", "median", "percentile", "fitClockRate", "applyServerClockModel",
+      "resetServerClockRateConfirmation", "invalidateServerClockCalibration", "browserClockIntervalMismatch", "repairServerClockAfterSuspension",
+      "prepareServerClockMeasurement", "refreshTrustedClockAnchor", "requestMeasuredClockSync", "updateServerTiming"].map(source).join("\n") : ""}
+    function applyActualRecoveryAudioPolicy(options) {
+      const audioOffsetChanged = false, festivalAnnouncementsChanged = false;
+      ${normalize}
+      ${apply.slice(audioAt, audioEnd)}
+      return options;
+    }
+  `, h.context);
+  if (!realClockTiming) h.context.updateServerTiming = () => h.set("clockCalibrationPending = false;");
+  h.context.applyServerState = (remote, options) => {
+    h.context.updateServerTiming(remote, options.timing, options);
+    policies.push(h.context.applyActualRecoveryAudioPolicy(options));
+    const elapsed = h.context.elapsedSeconds();
+    h.context.renderCanonicalSegmentSignals(h.context.getCurrentSegment(elapsed), elapsed);
+  };
+  h.context.applyServerRuntimeClockState = noop;
+  async function settle() {
+    for (let i = 0; i < 12; i += 1) await Promise.resolve();
+  }
+  return {
+    ...h, requests, policies, settle,
+    async dispatch() { h.advance(h.context.serverNow()); await settle(); },
+    async complete(request = 0) {
+      requests[request].resolve({ ok: true, headers: { get: () => null }, json: async () => ({
+        now: h.context.serverNow(), serverInstanceId: "server-a", version: 7, running: true
+      }) });
+      await settle();
+      h.advance(h.context.serverNow());
+      await settle();
+    },
+    async fail(request) {
+      requests[request].reject(new Error("recovery network interrupted"));
+      await settle();
+    }
+  };
+}
+
+test("a forced response sent while hidden rebuilds the now-visible Final end even if queued recovery fails", async () => {
+  for (const buffered of [false, true]) {
+    const h = recoveryAudioHarness({ buffered });
+    h.context.document.hidden = true;
+    h.set("signalsInvalidatedWhileHidden = true; clockCalibrationPending = true;");
+    h.context.resumeClientSync({ clockRepaired: true, restorePage: false, signalsAlreadyRescheduled: true });
+    await h.dispatch();
+    assert.equal(h.requests.length, 1);
+    h.context.document.hidden = false;
+    h.context.resumeClientSync({ restorePage: true });
+    await h.complete(0);
+    assert.equal(h.policies[0].replaceAudioSchedule, true);
+    assert.equal(h.policies[0].rescheduleSignals, true,
+      "replacement must reflect visibility when applying the response, not when dispatching it");
+    assert.equal(h.requests.length, 2);
+    await h.fail(1);
+    for (let now = 100000; now <= 102200; now += 20) {
+      h.advance(now);
+      const elapsed = h.context.elapsedSeconds();
+      h.context.renderCanonicalSegmentSignals(h.context.getCurrentSegment(elapsed), elapsed);
+      if (elapsed >= 240) h.stop(true);
+    }
+    assert.equal(h.sounds.filter(sound => sound.kind === "end").length, 1,
+      `Final end must survive a queued recovery failure, buffered=${buffered}`);
+  }
+});
+
+test("recent phase catch-up cannot sound from an uncalibrated monotonic timeline", () => {
+  const h = recoveryAudioHarness({ initialElapsed: 0.5, buffered: true });
+  h.context.signalLateGraceMs.start = 1500;
+  h.set("clockCalibrationPending = true;");
+  const segment = h.context.getCurrentSegment(h.context.elapsedSeconds());
+  assert.equal(h.context.scheduleRecentPhaseSignalAfterResume(segment), false);
+  h.advance(100000);
+  assert.equal(h.sounds.length, 0);
+});
+
+test("timing-only calibration restores the complete Final end while the display snap still waits", async () => {
+  for (const buffered of [false, true]) {
+    const h = recoveryAudioHarness({ buffered, realClockTiming: true });
+    h.set("clockCalibrationPending = true; resumeSnapPending = true;");
+    const wall = Date.now();
+    h.context.updateServerTiming({ now: 100000, serverReceivedAt: 100000, serverSentAt: 100000,
+      version: 7, serverInstanceId: "server-a" }, {
+      date0: wall, date1: wall, perf0: 100000, perf1: 100000
+    });
+    await h.dispatch();
+    assert.equal(h.get("clockCalibrationPending"), false);
+    assert.equal(h.get("resumeSnapPending"), true);
+    assert.equal(h.get("lastSegmentIndex"), "1:rotation");
+    assert.equal(h.requests.length, 0, "a timing-only action response must not need an extra GET to recover audio");
+    for (let now = 100000; now <= 102200; now += 20) {
+      h.advance(now);
+      if (h.context.elapsedSeconds() >= 240) h.stop(true);
+    }
+    assert.equal(h.sounds.filter(sound => sound.kind === "end").length, 1, `buffered=${buffered}`);
+  }
+});
+
 test("pause/seek/resume six seconds before Final end plays all five warnings and exactly one end fallback", () => {
   const h = harness();
   h.plan();
@@ -130,7 +294,7 @@ test("actual standalone pause and progress-track seek followed by resume retains
   });
   h.context.state.runtimePreset = h.context.state.activePreset = "final";
   vm.runInContext(`let scrubSegment = null, pendingSeekElapsed = null;
-    ${["pauseStandaloneTimer", "scrubToPointer", "startStandaloneTimer"].map(source).join("\n")}`, h.context);
+    ${["confirmStandaloneClockContinuity", "pauseStandaloneTimer", "scrubToPointer", "startStandaloneTimer"].map(source).join("\n")}`, h.context);
   h.context.pauseStandaloneTimer();
   h.context.scrubToPointer({ clientX: 975 });
   assert.equal(h.context.state.elapsedBeforePause, 234);
@@ -214,4 +378,65 @@ test("ordinary Classic/ Festival boundary keys and stop policy are unchanged", (
   const generation = h.get("audioScheduleGeneration");
   h.stop(false);
   assert.equal(h.get("audioScheduleGeneration"), generation);
+});
+
+test("an audio-only measured recovery preserves a warning already playing and the complete Final ending", () => {
+  const h = harness({ buffered: true });
+  h.plan();
+  h.advance(101020);
+  const firstWarning = h.nodes.find(node => node.kind === "warn" && node.started);
+  assert.ok(firstWarning);
+  const generation = h.get("audioScheduleGeneration");
+  h.plan(); // Recovery response: rebuild future signals, without force-stop.
+  assert.equal(Boolean(firstWarning.cancelled), false);
+  assert.equal(h.get("audioScheduleGeneration"), generation);
+  h.advance(106500);
+  assert.deepEqual(h.sounds.map(sound => sound.kind), ["warn", "warn", "warn", "warn", "warn", "end"]);
+});
+
+test("an audio-only recovery immediately before the boundary retains exactly one imminent transition", () => {
+  for (const oneShot of [false, true]) {
+    for (const buffered of [false, true]) {
+      const h = harness({ oneShot, buffered });
+      h.plan();
+      h.advance(105850);
+      const transition = h.nodes.find(node => node.kind === (oneShot ? "end" : "start"));
+      h.plan();
+      if (buffered) assert.equal(Boolean(transition.cancelled), false);
+      h.advance(106500);
+      assert.equal(h.sounds.filter(sound => sound.kind === (oneShot ? "end" : "start")).length, 1,
+        `oneShot=${oneShot}, buffered=${buffered}`);
+    }
+  }
+});
+
+test("forced wake calibration replaces a future transition buffered from an inaccurate provisional clock", () => {
+  for (const oneShot of [false, true]) {
+    for (const correction of [-1500, -500, 500]) {
+      const h = harness({ oneShot, buffered: true });
+      h.plan();
+      h.advance(105850);
+      const kind = oneShot ? "end" : "start";
+      const oldBuffer = h.nodes.find(node => node.kind === kind);
+      assert.ok(oldBuffer && !oldBuffer.started);
+      h.context.serverNow = () => h.context.audioContext.currentTime * 1000 + correction;
+      h.context.clearSignalTimers(false, true); // Measured clock-repair policy.
+      if (oneShot && correction > 0) h.stop(true); // The measured Final is already complete.
+      else h.plan();
+      assert.equal(oldBuffer.cancelled, true, `oneShot=${oneShot}, correction=${correction}`);
+      if (correction < 0) {
+        h.advance(106001);
+        assert.equal(h.sounds.filter(sound => sound.kind === kind).length, 0);
+        h.advance(106000 - correction + 100);
+        assert.equal(h.sounds.filter(sound => sound.kind === kind).length, 1);
+        assert.equal(h.sounds.find(sound => sound.kind === kind).at, 106000 - correction);
+      } else {
+        h.advance(106100);
+        // A passed one-shot ending may be recovered once within its grace
+        // interval; never keep the obsolete, still-future provisional buffer.
+        assert.ok(h.sounds.filter(sound => sound.kind === kind).length <= 1);
+        assert.equal(oldBuffer.started, false);
+      }
+    }
+  }
 });

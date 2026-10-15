@@ -40,6 +40,7 @@ function harness(settings = { rotationSeconds: 60, breakSeconds: 0, oneShot: fal
       elapsedBeforePause: 0, runtimePreset: "classic" },
     lastServerInstanceId: "server-a", lastServerVersion: 1, language: "ru",
     standaloneMode: false, isViewerClient: false, isScrubbing: false, resumeSnapPending: false,
+    clockCalibrationPending: false,
     serverClockRate: 1,
     performanceLongRunDiagnostics: false,
     activeSettings: () => settings, buildTimeline: () => [1],

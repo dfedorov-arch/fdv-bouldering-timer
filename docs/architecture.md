@@ -14,9 +14,59 @@ Three time domains are intentionally separate:
 - a server monotonic clock advances running state without wall-clock corrections;
 - each browser's monotonic clock drives local rendering between responses.
 
-Clients estimate server offset and request delay from repeated samples. Timer rendering is scheduled near the next displayed-second boundary. Diagnostics also report render delay. A modern or Legacy display may continue from its last authoritative timeline during a temporary outage, but it reconciles with the server after reconnecting. The optional TIME display formats local wall time using the server time-zone offset; it is not the timer's time source.
+Modern clients estimate server offset, request delay, and browser-clock rate from measured HTTP exchanges. Their local time model is `serverAtAnchor + (performance.now() - perfAtAnchor) * clockRate`. SSE delivers state changes, not clock measurements: an unmeasured push timestamp must never move that model. Timer rendering is scheduled near the next displayed-second boundary. Diagnostics also report render delay. A modern or Legacy display may continue from its last authoritative timeline during a temporary outage, but it reconciles with the server after reconnecting. The optional TIME display adds the separately received calendar offset to the modeled timer clock and formats it using the server time-zone offset; it is not the timer's time source.
 
 Persisted running state retains an absolute timeline anchor. Restart recovery must prefer that anchor over a stale saved elapsed value so process downtime does not shift the competition. Clock-source disagreements are recorded in diagnostics rather than silently hidden.
+
+### Independent modern timer coordinate (build 413)
+
+Modern state additionally carries `timerClock: {version: 1, now, receivedAt, sentAt, startedAt}`. These values share one process-local monotonic coordinate. Its positive epoch-shaped origin is chosen once at server startup; it is NOT calendar time. A confirmed missing sleep interval advances this coordinate using the existing continuity policy, including while the competition is paused. Calendar-only adjustments never advance it. Existing top-level `now`, `startedAt`, `serverReceivedAt`, and `serverSentAt` retain their calendar meanings for older clients and Legacy.
+
+`timerClockState` projects only modern consumers into the new coordinate, preserving wall values separately for TIME and scheduled-start labels. The clock estimator, rate confirmation, normal correction limits, audio warm-up, scheduling lookahead, Web Audio playback and user offsets are unchanged. Runtime commands identify their coordinate explicitly with `intendedTimerTime` and the existing `baseServerInstanceId`; older commands keep `intendedServerTime`. Audio-test commands likewise carry both `timerTime` and the compatible calendar `serverTime`.
+
+A pure server calendar adjustment rebases the persisted/Legacy wall anchor without incrementing the competition version. Its SSE refresh therefore retains the modern sound schedule and already submitted Web Audio nodes. A still-pending calendar start is different: changing its wall-clock distance updates its monotonic target and state version. Once underway, calendar adjustments cannot change that run's target times. Pause, reset, seek, real suspension and server restart keep their existing authoritative semantics.
+
+New server pages start with pending calibration, show `--:--` and “Synchronizing time”, and do not consume/play scheduled signals. SSE can supply state and lists but cannot unlock this gate. The first valid measured exchange for the current instance must have an RTT no greater than 500 ms; otherwise periodic synchronization retries. This bootstrap check does not alter ordinary established-clock or same-instance wake recovery. Calibration and current state are applied before sound restoration. Direct-file, Pages standalone and Android standalone do not await a server. An offline reload snapshot remains a provisional local reconstruction; first contact with a server requires measured calibration again.
+
+Server snapshots keep schema 1: calendar save/start anchors, elapsed duration, running/paused/completed state and uptime evidence are retained. Raw process-local timer coordinates are neither persisted nor transplanted into a restarted process. Existing restoration reconstructs elapsed and a fresh monotonic anchor; `serverInstanceId` rejects late old-process packets. The pre-existing ambiguity of reboot plus changed/untrusted calendar time is not solved by this protocol. Browser snapshots retain their timer coordinate, protocol version and calendar presentation values with the calendar save time for the existing offline reconstruction path. Uncalibrated server state cannot overwrite a trusted browser checkpoint.
+
+`test/visual/clock.spec.js` checks the actual modern page with SSE before HTTP and a wrong local clock, and verifies that server calendar steps in both directions preserve timer position, state version, signal scheduling and Web Audio node identity. Controlled-clock server tests also cover idle/paused clocks, scheduled starts, command coordinates and confirmed sleep. These tests supplement, not replace, real multi-device speaker measurements.
+
+### State ordering is separate from time synchronization
+
+`serverInstanceId` identifies a server process; `version` orders state changes within that process. A client accepts a new instance, resets instance-specific comparison/calibration state, and retires the previous ID for the lifetime of the page. Late HTTP, action, or SSE packets from a retired instance are ignored: they cannot roll the timer back to an old server, update its clock, or run success-side effects. Versions from different instances are not comparable.
+
+An older state version from the current instance cannot overwrite newer competition state. Its valid HTTP timing interval may still contribute a clock sample, but a stale action response does not execute its normal success-side effects. Accepted current-instance state remains authoritative for operator commands, scheduled starts, phase changes, and completion.
+
+### Three independent recovery paths
+
+| Trigger | Clock model | State and transport | Audio |
+| --- | --- | --- | --- |
+| Ordinary network reconnection, with continuous browser clocks | Retain samples, accepted rate, and monotonic timeline; measure normally | Fetch current state; restart SSE only when absent, disconnected, closed, or silent beyond its watchdog | Do not erase a valid schedule solely because `online` fired |
+| Page visibility/BFCache return, with continuous clocks | Retain calibration and rate | Refresh state through the serialized recovery coordinator | Rebuild audio invalidated while hidden when the page is visible |
+| Browser-clock discontinuity or a request spanning a discontinuity | Clear samples and rate confirmation; retain the last monotonic timeline while calibration is pending | Require a fresh measured server response before trusting time again | Stop timed signals until calibration succeeds; then rebuild against verified time and current visibility |
+
+`online`, focus, and visibility are not proof that browser clocks stopped. A disagreement of at least 100 ms invalidates calibration, including a short suspension: there is no three-second prerequisite. The comparison accepts either matching local wall/performance intervals or continuous performance-clock drift explained by the already accepted rate; a non-unit server rate must not invalidate two equal local intervals. This check runs before accepting a measurement or refreshing a trusted anchor. The measured request also validates both its send-to-headers interval and its headers-to-application interval, so a response spanning sleep, a wall-clock step, or delayed JSON processing across that discontinuity cannot become a clock sample.
+
+Wall time is evidence of a discontinuity, not a replacement timer source. Two browser clocks alone cannot reliably distinguish sleep from a manual/NTP system-clock change, so there is no direct `Date.now()`-based correction of a running synchronized timer. A valid new measured response clears pending calibration and directly reanchors to the measured server estimate, preserving the held rate while fresh rate history is rebuilt. Ordinary measured corrections retain the 250 ms per-update limit; initialization, verified recalibration, and sufficiently large measured disagreement may apply a direct correction. The rate estimator still requires a long, stable sample window and repeated confirmation rather than responding to a single reconnect event.
+
+If no server can verify time, the page continues extrapolating its last monotonic model but explicitly reports that accuracy is unverified; timed sound remains suspended. A standalone operator can press Stop and then Start for a new local run. This establishes a new local origin, not recovery of the old competition's elapsed time. Independent standalone runs cannot synchronize other browsers. An HTTP page that entered temporary standalone mode returns to authoritative server state when contact resumes; standalone changes are not uploaded. Direct file/single-file standalone pages have no server to return to.
+
+The coordinator coalesces recovery events and serializes recovery with periodic synchronization. Ordinary network recovery does not abort a valid in-flight measurement. A confirmed discontinuity may cancel it and advance a request generation, preventing a late success or failure from affecting current recovery. SSE connections have their own generations. A bounded follow-up measurement can refine verified recovery without maintaining a separate competing clock loop.
+
+### Presentation and diagnostics
+
+The 100 ms rollback guard applies only to displayed seconds and rotations within an unchanged authoritative timeline. It does not change elapsed time, clock samples, audio scheduling, or operator commands; commands, a new server instance, and legitimate timeline changes reset the presentation context.
+
+Pending calibration forces the modern SYNC badge red and exposes a tooltip and visible warning. The clock-error estimate includes measured latency/jitter plus any correction still unapplied because of the normal correction limit; a small RTT must not hide a large remaining offset. This is an estimate, not a guarantee about screen refresh, physical audio latency, or other devices. NET and SSE describe transport separately from clock validity.
+
+Legacy deliberately retains its separate simplified wall-clock/XHR synchronization and has no audio. The modern monotonic-rate estimator, discontinuity gate, and recovery coordinator are not silently transplanted into it. Legacy generally offers lower timing accuracy and must be tested separately on the target old browser.
+
+### Recovery regression coverage
+
+Deterministic tests must vary event order as well as durations: a response before the wake event; sleep during a request or between headers and JSON application; delayed old-instance success/failure after a new instance; stale same-instance action responses; wall-clock steps in either direction; clock discontinuity while offline; calibration through timing-only responses; hidden-to-visible changes while forced recovery is in flight; and Final END/Classic phase signals when the queued follow-up fails. Continuous-clock network loss, focus, visibility, BFCache, standalone, and ordinary correction limits remain separate cases.
+
+These controlled-clock and browser-transport tests do not establish every browser/OS sleep behavior or physical sound alignment. Before competition use, test actual target devices with network loss/reconnection, background/foreground, sleep/wake, server restart, and phase boundaries, including a missed follow-up request.
 
 ## Runtime modules
 
@@ -76,6 +126,8 @@ Tables are read-only in screen mode, including after the primary browser enters 
 
 Screens with visible lists retain a read-only rotation badge below the timer, including fullscreen and Legacy. Modern screens reuse the existing schedule chip and footer while progress/actions remain hidden. Legacy reserves a fixed 66-pixel footer for its badge only when lists are visible. Badge text/class updates reuse existing render boundaries; no new interval or recurring geometry fit is introduced. Optional server clocks and the badge occupy separate space. Without lists the original timer-only layout is preserved.
 
+Disabled modern rotation inputs use textfield appearance to hide native number arrows in Firefox and Chromium/WebKit. Enabled primary inputs keep their native editing controls; the existing width reservation is retained. This is CSS only and introduces no timer or layout callbacks.
+
 Legacy explicitly refits geometry on list visibility transitions, including global disabling and hiding the last per-screen list. This clears inline list-area reservations even on old TVs that emit no resize event. Unchanged visibility does not trigger this fit.
 
 Portrait Legacy tables use automatic intrinsic column sizing: the first data column has a 30-pixel minimum and route cells use 26 pixels, leaving space for complete participant text. Measured horizontal overflow enables scrolling in either orientation; compatible stacked tables retain shared column widths. Overflow checks remain behind the existing list-progress/revision guard and bounded viewport-fit callbacks, with no new interval or continuous geometry fitting.
@@ -105,6 +157,8 @@ Wake Lock is part of the modern TAB tooltip, not a separate badge. Legacy does n
 The server describes sound events; each eligible modern browser schedules playback against its synchronized timeline. Primary and remote sound permissions are independent, and browsers on the primary computer are suppressed to prevent duplicate sound. User offsets are per client. Mobile autoplay rules require an explicit user gesture.
 
 The ordinary mode keeps only a compact audio-clock progress measurement. Extended performance diagnostics are opt-in and must not add continuous tracing to normal operation.
+
+Audio schedule replacement evaluates visibility when the response is applied, not when its request was sent. If replacement removes timers on a now-visible page, the same application path must rebuild them against the verified timeline; a hidden request followed by a visible response must not leave Final's END signal dependent on another successful request. Timing-only calibration also schedules restoration after authoritative state application. Hidden or calibration-pending pages do not schedule timed signals.
 
 ## Android standalone window
 
