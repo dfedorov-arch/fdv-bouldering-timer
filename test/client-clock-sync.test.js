@@ -102,6 +102,41 @@ test("delayed or future SSE timestamps never move an already calibrated clock or
   }
 });
 
+test("the monotonic clock keeps samples and quality through calendar steps in either direction", () => {
+  for (const adjustment of [-120000, 120000]) {
+    const h = harness();
+    h.set(`syncSamples = Array.from({length:30}, (_, i) => ({at:i*2000, latency:4, networkLatency:2,
+      perfTime:i*2000, serverTime:100000+i*2000, clockOffset:0, perfOffset:100000}));`);
+    h.at(60000);
+    const remote = {serverInstanceId:"server-a", version:7, now:160000 + adjustment,
+      startedAt:100000 + adjustment, serverReceivedAt:159997 + adjustment,
+      serverSentAt:159999 + adjustment,
+      timerClock:{version:1, now:159999, sentAt:159999, receivedAt:159997, startedAt:100000}};
+    h.update(remote);
+    assert.equal(h.get("serverNow()"), 160000);
+    h.update(remote, {date0:159996,date1:160000,perf0:59996,perf1:60000});
+    assert.equal(h.get("serverNow()"), 160000);
+    assert.equal(h.get("clockCalibrationPending"), false);
+    assert.equal(h.get("syncQuality.error"), 1);
+    assert.equal(h.get("syncSamples.length"), 30);
+    assert.equal(h.get("state.timerClockVersion"), 1);
+  }
+});
+
+test("a bootstrap clock stays pending through SSE and a slow response, then accepts a fresh measurement", () => {
+  const h = harness({samples:false});
+  h.set('clockCalibrationPending=true;lastMeasuredClockServerInstanceId="";');
+  h.update({serverInstanceId:"server-a",version:7,now:999999});
+  assert.equal(h.get("clockCalibrationPending"), true);
+  h.update({serverInstanceId:"server-a",version:7,now:102000},
+    {date0:101000,date1:102000,perf0:1000,perf1:2000});
+  assert.equal(h.get("clockCalibrationPending"), true);
+  assert.equal(h.get("syncSamples.length"), 0);
+  h.measured();
+  assert.equal(h.get("clockCalibrationPending"), false);
+  assert.equal(h.get("serverNow()"), 102000);
+});
+
 test("unmeasured force/reset flags cannot bypass clock protection or discard trusted samples", () => {
   const h = harness();
   h.update({now: 100500, version: 8}, {}, {forceClockCorrection: true, resetClockSamples: true});

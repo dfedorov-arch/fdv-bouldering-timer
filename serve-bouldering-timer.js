@@ -24,7 +24,7 @@ const legacyRuntimeStatePath = runtimeStatePath;
 const beepsPath = path.join(root, "beeps");
 const fontsPath = path.join(root, "fonts");
 const offlineAudioPath = path.join(root, "lib", "offline-audio.js");
-const BUILD_NUMBER = 412;
+const BUILD_NUMBER = 413;
 const serverInstanceId = crypto.randomUUID();
 const SNAPSHOT_SCHEMA_VERSION = 1;
 const SNAPSHOT_MAX_AGE_MS = 12 * 60 * 60 * 1000;
@@ -466,6 +466,10 @@ let stateTransitionTimer = null;
 let snapshotWriteTimer = null;
 let timerStartedAtMono = 0;
 let timerStartPending = false;
+// An epoch-shaped coordinate for compatibility with positive timestamp guards,
+// NOT calendar time. Its origin is chosen once per server process.
+const timerClockOrigin = wallNow() - monoNow();
+let timerClockSleepOffset = 0;
 let clockRepairEffectsPending = false;
 let currentTimerClockEvent = null;
 let timerClockContinuityWallAt = wallNow();
@@ -654,6 +658,10 @@ function resetTimerClockContinuity(currentWall = wallNow(), currentMono = monoNo
   timerClockContinuityUptimeAt = currentUptime;
 }
 
+function timerClockNow() {
+  return timerClockOrigin + monoNow() + timerClockSleepOffset;
+}
+
 function finiteClockDiagnostic(value) {
   const number = Number(value);
   return Number.isFinite(number) ? Number(number.toFixed(3)) : null;
@@ -751,17 +759,12 @@ function repairTimerClockContinuity() {
   const wallDelta = currentWall - timerClockContinuityWallAt;
   const monotonicDelta = currentMono - timerClockContinuityMonoAt;
   const uptimeDelta = currentUptime - timerClockContinuityUptimeAt;
-  if (!timerState.running || !timerStartedAtMono) {
-    resetTimerClockContinuity(currentWall, currentMono, currentUptime);
-    currentTimerClockEvent = null;
-    return 0;
-  }
+  const hasRunningClock = timerState.running && Boolean(timerStartedAtMono);
+  const wasStartPending = timerStartPending;
   if (timerStartPending) {
     // Future starts keep their absolute wall target, even if system time changes.
     timerStartedAtMono = currentMono + (timerState.startedAt - currentWall);
     timerStartPending = timerState.startedAt > currentWall;
-    resetTimerClockContinuity(currentWall, currentMono, currentUptime);
-    return 0;
   }
   if (wallDelta >= 0 && monotonicDelta >= 0 && uptimeDelta >= 0
     && Math.max(monotonicDelta, uptimeDelta) < CLOCK_CONTINUITY_GAP_MS
@@ -780,6 +783,17 @@ function repairTimerClockContinuity() {
     return 0;
   }
   const correction = assessment.correctionMs;
+  // Keep this clock continuous through a confirmed suspension even while the
+  // competition is paused. Never repair it from a wall-clock step alone.
+  timerClockSleepOffset += correction;
+  if (!hasRunningClock || wasStartPending) {
+    if (wasStartPending && (correction || assessment.reason === "wall-clock-adjustment")) {
+      timerState.version += 1;
+      queueClockRepairEffects();
+    }
+    currentTimerClockEvent = null;
+    return correction;
+  }
   currentTimerClockEvent = { ...assessment, observedAtMono: currentMono };
   const elapsedBeforeMs = Math.max(0, currentMono - timerStartedAtMono);
   recordClockContinuityAnomaly({
@@ -799,7 +813,9 @@ function repairTimerClockContinuity() {
   timerStartedAtMono -= correction;
   // Rebase the public wall anchor without changing elapsed on a wall-clock step.
   timerState.startedAt = currentWall - (elapsedBeforeMs + correction);
-  timerState.version += 1;
+  // A calendar-only rebase is not a competition change. In particular, SSE
+  // must not make modern clients replace a correct Web Audio schedule.
+  if (correction) timerState.version += 1;
   queueClockRepairEffects();
   if (correction) performanceCount("timerClockContinuityRepairs");
   console.warn(`${correction ? "FDV_SERVER_CLOCK_REPAIR" : "FDV_SERVER_CLOCK_ADJUSTMENT"} ${JSON.stringify({
@@ -1089,6 +1105,12 @@ function armPrimaryRestoreGrace() {
 }
 
 function effectiveActionWallNow(body, fallbackNow = wallNow()) {
+  if (body.intendedTimerTime !== undefined && body.baseServerInstanceId === serverInstanceId) {
+    const intendedTimerTime = Number(body.intendedTimerTime);
+    if (Number.isFinite(intendedTimerTime)) {
+      return fallbackNow + clampNumber(intendedTimerTime - timerClockNow(), -5000, 1000, 0);
+    }
+  }
   const intended = Number(body.intendedServerTime);
   if (!Number.isFinite(intended)) return fallbackNow;
   return clampNumber(intended, fallbackNow - 5000, fallbackNow + 1000, fallbackNow);
@@ -1592,7 +1614,9 @@ function publicState(options = {}) {
   try {
   finalizeScheduledCountdown();
   finalizeOneShot();
+  repairTimerClockContinuity();
   const sentAt = wallNow();
+  const timerSentAt = timerClockNow();
   const receivedAt = Number(options.receivedAt);
   const clientId = options.clientId || "";
   const includeClients = options.includeClients !== false;
@@ -1623,6 +1647,16 @@ function publicState(options = {}) {
     startListRevision,
     serverInstanceId,
     startedAt: publicStartedAt(sentAt, elapsed),
+    timerClock: {
+      version: 1,
+      now: timerSentAt,
+      receivedAt: Number.isFinite(options.timerReceivedAt) ? options.timerReceivedAt : null,
+      sentAt: timerSentAt,
+      // Use the actual monotonic anchor, not a separately sampled now-elapsed
+      // pair: identical timelines must retain identical signal identities.
+      startedAt: timerState.running && timerStartedAtMono
+        ? timerClockOrigin + timerStartedAtMono + timerClockSleepOffset : 0
+    },
     config: {
       ...config,
       buildNumber: BUILD_NUMBER,
@@ -1819,6 +1853,8 @@ function handleRequest(req, res) {
   }
 
   if (requestUrl.pathname === "/api/state" && req.method === "GET") {
+    repairTimerClockContinuity();
+    const timerReceivedAt = timerClockNow();
     const receivedAt = wallNow();
     const clientId = registerClient(req, requestUrl.searchParams);
     const legacyResponse = requestUrl.searchParams.get("legacy") === "1";
@@ -1833,6 +1869,7 @@ function handleRequest(req, res) {
       })
       : publicState({
         receivedAt,
+        timerReceivedAt,
         clientId,
         includeClients,
         startListRevision: requestUrl.searchParams.get("startListRevision") || ""
@@ -1910,10 +1947,13 @@ function handleRequest(req, res) {
 
   if (requestUrl.pathname === "/api/action" && req.method === "POST") {
     readJson(req).then((body) => {
+      repairTimerClockContinuity();
+      const timerReceivedAt = timerClockNow();
       const clientId = registerClient(req, body);
       const now = wallNow();
       const actionPublicState = () => publicState({
         receivedAt: now,
+        timerReceivedAt,
         clientId,
         includeClients: shouldIncludeDiagnostics(clientId),
         startListRevision: body.startListRevision
@@ -2277,7 +2317,9 @@ function handleRequest(req, res) {
               previewTargetClientId: targetClientId,
               previewAudioOffset: Math.round(previewAudioOffset)
             } : {}),
-            serverTime: now + 1800
+            serverTime: now + 1800,
+            timerTime: timerClockNow() + 1800,
+            serverInstanceId
           };
         }
       }

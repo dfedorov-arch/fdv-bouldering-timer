@@ -2011,7 +2011,17 @@
       font: inherit;
       text-align: left;
     }
-    .cycle-input:disabled { opacity: 1; pointer-events: none; }
+    .cycle-input:disabled {
+      -moz-appearance: textfield;
+      appearance: textfield;
+      opacity: 1;
+      pointer-events: none;
+    }
+    .cycle-input:disabled::-webkit-inner-spin-button,
+    .cycle-input:disabled::-webkit-outer-spin-button {
+      -webkit-appearance: none;
+      margin: 0;
+    }
 
     #rotationMeta {
       background: rgba(23, 27, 34, .42);
@@ -3085,7 +3095,7 @@
       timeline: []
     };
 
-    const pageBuildNumber = 412;
+    const pageBuildNumber = 413;
     const projectUrl = "https://github.com/dfedorov-arch/fdv-bouldering-timer";
     const buildLinkConfirmDelayMs = 550;
     const offlineSnapshotKey = "fdvBoulderingTimerOfflineSnapshot";
@@ -4204,7 +4214,7 @@
     let clockContinuityPerfAt = performance.now();
     let trustedServerClockAnchor = null;
     let lastTrustedClockAnchorAt = 0;
-    let clockCalibrationPending = false;
+    let clockCalibrationPending = !isLocalStandalonePage();
     const retiredServerInstanceIds = new Set();
     let syncRequestInFlight = false;
     let syncRequestGeneration = 0;
@@ -4397,11 +4407,18 @@
 
     function updateConnectionWarning() {
       if (clockCalibrationPending) {
+        const initialCalibration = !standaloneMode && (!lastMeasuredClockServerInstanceId
+          || lastMeasuredClockServerInstanceId !== lastServerInstanceId);
         els.serverConnectionWarning.hidden = false;
         els.serverConnectionWarning.dataset.state = "clock-pending";
-        els.serverConnectionWarningTitle.textContent = language === "ru"
-          ? "Требуется проверка времени" : "Clock verification required";
-        els.serverConnectionWarningText.textContent = language === "ru"
+        els.serverConnectionWarningTitle.textContent = initialCalibration
+          ? (language === "ru" ? "Синхронизация времени" : "Synchronizing time")
+          : (language === "ru" ? "Требуется проверка времени" : "Clock verification required");
+        els.serverConnectionWarningText.textContent = initialCalibration
+          ? (language === "ru"
+            ? "Ожидается измерение времени сервера. Отсчёт и звуковые сигналы включатся после синхронизации."
+            : "Waiting for a measured server clock. The countdown and sound will begin after synchronization.")
+          : language === "ru"
           ? "Обнаружено расхождение часов браузера. Отсчёт продолжается по последней монотонной модели; сигналы приостановлены до проверки по серверу. В автономном режиме для нового отсчёта нажмите Стоп, затем Старт."
           : "Browser clock discontinuity detected. The last monotonic timeline is retained; sound is suspended until server verification. For a new standalone run, press Stop, then Start.";
         els.enterStandaloneBtn.hidden = standaloneMode || serverAvailable;
@@ -4715,6 +4732,8 @@
       const performanceStartedAt = performanceStart();
       try {
       const localStandalone = isLocalStandalonePage();
+      // Never replace a trusted checkpoint with an uncalibrated server timeline.
+      if (!standaloneMode && clockCalibrationPending) return;
       if (!localStandalone) {
         if (offlineReloadMode && !standaloneMode) return;
         if (!serverAvailable && !standaloneMode) return;
@@ -4743,6 +4762,7 @@
           savedAtWall,
           serverNow: serverNow(),
           serverClockRate,
+          timerClockVersion: state.timerClockVersion || 0,
           config: lastStartupConfig,
           language,
           primarySoundEnabled: standaloneMode ? els.soundToggle.checked : primarySoundEnabled,
@@ -4758,6 +4778,8 @@
             countdownOnly: state.countdownOnly,
             waitingForManualStart: state.waitingForManualStart,
             serverStartedAt: state.serverStartedAt,
+            serverStartedAtWall: state.serverStartedAtWall,
+            serverWallOffset: state.serverWallOffset,
             elapsedBeforePause: state.elapsedBeforePause,
             activePreset: state.activePreset,
             runtimePreset: state.runtimePreset,
@@ -4847,6 +4869,8 @@
           countdownOnly: Boolean(snapshot.state.countdownOnly),
           waitingForManualStart: Boolean(snapshot.state.waitingForManualStart),
           serverStartedAt: Number(snapshot.state.serverStartedAt || 0),
+          serverStartedAtWall: Number(snapshot.state.serverStartedAtWall || snapshot.state.serverStartedAt || 0),
+          serverWallOffset: Number(snapshot.state.serverWallOffset || 0),
           elapsedBeforePause: Number(snapshot.state.elapsedBeforePause || 0),
           activePreset: snapshot.state.activePreset || "",
           runtimePreset: Object.prototype.hasOwnProperty.call(snapshot.state, "runtimePreset")
@@ -4887,6 +4911,10 @@
         const restoredServerNow = (Number.isFinite(savedServerNow) ? savedServerNow : savedAtWall)
           + age;
         const localNow = performance.now();
+        state.timerClockVersion = Number(snapshot.timerClockVersion || 0);
+        // An offline snapshot is a provisional timeline, never a measurement
+        // of a newly connected server. Its first instance still invalidates it.
+        clockCalibrationPending = false;
         serverClockRate = restoredRate;
         serverClockRateConfidence = "offline-reload";
         serverClockRateGateReason = "offline-reload";
@@ -5184,7 +5212,7 @@
       serverClockRate = 1;
       serverClockRateHighConfidence = false;
       serverClockRateConfidence = "reset";
-      clockCalibrationPending = false;
+      clockCalibrationPending = !standaloneMode;
       serverPerfAnchor = localNow;
       serverTimeAnchor = dateNow;
       serverPerfOffset = dateNow - localNow;
@@ -5273,6 +5301,7 @@
 
     function updateServerTiming(remote, timing = {}, options = {}) {
       if (standaloneMode) return;
+      remote = window.FDVClientActionTransport.timerClockState(remote);
       const identity = window.FDVClientActionTransport.reconcileServerStateIdentity(
         lastServerInstanceId, lastServerVersion, remote, retiredServerInstanceIds);
       if (identity.retired) return;
@@ -5301,6 +5330,10 @@
         return;
       }
       if (!prepareServerClockMeasurement({ date0, date1, perf0, perf1 })) return;
+      // Do not unlock a new screen from a badly delayed bootstrap response.
+      // Existing calibrated/recovery clocks keep their established policy.
+      if (clockCalibrationPending && clockInstanceId !== lastMeasuredClockServerInstanceId
+        && perf1 - perf0 > 500) return;
       if (serverClockRecoveryTimer !== null) {
         window.clearTimeout(serverClockRecoveryTimer);
         serverClockRecoveryTimer = null;
@@ -5482,6 +5515,7 @@
           || Math.abs(nextServerNow - serverNow()) > 1000;
         const recoveredCalibration = clockCalibrationPending;
         applyServerClockModel(nextServerNow, nextRate, forceClockCorrection);
+        state.timerClockVersion = remote.timerClockNormalized ? 1 : 0;
         clockCalibrationPending = false;
         if (recoveredCalibration) updateConnectionWarning();
         const remainingCorrectionMs = Math.abs(nextServerNow - serverNow());
@@ -5544,10 +5578,8 @@
         lastServerVersion = 0;
         trustedServerClockAnchor = null;
         lastTrustedClockAnchorAt = 0;
-        if (identity.serverRestarted) {
-          lastRemoteRunning = false;
-          invalidateServerClockCalibration("server-instance-change");
-        }
+        lastRemoteRunning = false;
+        invalidateServerClockCalibration(identity.serverRestarted ? "server-instance-change" : "initial-clock");
       }
       return identity;
     }
@@ -5836,7 +5868,7 @@
       if (els.serverClockDisplay.style.bottom !== clockBottom) {
         els.serverClockDisplay.style.bottom = clockBottom;
       }
-      const currentServerTime = serverNow();
+      const currentServerTime = serverNow() + (state.serverWallOffset || 0);
       const label = formatServerClockTime(currentServerTime);
       setElementText(els.serverClockDisplay, label);
       els.serverClockDisplay.setAttribute("aria-label", `${t("serverTime")} ${label}`);
@@ -6369,6 +6401,7 @@
       const performanceStartedAt = performanceStart();
       try {
       if (!remote || typeof remote !== "object") return;
+      remote = window.FDVClientActionTransport.timerClockState(remote);
       const identity = reconcileServerStateIdentity(remote);
       if (identity.retired) return;
       if (identity.stale) {
@@ -6401,6 +6434,8 @@
       state.manualStartLeadMs = Number(remote.manualStartLeadMs || 0);
       state.manualStartDisplayHold = Boolean(remote.manualStartDisplayHold);
       state.serverStartedAt = Number(remote.startedAt || 0);
+      state.serverStartedAtWall = Number(remote.startedAtWall ?? remote.startedAt ?? 0);
+      state.serverWallOffset = remote.timerClockNormalized ? remote.wallNow - remote.now : 0;
       state.elapsedBeforePause = Number(remote.elapsedBeforePause || 0);
       state.activePreset = remote.activePreset || "";
       state.activeSettings = remote.activeSettings || activeSettingsFromDraft();
@@ -6557,6 +6592,7 @@
       const performanceStartedAt = performanceStart();
       try {
       if (!remote || typeof remote !== "object" || standaloneMode) return;
+      remote = window.FDVClientActionTransport.timerClockState(remote);
       if (reconcileServerStateIdentity(remote).stale) return;
       const nextActiveSettings = remote.activeSettings || state.activeSettings;
       const settingsChanged = JSON.stringify(nextActiveSettings || {}) !== JSON.stringify(state.activeSettings || {});
@@ -6567,6 +6603,8 @@
       state.manualStartLeadMs = Number(remote.manualStartLeadMs || 0);
       state.manualStartDisplayHold = Boolean(remote.manualStartDisplayHold);
       state.serverStartedAt = Number(remote.startedAt || 0);
+      state.serverStartedAtWall = Number(remote.startedAtWall ?? remote.startedAt ?? 0);
+      state.serverWallOffset = remote.timerClockNormalized ? remote.wallNow - remote.now : 0;
       state.elapsedBeforePause = Number(remote.elapsedBeforePause || 0);
       state.activePreset = remote.activePreset || state.activePreset || "";
       state.activeSettings = nextActiveSettings || activeSettingsFromDraft();
@@ -6649,6 +6687,7 @@
       fetch: (...args) => fetch(...args),
       getBaseVersion: () => lastServerVersion || undefined,
       getServerInstanceId: () => lastServerInstanceId || undefined,
+      usesTimerClock: () => state.timerClockVersion === 1,
       isAvailable: () => serverAvailable,
       isRuntimeCommand: (type) => runtimeCommandTypes.has(type),
       isStandalone: () => standaloneMode,
@@ -9493,6 +9532,7 @@
     }
 
     function scheduleDiagnosticSound(kind, targetServerTime) {
+      if (clockCalibrationPending) return;
       const scheduleGeneration = audioScheduleGeneration;
       if (standaloneMode && iosAudioWorkaroundEnabled && audioKinds.includes(kind)) {
         scheduleServerTimeoutAt(targetServerTime, () => {
@@ -9512,6 +9552,8 @@
     }
 
     async function handleAudioTest(command) {
+      if (clockCalibrationPending || (command?.serverInstanceId
+        && command.serverInstanceId !== lastServerInstanceId)) return;
       const scheduleGeneration = audioScheduleGeneration;
       const testId = String(command?.id || "");
       if (!testId || testId === lastAudioTestId) return;
@@ -9529,10 +9571,10 @@
         await loadAudioBuffers();
       } catch (error) {}
 
-      if (scheduleGeneration !== audioScheduleGeneration) return;
+      if (scheduleGeneration !== audioScheduleGeneration || clockCalibrationPending) return;
 
       const testAudioOffset = window.FDVClientActionTransport.resolveAudioTestOffset(command, clientId, audioUserOffsetMs);
-      const baseServerTime = Number(command.serverTime) + testAudioOffset;
+      const baseServerTime = Number(state.timerClockVersion === 1 ? command.timerTime : command.serverTime) + testAudioOffset;
       if (!Number.isFinite(baseServerTime)) return;
       const kind = ["start", "end", "minute", "warn"].includes(command.kind) ? command.kind : "start";
       const offsets = kind === "warn" ? [0, 1000, 2000, 3000, 4000] : [0];
@@ -10785,6 +10827,17 @@
       performanceCount("renderCalls");
       const performanceStartedAt = performanceStart();
       try {
+      if (clockCalibrationPending && !standaloneMode && (!lastMeasuredClockServerInstanceId
+        || lastMeasuredClockServerInstanceId !== lastServerInstanceId)) {
+        setElementText(els.timeMinutes, "--");
+        setElementText(els.timeSeconds, "--");
+        els.time.setAttribute("aria-label", "--:--");
+        lastDisplayTimeLabel = "--:--";
+        setElementText(els.phase, language === "ru" ? "Синхронизация" : "Synchronizing");
+        setElementClassName(els.phase, "phase ready");
+        syncButtons();
+        return;
+      }
       if (resumeSnapPending && shouldKeepDisplayFresh()) {
         setElementClass(document.body, "warning-active", false);
         syncAudioTestButtons();
@@ -10829,7 +10882,7 @@
         setDisplayTime(untilStart);
         setElementText(els.status, untilStart > 0 ? t("waitingStart") : t("readyStart"));
         setCycleMeta(displayedCycleNumber());
-        setElementText(els.rotationMeta, `${t("start")} ${new Date(state.serverStartedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`);
+        setElementText(els.rotationMeta, `${t("start")} ${new Date(state.serverStartedAtWall || state.serverStartedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`);
         setElementText(els.nextMeta, untilStart > 0 ? t("nextManual") : t("pressStart"));
         setProgressWidth(0, true);
         if ((isViewerClient || document.body.classList.contains("fullscreen"))
@@ -10880,7 +10933,7 @@
         setDisplayTime(untilStart);
         setElementText(els.status, t("waitingStart"));
         setCycleMeta(1);
-        setElementText(els.rotationMeta, `${t("start")} ${new Date(state.serverStartedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`);
+        setElementText(els.rotationMeta, `${t("start")} ${new Date(state.serverStartedAtWall || state.serverStartedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`);
         setElementText(els.nextMeta, t("nextStart"));
         setProgressWidth(0, true);
         drawSchedule(null);
@@ -11342,6 +11395,7 @@
         state.waitingForManualStart = false;
         state.elapsedBeforePause = 0;
         state.serverStartedAt = serverNow() + target.getTime() - now;
+        state.serverStartedAtWall = target.getTime();
         buildTimeline(state.activeSettings);
         rescheduleStandaloneSignals();
         syncButtons();

@@ -47,7 +47,7 @@ FDV Bouldering Timer — локальный сетевой таймер для �
 
 Можно загрузить до четырёх стартовых списков из XLSX, CSV, TSV, TXT или MXL. В пользовательском интерфейсе они обозначаются LIST 1–4. Термин «протокол» остаётся только во внутренних именах совместимости и в значении HTTP/HTTPS.
 
-На экранах с видимыми списками под таймером отображается плашка номера ротации (только для чтения), в том числе в полном экране и Legacy. Без списков плашка скрыта. Перед запланированным стартом показывается «Ожидание старта».
+На экранах с видимыми списками под таймером отображается плашка номера ротации, в том числе в полном экране и Legacy. Она доступна только для чтения; стрелки изменения номера скрыты, включая Firefox. Без списков плашка скрыта. Перед запланированным стартом показывается «Ожидание старта».
 
 - Таблицы показывают подготовку, лазание, завершение, паузы и остановки трасс.
 - Значения участников не сокращаются многоточием; при нехватке ширины используется горизонтальная прокрутка. Сокращаться может заголовок.
@@ -98,6 +98,8 @@ Legacy предназначен для старых ТВ-браузеров. О�
 Обычный экран также продолжает расчёт из последней временной шкалы. Обычное возвращение сети сохраняет калибровку часов и корректное расписание звука. После длительной недоступности сервера предлагается автономный режим. На странице, открытой через сервер, восстановление контакта автоматически возвращает серверное состояние; автономные команды и изменения не отправляются назад и отбрасываются. Прямая однофайловая автономная версия сервера не использует.
 
 Сон или перевод системных часов могут нарушить доверие к измерениям времени. В таком случае прежний монотонный отсчёт продолжается с предупреждением, а сигналы приостанавливаются до проверки по серверу: системные часы не используются для скачка времени. Если сервера нет, Стоп, затем Старт задают новый автономный отсчёт, но не восстанавливают точность прежнего. Перед соревнованием отдельно проверьте обрыв сети, сон/пробуждение и переходы ротаций на физических устройствах. Эта новая логика относится к обычному экрану, не к упрощённой синхронизации Legacy.
+
+При первом подключении обычный экран показывает «Синхронизация времени» и --:-- до измерения времени сервера; звуковые события в этот момент не планируются. После измерения экран сразу показывает текущий отсчёт. Перевод календарных часов сервера не сдвигает уже запущенный таймер и его звуковое расписание. Запуск по заданному времени и восстановление после перезапуска по-прежнему учитывают календарные часы. Прямая автономная версия и APK не ждут серверной синхронизации.
 
 Звук
 ----
@@ -170,7 +172,7 @@ Cancelling such a stop preserves both pause boundaries: a pause from 17 through 
 
 Load up to four lists from XLSX, CSV, TSV, TXT, or MXL. The user interface calls them LIST 1–4; old “protocol” names remain only in internal compatibility identifiers and the HTTP/HTTPS meaning.
 
-Screens with visible lists show a read-only rotation badge below the timer, including fullscreen and Legacy. Without lists the badge is hidden. Before a scheduled start it says “Waiting for start”.
+Screens with visible lists show a read-only rotation badge without number-editing arrows (including Firefox) below the timer, including fullscreen and Legacy. Without lists the badge is hidden. Before a scheduled start it says “Waiting for start”.
 
 Participant cells are never ellipsized. Each display selects its own visible LIST badges. With exactly two visible lists, a cyan button switches one or two columns; an orange outline marks a non-default layout. Route incidents can suspend and resume a route at a current or future rotation. Choosing a future pause rotation enables “Hold the entire wave from this rotation” by default so the related wave does not start on upstream routes; the operator may clear it, and it defaults off for a current or past rotation. Participants or routes can also be excluded and restored.
 
@@ -197,6 +199,8 @@ Portrait number and route columns are compact; full names do not overlap markers
 The modern page also extrapolates from the last known timeline. Ordinary network recovery retains clock calibration and valid sound schedules. After a longer server outage it offers Standalone mode. A server-opened page automatically returns to authoritative server state when contact resumes; standalone commands and changes are not uploaded and are discarded. The direct single-file standalone version has no server.
 
 Sleep or a system-clock change can invalidate clock measurements. The previous monotonic timeline then continues with a warning, while timed signals are suspended until server verification; wall time does not directly jump the timer. Without a server, Stop followed by Start establishes a new standalone run, not verified elapsed time for the previous run. Before competition use, test network loss, sleep/wake, and rotation boundaries on the physical devices. This new recovery policy applies to the normal page, not Legacy's simplified synchronization.
+
+On first connection, a modern screen shows “Synchronizing time” and --:-- until a measured server clock is available, with no scheduled sounds. It then displays the current countdown. Changing the server calendar clock does not shift an active timer or its sound schedule. Scheduled clock-time starts and restart recovery still use calendar time. Direct standalone HTML and APK do not wait for server synchronization.
 
 Sound, settings, and help
 -------------------------

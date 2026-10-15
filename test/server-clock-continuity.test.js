@@ -2,102 +2,7 @@
 
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const fs = require("node:fs");
-const os = require("node:os");
-const path = require("node:path");
-const net = require("node:net");
-const { spawn } = require("node:child_process");
-
-const root = path.resolve(__dirname, "..");
-const clockOrigin = Date.UTC(2026, 9, 8, 12, 0, 0);
-
-async function freePort() {
-  const server = net.createServer();
-  await new Promise((resolve, reject) => {
-    server.once("error", reject);
-    server.listen(0, "127.0.0.1", resolve);
-  });
-  const port = server.address().port;
-  await new Promise((resolve) => server.close(resolve));
-  return port;
-}
-
-async function fixture(t, platform) {
-  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "fdv-clock-continuity-"));
-  let child = null;
-  t.after(async () => {
-    if (child && child.exitCode === null) {
-      await new Promise((resolve) => {
-        const timeout = setTimeout(() => child.kill("SIGKILL"), 3000);
-        child.once("exit", () => { clearTimeout(timeout); resolve(); });
-        child.kill("SIGTERM");
-      });
-    }
-    fs.rmSync(directory, { recursive: true, force: true });
-  });
-  for (const name of ["serve-bouldering-timer.js", "params.txt"]) {
-    fs.copyFileSync(path.join(root, name), path.join(directory, name));
-  }
-  for (const name of ["lib", "fonts", "beeps"]) {
-    fs.cpSync(path.join(root, name), path.join(directory, name), { recursive: true });
-  }
-  const framePath = path.join(directory, "clock-frame.json");
-  const frame = (wall, mono = wall, uptime = Math.floor(wall / 1000) * 1000) => {
-    fs.writeFileSync(framePath, JSON.stringify({ wall, mono, uptime }));
-  };
-  frame(0);
-  const preloadPath = path.join(directory, "controlled-clock.cjs");
-  // Inject clocks into a disposable child process, never into the production
-  // server or the test runner. Native timers and sockets continue to run normally.
-  fs.writeFileSync(preloadPath, `
-    const fs = require("node:fs");
-    const os = require("node:os");
-    const { performance } = require("node:perf_hooks");
-    const storage = require(${JSON.stringify(path.join(directory, "lib", "runtime-state-storage.js"))});
-    const hostPlatform = process.platform;
-    const originalStoragePlan = storage.runtimeStateStoragePlan;
-    storage.runtimeStateStoragePlan = (root, options = {}) => originalStoragePlan(root, { ...options, platform: hostPlatform });
-    const frame = () => JSON.parse(fs.readFileSync(${JSON.stringify(framePath)}, "utf8"));
-    Date.now = () => ${clockOrigin} + frame().wall;
-    Object.defineProperty(performance, "now", { value: () => 10000 + frame().mono });
-    os.uptime = () => 1000 + frame().uptime / 1000;
-    Object.defineProperty(process, "platform", { value: ${JSON.stringify(platform)} });
-  `);
-  const port = await freePort();
-  const output = [];
-  child = spawn(process.execPath, [...(platform ? ["--require", preloadPath] : []), path.join(directory, "serve-bouldering-timer.js")], {
-    cwd: directory,
-    env: { ...process.env, HOST: "127.0.0.1", PORT: String(port), HTTPS_PORT: String(await freePort()) },
-    stdio: ["ignore", "pipe", "pipe"]
-  });
-  child.stdout.on("data", (data) => output.push(data.toString()));
-  child.stderr.on("data", (data) => output.push(data.toString()));
-  const baseUrl = `http://127.0.0.1:${port}`;
-  const state = async () => {
-    const response = await fetch(`${baseUrl}/api/state?diagnostics=1`, { signal: AbortSignal.timeout(1000) });
-    assert.equal(response.status, 200);
-    return response.json();
-  };
-  const deadline = Date.now() + 5000;
-  while (true) {
-    try { await state(); break; } catch (error) {
-      if (Date.now() >= deadline || child.exitCode !== null) throw new Error(`${error.message}\n${output.join("")}`);
-      await new Promise((resolve) => setTimeout(resolve, 30));
-    }
-  }
-  const action = async (body) => {
-    const response = await fetch(`${baseUrl}/api/action`, {
-      method: "POST", headers: { "content-type": "application/json" },
-      body: JSON.stringify({ clientId: "clock-test", ...body }), signal: AbortSignal.timeout(1000)
-    });
-    assert.equal(response.status, 200);
-    return response.json();
-  };
-  const start = (options = {}) => action({ type: "start", startMode: "manual", startHours: "", startMinutes: "",
-    activePreset: "classic", settings: { rotationSeconds: 60, breakSeconds: 15, oneShot: false }, ...options });
-  const snapshot = () => JSON.parse(fs.readFileSync(path.join(directory, "runtime-state", "timer-state.json"), "utf8"));
-  return { frame, state, action, start, snapshot, output, baseUrl };
-}
+const { fixture, clockOrigin } = require("./helpers/controlled-clock-server");
 
 test("native macOS clocks run without repairs on an isolated real server", { timeout: 15000 }, async (t) => {
   if (process.platform !== "darwin") return t.skip("Physical macOS clock check");
@@ -199,7 +104,10 @@ test("system clock steps preserve elapsed and allow pause on macOS, Windows and 
       assert.equal(stepped.startedAt, clockOrigin + adjustment);
       assert.equal(stepped.clockDiagnostics.current.reason, "wall-clock-adjustment");
       assert.equal(stepped.clockDiagnostics.history[0].correctionMs, 0);
-      assert.equal(stepped.version, started.version + 1);
+      assert.equal(stepped.version, started.version, "calendar adjustment must not replace client audio");
+      assert.equal(stepped.timerClock.startedAt, started.timerClock.startedAt);
+      assert.equal(stepped.timerClock.now - started.timerClock.now, 500);
+      assert.equal(stepped.timerClock.sentAt - stepped.timerClock.receivedAt, 0);
       server.frame(6480 + adjustment, 6480, 6000);
       const paused = await server.action({ type: "pause" });
       assert.equal(paused.running, false);
@@ -255,6 +163,35 @@ test("future scheduled starts keep their wall target when system time changes", 
   const running = await server.state();
   assert.equal(running.elapsed, 3.24);
   assert.equal(running.startedAt, started.startedAt);
-  assert.equal(running.version, started.version);
-  assert.equal(running.clockDiagnostics.continuityAnomalyCount, 0);
+  assert.equal(running.version, started.version + 2, "only pending wall-target changes reschedule the start");
+  assert.equal(running.timerClock.startedAt, clockOrigin + 36000);
+  assert.equal(running.clockDiagnostics.continuityAnomalyCount, 0, JSON.stringify(running.clockDiagnostics.history));
+});
+
+test("paused server clock survives wall changes and commands use the measured timer coordinate", async (t) => {
+  const server = await fixture(t, "darwin");
+  const before = await server.state();
+  server.frame(121000, 1000, 1000);
+  const idle = await server.state();
+  assert.equal(idle.timerClock.now - before.timerClock.now, 1000);
+  const started = await server.start();
+  server.frame(122000, 2000, 2000);
+  const paused = await server.action({ type: "pause", baseServerInstanceId: started.serverInstanceId,
+    intendedTimerTime: started.timerClock.now + 500 });
+  assert.equal(paused.elapsed, 0.5);
+  assert.equal(paused.running, false);
+});
+
+test("confirmed sleep advances the public timer clock while the competition is paused", async (t) => {
+  const server = await fixture(t, "linux");
+  const before = await server.state();
+  server.frame(61000, 1000, 61000);
+  const after = await server.state();
+  assert.equal(after.timerClock.now - before.timerClock.now, 61000);
+  assert.equal(after.elapsed, before.elapsed);
+  const started = await server.start();
+  server.frame(62000, 2000, 62000);
+  const running = await server.state();
+  assert.equal(running.elapsed, 1);
+  assert.equal(running.timerClock.startedAt, started.timerClock.startedAt);
 });

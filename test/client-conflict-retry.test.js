@@ -5,7 +5,7 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
 const vm = require("node:vm");
-const { createActionTransport, reconcileServerStateIdentity } = require("../lib/client-action-transport");
+const { createActionTransport, reconcileServerStateIdentity, timerClockState } = require("../lib/client-action-transport");
 
 function response(status, body) {
   return {
@@ -46,6 +46,34 @@ function makeTransport(fetchImpl, overrides = {}) {
   });
   return { applied, applyErrors, failures, transport };
 }
+
+test("monotonic runtime commands explicitly identify their time domain without changing legacy commands", async () => {
+  for (const monotonic of [true, false]) {
+    let request;
+    const fixture = makeTransport(async (url, options) => {
+      request = JSON.parse(options.body);
+      return response(200, {serverInstanceId:"server-a",version:11});
+    }, {usesTimerClock:() => monotonic});
+    await fixture.transport.send("pause");
+    assert.equal(request[monotonic ? "intendedTimerTime" : "intendedServerTime"], 123456);
+    assert.equal(request[monotonic ? "intendedServerTime" : "intendedTimerTime"], undefined);
+    assert.equal(request.baseServerInstanceId, "server-a");
+  }
+});
+
+test("modern clock projection preserves calendar fields and is idempotent, old payloads remain unchanged", () => {
+  const old = {now:220000,startedAt:200000,serverReceivedAt:219990,serverSentAt:220000};
+  assert.equal(timerClockState(old), old);
+  const remote = {...old,timerClock:{version:1,now:120000,receivedAt:119990,sentAt:120000,startedAt:100000}};
+  const projected = timerClockState(remote);
+  assert.equal(projected.now, 120000);
+  assert.equal(projected.startedAt, 100000);
+  assert.equal(projected.wallNow, old.now);
+  assert.equal(projected.startedAtWall, old.startedAt);
+  assert.equal(projected.serverReceivedAt, 119990);
+  assert.equal(timerClockState(projected), projected);
+  assert.equal(remote.now, old.now);
+});
 
 test("production client retries one version conflict with a fresh command id and version", async () => {
   const requests = [];

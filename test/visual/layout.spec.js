@@ -741,6 +741,33 @@ for (const scenario of [
   });
 }
 
+test("Read-only rotation badge hides native number arrows and primary editing retains them", async ({ browser }, testInfo) => {
+  const id = "visual-rotation-arrows";
+  const opened = await openModern(browser, server.baseUrl, id, { width: 1280, height: 900 }, [0]);
+  try {
+    const input = opened.page.locator("#cycleInput");
+    await expect(input).toBeDisabled();
+    await expect(input).toHaveCSS("appearance", "textfield");
+    const before = await input.inputValue();
+    const badge = await opened.page.locator(".cycle-chip").boundingBox();
+    await opened.page.mouse.click(badge.x + badge.width / 2, badge.y + badge.height / 2);
+    await opened.page.keyboard.press("ArrowUp");
+    await expect(input).toHaveValue(before);
+    const screenshot = testInfo.outputPath("rotation-badge-read-only.png");
+    await opened.page.locator(".cycle-chip").screenshot({ path: screenshot });
+    await testInfo.attach("Read-only rotation badge without native arrows", { path: screenshot, contentType: "image/png" });
+    await action(server.baseUrl, "primary", { primaryClientId: id });
+    await expect(input).toBeEnabled();
+    await expect(input).toHaveCSS("appearance", "auto");
+    await input.focus();
+    await input.press("ArrowUp");
+    await expect.poll(async () => Number(await input.inputValue())).toBe(Number(before) + 1);
+  } finally {
+    await action(server.baseUrl, "primary", { primaryClientId: "performance-baseline" });
+    await opened.context.close();
+  }
+});
+
 test("Primary fullscreen with lists keeps the cycle visible but not editable", async ({ browser }) => {
   const id = "visual-primary-cycle-fullscreen";
   const opened = await openModern(browser, server.baseUrl, id, { width: 1280, height: 900 }, [0]);

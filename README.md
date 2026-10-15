@@ -36,6 +36,8 @@ APK учитывает системную панель навигации и в�
 
 Обычное восстановление сети не сбрасывает калибровку часов и звуковое расписание. Если обнаружено расхождение часов браузера (например, после сна или перевода системного времени), появится «Требуется проверка времени», а `SYNC` станет красным: отсчёт продолжается по последней монотонной модели, но сигналы приостановлены до измерения по серверу. Если сервера нет, для нового автономного отсчёта нажмите **Стоп**, затем **Старт**; это не восстанавливает достоверное время прежнего отсчёта. Подробная архитектура и ограничения проверок описаны в [docs/architecture.md](docs/architecture.md).
 
+При первом подключении современный экран показывает «Синхронизация времени» и `--:--` до измерения серверных часов; звук ещё не планируется. Идущий отсчёт и сигналы используют независимую монотонную шкалу: перевод календарных часов сервера не сдвигает их и не пересоздаёт звуковое расписание. Старт по времени суток и восстановление после перезапуска по-прежнему используют календарные данные. Автономная версия не ожидает сервер.
+
 ## Сохранение состояния
 
 Состояние установленной версии сохраняется в пользовательском каталоге (Windows: `%LOCALAPPDATA%\FDV Bouldering Timer\runtime-state`); portable-версия сохраняет его рядом с таймером. Если каталог portable-версии закрыт для записи, сервер автоматически использует пользовательский каталог. Путь виден в журнале лаунчера.
@@ -137,6 +139,8 @@ The APK respects system navigation bars and display cutouts, keeping timer butto
 All devices must be on the same local network. See the [full guide](help.html?lang=en) for list imports, diagnostics, Legacy behavior, offline recovery, HTTPS, and troubleshooting.
 
 Ordinary network recovery preserves clock calibration and valid sound schedules. A detected browser-clock discontinuity (for example, after sleep or a system-clock change) shows “Clock verification required” and turns `SYNC` red: the last monotonic timeline is retained, but timed signals are suspended until a measured server response verifies time. Without a server, press **Stop**, then **Start** for a new standalone run; this does not recover verified elapsed time for the previous run. See [docs/architecture.md](docs/architecture.md) for the recovery contract and test limitations.
+
+On first connection, a modern display shows “Synchronizing time” and `--:--` until a measured server clock is available; it does not schedule sound yet. Running time and signals use an independent monotonic coordinate: changing the server's calendar clock neither shifts them nor replaces the sound schedule. Clock-time starts and restart recovery still use calendar data. Standalone does not wait for a server.
 
 ### State storage
 
