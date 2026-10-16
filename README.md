@@ -17,7 +17,7 @@
 - До четырёх **стартовых списков** с импортом XLSX, MXL, CSV, TSV и TXT.
 - Отдельный выбор списков и их раскладки для каждого экрана, включая Legacy.
 - Маркеры подготовки, лазания и завершения; исключение участника; приостановка, возобновление и остановка трассы, включая управляемую остановку всей волны с будущей ротации.
-- Диагностика браузеров: `LEGACY`, `AUDIO`, `TIME`, `NET`, `SYNC`, `SSE`, `TAB` и `LIST 1–4`.
+- Диагностика браузеров: `LEG`, `AUDIO`, `TIME`, `NET`, `SYNC`, `SSE`, `TAB`, `SEC` (при настройке резерва) и `LIST 1–4`.
 - Закрепление и изменение порядка карточек, вывод номеров браузеров на экранах и дополнительные часы сервера.
 - Звуковые профили, поправка задержки звука, диагностика аудиочасов и тест сигналов.
 - Русский и английский интерфейс, HTTP/HTTPS, установщики для Windows, macOS и Linux, portable-сборки и автономный APK для Android.
@@ -45,6 +45,8 @@ APK учитывает системную панель навигации и в�
 После 20 секунд без ответа основного сервера экраны переходят на доступный резерв при очередной проверке. Плашка SEC справа от TAB показывает доступность резерва: серая — недоступен, тёмно-зелёная — доступен, светло-зелёная — браузер подключён к нему. Нажатие переводит этот браузер; нажатие SEC в карточке основного переводит всю группу. Подключения обоих серверов видны вместе. Обратного автоматического перехода нет.
 
 Адрес резерва должен быть доступен каждому экрану и основному серверу. Для HTTPS сертификат должен быть доверенным и браузерам, и Node.js основного сервера; одного подтверждения предупреждения в браузере недостаточно. Защищённая страница не может использовать HTTP-резерв. SEC недоступен в standalone HTML и APK. Это горячий резерв, а не распределённый консенсус: при полном разделении сети нельзя гарантировать единственного управляющего без внешнего арбитра. Подробности — в [руководстве](help.html#secondary-server).
+
+Повторное нажатие светло-зелёной SEC возвращает выбранный экран на текущий основной сервер; в карточке управляющего браузера — всю группу. После аварийной смены ролей текущим основным становится прежний резерв, а не обязательно исходный сервер. Плашки диагностики не переносятся на вторую строку; название Legacy во всех карточках сокращено до LEG, полное название сохранено для доступности.
 
 После общего перехода вернувшийся прежний сервер автоматически становится резервным для нового основного: получает актуальные списки, настройки, назначение управляющего браузера и исходную отметку старта. Адрес SEC обновляется на всех экранах. Это не обратный переход: текущий основной продолжает работу. Перед сменой ролей проверяется доступность вернувшегося сервера; для HTTPS доверие сертификатам нужно обоим серверам. Если обратного доступа нет, новый основной продолжает работать, а старый остаётся заблокированным до восстановления связи.
 
@@ -131,7 +133,7 @@ A network-synchronized timer for bouldering competitions. One browser controls t
 - Up to four **start lists**, imported from XLSX, MXL, CSV, TSV, or TXT.
 - Per-display list selection and two-list layout, including Legacy screens.
 - Participant preparation/climbing/completion markers, exclusions, and route pause/resume/stop incidents, including an operator-controlled whole-wave hold from a future rotation.
-- Browser diagnostics: `LEGACY`, `AUDIO`, `TIME`, `NET`, `SYNC`, `SSE`, `TAB`, and `LIST 1–4`.
+- Browser diagnostics: `LEG`, `AUDIO`, `TIME`, `NET`, `SYNC`, `SSE`, `TAB`, `SEC` (when configured), and `LIST 1–4`.
 - Pinned and reorderable browser cards, display numbers, and optional server-time clocks.
 - Sound profiles, per-browser audio correction, audio-clock diagnostics, and signal tests.
 - Russian and English UI, HTTP/HTTPS, installers for Windows/macOS/Linux, portable packages, and a standalone Android APK.
@@ -159,6 +161,8 @@ The primary browser's **SEC** button beside PIN pairs a running empty server of 
 After 20 seconds without primary contact, displays switch to a reachable standby on their next check. SEC after TAB is gray when unavailable, dark green when reachable and light green when connected through it. Click a browser's SEC badge to move that browser; click the primary browser's badge to move the whole group. Both servers' browser registries are combined. There is no automatic failback.
 
 Every display and the primary server must reach the secondary address. HTTPS certificates must be trusted by browsers and by Node.js on the primary server; accepting a browser warning alone is insufficient. An HTTPS page cannot use an HTTP standby. SEC is not available in standalone HTML/APK. Two servers without a witness cannot guarantee a single authority during a complete network partition. See the [guide](help.html?lang=en#secondary-server-en).
+
+Click a light-green SEC badge again to return that display to the current primary, or the operator's badge to return the group. After failover the current primary may be the original standby. Diagnostic badges stay on one line; Legacy is labelled LEG in every card, retaining its full accessible name.
 
 After group takeover, the returning former primary automatically becomes the new primary's standby, receiving current lists, settings, operator assignment and the unchanged start anchor. SEC addresses update across displays without automatic failback. Reverse reachability is verified first; HTTPS trust is required on both servers. If that path is unavailable, the new primary continues and the old server remains fenced until connectivity is restored.
 

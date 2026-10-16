@@ -71,6 +71,8 @@ FDV Bouldering Timer — локальный сетевой таймер для �
 
 Адрес должен быть доступен всем экранам и основному серверу. HTTPS требует доверия к сертификату не только в браузерах, но и в Node.js основного сервера; подтверждения предупреждения браузера недостаточно. HTTPS-страница не может обращаться к HTTP-резерву. Standalone HTML и APK не используют SEC. При полном разделении сети два сервера без внешнего арбитра не гарантируют единственную управляющую сторону.
 
+Светло-зелёная SEC при повторном нажатии возвращает экран на текущий основной сервер; в карточке управляющего — всю группу. Это именно текущий основной после возможной смены ролей. Диагностика остаётся в одной строке, плашка Legacy всегда подписана LEG.
+
 После общего перехода старый сервер при возвращении автоматически становится резервом нового основного, получая его актуальное состояние и назначение управляющего браузера. Новый основной не меняется, адрес SEC обновляется. Сначала проверяется обратный сетевой доступ; для HTTPS сертификатам должны доверять оба сервера. Если доступа нет, новый основной продолжает работать, а старый остаётся заблокированным и повторяет проверку.
 
 Сохранение состояния
@@ -83,7 +85,7 @@ FDV Bouldering Timer — локальный сетевой таймер для �
 
 Основной браузер всегда первый и выделен ярким контуром. Остальные карточки можно переставлять стрелками. Булавка сохраняет место браузера после отключения и повторного подключения. Если браузеров не меньше трёх, кнопка номера в карточке основного браузера показывает одинаковые номера на карточках и в правом верхнем углу поля таймера экранов.
 
-Плашки расположены в порядке LEGACY, AUDIO, TIME, NET, SYNC, SSE, TAB, SEC (если настроен резерв), затем LIST 1–4.
+Плашки расположены в порядке LEG, AUDIO, TIME, NET, SYNC, SSE, TAB, SEC (если настроен резерв), затем LIST 1–4.
 
 - Серый: функция или параметр недоступны.
 - Тёмно-зелёный: доступны, но неактивны.
@@ -93,7 +95,7 @@ FDV Bouldering Timer — локальный сетевой таймер для �
 - Голубой: список показан или активна кнопка раскладки.
 - Оранжевый контур: ручной Legacy на совместимом браузере или нестандартная раскладка двух списков.
 
-LEGACY переключает облегчённую страницу старого телевизора. AUDIO показывает доступность, разблокировку и реальное продвижение аудиочасов. TIME включает компактные часы сервера под таймером. NET показывает сеть, SYNC — оценку синхронизации и задержки отрисовки, SSE — поток команд, TAB — видимость вкладки и, в обычном браузере, Wake Lock.
+LEG переключает облегчённую страницу старого телевизора. AUDIO показывает доступность, разблокировку и реальное продвижение аудиочасов. TIME включает компактные часы сервера под таймером. NET показывает сеть, SYNC — оценку синхронизации и задержки отрисовки, SSE — поток команд, TAB — видимость вкладки и, в обычном браузере, Wake Lock.
 
 Порог NET: до 100 мс зелёный, 100–200 мс жёлтый, выше 200 мс красный. Порог задержки отрисовки и аудиочасов: до 100 мс зелёный, 100–250 мс жёлтый, выше 250 мс красный.
 
@@ -174,6 +176,8 @@ After 20 seconds without primary contact, browsers switch to a reachable standby
 
 Every display and the primary server must reach that address. HTTPS requires certificate trust in browsers AND the primary server's Node.js; accepting a browser warning alone is insufficient. HTTPS pages cannot use HTTP standbys. Standalone HTML/APK does not use SEC. A pair without a witness cannot guarantee single authority during a complete network partition.
 
+Click a light-green SEC badge again to return that display to the current primary, or the operator's badge for the group. After role reversal, this may be the original standby. Diagnostic badges stay in one row; Legacy is always labelled LEG.
+
 After group takeover the returning former primary automatically becomes the current primary's standby, receiving current state and operator assignment. The current primary does not change; SEC addresses update. Reverse reachability is checked first, with HTTPS certificate trust required on both servers. Otherwise the current primary continues while the old server remains fenced and retries.
 
 State storage
@@ -203,9 +207,9 @@ Browsers and diagnostics
 
 The primary browser is always first and has a brighter border. Arrows reorder other cards; a pin preserves a browser's place through reconnects. With at least three browsers, the number button in the primary card displays matching numbers on cards and in the top-right corner of every timer area.
 
-Badge order is LEGACY, AUDIO, TIME, NET, SYNC, SSE, TAB, SEC (when configured), followed by LIST 1–4. Gray means unavailable, dark green available but inactive, light green active/healthy, yellow warning, red fault, cyan visible list/layout control, and orange outline a manual Legacy choice or non-default two-list layout.
+Badge order is LEG, AUDIO, TIME, NET, SYNC, SSE, TAB, SEC (when configured), followed by LIST 1–4. Gray means unavailable, dark green available but inactive, light green active/healthy, yellow warning, red fault, cyan visible list/layout control, and orange outline a manual Legacy choice or non-default two-list layout.
 
-LEGACY selects the simplified old-browser page. AUDIO reports availability, unlock state, and real audio-clock progress. TIME shows a compact server clock below the timer. NET reports request latency, SYNC clock/render timing, SSE instant command delivery, and TAB visibility plus Wake Lock on modern browsers.
+LEG selects the simplified old-browser page. AUDIO reports availability, unlock state, and real audio-clock progress. TIME shows a compact server clock below the timer. NET reports request latency, SYNC clock/render timing, SSE instant command delivery, and TAB visibility plus Wake Lock on modern browsers.
 
 NET is green up to 100 ms, yellow from 100 to 200 ms, and red above 200 ms. Render and audio-clock progress are green below 100 ms, yellow from 100 to 250 ms, and red above 250 ms.
 

@@ -26,7 +26,7 @@ const legacyRuntimeStatePath = runtimeStatePath;
 const beepsPath = path.join(root, "beeps");
 const fontsPath = path.join(root, "fonts");
 const offlineAudioPath = path.join(root, "lib", "offline-audio.js");
-const BUILD_NUMBER = 415;
+const BUILD_NUMBER = 416;
 const serverInstanceId = crypto.randomUUID();
 const SNAPSHOT_SCHEMA_VERSION = 1;
 const SNAPSHOT_MAX_AGE_MS = 12 * 60 * 60 * 1000;
@@ -1915,7 +1915,13 @@ function handleRequest(req, res) {
       } else if (requestUrl.pathname === "/api/sec/remove") {
         await secondaryServer.remove();
       } else {
-        await secondaryServer.switchClient(String(body.targetClientId || ""), timerState.primaryClientId);
+        if (secondaryServer.following) {
+          const result = await secondaryServer.forward(body,{
+            address:req.socket.remoteAddress,userAgent:req.headers["user-agent"] || ""
+          },"/api/sec/switch");
+          sendJson(res,result.status,{...result.body,...publicState({clientId})}); return;
+        }
+        await secondaryServer.switchClient(String(body.targetClientId || ""), timerState.primaryClientId,body.destination || "secondary");
       }
       sendJson(res, 200, publicState({ clientId }));
     }).catch(error => sendJson(res, 400, { error: error.message }));
@@ -2577,11 +2583,11 @@ secondaryServer = createSecondaryServer({
     if (data.serverInstanceId) data.serverInstanceId = serverInstanceId;
     sendEvent(event.name, data, client => !event.targets || event.targets.includes(client.clientId));
   },
-  forwardAction: (body, client) => new Promise(resolve => {
+  forwardAction: (body, client, pathname) => new Promise(resolve => {
     const forwardedBody = { ...body };
     if (forwardedBody.baseServerInstanceId) forwardedBody.baseServerInstanceId = serverInstanceId;
     const req = Readable.from([JSON.stringify(forwardedBody)]);
-    req.method = "POST"; req.url = "/api/action"; req.fdvSecondaryForward = true;
+    req.method = "POST"; req.url = pathname === "/api/sec/switch" ? pathname : "/api/action"; req.fdvSecondaryForward = true;
     req.headers = { host: `127.0.0.1:${port}`, "user-agent": client.userAgent };
     req.socket = { remoteAddress: client.address };
     const res = { status: 200, setHeader() {}, writeHead(status) { this.status = status; },

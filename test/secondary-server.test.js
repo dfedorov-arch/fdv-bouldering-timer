@@ -122,6 +122,30 @@ test("SEC rejects a nonempty standby instead of overwriting its competition", { 
   assert.equal((await primary.state()).sec,null);
 });
 
+test("screen destinations toggle both ways and following-server requests execute at the current authority",{timeout:20000},async t=>{
+  const primary=await fixture(t,null),backup=await fixture(t,null);
+  await primary.action({type:"primary",primaryClientId:"clock-test"});
+  await primary.start({elapsedBeforePause:10});
+  await fetch(primary.baseUrl+"/api/state?clientId=screen");
+  await sec(primary,"configure",{address:backup.baseUrl});
+  const anchor=(await primary.state()).timerClock.startedAt;
+  let moved=await sec(primary,"switch",{targetClientId:"screen"});
+  assert.equal(moved.status,200);
+  const first=moved.body.sec.switchRequests.find(item=>item.clientId === "screen");
+  assert.equal(first.destination,"secondary");
+  await until(async()=>(await backup.state()).sec.switchRequests.some(item=>item.sequence === first.sequence));
+  moved=await sec(primary,"switch",{targetClientId:"screen",destination:"primary"});
+  const back=moved.body.sec.switchRequests.find(item=>item.clientId === "screen");
+  assert.equal(back.destination,"primary");
+  assert.ok(back.sequence>first.sequence);
+  await until(async()=>(await backup.state()).sec.switchRequests.some(item=>item.sequence === back.sequence));
+  const groupBack=await sec(backup,"switch",{targetClientId:"clock-test",destination:"primary"});
+  assert.equal(groupBack.status,200,JSON.stringify(groupBack.body));
+  assert.equal((await primary.state()).sec.epoch,0);
+  assert.equal((await primary.state()).timerClock.startedAt,anchor);
+  assert.equal((await primary.state()).sec.switchRequests.find(item=>item.clientId === "screen").destination,"primary");
+});
+
 test("SEC restores its clock, configuration, PIN and command ledger after process restart", {timeout:25000}, async t => {
   const primary = await fixture(t,null);
   const backup = await fixture(t,null);

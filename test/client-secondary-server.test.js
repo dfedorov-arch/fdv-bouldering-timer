@@ -121,3 +121,23 @@ test("a stranded original page moves to the new primary once, but a later explic
   h.controller.observe({sec:reversed});
   assert.equal(h.controller.info().active,reversed.secondaryUrl);
 });
+
+test("directed switches return to the same primary process once and survive reload without overriding failover",()=>{
+  const h=browser();h.configure();
+  const config={...h.controller.info().config,primaryInstanceId:"old-instance",secondaryInstanceId:"reserve-instance",
+    sourceConnected:true,switchRequests:[{clientId:"display",destination:"secondary",sequence:1}]};
+  h.controller.observe({serverInstanceId:"old-instance",sec:config});
+  assert.equal(h.controller.info().onSecondary,true);
+  const back={...config,switchRequests:[{clientId:"display",destination:"primary",sequence:2}]};
+  h.controller.observe({serverInstanceId:"reserve-instance",sec:back});
+  assert.equal(h.controller.info().active,config.primaryUrl);
+  assert.equal(h.controller.observe({serverInstanceId:"old-instance",sec:back}),false,"returned process must no longer be retired");
+  assert.equal(h.switches,2);
+  const reloaded=create(h.env,{clientId:()=>"display"});
+  reloaded.observe({serverInstanceId:"old-instance",sec:back});
+  assert.equal(reloaded.info().active,config.primaryUrl);
+  h.set({...back,sourceConnected:false});h.at(21000);h.controller.check();
+  assert.equal(h.controller.info().active,config.secondaryUrl);
+  h.controller.observe({serverInstanceId:"reserve-instance",sec:back});
+  assert.equal(h.controller.info().active,config.secondaryUrl,"consumed return command must not bounce an automatic failover back");
+});

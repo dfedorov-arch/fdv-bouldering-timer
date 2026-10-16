@@ -1016,7 +1016,7 @@
           <li>Включать «Звук в других браузерах» для всех второстепенных экранов.</li>
           <li>Включать «Полный экран в других браузерах». Если браузер блокирует удалённый переход, на экране потребуется тап.</li>
           <li>Просматривать состояние каждого браузера, тестировать его звук и настраивать индивидуальную временную поправку.</li>
-          <li>Переключать отдельный экран в Legacy-режим кнопкой LEGACY в строке браузера.</li>
+          <li>Переключать отдельный экран в Legacy-режим кнопкой LEG в строке браузера.</li>
           <li>Закреплять место браузера булавкой и менять порядок стрелками. Основной браузер всегда остаётся первым.</li>
           <li>Если подключено не менее трёх браузеров, включать их номера кнопкой в правом верхнем углу карточки основного браузера. Номер появляется на карточке и в правом верхнем углу поля таймера соответствующего экрана.</li>
         </ul>
@@ -1030,6 +1030,7 @@
           <li>Зелёный контур кнопки подтверждает связь. Резерв получает состояние, настройки, списки, назначения экранов и временную шкалу; команды браузеров на резерве до общего перехода исполняются через основной сервер.</li>
         </ol>
         <figure><img src="help-assets/secondary-server.png" alt="Настройка резервного сервера SEC в основном браузере"><figcaption>Подключённый резерв и его сетевой адрес.</figcaption></figure>
+        <p>Повторное нажатие светло-зелёной SEC возвращает экран на текущий основной сервер; в карточке управляющего браузера — всю группу. После смены ролей текущий основной — новый сервер, а не обязательно исходный. Ручной возврат не восстанавливает устаревшее состояние бывшего основного.</p>
         <p>Справа от TAB появляется плашка SEC: серая — резерв недоступен этому браузеру, тёмно-зелёная — доступен, светло-зелёная — браузер уже получает данные от него. Основной браузер показывает подключения обоих серверов. Нажмите SEC конкретного экрана, чтобы перевести только его; нажатие SEC в карточке основного переводит всю группу. Кнопка SEC рядом с PIN открывает настройки, а не переводит экраны.</p>
         <p>Если ответов основного сервера нет 20 секунд, браузер при очередной проверке резерва переключается на него. Проверки выполняются каждые 2,5 секунды и имеют сетевой тайм-аут, поэтому фактический переход может быть немного позже порога. Страница не перезагружается: сохраняются её идентификатор, разрешение звука и полноэкранный режим. При смене серверного процесса современный экран заново измеряет часы, прежде чем планировать следующие сигналы. Legacy тоже переключается, но по-прежнему работает без звука.</p>
         <p>Когда резерв принимает управление всей группой, он больше не подчиняется старому серверу. Вернувшийся прежний основной автоматически становится резервным для нового основного: получает актуальные списки, настройки, назначение управляющего браузера и исходную отметку старта. Даже если управляющий браузер сменился за время отсутствия, сохраняется новое назначение. Текущий основной продолжает работу без перезапуска отсчёта; автоматического обратного перехода нет. На экранах обновляется адрес SEC. В дальнейшем можно вручную перейти на восстановленный резерв или использовать его при следующем отказе.</p>
@@ -1048,18 +1049,18 @@
           <li>Если включена плашка TIME, под основным таймером показываются компактные часы сервера. Подсказка TAB в Legacy не сообщает Wake Lock, потому что старый браузер не позволяет надёжно определить его состояние.</li>
           <li>Размер цифр подбирается под экран, включая длинные значения фестиваля вроде <code>120:00</code>. После поворота устройства Legacy-экран несколько раз пересчитывает размер и центрирование.</li>
           <li>В портретном режиме колонки номера и трасс компактные, а ФИО показывается целиком без наложения значков. Если длинные имена или дополнительные колонки не помещаются, список можно прокрутить по горизонтали.</li>
-          <li>Повторное нажатие LEGACY из основного браузера возвращает экран на обычную страницу <code>/</code>.</li>
+          <li>Повторное нажатие LEG из основного браузера возвращает экран на обычную страницу <code>/</code>.</li>
         </ul>
         <figure><img src="help-assets/legacy-phone-columns.png" alt="Legacy на телефоне: узкие колонки номера и трасс, полные фамилии без наложения значков" style="max-width:393px"><figcaption>Компактные колонки оставляют больше места именам участников.</figcaption></figure>
         <p class="note">Legacy-режим лучше использовать только для устройств, на которых обычный экран не работает или работает слишком тяжело. На современных телефонах, планшетах и компьютерах обычный экран точнее синхронизирует время и поддерживает звук.</p>
 
         <h3 id="diagnostics">7.4. Диагностика подключений</h3>
         <p>Карточка браузера содержит порядковый номер, название и версию, операционную систему, IP, роль, транспорт и индикаторы. Наведение на плашку показывает подробности. Серый означает недоступность, тёмно-зелёный — доступную, но неактивную функцию, светло-зелёный — активное или нормальное состояние, жёлтый — предупреждение, красный — ошибку.</p>
-        <p class="note">Актуальный порядок индикаторов: LEGACY, AUDIO, TIME, NET, SYNC, SSE, TAB, SEC (если настроен резерв); ниже расположены LIST 1–4.</p>
+        <p class="note">Актуальный порядок индикаторов: LEG, AUDIO, TIME, NET, SYNC, SSE, TAB, SEC (если настроен резерв); ниже расположены LIST 1–4. Диагностика остаётся в одной строке, отдельно от кнопок списков и управления порядком.</p>
         <table>
           <thead><tr><th>Индикатор</th><th>Назначение</th></tr></thead>
           <tbody>
-            <tr><td><span class="diag">LEGACY</span></td><td>Переключает экран между обычной и облегчённой страницей. Тёмно-зелёный — переход доступен, светло-зелёный — Legacy включён. Оранжевый контур показывает ручной выбор Legacy на браузере, способном работать в обычном режиме.</td></tr>
+            <tr><td><span class="diag">LEG</span></td><td>Переключает экран между обычной и облегчённой страницей. Тёмно-зелёный — переход доступен, светло-зелёный — Legacy включён. Оранжевый контур показывает ручной выбор Legacy на браузере, способном работать в обычном режиме. Сокращение LEG используется во всех карточках независимо от ширины.</td></tr>
             <tr><td><span class="diag">AUDIO</span></td><td>Серый — звук недоступен, тёмно-зелёный — доступен, но выключен, красный — разрешён настройкой, но не разблокирован касанием. При работе также контролируется реальное продвижение аудиочасов: до 100 мс — зелёный, 100–250 мс — жёлтый, выше — красный.</td></tr>
             <tr><td><span class="diag">TIME</span></td><td>Показывает или скрывает под таймером компактные часы сервера. Тёмно-зелёный — скрыты, светло-зелёный — показаны.</td></tr>
             <tr><td><span class="diag">NET</span></td><td>Состояние связи и задержка запроса. До 100 мс — зелёный, 100–200 мс — жёлтый, выше 200 мс или отсутствие связи — красный.</td></tr>
@@ -1271,7 +1272,7 @@ xattr -dr com.apple.quarantine "/полный/путь/к/fdv-bouldering-timer-m
           <li>Телефон открывает адрес Wi-Fi или Ethernet с указанным портом.</li>
           <li>Один браузер назначен основным, остальные видны как экраны.</li>
           <li>Работают «Старт», «Пауза», «Стоп» и соответствующие горячие клавиши.</li>
-          <li>LEGACY, AUDIO, TIME, NET, SYNC, SSE и TAB показывают ожидаемое состояние.</li>
+          <li>LEG, AUDIO, TIME, NET, SYNC, SSE и TAB показывают ожидаемое состояние.</li>
           <li>Звуковые сигналы слышны только на нужных устройствах.</li>
         </ul>
         <a class="back-to-toc" href="#contents">↑ К оглавлению</a>
@@ -1596,7 +1597,7 @@ xattr -dr com.apple.quarantine "/полный/путь/к/fdv-bouldering-timer-m
           <li><strong>Sound in other browsers</strong> enables sound on remote displays.</li>
           <li><strong>Fullscreen in other browsers</strong> requests fullscreen; a tap may still be required.</li>
           <li>Browsers on the same computer as the primary do not duplicate its sound.</li>
-          <li>Click LEGACY in a browser row to move that display to the simplified Legacy page.</li>
+          <li>Click LEG in a browser row to move that display to the simplified Legacy page.</li>
           <li>Pin a browser to preserve its place after reconnection, and use the arrows to reorder displays. The primary browser always remains first.</li>
           <li>With at least three browsers, the number button in the primary card shows matching numbers on cards and in the top-right corner of each display's timer area.</li>
         </ul>
@@ -1608,6 +1609,7 @@ xattr -dr com.apple.quarantine "/полный/путь/к/fdv-bouldering-timer-m
           <li>A green outline confirms connectivity. The standby mirrors state, settings, lists, display assignments and the timer coordinate. Commands from browsers on the standby still go through the primary until group takeover.</li>
         </ol>
         <figure><img src="help-assets/secondary-server.png" alt="SEC secondary-server setup in the primary browser"><figcaption>A connected standby and its network address.</figcaption></figure>
+        <p>Click a light-green SEC badge again to return that display to the current primary, or the operator's badge to return the group. After role reversal the current primary may be the original standby. Manual return does not restore a former primary's stale state.</p>
         <p>SEC appears after TAB: gray means unreachable from that browser, dark green means reachable, light green means connected through it. The primary combines both servers' browser registries. Click a display's SEC badge to move only that display; click the primary browser's badge to move everyone. The SEC button beside PIN opens settings instead.</p>
         <p>After 20 seconds without primary responses, a browser switches on its next successful standby check. Checks run every 2.5 seconds with a network timeout, so cutover may occur slightly later than the threshold. No page reload is required: the client identity, unlocked audio and fullscreen are retained. A modern browser remeasures a new server process before scheduling future sounds. Legacy switches too, but remains silent.</p>
         <p>After group takeover the standby no longer follows its old primary. The returning former primary automatically becomes the current primary's standby, receiving current lists, settings, operator assignment and the unchanged start anchor. An operator replacement made during the outage is preserved. The current primary continues without restarting the timer; there is no automatic failback. SEC addresses update across displays, and the recovered standby can be used manually or after another failure.</p>
@@ -1626,18 +1628,18 @@ xattr -dr com.apple.quarantine "/полный/путь/к/fdv-bouldering-timer-m
           <li>When TIME is enabled, a compact server clock appears below the main timer. The Legacy TAB tooltip omits Wake Lock because an old browser cannot report it reliably.</li>
           <li>The digit size is fitted to the screen, including long Festival values such as <code>120:00</code>. After device rotation the Legacy page recalculates sizing and centering several times.</li>
           <li>Portrait number and route columns are compact, leaving full names readable without marker overlap. If long names or additional columns do not fit, scroll the list horizontally.</li>
-          <li>Click LEGACY again from the primary browser to return that display to the normal <code>/</code> page.</li>
+          <li>Click LEG again from the primary browser to return that display to the normal <code>/</code> page.</li>
         </ul>
         <figure><img src="help-assets/legacy-phone-columns.png" alt="Legacy phone: compact number and route columns, full names without overlapping markers" style="max-width:393px"><figcaption>Compact columns leave more room for participant names.</figcaption></figure>
         <p class="note">Use Legacy mode only for devices where the normal display does not work or is too heavy. On modern phones, tablets, and computers the normal display has better synchronization and sound support.</p>
 
         <h3>7.4. Diagnostics</h3>
         <p>Gray means unavailable, dark green means available but inactive, light green means active or healthy, yellow is a warning, and red is a fault.</p>
-        <p class="note">Current badge order: LEGACY, AUDIO, TIME, NET, SYNC, SSE, TAB, SEC (when configured), followed by LIST 1–4.</p>
+        <p class="note">Current badge order: LEG, AUDIO, TIME, NET, SYNC, SSE, TAB, SEC (when configured), followed by LIST 1–4. Diagnostic badges stay in one row, separate from list and ordering controls.</p>
         <table>
           <thead><tr><th>Badge</th><th>Meaning</th></tr></thead>
           <tbody>
-            <tr><td>LEGACY</td><td>Switches between normal and simplified pages. Dark green means available and light green means enabled. An orange outline marks manual Legacy use on a browser capable of normal mode.</td></tr>
+            <tr><td>LEG</td><td>Switches between normal and simplified pages. Dark green means available and light green means enabled. An orange outline marks manual Legacy use on a browser capable of normal mode. All cards use LEG regardless of width.</td></tr>
             <tr><td>AUDIO</td><td>Gray means unavailable, dark green means available but disabled, and red means enabled but not unlocked by a tap. While active, real audio-clock progress is green below 100 ms, yellow at 100–250 ms, and red above 250 ms.</td></tr>
             <tr><td>TIME</td><td>Shows a compact server clock below the timer: dark green when hidden and light green when shown.</td></tr>
             <tr><td>NET</td><td>Connection latency: green ≤100 ms, yellow 100–200 ms, red above 200 ms or offline.</td></tr>
@@ -1715,7 +1717,7 @@ xattr -dr com.apple.quarantine "/full/path/to/fdv-bouldering-timer-macos-arm64"<
 
         <div class="platform"><h3>8.6. HTTP and HTTPS</h3><p>HTTP works immediately and is sufficient for ordinary local operation. HTTPS gives the browser a <strong>secure context</strong>, which matters especially on phones and tablets.</p><table><thead><tr><th>Browser capability</th><th>HTTP</th><th>HTTPS</th></tr></thead><tbody><tr><td>Timer, synchronization, SSE, lists, sound, and ordinary screen mode</td><td>Available</td><td>Available</td></tr><tr><td>Wake Lock to keep the display awake</td><td>Normally unavailable</td><td>Available in a supporting browser after user interaction; shown in the TAB tooltip</td></tr><tr><td>Service worker and reopening a cached page without internet</td><td>Unavailable outside localhost</td><td>Available; the browser may cache the page</td></tr><tr><td>Modern clipboard API for copying links</td><td>May be restricted; a fallback is used</td><td>Available in supporting browsers</td></tr></tbody></table><p class="note">HTTPS does not remove browser gesture rules: sound and a fullscreen attempt still need a tap. Wake Lock can also be released by the browser, operating system, or battery saver.</p><p>For HTTPS run <code>create-https-certificate.bat</code> on Windows, <code>create-https-certificate-mac.command</code> on macOS, or <code>create-https-certificate-linux.sh</code> on Linux, then restart the server. Recreate the certificate after changing computer or local IP.</p><p class="warning">The certificate is self-signed, so browsers may show a warning on first use.</p></div>
         <h3>8.7. Verification</h3>
-        <ul class="checklist"><li>The local page opens through 127.0.0.1.</li><li>A phone opens the Wi-Fi or Ethernet address.</li><li>One browser is primary and other displays are listed.</li><li>Controls and shortcuts work.</li><li>LEGACY, AUDIO, TIME, NET, SYNC, SSE, and TAB show expected states.</li><li>Only intended devices play sound.</li></ul>
+        <ul class="checklist"><li>The local page opens through 127.0.0.1.</li><li>A phone opens the Wi-Fi or Ethernet address.</li><li>One browser is primary and other displays are listed.</li><li>Controls and shortcuts work.</li><li>LEG, AUDIO, TIME, NET, SYNC, SSE, and TAB show expected states.</li><li>Only intended devices play sound.</li></ul>
         <a class="back-to-toc" href="#en-contents">↑ Back to contents</a>
       </section>
 

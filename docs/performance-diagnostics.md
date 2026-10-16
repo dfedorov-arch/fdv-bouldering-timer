@@ -4,13 +4,15 @@ Performance diagnostics are opt-in and disabled during normal timer operation. `
 
 ## Modern browser
 
-### SEC standby overhead and timing (build 415)
+### SEC standby overhead and timing (build 416)
 
 No SEC configuration means no added heartbeat, probe or geometry loop. A configured pair adds a server-to-server heartbeat every second, a primary-initiated command long poll (idle timeout 1.2 seconds, immediate wake on operator input) and per-browser standby XHR checks every 2.5 seconds; changed canonical state is replicated promptly, unchanged lists/configuration are not serialized into every heartbeat. This is real additional network/JSON work when SEC is enabled, not part of the existing timer render cadence.
 
 The standby's affine clock follows the original primary timer coordinate using measured RTT-filtered exchanges and an independently fitted rate. `sec.clockErrorMs` reports its current fit uncertainty; browser diagnostics adds that value to modern SYNC error for browsers on SEC. It is an estimate, not a guaranteed acoustic alignment bound. Compare traces by current `serverInstanceId` and canonical signal target; takeover starts a new measured client calibration while retaining the document and audio permission. Pairing alone must preserve scheduled node identity and `audioScheduleGeneration`.
 
 The 20-second outage test must disable the original primary, not the whole browser network (which would also disable SEC). Probes to SEC must not reset primary health. Run the two-server visual scenarios and then verify real devices: primary loss, one-device path failure, backup loss, process restarts, scheduled start, a minute signal, final-five-second signals and transitions. No new constant layout-fitting loop is introduced.
+
+Manual SEC return commands are consumed once per client/pair/epoch, including across reload. Verify that an old return-to-primary request does not undo a subsequent automatic failover. Returning one screen must not reset the operator's active audio schedule. LEG and all other main diagnostic badges are kept in one CSS row with order-control clearance; no geometry polling was added.
 
 When the old primary returns, role-reversal handshakes and baseline transfer are temporary network work; they do not change the current primary's timer/audio model. `sec.epoch` increases, primary/secondary URLs swap and current-primary browser SEC indicators become dark green for the newly restored standby. A metadata-only epoch change must not reset audio scheduling. An unreachable return address leaves the old server fenced with bounded retry cadence; it must not stall or overwrite the current primary. Include a second takeover to the same old process in device tests.
 

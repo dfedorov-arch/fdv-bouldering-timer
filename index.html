@@ -1128,6 +1128,28 @@
       background: var(--green);
     }
 
+    .browser-item > .browser-diagnostics-row { flex-wrap: nowrap; }
+    .browser-diagnostics-row.has-secondary { gap: 2px; }
+    .browser-item > .browser-diagnostics-row.has-secondary .diag-chip {
+      padding: 1px 3px;
+      font-size: 9px;
+      letter-spacing: 0;
+    }
+
+    @media (min-width: 901px) and (max-width: 1199px),
+           (min-width: 901px) and (max-height: 700px) {
+      .browser-item > .browser-diagnostics-row.has-secondary .diag-chip { padding-inline: 2px; }
+    }
+
+    @media (max-width: 360px) {
+      .browser-item > .browser-diagnostics-row { gap: 2px; }
+      .browser-item > .browser-diagnostics-row .diag-chip {
+        padding: 1px 3px;
+        font-size: 9px;
+        letter-spacing: 0;
+      }
+    }
+
     .diag-chip.bad {
       color: #fff7f7;
       background: var(--red);
@@ -3119,7 +3141,7 @@
       timeline: []
     };
 
-    const pageBuildNumber = 415;
+    const pageBuildNumber = 416;
     const projectUrl = "https://github.com/dfedorov-arch/fdv-bouldering-timer";
     const buildLinkConfirmDelayMs = 550;
     const offlineSnapshotKey = "fdvBoulderingTimerOfflineSnapshot";
@@ -5090,7 +5112,8 @@
       rolesChanged: next => {
         if (next.secondaryInstanceId) retiredServerInstanceIds.delete(next.secondaryInstanceId);
       },
-      switched: async () => {
+      switched: async (address, targetInstanceId) => {
+        if (targetInstanceId) retiredServerInstanceIds.delete(targetInstanceId);
         syncRequestGeneration += 1;
         syncRequestController?.abort();
         syncRequestInFlight = false;
@@ -7544,7 +7567,8 @@
         || /\sdata-(?:start-list-client|secondary-client)=/.test(attributes);
       const tagName = interactive ? "button" : "span";
       const type = interactive ? ' type="button"' : "";
-      return `<${tagName}${type} class="${className}" title="${escapeHtml(title)}"${attributes}>${escapeHtml(label)}</${tagName}>`;
+      const tooltip = label === "LEG" ? `Legacy: ${title}` : title;
+      return `<${tagName}${type} class="${className}" title="${escapeHtml(tooltip)}"${attributes}>${escapeHtml(label)}</${tagName}>`;
     }
 
     function thresholdStatus(value, warnLimit, badLimit, missingIsBad = true) {
@@ -9093,12 +9117,12 @@
               ? "inactive"
               : "neutral";
         const legacyStatus = `${legacyBaseStatus}${legacyControlAllowed ? " clickable" : ""}`;
-        const legacyAttrs = legacyControlAllowed
+        const legacyAttrs = ' aria-label="LEGACY"' + (legacyControlAllowed
           ? ` data-legacy-mode-client="${escapeHtml(client.id)}" data-legacy-mode-enabled="${manualLegacy ? "1" : "0"}"`
-          : "";
+          : "");
         const legacyChip = language === "ru"
-          ? diagChip("LEGACY", legacyStatus, !legacyControlAllowed ? (standaloneSelf ? "Недоступно в автономном режиме" : legacyRequired ? "Этот браузер не поддерживает обычный режим" : "Основной браузер нельзя перевести в упрощённый режим") : manualLegacy ? "Ручной упрощённый режим включён. Нажмите, чтобы вернуть обычный режим." : isLegacyViewer ? "Упрощённый режим активен. Нажмите, чтобы включить ручное удержание Legacy для этого браузера." : "Нажмите, чтобы включить упрощённый режим для этого браузера.", legacyAttrs)
-          : diagChip("LEGACY", legacyStatus, !legacyControlAllowed ? (standaloneSelf ? "Unavailable in standalone mode" : legacyRequired ? "This browser doesn't support the normal interface" : "Primary browser cannot be switched to legacy mode") : manualLegacy ? "Manual legacy mode is on. Click to return this browser to normal mode." : isLegacyViewer ? "Legacy mode is active. Click to pin manual Legacy for this browser." : "Click to enable simplified legacy mode for this browser.", legacyAttrs);
+          ? diagChip("LEG", legacyStatus, !legacyControlAllowed ? (standaloneSelf ? "Недоступно в автономном режиме" : legacyRequired ? "Этот браузер не поддерживает обычный режим" : "Основной браузер нельзя перевести в упрощённый режим") : manualLegacy ? "Ручной упрощённый режим включён. Нажмите, чтобы вернуть обычный режим." : isLegacyViewer ? "Упрощённый режим активен. Нажмите, чтобы включить ручное удержание Legacy для этого браузера." : "Нажмите, чтобы включить упрощённый режим для этого браузера.", legacyAttrs)
+          : diagChip("LEG", legacyStatus, !legacyControlAllowed ? (standaloneSelf ? "Unavailable in standalone mode" : legacyRequired ? "This browser doesn't support the normal interface" : "Primary browser cannot be switched to legacy mode") : manualLegacy ? "Manual legacy mode is on. Click to return this browser to normal mode." : isLegacyViewer ? "Legacy mode is active. Click to pin manual Legacy for this browser." : "Click to enable simplified legacy mode for this browser.", legacyAttrs);
         const legacyNeutralTitle = language === "ru"
           ? "Недоступно в упрощённом режиме"
           : "Not available in legacy mode";
@@ -9236,11 +9260,12 @@
         if (secondaryInfo?.config) {
           const secStatus = client.onSecondary && clientConnected ? "good"
             : client.secondaryAvailable ? "inactive" : "neutral";
+          const secDestination = client.onSecondary && !secondaryInfo.config.switchAll ? "primary" : "secondary";
           const secTitle = language === "ru"
-            ? `${client.onSecondary ? "Браузер подключён к SEC" : client.secondaryAvailable ? "Резервный сервер доступен" : "Резервный сервер недоступен"}. ${isPrimary ? "Нажмите, чтобы перевести все браузеры на SEC." : "Нажмите, чтобы перевести этот браузер на SEC."}`
-            : `${client.onSecondary ? "Connected to SEC" : client.secondaryAvailable ? "Secondary server available" : "Secondary server unavailable"}. ${isPrimary ? "Click to switch all browsers to SEC." : "Click to switch this browser to SEC."}`;
+            ? `${client.onSecondary ? "Браузер подключён к SEC" : client.secondaryAvailable ? "Резервный сервер доступен" : "Резервный сервер недоступен"}. Нажмите, чтобы перевести ${isPrimary ? "все браузеры" : "этот браузер"} ${secDestination === "primary" ? "на текущий основной сервер" : "на SEC"}.`
+            : `${client.onSecondary ? "Connected to SEC" : client.secondaryAvailable ? "Secondary server available" : "Secondary server unavailable"}. Click to switch ${isPrimary ? "all browsers" : "this browser"} to ${secDestination === "primary" ? "the current primary server" : "SEC"}.`;
           chips.push(diagChip("SEC", `${secStatus} clickable`, secTitle,
-            ` data-secondary-client="${escapeHtml(client.id)}"`));
+            ` data-secondary-client="${escapeHtml(client.id)}" data-secondary-destination="${secDestination}"`));
         }
         const chipHtml = chips.join("");
         const selectedListIndexes = new Set(Array.isArray(client.startListIndexes)
@@ -9378,7 +9403,7 @@
           ${orderControlsHtml}
           <strong title="${escapeHtml(title)}">${heading}</strong>
           <span title="${escapeHtml(metaTitle)}">${meta}</span>
-          <div class="diag-row">${chipHtml}</div>
+          <div class="diag-row browser-diagnostics-row${secondaryInfo?.config ? " has-secondary" : ""}">${chipHtml}</div>
           ${startListSelectorHtml}
           ${audioEditor}
         </div>`;
@@ -11672,17 +11697,17 @@
       }
     }
 
-    async function switchBrowserToSecondary(targetClientId) {
+    async function switchBrowserServer(targetClientId, destination = "secondary") {
       const info = secondaryConnection.info();
       if (!info.config || !isPrimaryClient) return;
       try {
         const response = await fetch("/api/sec/switch", { method: "POST", headers: { "content-type": "application/json" },
-          body: JSON.stringify({ clientId, targetClientId }) });
+          body: JSON.stringify({ clientId, targetClientId, destination }) });
         const remote = await response.json();
         if (!response.ok) throw new Error(remote.error || "SEC switch failed");
         secondaryConnection.observe(remote);
       } catch (error) {
-        if (targetClientId === clientId) {
+        if (targetClientId === clientId && destination === "secondary") {
           try {
             const response = await window.fetch(`${info.config.secondaryUrl}/api/sec/takeover`, {
               method: "POST", headers: { "content-type": "application/json" },
@@ -11693,7 +11718,10 @@
             return;
           } catch (_) {}
         }
-        window.alert(`${language === "ru" ? "Не удалось перейти на SEC" : "Could not switch to SEC"}: ${error.message}`);
+        const failure = language === "ru"
+          ? destination === "primary" ? "Не удалось вернуться на основной сервер" : "Не удалось перейти на SEC"
+          : destination === "primary" ? "Could not return to the primary server" : "Could not switch to SEC";
+        window.alert(`${failure}: ${error.message}`);
       }
     }
 
@@ -11997,7 +12025,7 @@
     });
     els.browserList.addEventListener("click", event => {
       const badge = event.target.closest("[data-secondary-client]");
-      if (badge && controlsAvailable()) switchBrowserToSecondary(badge.dataset.secondaryClient);
+      if (badge && controlsAvailable()) switchBrowserServer(badge.dataset.secondaryClient,badge.dataset.secondaryDestination);
     });
     els.returnToServerBtn.addEventListener("click", returnToServerMode);
     els.installAppBtn.addEventListener("click", installAppToHomeScreen);

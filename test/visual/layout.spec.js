@@ -1028,8 +1028,9 @@ test("Diagnostics outlines Legacy only when the browser can use the normal inter
       .locator("xpath=ancestor::*[contains(@class, 'browser-item')]");
     const requiredCard = primaryPage.locator(`[data-server-time-client="visual-required-legacy"]`)
       .locator("xpath=ancestor::*[contains(@class, 'browser-item')]");
-    await expect(capableCard.locator(".diag-chip", { hasText: "LEGACY" })).toHaveClass(/manual-legacy/);
-    await expect(requiredCard.locator(".diag-chip", { hasText: "LEGACY" })).not.toHaveClass(/manual-legacy/);
+    await expect(capableCard.locator('.diag-chip[aria-label="LEGACY"]')).toHaveText("LEG");
+    await expect(capableCard.locator('.diag-chip[aria-label="LEGACY"]')).toHaveClass(/manual-legacy/);
+    await expect(requiredCard.locator('.diag-chip[aria-label="LEGACY"]')).not.toHaveClass(/manual-legacy/);
   } finally {
     await requiredContext.close();
     await capableContext.close();
@@ -1214,7 +1215,7 @@ test("Diagnostics switches the layout of exactly two lists on one screen", async
     const diagnosticLabels = await screenCard
       .locator(".diag-row:not(.start-list-diag-row) > .diag-chip")
       .allTextContents();
-    expect(diagnosticLabels).toEqual(["LEGACY", "AUDIO", "TIME", "NET", "SYNC", "SSE", "TAB"]);
+    expect(diagnosticLabels).toEqual(["LEG", "AUDIO", "TIME", "NET", "SYNC", "SSE", "TAB"]);
     await expect(timeButton).toHaveText("TIME");
     await expect(timeButton).toHaveClass(/inactive/);
     await expect(screenCard.locator(".diag-chip", { hasText: "TAB" })).toHaveAttribute("title", /Wake Lock/);
@@ -1256,28 +1257,32 @@ test("Diagnostics switches the layout of exactly two lists on one screen", async
     expect(clockGeometry.borderRadius).toBeGreaterThan(0);
     await timeButton.click();
     await expect(screen.page.locator("#serverClockDisplay")).toBeHidden();
-    const placement = await layoutButton.evaluate((button) => {
-      const card = button.closest(".browser-item");
-      const row = button.closest(".start-list-diag-row");
-      const listButtons = [...row.querySelectorAll("[data-start-list-client]")];
-      const lastListRect = listButtons.at(-1).getBoundingClientRect();
-      const previousListRect = listButtons.at(-2).getBoundingClientRect();
-      const buttonRect = button.getBoundingClientRect();
-      const cardRect = card.getBoundingClientRect();
-      return {
-        width: buttonRect.width,
-        height: buttonRect.height,
-        listWidth: lastListRect.width,
-        listHeight: lastListRect.height,
-        layoutGap: buttonRect.left - lastListRect.right,
-        ordinaryGap: lastListRect.left - previousListRect.right,
-        rightInset: cardRect.right - buttonRect.right
-      };
-    });
-    expect(placement.width).toBe(placement.listWidth);
-    expect(placement.height).toBe(placement.listHeight);
-    expect(placement.layoutGap).toBeGreaterThan(placement.ordinaryGap);
-    expect(placement.rightInset).toBeGreaterThanOrEqual(0);
+    // A diagnostics refresh can detach the resolved card before measurement.
+    // Retry the geometry assertions against the replacement, not a zero rect.
+    await expect(async () => {
+      const placement = await layoutButton.evaluate((button) => {
+        const card = button.closest(".browser-item");
+        const row = button.closest(".start-list-diag-row");
+        const listButtons = [...row.querySelectorAll("[data-start-list-client]")];
+        const lastListRect = listButtons.at(-1).getBoundingClientRect();
+        const previousListRect = listButtons.at(-2).getBoundingClientRect();
+        const buttonRect = button.getBoundingClientRect();
+        const cardRect = card.getBoundingClientRect();
+        return {
+          width: buttonRect.width,
+          height: buttonRect.height,
+          listWidth: lastListRect.width,
+          listHeight: lastListRect.height,
+          layoutGap: buttonRect.left - lastListRect.right,
+          ordinaryGap: lastListRect.left - previousListRect.right,
+          rightInset: cardRect.right - buttonRect.right
+        };
+      });
+      expect(placement.width).toBe(placement.listWidth);
+      expect(placement.height).toBe(placement.listHeight);
+      expect(placement.layoutGap).toBeGreaterThan(placement.ordinaryGap);
+      expect(placement.rightInset).toBeGreaterThanOrEqual(0);
+    }).toPass({ timeout: 8_000 });
     const layoutResponse = await fetch(`${server.baseUrl}/api/action`, {
       method: "POST",
       headers: { "content-type": "application/json" },
