@@ -48,6 +48,8 @@ if (uniqueBuilds.size !== 1) {
   "sw.js",
   "scripts/build-standalone-html.js",
   "lib/client-action-transport.js",
+  "lib/client-secondary-server.js",
+  "lib/secondary-server.js",
   "lib/start-list-route-editor.js",
   "lib/vendor/xlsx.mini.min.js",
   "lib/vendor/SHEETJS-LICENSE.txt",
@@ -66,6 +68,12 @@ if (process.platform !== "win32"
 }
 
 const index = read("index.html");
+if (!index.includes('<script src="lib/client-secondary-server.js"></script>')
+    || !read("legacy.html").includes('src="lib/client-secondary-server.js?v=')
+    || !read("sw.js").includes('"/lib/client-secondary-server.js"')
+    || !read("scripts/build-standalone-html.js").includes('lib/client-secondary-server.js')) {
+  throw new Error("SEC client must load in Modern/Legacy, be cached and embedded in standalone");
+}
 if (!index.includes('<script src="lib/start-list-route-editor.js"></script>')
     || !read("sw.js").includes('"/lib/start-list-route-editor.js"')) {
   throw new Error("Route-count editor must load and be cached for offline use");

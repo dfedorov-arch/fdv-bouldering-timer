@@ -38,6 +38,16 @@ APK учитывает системную панель навигации и в�
 
 При первом подключении современный экран показывает «Синхронизация времени» и `--:--` до измерения серверных часов; звук ещё не планируется. Идущий отсчёт и сигналы используют независимую монотонную шкалу: перевод календарных часов сервера не сдвигает их и не пересоздаёт звуковое расписание. Старт по времени суток и восстановление после перезапуска по-прежнему используют календарные данные. Автономная версия не ожидает сервер.
 
+## Резервный сервер SEC
+
+В основном браузере кнопка **SEC** рядом с PIN подключает заранее запущенный пустой сервер той же сборки с одинаковыми звуками и шрифтами. После успешной связи контур кнопки зелёный. Резерв получает настройки, списки, команды и временную шкалу основного сервера; при потере связи продолжает отсчёт самостоятельно.
+
+После 20 секунд без ответа основного сервера экраны переходят на доступный резерв при очередной проверке. Плашка SEC справа от TAB показывает доступность резерва: серая — недоступен, тёмно-зелёная — доступен, светло-зелёная — браузер подключён к нему. Нажатие переводит этот браузер; нажатие SEC в карточке основного переводит всю группу. Подключения обоих серверов видны вместе. Обратного автоматического перехода нет.
+
+Адрес резерва должен быть доступен каждому экрану и основному серверу. Для HTTPS сертификат должен быть доверенным и браузерам, и Node.js основного сервера; одного подтверждения предупреждения в браузере недостаточно. Защищённая страница не может использовать HTTP-резерв. SEC недоступен в standalone HTML и APK. Это горячий резерв, а не распределённый консенсус: при полном разделении сети нельзя гарантировать единственного управляющего без внешнего арбитра. Подробности — в [руководстве](help.html#secondary-server).
+
+После общего перехода вернувшийся прежний сервер автоматически становится резервным для нового основного: получает актуальные списки, настройки, назначение управляющего браузера и исходную отметку старта. Адрес SEC обновляется на всех экранах. Это не обратный переход: текущий основной продолжает работу. Перед сменой ролей проверяется доступность вернувшегося сервера; для HTTPS доверие сертификатам нужно обоим серверам. Если обратного доступа нет, новый основной продолжает работать, а старый остаётся заблокированным до восстановления связи.
+
 ## Сохранение состояния
 
 Состояние установленной версии сохраняется в пользовательском каталоге (Windows: `%LOCALAPPDATA%\FDV Bouldering Timer\runtime-state`); portable-версия сохраняет его рядом с таймером. Если каталог portable-версии закрыт для записи, сервер автоматически использует пользовательский каталог. Путь виден в журнале лаунчера.
@@ -141,6 +151,16 @@ All devices must be on the same local network. See the [full guide](help.html?la
 Ordinary network recovery preserves clock calibration and valid sound schedules. A detected browser-clock discontinuity (for example, after sleep or a system-clock change) shows “Clock verification required” and turns `SYNC` red: the last monotonic timeline is retained, but timed signals are suspended until a measured server response verifies time. Without a server, press **Stop**, then **Start** for a new standalone run; this does not recover verified elapsed time for the previous run. See [docs/architecture.md](docs/architecture.md) for the recovery contract and test limitations.
 
 On first connection, a modern display shows “Synchronizing time” and `--:--` until a measured server clock is available; it does not schedule sound yet. Running time and signals use an independent monotonic coordinate: changing the server's calendar clock neither shifts them nor replaces the sound schedule. Clock-time starts and restart recovery still use calendar data. Standalone does not wait for a server.
+
+### SEC secondary server
+
+The primary browser's **SEC** button beside PIN pairs a running empty server of the same build with identical audio and font assets. A green outline confirms connectivity. The standby mirrors settings, start lists, commands and the primary timeline, and continues independently if its upstream disappears.
+
+After 20 seconds without primary contact, displays switch to a reachable standby on their next check. SEC after TAB is gray when unavailable, dark green when reachable and light green when connected through it. Click a browser's SEC badge to move that browser; click the primary browser's badge to move the whole group. Both servers' browser registries are combined. There is no automatic failback.
+
+Every display and the primary server must reach the secondary address. HTTPS certificates must be trusted by browsers and by Node.js on the primary server; accepting a browser warning alone is insufficient. An HTTPS page cannot use an HTTP standby. SEC is not available in standalone HTML/APK. Two servers without a witness cannot guarantee a single authority during a complete network partition. See the [guide](help.html?lang=en#secondary-server-en).
+
+After group takeover, the returning former primary automatically becomes the new primary's standby, receiving current lists, settings, operator assignment and the unchanged start anchor. SEC addresses update across displays without automatic failback. Reverse reachability is verified first; HTTPS trust is required on both servers. If that path is unavailable, the new primary continues and the old server remains fenced until connectivity is restored.
 
 ### State storage
 

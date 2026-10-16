@@ -62,6 +62,17 @@ FDV Bouldering Timer — локальный сетевой таймер для �
 - При выборе будущей ротации автоматически включается флажок «Остановить всю волну с этой ротации»: участники связанной волны не выходят и на предыдущие трассы. Оператор может снять флажок; для текущей или прошедшей ротации он по умолчанию выключен.
 - Участников и трассы можно исключать и восстанавливать.
 
+Резервный сервер SEC
+--------------------
+
+В основном браузере нажмите SEC рядом с PIN и укажите адрес пустого сервера той же сборки с одинаковыми звуками и шрифтами. Зелёный контур подтверждает связь. Резерв зеркалирует состояние, списки, команды и шкалу времени, а без основного продолжает отсчёт самостоятельно.
+
+После 20 секунд без ответа основного сервера браузеры переходят на доступный резерв при очередной проверке. Плашка SEC после TAB: серая — недоступен, тёмно-зелёная — доступен, светло-зелёная — браузер подключён к резерву. Нажатие переводит выбранный браузер, а в карточке основного — всех. Обратного автоматического перехода нет. Диагностика объединяет подключения обоих серверов.
+
+Адрес должен быть доступен всем экранам и основному серверу. HTTPS требует доверия к сертификату не только в браузерах, но и в Node.js основного сервера; подтверждения предупреждения браузера недостаточно. HTTPS-страница не может обращаться к HTTP-резерву. Standalone HTML и APK не используют SEC. При полном разделении сети два сервера без внешнего арбитра не гарантируют единственную управляющую сторону.
+
+После общего перехода старый сервер при возвращении автоматически становится резервом нового основного, получая его актуальное состояние и назначение управляющего браузера. Новый основной не меняется, адрес SEC обновляется. Сначала проверяется обратный сетевой доступ; для HTTPS сертификатам должны доверять оба сервера. Если доступа нет, новый основной продолжает работать, а старый остаётся заблокированным и повторяет проверку.
+
 Сохранение состояния
 --------------------
 
@@ -72,7 +83,7 @@ FDV Bouldering Timer — локальный сетевой таймер для �
 
 Основной браузер всегда первый и выделен ярким контуром. Остальные карточки можно переставлять стрелками. Булавка сохраняет место браузера после отключения и повторного подключения. Если браузеров не меньше трёх, кнопка номера в карточке основного браузера показывает одинаковые номера на карточках и в правом верхнем углу поля таймера экранов.
 
-Плашки расположены в порядке LEGACY, AUDIO, TIME, NET, SYNC, SSE, TAB, затем LIST 1–4.
+Плашки расположены в порядке LEGACY, AUDIO, TIME, NET, SYNC, SSE, TAB, SEC (если настроен резерв), затем LIST 1–4.
 
 - Серый: функция или параметр недоступны.
 - Тёмно-зелёный: доступны, но неактивны.
@@ -154,6 +165,17 @@ Quick start
 
 Keys: Z Start, Ctrl+Q Pause, P Stop, Ctrl+F fullscreen, Ctrl+M primary browser. While paused, the primary browser can drag the progress bar; server synchronization does not take control while the pointer is held.
 
+SEC secondary server
+--------------------
+
+Click SEC beside PIN in the primary browser and enter the address of an empty running server of the same build with identical audio/fonts. A green outline confirms connectivity. The standby mirrors state, lists, commands and the timer coordinate, and continues independently without upstream contact.
+
+After 20 seconds without primary contact, browsers switch to a reachable standby on the next check. SEC after TAB is gray when unavailable, dark green when reachable, light green when connected through it. Click a browser badge to move that browser, or the primary browser's badge to move everyone. Both browser registries are combined. There is no automatic failback.
+
+Every display and the primary server must reach that address. HTTPS requires certificate trust in browsers AND the primary server's Node.js; accepting a browser warning alone is insufficient. HTTPS pages cannot use HTTP standbys. Standalone HTML/APK does not use SEC. A pair without a witness cannot guarantee single authority during a complete network partition.
+
+After group takeover the returning former primary automatically becomes the current primary's standby, receiving current state and operator assignment. The current primary does not change; SEC addresses update. Reverse reachability is checked first, with HTTPS certificate trust required on both servers. Otherwise the current primary continues while the old server remains fenced and retries.
+
 State storage
 -------------
 
@@ -181,7 +203,7 @@ Browsers and diagnostics
 
 The primary browser is always first and has a brighter border. Arrows reorder other cards; a pin preserves a browser's place through reconnects. With at least three browsers, the number button in the primary card displays matching numbers on cards and in the top-right corner of every timer area.
 
-Badge order is LEGACY, AUDIO, TIME, NET, SYNC, SSE, TAB, followed by LIST 1–4. Gray means unavailable, dark green available but inactive, light green active/healthy, yellow warning, red fault, cyan visible list/layout control, and orange outline a manual Legacy choice or non-default two-list layout.
+Badge order is LEGACY, AUDIO, TIME, NET, SYNC, SSE, TAB, SEC (when configured), followed by LIST 1–4. Gray means unavailable, dark green available but inactive, light green active/healthy, yellow warning, red fault, cyan visible list/layout control, and orange outline a manual Legacy choice or non-default two-list layout.
 
 LEGACY selects the simplified old-browser page. AUDIO reports availability, unlock state, and real audio-clock progress. TIME shows a compact server clock below the timer. NET reports request latency, SYNC clock/render timing, SSE instant command delivery, and TAB visibility plus Wake Lock on modern browsers.
 

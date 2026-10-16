@@ -632,10 +632,11 @@
   </div>
   <div id="protocolPane"><div id="protocolLayout"></div></div>
 
-  <script src="lib/start-list-display.js?v=413"></script>
+  <script src="lib/start-list-display.js?v=415"></script>
+  <script src="lib/client-secondary-server.js?v=415"></script>
   <script>
     (function () {
-      var legacyBuildNumber = 413;
+      var legacyBuildNumber = 415;
       var state = null;
       var serverOffset = 0;
       var lastContact = 0;
@@ -955,6 +956,18 @@
         storedFitText = sessionStorage.getItem("boulderingTimerLegacyFitText") || "";
       } catch (error) {}
       var clientId = queryValue("clientId") || storedClientId || ("legacy-" + String(new Date().getTime()) + "-" + String(Math.random()).slice(2));
+      var secondaryRequestGeneration = 0;
+      var secondaryConnection = window.FDVSecondaryServer.create(window, {
+        clientId: function () { return clientId; },
+        switched: function () {
+          secondaryRequestGeneration += 1;
+          if (activeRequest) { try { activeRequest.abort(); } catch (error) {} }
+          activeRequest = null;
+          clockSamples = [];
+          protocolRevision = "";
+          scheduleRequest(0);
+        }
+      });
       var isOldBrowser = !window.Promise || !window.fetch || !window.requestAnimationFrame || !window.performance;
       try {
         sessionStorage.setItem("boulderingTimerClientId", clientId);
@@ -2718,6 +2731,7 @@
 
       function requestState() {
         var xhr = new XMLHttpRequest();
+        var secondaryGeneration = secondaryRequestGeneration;
         performanceCount("stateRequests");
         var reportedScreen = window.screen
           ? String(window.screen.width || 0) + "x" + String(window.screen.height || 0)
@@ -2734,7 +2748,8 @@
         if (activeRequest) return;
         activeRequest = xhr;
         activeRequestStartedAt = new Date().getTime();
-        xhr.open("GET", url, true);
+        url += "&secondaryAvailable=" + (secondaryConnection.info().available ? "1" : "0");
+        xhr.open("GET", secondaryConnection.url(url), true);
         try {
           xhr.timeout = 5000;
         } catch (error) {}
@@ -2743,6 +2758,7 @@
           var requestStartedAt;
           var responseReceivedAt;
           if (xhr.readyState !== 4) return;
+          if (secondaryGeneration !== secondaryRequestGeneration) return;
           requestStartedAt = activeRequestStartedAt;
           responseReceivedAt = new Date().getTime();
           finishRequest();
@@ -2761,6 +2777,8 @@
             scheduleRequest(1000);
             return;
           }
+          if (secondaryConnection.observe(remote)) return;
+          secondaryConnection.contact();
           if (remote.legacyRedirect) {
             sessionStorage.setItem("boulderingTimerClientId", clientId);
             sessionStorage.setItem("boulderingTimerForceModern", "1");

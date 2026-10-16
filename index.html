@@ -2026,6 +2026,16 @@
     #rotationMeta {
       background: rgba(23, 27, 34, .42);
     }
+    .secondary-server-dialog { width: min(480px, calc(100vw - 32px)); padding: 22px; border: 1px solid var(--line); border-radius: 12px; color: var(--text); background: #171b22; }
+    .secondary-server-dialog:not([open]) { display: none; }
+    .secondary-server-dialog[open] { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); margin: 0; z-index: 1000; max-height: calc(100vh - 32px); overflow-y: auto; }
+    .secondary-server-dialog::backdrop { background: rgba(0,0,0,.7); }
+    .secondary-server-dialog input { width: 100%; margin: 12px 0; }
+    .secondary-server-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 14px; }
+    .secondary-server-actions button { padding: 8px 12px; border: 1px solid var(--line); border-radius: 8px; color: var(--text); background: #252b34; }
+    .secondary-server-actions button:disabled { opacity: .45; }
+    .secondary-server-status { min-height: 2.6em; font-size: 13px; color: var(--muted); }
+    .secondary-server-status.error { color: #f05a59; }
 
     .progress {
       height: 14px;
@@ -2930,6 +2940,7 @@
           <span id="primaryLabel">Основной браузер</span>
           <span class="primary-controls">
             <button id="primaryPinButton" class="primary-pin-button" type="button" title="PIN" hidden>PIN</button>
+            <button id="secondaryServerButton" class="primary-pin-button" type="button" title="Резервный сервер" hidden>SEC</button>
             <input id="primaryToggle" type="checkbox">
           </span>
         </div>
@@ -3042,6 +3053,18 @@
   </main>
 
   <button id="performanceExportBtn" class="performance-export-button" type="button" hidden>Скачать лог</button>
+  <dialog id="secondaryServerDialog" class="secondary-server-dialog" aria-labelledby="secondaryServerTitle">
+    <h3 id="secondaryServerTitle">Резервный сервер SEC</h3>
+    <label for="secondaryServerAddress" id="secondaryServerAddressLabel">Адрес сервера</label>
+    <input id="secondaryServerAddress" type="url" placeholder="http://192.168.1.20:8008" autocomplete="off" spellcheck="false">
+    <p id="secondaryServerHint"></p>
+    <div id="secondaryServerStatus" class="secondary-server-status" role="status" aria-live="polite"></div>
+    <div class="secondary-server-actions">
+      <button id="secondaryServerConnect" type="button">Подключить</button>
+      <button id="secondaryServerRemove" type="button" hidden>Отключить SEC</button>
+      <button id="secondaryServerClose" type="button">Закрыть</button>
+    </div>
+  </dialog>
 
   <script>
     if (window.location.protocol === "file:") {
@@ -3052,6 +3075,7 @@
   <script src="lib/start-list.js"></script>
   <script src="lib/start-list-route-editor.js"></script>
   <script src="lib/client-action-transport.js"></script>
+  <script src="lib/client-secondary-server.js"></script>
   <script>
     const presets = {
       classic: { rotationMinutes: 4, breakSeconds: 15, oneShot: false },
@@ -3095,7 +3119,7 @@
       timeline: []
     };
 
-    const pageBuildNumber = 413;
+    const pageBuildNumber = 415;
     const projectUrl = "https://github.com/dfedorov-arch/fdv-bouldering-timer";
     const buildLinkConfirmDelayMs = 550;
     const offlineSnapshotKey = "fdvBoulderingTimerOfflineSnapshot";
@@ -4537,6 +4561,7 @@
     }
 
     function markServerContact() {
+      window.FDVSecondaryConnection?.contact();
       const shouldReturnToServer = standaloneMode
         && !offlineReloadMode
         && window.location.protocol !== "file:";
@@ -5058,6 +5083,36 @@
 
     const clientId = safeStorageGet("sessionStorage", "boulderingTimerClientId") || createClientId();
     safeStorageSet("sessionStorage", "boulderingTimerClientId", clientId);
+    let lastSecondaryUiKey = "";
+    const secondaryConnection = window.FDVSecondaryServer.create(window, {
+      disabled: isLocalStandalonePage(), clientId: () => clientId,
+      changed: () => updateSecondaryUi(),
+      rolesChanged: next => {
+        if (next.secondaryInstanceId) retiredServerInstanceIds.delete(next.secondaryInstanceId);
+      },
+      switched: async () => {
+        syncRequestGeneration += 1;
+        syncRequestController?.abort();
+        syncRequestInFlight = false;
+        stopDiagnosticsStream();
+        eventStreamGeneration += 1;
+        try { eventSource?.close(); } catch (_) {}
+        eventSource = null;
+        eventSourceConnected = false;
+        lastStartListServerRevision = "";
+        pendingServerState = null;
+        standaloneMode = false;
+        await syncFromServer({ forceApply: true, skipBurst: true });
+        startEventStream();
+        syncDiagnosticsStream();
+      }
+    });
+    window.FDVSecondaryConnection = secondaryConnection;
+    // Retain the page, audio context, fullscreen and client identity on cutover.
+    const fetch = (...args) => secondaryConnection.fetch(...args);
+    const EventSource = window.EventSource ? function (url, options) {
+      return new window.EventSource(secondaryConnection.url(url), options);
+    } : null;
     const commandSessionId = createClientId();
 
     async function requestScreenWakeLock() {
@@ -5654,6 +5709,9 @@
       const finiteOrBlank = (value) => Number.isFinite(Number(value)) ? value : "";
       return {
         clientId,
+        secondaryAvailable: window.FDVSecondaryConnection?.info().available || false,
+        secondaryClockError: window.FDVSecondaryConnection?.info().onSecondary
+          ? Number(window.FDVSecondaryConnection.info().config?.clockErrorMs || 0) : 0,
         clientBuild: pageBuildNumber,
         legacy: false,
         latency: syncQuality.latency ?? "",
@@ -6020,7 +6078,8 @@
         }
       };
       const fallbackFont = String(config.timerFont || "Arial, sans-serif").trim();
-      const fontUrl = String(config.timerFontUrl || "").trim();
+      const fontSource = String(config.timerFontUrl || "").trim();
+      const fontUrl = window.FDVSecondaryConnection?.url(fontSource) || fontSource;
       let fontFaceStyle = document.getElementById("timerFontFace");
       if (fontUrl) {
         if (!fontFaceStyle) {
@@ -6401,6 +6460,7 @@
       const performanceStartedAt = performanceStart();
       try {
       if (!remote || typeof remote !== "object") return;
+      if (window.FDVSecondaryConnection?.observe(remote)) return;
       remote = window.FDVClientActionTransport.timerClockState(remote);
       const identity = reconcileServerStateIdentity(remote);
       if (identity.retired) return;
@@ -6592,6 +6652,7 @@
       const performanceStartedAt = performanceStart();
       try {
       if (!remote || typeof remote !== "object" || standaloneMode) return;
+      if (window.FDVSecondaryConnection?.observe(remote)) return;
       remote = window.FDVClientActionTransport.timerClockState(remote);
       if (reconcileServerStateIdentity(remote).stale) return;
       const nextActiveSettings = remote.activeSettings || state.activeSettings;
@@ -6985,6 +7046,7 @@
         try {
           markServerContact();
           const diagnostics = JSON.parse(event.data);
+          if (window.FDVSecondaryConnection?.observe(diagnostics)) return;
           if (Object.prototype.hasOwnProperty.call(diagnostics, "showBrowserNumbers")) {
             state.showBrowserNumbers = Boolean(diagnostics.showBrowserNumbers);
             syncBrowserNumberDisplay();
@@ -7479,7 +7541,7 @@
     function diagChip(label, status, title, attributes = "") {
       const className = `diag-chip${status && status !== "good" ? ` ${status}` : ""}`;
       const interactive = /\sdata-(?:audio-client|legacy-mode-client|server-time-client)=/.test(attributes)
-        || /\sdata-start-list-client=/.test(attributes);
+        || /\sdata-(?:start-list-client|secondary-client)=/.test(attributes);
       const tagName = interactive ? "button" : "span";
       const type = interactive ? ' type="button"' : "";
       return `<${tagName}${type} class="${className}" title="${escapeHtml(title)}"${attributes}>${escapeHtml(label)}</${tagName}>`;
@@ -8909,7 +8971,7 @@
         const syncError = Number(client.syncError);
         const hasSyncError = Number.isFinite(syncError);
         const estimatedSyncError = hasSyncError
-          ? syncError
+          ? syncError + (client.onSecondary ? Number(client.secondaryClockError || 0) : 0)
           : Number.isFinite(latency) ? latency / 2 : NaN;
         const syncCandidatePpm = Number(client.syncRateCandidatePpm);
         const syncAcceptedPpm = Number(client.syncRateAcceptedPpm);
@@ -9170,6 +9232,16 @@
         const chips = isLegacyViewer
           ? (language === "ru" ? ruLegacyChips : enLegacyChips)
           : (language === "ru" ? ruModernChips : enModernChips);
+        const secondaryInfo = window.FDVSecondaryConnection?.info();
+        if (secondaryInfo?.config) {
+          const secStatus = client.onSecondary && clientConnected ? "good"
+            : client.secondaryAvailable ? "inactive" : "neutral";
+          const secTitle = language === "ru"
+            ? `${client.onSecondary ? "Браузер подключён к SEC" : client.secondaryAvailable ? "Резервный сервер доступен" : "Резервный сервер недоступен"}. ${isPrimary ? "Нажмите, чтобы перевести все браузеры на SEC." : "Нажмите, чтобы перевести этот браузер на SEC."}`
+            : `${client.onSecondary ? "Connected to SEC" : client.secondaryAvailable ? "Secondary server available" : "Secondary server unavailable"}. ${isPrimary ? "Click to switch all browsers to SEC." : "Click to switch this browser to SEC."}`;
+          chips.push(diagChip("SEC", `${secStatus} clickable`, secTitle,
+            ` data-secondary-client="${escapeHtml(client.id)}"`));
+        }
         const chipHtml = chips.join("");
         const selectedListIndexes = new Set(Array.isArray(client.startListIndexes)
           ? client.startListIndexes.map(Number)
@@ -9402,7 +9474,7 @@
       if (!source || !canPlaySound()) return false;
       try {
         const scheduleGeneration = audioScheduleGeneration;
-        const audio = new Audio(source);
+        const audio = new Audio(window.FDVSecondaryConnection?.url(source) || source);
         audio.preload = "auto";
         if (kind === "warn") audio.volume = 0.82;
         activeHtmlAudio.push(audio);
@@ -9425,7 +9497,7 @@
       if (!source || !canPlaySound()) return false;
       try {
         if (!immediateGestureAudio) {
-          immediateGestureAudio = new Audio(source);
+          immediateGestureAudio = new Audio(window.FDVSecondaryConnection?.url(source) || source);
           immediateGestureAudio.preload = "auto";
           immediateGestureAudioSource = source;
           const gestureAudio = immediateGestureAudio;
@@ -11525,7 +11597,108 @@
       els.primaryPinStatus.textContent = "";
     }
 
+    function updateSecondaryUi(force = false) {
+      if (!window.FDVSecondaryConnection) return;
+      const info = secondaryConnection.info();
+      const key = JSON.stringify([info.config?.session, info.config?.epoch, info.available, info.onSecondary, isPrimaryClient, standaloneMode, language]);
+      const changed = key !== lastSecondaryUiKey;
+      if (!changed && !force) return;
+      lastSecondaryUiKey = key;
+      const button = document.getElementById("secondaryServerButton");
+      button.hidden = !isPrimaryClient || standaloneMode || isLocalStandalonePage();
+      button.classList.toggle("is-set", Boolean(info.config && info.available));
+      button.title = language === "ru"
+        ? info.config ? `SEC: ${info.config.secondaryUrl}` : "Настроить резервный сервер"
+        : info.config ? `SEC: ${info.config.secondaryUrl}` : "Configure secondary server";
+      document.getElementById("secondaryServerRemove").hidden = !info.config || info.onSecondary;
+      if (changed && typeof lastKnownClients !== "undefined") renderBrowserList(lastKnownClients);
+    }
+
+    function openSecondaryDialog() {
+      if (!isPrimaryClient || standaloneMode) return;
+      const dialog = document.getElementById("secondaryServerDialog");
+      const info = secondaryConnection.info();
+      document.getElementById("secondaryServerTitle").textContent = language === "ru" ? "Резервный сервер SEC" : "Secondary server SEC";
+      document.getElementById("secondaryServerAddressLabel").textContent = language === "ru" ? "Адрес сервера" : "Server address";
+      document.getElementById("secondaryServerHint").textContent = language === "ru"
+        ? "Нужен пустой сервер той же сборки с одинаковыми папками beeps и fonts. Для HTTPS нужен доверенный сертификат. После 20 секунд без связи экраны переходят на SEC автоматически."
+        : "Use an empty server of the same build with identical beeps and fonts folders. HTTPS requires a trusted certificate. Displays switch to SEC after 20 seconds without contact.";
+      document.getElementById("secondaryServerConnect").textContent = language === "ru" ? "Подключить" : "Connect";
+      document.getElementById("secondaryServerRemove").textContent = language === "ru" ? "Отключить SEC" : "Disconnect SEC";
+      document.getElementById("secondaryServerClose").textContent = language === "ru" ? "Закрыть" : "Close";
+      const input = document.getElementById("secondaryServerAddress");
+      input.value = info.config?.secondaryUrl || "";
+      input.disabled = Boolean(info.config);
+      document.getElementById("secondaryServerConnect").disabled = Boolean(info.config);
+      const status = document.getElementById("secondaryServerStatus");
+      status.classList.remove("error");
+      status.textContent = info.config
+        ? (language === "ru" ? info.available ? "Резервный сервер доступен" : "Резервный сервер недоступен из этого браузера"
+          : info.available ? "Secondary server available" : "Secondary server unavailable from this browser") : "";
+      updateSecondaryUi(true);
+      if (dialog.showModal) dialog.showModal(); else dialog.setAttribute("open", "");
+      input.focus();
+    }
+
+    async function configureSecondary(remove) {
+      const status = document.getElementById("secondaryServerStatus");
+      const button = document.getElementById(remove ? "secondaryServerRemove" : "secondaryServerConnect");
+      if (button.disabled) return;
+      button.disabled = true;
+      status.classList.remove("error");
+      status.textContent = language === "ru" ? "Устанавливается связь…" : "Connecting…";
+      try {
+        const address = document.getElementById("secondaryServerAddress").value.trim();
+        const response = await fetch(remove ? "/api/sec/remove" : "/api/sec/configure", {
+          method: "POST", headers: { "content-type": "application/json" },
+          body: JSON.stringify({ clientId, address })
+        });
+        const remote = await response.json();
+        if (!response.ok) throw new Error(remote.error || "SEC request failed");
+        secondaryConnection.observe(remote);
+        applyServerState(remote, { rescheduleSignals: false, includePhaseSignal: false });
+        status.textContent = language === "ru" ? remove ? "SEC отключён" : "Серверы связаны. Проверяется доступ из браузера."
+          : remove ? "SEC disconnected" : "Servers paired. Checking browser connectivity.";
+        secondaryConnection.check();
+        document.getElementById("secondaryServerAddress").disabled = !remove;
+        document.getElementById("secondaryServerConnect").disabled = !remove;
+      } catch (error) {
+        status.classList.add("error");
+        status.textContent = `${language === "ru" ? "Не удалось настроить SEC" : "SEC setup failed"}: ${error.message}`;
+        button.disabled = false;
+      } finally {
+        if (remove) button.disabled = false;
+        updateSecondaryUi(true);
+      }
+    }
+
+    async function switchBrowserToSecondary(targetClientId) {
+      const info = secondaryConnection.info();
+      if (!info.config || !isPrimaryClient) return;
+      try {
+        const response = await fetch("/api/sec/switch", { method: "POST", headers: { "content-type": "application/json" },
+          body: JSON.stringify({ clientId, targetClientId }) });
+        const remote = await response.json();
+        if (!response.ok) throw new Error(remote.error || "SEC switch failed");
+        secondaryConnection.observe(remote);
+      } catch (error) {
+        if (targetClientId === clientId) {
+          try {
+            const response = await window.fetch(`${info.config.secondaryUrl}/api/sec/takeover`, {
+              method: "POST", headers: { "content-type": "application/json" },
+              body: JSON.stringify({ session: info.config.session, clientId })
+            });
+            if (!response.ok) throw new Error("SEC unavailable");
+            secondaryConnection.observe(await response.json());
+            return;
+          } catch (_) {}
+        }
+        window.alert(`${language === "ru" ? "Не удалось перейти на SEC" : "Could not switch to SEC"}: ${error.message}`);
+      }
+    }
+
     function updatePrimaryPinUi() {
+      if (window.FDVSecondaryConnection) updateSecondaryUi(true);
       const showButton = isPrimaryClient && !standaloneMode && serverAvailable;
       els.primaryPinButton.hidden = !showButton;
       els.primaryPinButton.disabled = !showButton;
@@ -11812,6 +11985,20 @@
       sendServerAction("showBrowserNumbers", { enabled });
     });
     els.enterStandaloneBtn.addEventListener("click", enterStandaloneMode);
+    document.getElementById("secondaryServerButton").addEventListener("click", openSecondaryDialog);
+    document.getElementById("secondaryServerConnect").addEventListener("click", () => configureSecondary(false));
+    document.getElementById("secondaryServerRemove").addEventListener("click", () => configureSecondary(true));
+    document.getElementById("secondaryServerClose").addEventListener("click", () => {
+      const dialog = document.getElementById("secondaryServerDialog");
+      if (dialog.close) dialog.close(); else dialog.removeAttribute("open");
+    });
+    document.getElementById("secondaryServerAddress").addEventListener("keydown", event => {
+      if (event.key === "Enter") { event.preventDefault(); configureSecondary(false); }
+    });
+    els.browserList.addEventListener("click", event => {
+      const badge = event.target.closest("[data-secondary-client]");
+      if (badge && controlsAvailable()) switchBrowserToSecondary(badge.dataset.secondaryClient);
+    });
     els.returnToServerBtn.addEventListener("click", returnToServerMode);
     els.installAppBtn.addEventListener("click", installAppToHomeScreen);
     els.exitFullscreenBtn.addEventListener("click", (event) => {

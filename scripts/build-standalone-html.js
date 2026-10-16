@@ -61,6 +61,7 @@ function build() {
   let html = embedClockFonts(read("index.html"));
   const offlineAudio = embedTimerFont(read("lib/offline-audio.js"));
   const clientActionTransport = read("lib/client-action-transport.js");
+  const clientSecondaryServer = read("lib/client-secondary-server.js");
   const startListDisplay = read("lib/start-list-display.js");
   const startList = read("lib/start-list.js");
   const startListRouteEditor = read("lib/start-list-route-editor.js");
@@ -102,6 +103,10 @@ function build() {
   html = html.replace(
     /\s*<script src="lib\/client-action-transport\.js"><\/script>/,
     `\n  ${scriptTag(clientActionTransport)}`
+  );
+  html = html.replace(
+    /\s*<script src="lib\/client-secondary-server\.js"><\/script>/,
+    () => `\n  ${scriptTag(clientSecondaryServer)}`
   );
   html = html.replace(
     /\s*<script src="lib\/start-list-route-editor\.js"><\/script>/,

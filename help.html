@@ -1023,6 +1023,20 @@
         <p>Основной браузер расположен первым и выделен более ярким контуром. Сочетание <kbd>Ctrl+M</kbd> позволяет быстро переназначить роль при аварийной ситуации.</p>
 
 
+        <h3 id="secondary-server">Резервный сервер SEC</h3>
+        <ol>
+          <li>Запустите второй сервер той же сборки с одинаковыми файлами звуков и шрифтов. На нём не должно быть выбранного основного браузера, запущенного таймера или загруженных списков.</li>
+          <li>В основном браузере нажмите <strong>SEC</strong> рядом с PIN, введите сетевой HTTP/HTTPS-адрес резерва с портом и нажмите «Подключить». Не используйте адрес 127.0.0.1, если экраны находятся на других устройствах.</li>
+          <li>Зелёный контур кнопки подтверждает связь. Резерв получает состояние, настройки, списки, назначения экранов и временную шкалу; команды браузеров на резерве до общего перехода исполняются через основной сервер.</li>
+        </ol>
+        <figure><img src="help-assets/secondary-server.png" alt="Настройка резервного сервера SEC в основном браузере"><figcaption>Подключённый резерв и его сетевой адрес.</figcaption></figure>
+        <p>Справа от TAB появляется плашка SEC: серая — резерв недоступен этому браузеру, тёмно-зелёная — доступен, светло-зелёная — браузер уже получает данные от него. Основной браузер показывает подключения обоих серверов. Нажмите SEC конкретного экрана, чтобы перевести только его; нажатие SEC в карточке основного переводит всю группу. Кнопка SEC рядом с PIN открывает настройки, а не переводит экраны.</p>
+        <p>Если ответов основного сервера нет 20 секунд, браузер при очередной проверке резерва переключается на него. Проверки выполняются каждые 2,5 секунды и имеют сетевой тайм-аут, поэтому фактический переход может быть немного позже порога. Страница не перезагружается: сохраняются её идентификатор, разрешение звука и полноэкранный режим. При смене серверного процесса современный экран заново измеряет часы, прежде чем планировать следующие сигналы. Legacy тоже переключается, но по-прежнему работает без звука.</p>
+        <p>Когда резерв принимает управление всей группой, он больше не подчиняется старому серверу. Вернувшийся прежний основной автоматически становится резервным для нового основного: получает актуальные списки, настройки, назначение управляющего браузера и исходную отметку старта. Даже если управляющий браузер сменился за время отсутствия, сохраняется новое назначение. Текущий основной продолжает работу без перезапуска отсчёта; автоматического обратного перехода нет. На экранах обновляется адрес SEC. В дальнейшем можно вручную перейти на восстановленный резерв или использовать его при следующем отказе.</p>
+        <p>Перед сменой ролей новый основной проверяет сетевой адрес вернувшегося сервера и его идентичность. Используются адреса, известные по предыдущим подключениям; адрес 127.0.0.1 не подходит для связи разных компьютеров. Если обратный доступ или доверие HTTPS не настроены, новый основной продолжает работать, а старый остаётся заблокированным и повторяет попытки — не считается готовым резервом. Для автоматической смены ролей оба сервера должны иметь сетевой доступ друг к другу и доверять сертификатам друг друга. Отключить пару можно на текущем основном сервере, предварительно закрыв страницы, подключённые к резерву.</p>
+        <p class="note">Оба сервера и все экраны должны иметь сетевой доступ к адресу резерва. Защищённая HTTPS-страница не может обращаться к HTTP-резерву; сертификат HTTPS должен быть доверенным каждому браузеру <strong>и Node.js основного сервера</strong>. Подтверждения самоподписанного сертификата в браузере недостаточно для серверного соединения. Используйте доверенный сертификат или заранее настройте доверие к своему центру сертификации. Самостоятельные HTML/APK не подключают SEC.</p>
+        <p class="note">Два сервера без внешнего арбитра не исключают разделение управления при полном разделении сети: одна группа может видеть только основной, другая — только резерв. До соревнований проверьте оба адреса на всех устройствах, отключение основного, переход и возврат старого сервера. Последняя команда, потерянная до подтверждения и репликации, не может считаться гарантированно перенесённой.</p>
+
         <h3 id="legacy-mode">7.3. Legacy-режим для старых экранов</h3>
         <p>Legacy-экран предназначен для старых браузеров в телевизорах, планшетах и медиаплеерах, где обычная страница может работать нестабильно. Он открывается как <code>/legacy.html</code> без видимых служебных параметров в адресной строке.</p>
         <ul>
@@ -1041,7 +1055,7 @@
 
         <h3 id="diagnostics">7.4. Диагностика подключений</h3>
         <p>Карточка браузера содержит порядковый номер, название и версию, операционную систему, IP, роль, транспорт и индикаторы. Наведение на плашку показывает подробности. Серый означает недоступность, тёмно-зелёный — доступную, но неактивную функцию, светло-зелёный — активное или нормальное состояние, жёлтый — предупреждение, красный — ошибку.</p>
-        <p class="note">Актуальный порядок индикаторов: LEGACY, AUDIO, TIME, NET, SYNC, SSE, TAB; ниже расположены LIST 1–4.</p>
+        <p class="note">Актуальный порядок индикаторов: LEGACY, AUDIO, TIME, NET, SYNC, SSE, TAB, SEC (если настроен резерв); ниже расположены LIST 1–4.</p>
         <table>
           <thead><tr><th>Индикатор</th><th>Назначение</th></tr></thead>
           <tbody>
@@ -1587,6 +1601,20 @@ xattr -dr com.apple.quarantine "/полный/путь/к/fdv-bouldering-timer-m
           <li>With at least three browsers, the number button in the primary card shows matching numbers on cards and in the top-right corner of each display's timer area.</li>
         </ul>
 
+        <h3 id="secondary-server-en">SEC secondary server</h3>
+        <ol>
+          <li>Run a second server of the same build with identical audio and font files. It must have no primary browser, running timer or loaded lists.</li>
+          <li>Click <strong>SEC</strong> beside PIN in the primary browser. Enter the standby's network HTTP/HTTPS address and port, then connect. Do not use 127.0.0.1 for displays on other devices.</li>
+          <li>A green outline confirms connectivity. The standby mirrors state, settings, lists, display assignments and the timer coordinate. Commands from browsers on the standby still go through the primary until group takeover.</li>
+        </ol>
+        <figure><img src="help-assets/secondary-server.png" alt="SEC secondary-server setup in the primary browser"><figcaption>A connected standby and its network address.</figcaption></figure>
+        <p>SEC appears after TAB: gray means unreachable from that browser, dark green means reachable, light green means connected through it. The primary combines both servers' browser registries. Click a display's SEC badge to move only that display; click the primary browser's badge to move everyone. The SEC button beside PIN opens settings instead.</p>
+        <p>After 20 seconds without primary responses, a browser switches on its next successful standby check. Checks run every 2.5 seconds with a network timeout, so cutover may occur slightly later than the threshold. No page reload is required: the client identity, unlocked audio and fullscreen are retained. A modern browser remeasures a new server process before scheduling future sounds. Legacy switches too, but remains silent.</p>
+        <p>After group takeover the standby no longer follows its old primary. The returning former primary automatically becomes the current primary's standby, receiving current lists, settings, operator assignment and the unchanged start anchor. An operator replacement made during the outage is preserved. The current primary continues without restarting the timer; there is no automatic failback. SEC addresses update across displays, and the recovered standby can be used manually or after another failure.</p>
+        <p>The current primary first verifies the returning server's identity and a network address known from previous connections; 127.0.0.1 does not connect different computers. If reverse reachability or HTTPS trust is unavailable, the current primary continues while the former primary stays fenced and retries, rather than being shown as a ready standby. Automatic role reversal requires bidirectional reachability and certificate trust on both servers. Unpair from the current primary after closing pages connected through the standby.</p>
+        <p class="note">Both servers and every display must reach the secondary address. HTTPS pages cannot contact an HTTP standby. The HTTPS certificate must be trusted by every browser <strong>and the primary server's Node.js</strong>; accepting a self-signed certificate warning in a browser alone is insufficient. Use a trusted certificate or configure trust for your certificate authority. Standalone HTML/APK does not use SEC.</p>
+        <p class="note">Two servers without a witness cannot prevent split authority during a complete network partition. Test both addresses, primary failure, takeover and the old primary's return on actual devices before competition. A last command lost before acknowledgement and replication cannot be guaranteed to transfer.</p>
+
         <h3>7.3. Legacy mode for older displays</h3>
         <p>Legacy mode is intended for old TV browsers, tablets, and media players where the normal page may be unstable. It opens as <code>/legacy.html</code> without visible service parameters in the address bar.</p>
         <ul>
@@ -1605,7 +1633,7 @@ xattr -dr com.apple.quarantine "/полный/путь/к/fdv-bouldering-timer-m
 
         <h3>7.4. Diagnostics</h3>
         <p>Gray means unavailable, dark green means available but inactive, light green means active or healthy, yellow is a warning, and red is a fault.</p>
-        <p class="note">Current badge order: LEGACY, AUDIO, TIME, NET, SYNC, SSE, TAB, followed by LIST 1–4.</p>
+        <p class="note">Current badge order: LEGACY, AUDIO, TIME, NET, SYNC, SSE, TAB, SEC (when configured), followed by LIST 1–4.</p>
         <table>
           <thead><tr><th>Badge</th><th>Meaning</th></tr></thead>
           <tbody>

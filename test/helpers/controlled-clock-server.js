@@ -24,16 +24,16 @@ async function freePort() {
 async function fixture(t, platform, { liveClocks = false } = {}) {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), "fdv-clock-continuity-"));
   let child = null;
-  t.after(async () => {
-    if (child && child.exitCode === null) {
+  const stop = async () => {
+    if (child && child.exitCode === null && child.signalCode === null) {
       await new Promise((resolve) => {
         const timeout = setTimeout(() => child.kill("SIGKILL"), 3000);
         child.once("exit", () => { clearTimeout(timeout); resolve(); });
         child.kill("SIGTERM");
       });
     }
-    fs.rmSync(directory, { recursive: true, force: true });
-  });
+  };
+  t.after(async () => { await stop(); fs.rmSync(directory, { recursive: true, force: true }); });
   for (const name of ["serve-bouldering-timer.js", "params.txt", "index.html", "legacy.html"]) {
     fs.copyFileSync(path.join(root, name), path.join(directory, name));
   }
@@ -79,19 +79,23 @@ async function fixture(t, platform, { liveClocks = false } = {}) {
   `);
   const port = await freePort();
   const output = [];
+  function launch() {
   child = spawn(process.execPath, [...(platform ? ["--require", preloadPath] : []), path.join(directory, "serve-bouldering-timer.js")], {
     cwd: directory,
-    env: { ...process.env, HOST: "127.0.0.1", PORT: String(port), HTTPS_PORT: String(await freePort()) },
+    env: { ...process.env, HOST: "127.0.0.1", PORT: String(port), HTTPS_PORT: "0" },
     stdio: ["ignore", "pipe", "pipe"]
   });
   child.stdout.on("data", (data) => output.push(data.toString()));
   child.stderr.on("data", (data) => output.push(data.toString()));
+  }
+  launch();
   const baseUrl = `http://127.0.0.1:${port}`;
   const state = async () => {
     const response = await fetch(`${baseUrl}/api/state?diagnostics=1`, { signal: AbortSignal.timeout(1000) });
     assert.equal(response.status, 200);
     return response.json();
   };
+  async function ready() {
   const deadline = Date.now() + 5000;
   while (true) {
     try { await state(); break; } catch (error) {
@@ -99,6 +103,8 @@ async function fixture(t, platform, { liveClocks = false } = {}) {
       await new Promise((resolve) => setTimeout(resolve, 30));
     }
   }
+  }
+  await ready();
   const action = async (body) => {
     const response = await fetch(`${baseUrl}/api/action`, {
       method: "POST", headers: { "content-type": "application/json" },
@@ -110,7 +116,8 @@ async function fixture(t, platform, { liveClocks = false } = {}) {
   const start = (options = {}) => action({ type: "start", startMode: "manual", startHours: "", startMinutes: "",
     activePreset: "classic", settings: { rotationSeconds: 60, breakSeconds: 15, oneShot: false }, ...options });
   const snapshot = () => JSON.parse(fs.readFileSync(path.join(directory, "runtime-state", "timer-state.json"), "utf8"));
-  return { frame, state, action, start, snapshot, output, baseUrl };
+  return { frame, state, action, start, snapshot, output, baseUrl, stop,
+    restart: async () => { await stop(); launch(); await ready(); } };
 }
 
 

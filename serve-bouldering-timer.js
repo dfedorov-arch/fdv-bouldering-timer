@@ -15,6 +15,8 @@ const { createTimerTransitions } = require("./lib/timer-transitions");
 const startListDomain = require("./lib/start-list");
 const { markerColors } = require("./lib/start-list-display");
 const { runtimeStateStoragePlan, prepareRuntimeStateStorage } = require("./lib/runtime-state-storage");
+const { createSecondaryServer } = require("./lib/secondary-server");
+const { Readable } = require("node:stream");
 
 const root = __dirname;
 const paramsPath = path.join(root, "params.txt");
@@ -24,7 +26,7 @@ const legacyRuntimeStatePath = runtimeStatePath;
 const beepsPath = path.join(root, "beeps");
 const fontsPath = path.join(root, "fonts");
 const offlineAudioPath = path.join(root, "lib", "offline-audio.js");
-const BUILD_NUMBER = 413;
+const BUILD_NUMBER = 415;
 const serverInstanceId = crypto.randomUUID();
 const SNAPSHOT_SCHEMA_VERSION = 1;
 const SNAPSHOT_MAX_AGE_MS = 12 * 60 * 60 * 1000;
@@ -466,6 +468,8 @@ let stateTransitionTimer = null;
 let snapshotWriteTimer = null;
 let timerStartedAtMono = 0;
 let timerStartPending = false;
+let secondaryServer = null;
+let replicaStartedAt = 0;
 // An epoch-shaped coordinate for compatibility with positive timestamp guards,
 // NOT calendar time. Its origin is chosen once per server process.
 const timerClockOrigin = wallNow() - monoNow();
@@ -634,6 +638,7 @@ function setTimerStartedAt(startedAtWall) {
   const currentWall = wallNow();
   const currentMono = monoNow();
   timerStartedAtMono = currentMono + (start - currentWall);
+  if (secondaryServer?.clock.ready) replicaStartedAt = timerClockNow() + (start - currentWall);
   timerStartPending = start > currentWall;
   resetTimerClockContinuity(currentWall, currentMono);
 }
@@ -642,11 +647,13 @@ function setTimerStartedFromElapsed(elapsed, effectiveWallNow = wallNow()) {
   const safeElapsed = Math.max(0, numberOrDefault(elapsed, 0));
   timerState.startedAt = effectiveWallNow - safeElapsed * 1000;
   timerStartedAtMono = monoNow() - safeElapsed * 1000;
+  if (secondaryServer?.clock.ready) replicaStartedAt = timerClockNow() - safeElapsed * 1000;
   timerStartPending = false;
   resetTimerClockContinuity();
 }
 
 function clearTimerStartedAt() {
+  replicaStartedAt = 0;
   timerState.startedAt = 0;
   timerStartedAtMono = 0;
   timerStartPending = false;
@@ -659,6 +666,7 @@ function resetTimerClockContinuity(currentWall = wallNow(), currentMono = monoNo
 }
 
 function timerClockNow() {
+  if (secondaryServer?.clock.ready) return secondaryServer.clock.now();
   return timerClockOrigin + monoNow() + timerClockSleepOffset;
 }
 
@@ -759,6 +767,15 @@ function repairTimerClockContinuity() {
   const wallDelta = currentWall - timerClockContinuityWallAt;
   const monotonicDelta = currentMono - timerClockContinuityMonoAt;
   const uptimeDelta = currentUptime - timerClockContinuityUptimeAt;
+  if (secondaryServer?.clock.ready) {
+    if (Math.max(Math.abs(wallDelta), Math.abs(monotonicDelta), Math.abs(uptimeDelta)) < CLOCK_CONTINUITY_GAP_MS) return 0;
+    resetTimerClockContinuity(currentWall, currentMono, currentUptime);
+    const replicaAssessment = assessClockContinuity(wallDelta, monotonicDelta, uptimeDelta,
+      CLOCK_CONTINUITY_GAP_MS, CLOCK_CONTINUITY_MISMATCH_MS,
+      { uptimeToleranceMs: CLOCK_CONTINUITY_UPTIME_TOLERANCE_MS, monotonicIncludesSleep: MONOTONIC_INCLUDES_SLEEP });
+    if (replicaAssessment.correctionMs > 0) secondaryServer.clock.advance(replicaAssessment.correctionMs);
+    return replicaAssessment.correctionMs;
+  }
   const hasRunningClock = timerState.running && Boolean(timerStartedAtMono);
   const wasStartPending = timerStartPending;
   if (timerStartPending) {
@@ -887,10 +904,13 @@ function snapshotPayload() {
     savedAtUptimeMs,
     runningElapsedAtSave,
     timerState: {
-      ...timerState
+      ...timerState,
+      ...(secondaryServer?.clock.ready && timerState.running
+        ? { startedAt: publicStartedAt(savedAtWall, runningElapsedAtSave) } : {})
     },
     audioOffsets: [...clientAudioOffsets.entries()],
     manualLegacyClients: [...manualLegacyClients],
+    secondary: secondaryServer?.configured ? { ...secondaryServer.snapshot(), startedAt: replicaStartedAt } : null,
     clockDiagnostics: publicClockDiagnostics()
   };
 }
@@ -1005,7 +1025,7 @@ function restoreTimerSnapshot() {
     timerState.serverTimeDisplayClientIds = sanitizeBrowserClientIds(timerState.serverTimeDisplayClientIds);
     const pinnedBrowserIds = new Set(timerState.browserPinnedClientIds);
     timerState.browserOrder = sanitizeBrowserClientIds(timerState.browserOrder)
-      .filter((clientId) => pinnedBrowserIds.has(clientId));
+      .filter((clientId) => snapshot.secondary || pinnedBrowserIds.has(clientId));
     timerState.browserPinnedClientIds.forEach((clientId) => {
       if (!timerState.browserOrder.includes(clientId)) timerState.browserOrder.push(clientId);
     });
@@ -1081,6 +1101,19 @@ function restoreTimerSnapshot() {
       timerStartedAtMono = 0;
     }
 
+    if (snapshot.secondary) {
+      const recoveredElapsed = timerState.running ? elapsedSeconds() : timerState.elapsedBeforePause;
+      const wasPending = Number(snapshot.timerState.startedAt) > savedAtWall;
+      const advanceMs = timerState.running && !wasPending
+        ? (recoveredElapsed - Number(snapshot.runningElapsedAtSave || 0)) * 1000
+        : Math.max(0, now - savedAtWall);
+      secondaryServer.restore(snapshot.secondary, advanceMs);
+      if (secondaryServer.clock.ready && timerState.running) {
+        replicaStartedAt = Number(snapshot.secondary.startedAt) || timerClockNow() + (timerStartPending
+          ? timerState.startedAt - now : -recoveredElapsed * 1000);
+      }
+    }
+
     timerState.version = Math.max(1, numberOrDefault(timerState.version, 1)) + 1;
     console.log(`Timer state restored from ${restorePath}`);
     return true;
@@ -1094,6 +1127,7 @@ function armPrimaryRestoreGrace() {
   const restoredPrimaryClientId = timerState.primaryClientId;
   if (!restoredPrimaryClientId) return;
   setTimeout(() => {
+    if (secondaryServer?.configured) return;
     if (timerState.primaryClientId !== restoredPrimaryClientId) return;
     if (clients.has(restoredPrimaryClientId)) return;
     timerState.primaryClientId = null;
@@ -1260,6 +1294,10 @@ function registerClient(req, source = {}) {
     address: req.socket.remoteAddress || "",
     displayAddress: displayAddressForClient(req.socket.remoteAddress || ""),
     connectionAddress: connectionAddress || existing.connectionAddress || "",
+    connectionOrigin: `${req.socket.encrypted ? "https" : "http"}://${req.headers.host || "localhost"}`,
+    secondaryAvailable: optionalBool(sourceValue(source, "secondaryAvailable"), existing.secondaryAvailable ?? false),
+    secondaryClockError: optionalNumber(sourceValue(source, "secondaryClockError"), existing.secondaryClockError ?? null),
+    viaSecondary: Boolean(req.fdvSecondaryForward),
     computerKey: computerKeyForAddress(req.socket.remoteAddress || ""),
     protocol: req.socket.encrypted ? "HTTPS" : "HTTP",
     lastSeen: now,
@@ -1347,7 +1385,7 @@ function orderedClientValues() {
       clients.delete(id);
       manualLegacyClients.delete(id);
       oldBrowserClients.delete(id);
-      removeUnpinnedBrowserOrderClient(id);
+      if (!secondaryServer?.peerConnected(id)) removeUnpinnedBrowserOrderClient(id);
     }
   }
   for (const id of clients.keys()) ensureBrowserOrderClient(id);
@@ -1364,10 +1402,10 @@ function orderedClientValues() {
     });
 }
 
-function publicClients(orderedClients = orderedClientValues()) {
+function publicClients(orderedClients = orderedClientValues(), localOnly = false) {
   const now = wallNow();
   const pinnedIds = pinnedBrowserIdSet();
-  return orderedClients.map((client, index) => ({
+  const local = orderedClients.map((client, index) => ({
       ...client,
       displayNumber: index + 1,
       browserPinned: pinnedIds.has(client.id),
@@ -1380,11 +1418,18 @@ function publicClients(orderedClients = orderedClientValues()) {
       age: now - client.lastSeen,
       connected: now - client.lastSeen < 6000
     }));
+  if (localOnly || !secondaryServer?.configured) return local;
+  const merged = secondaryServer.mergeClients(local);
+  for (const client of merged) ensureBrowserOrderClient(client.id);
+  const order = timerState.browserOrder;
+  merged.sort((a, b) => (a.id === timerState.primaryClientId ? -1 : b.id === timerState.primaryClientId ? 1
+    : order.indexOf(a.id) - order.indexOf(b.id)));
+  return merged.map((client, index) => ({ ...client, displayNumber: index + 1 }));
 }
 
 function setBrowserPinned(targetClientId, enabled) {
   const id = String(targetClientId || "");
-  if (!id || !clients.has(id) || id === timerState.primaryClientId) return false;
+  if (!id || (!clients.has(id) && !secondaryServer?.peerConnected(id)) || id === timerState.primaryClientId) return false;
   ensureBrowserOrderClient(id);
   const pinnedIds = pinnedBrowserIdSet();
   const wasPinned = pinnedIds.has(id);
@@ -1397,8 +1442,9 @@ function setBrowserPinned(targetClientId, enabled) {
 
 function moveBrowserClient(targetClientId, direction) {
   const id = String(targetClientId || "");
-  if (!id || id === timerState.primaryClientId || !clients.has(id)) return false;
-  const movableClients = orderedClientValues().filter((client) => client.id !== timerState.primaryClientId);
+  if (!id || id === timerState.primaryClientId || (!clients.has(id) && !secondaryServer?.peerConnected(id))) return false;
+  const movableClients = (secondaryServer?.configured ? publicClients() : orderedClientValues())
+    .filter((client) => client.id !== timerState.primaryClientId);
   const currentIndex = movableClients.findIndex((client) => client.id === id);
   const nextIndex = direction === "up" ? currentIndex - 1 : direction === "down" ? currentIndex + 1 : currentIndex;
   if (currentIndex < 0 || nextIndex < 0 || nextIndex >= movableClients.length || nextIndex === currentIndex) return false;
@@ -1535,6 +1581,9 @@ function legacyPublicState(options = {}) {
 
 function elapsedSeconds(now = null) {
   if (!timerState.running) return timerState.elapsedBeforePause;
+  if (secondaryServer?.clock.ready && replicaStartedAt) {
+    return Math.max(0, (timerClockNow() - replicaStartedAt) / 1000);
+  }
   repairTimerClockContinuity();
   const hasExplicitNow = now !== null && now !== undefined && Number.isFinite(Number(now));
   const currentMono = hasExplicitNow ? Number(now) : monoNow();
@@ -1559,7 +1608,8 @@ function finalizeOneShot(now = wallNow()) {
 }
 
 function finalizeScheduledCountdown(now = wallNow()) {
-  if (!timerState.running || !timerState.countdownOnly || now < timerState.startedAt) return;
+  if (!timerState.running || !timerState.countdownOnly
+    || (secondaryServer?.clock.ready ? timerClockNow() < replicaStartedAt : now < timerState.startedAt)) return;
   timerState.running = false;
   timerState.countdownOnly = false;
   timerState.waitingForManualStart = true;
@@ -1590,14 +1640,17 @@ function armCurrentStateTransition() {
     return;
   }
   if (timerState.countdownOnly) {
-    armStateTransition(timerState.startedAt);
+    armStateTransition(secondaryServer?.clock.ready
+      ? wallNow() + Math.max(0, replicaStartedAt - timerClockNow()) / secondaryServer.clock.rate
+      : timerState.startedAt);
     return;
   }
   if (timerState.activeSettings.oneShot) {
     const duration = Math.max(0,
       numberOrDefault(timerState.activeSettings.rotationSeconds, 0)
       + numberOrDefault(timerState.activeSettings.breakSeconds, 0));
-    const remainingMs = Math.max(0, (duration - elapsedSeconds()) * 1000);
+    const remainingMs = Math.max(0, (duration - elapsedSeconds()) * 1000)
+      / (secondaryServer?.clock.ready ? secondaryServer.clock.rate : 1);
     armStateTransition(wallNow() + remainingMs);
   }
 }
@@ -1627,7 +1680,8 @@ function publicState(options = {}) {
   const startListRevision = modernStartListRevision();
   const includeStartLists = cleanStartListRevision(options.startListRevision) !== startListRevision;
   const orderedClients = orderedClientValues();
-  const ownDisplayIndex = clientId ? orderedClients.findIndex((client) => client.id === clientId) : -1;
+  const ownDisplayIndex = clientId ? (secondaryServer?.configured ? publicClients(orderedClients) : orderedClients)
+    .findIndex((client) => client.id === clientId) : -1;
   const {
     primaryPinHash: _primaryPinHash,
     primaryPinSalt: _primaryPinSalt,
@@ -1655,8 +1709,9 @@ function publicState(options = {}) {
       // Use the actual monotonic anchor, not a separately sampled now-elapsed
       // pair: identical timelines must retain identical signal identities.
       startedAt: timerState.running && timerStartedAtMono
-        ? timerClockOrigin + timerStartedAtMono + timerClockSleepOffset : 0
+        ? secondaryServer?.clock.ready ? replicaStartedAt : timerClockOrigin + timerStartedAtMono + timerClockSleepOffset : 0
     },
+    sec: secondaryServer?.publicInfo() || null,
     config: {
       ...config,
       buildNumber: BUILD_NUMBER,
@@ -1696,6 +1751,7 @@ function publicState(options = {}) {
 }
 
 function broadcastState() {
+  secondaryServer?.notify();
   for (const [res, eventClient] of eventClients) {
     try {
       const state = publicState({
@@ -1719,6 +1775,7 @@ function broadcastState() {
 
 function diagnosticsPayload() {
   return {
+    sec: secondaryServer?.publicInfo() || null,
     serverInstanceId,
     primaryClientId: timerState.primaryClientId,
     showBrowserNumbers: timerState.showBrowserNumbers,
@@ -1755,6 +1812,10 @@ function broadcastDiagnostics(force = false) {
 }
 
 function sendEvent(eventName, data, predicate = () => true) {
+  if (secondaryServer?.configured) {
+    const targets = publicClients().map(client => ({ clientId: client.id })).filter(predicate).map(client => client.clientId);
+    secondaryServer.event({ name: eventName, data, targets });
+  }
   const payload = `event: ${eventName}\ndata: ${JSON.stringify(data)}\n\n`;
   for (const [res, eventClient] of eventClients) {
     if (!predicate(eventClient)) continue;
@@ -1785,12 +1846,12 @@ function sendJson(res, status, payload) {
   performanceEnd("sendJson", performanceStartedAt);
 }
 
-function readJson(req) {
+function readJson(req, maxBytes = 1024 * 1024) {
   return new Promise((resolve, reject) => {
     let body = "";
     req.on("data", (chunk) => {
       body += chunk;
-      if (body.length > 1024 * 1024) {
+      if (body.length > maxBytes) {
         reject(new Error("Request body too large"));
         req.destroy();
       }
@@ -1840,6 +1901,57 @@ function shouldServeLegacyViewer(req, requestUrl) {
 
 function handleRequest(req, res) {
   const requestUrl = new URL(req.url, `http://localhost:${port}`);
+  secondaryServer?.cors(req, res);
+
+  if (["/api/sec/configure", "/api/sec/remove", "/api/sec/switch"].includes(requestUrl.pathname)
+    && req.method === "POST") {
+    readJson(req).then(async body => {
+      const clientId = registerClient(req, body);
+      if (!clientId || clientId !== timerState.primaryClientId) {
+        sendJson(res, 403, { error: "Only the primary browser can configure SEC" }); return;
+      }
+      if (requestUrl.pathname === "/api/sec/configure") {
+        await secondaryServer.configure(body.address, `${req.socket.encrypted ? "https" : "http"}://${req.headers.host}`);
+      } else if (requestUrl.pathname === "/api/sec/remove") {
+        await secondaryServer.remove();
+      } else {
+        await secondaryServer.switchClient(String(body.targetClientId || ""), timerState.primaryClientId);
+      }
+      sendJson(res, 200, publicState({ clientId }));
+    }).catch(error => sendJson(res, 400, { error: error.message }));
+    return;
+  }
+  if (requestUrl.pathname.startsWith("/api/sec/")
+    || (req.method === "OPTIONS" && requestUrl.pathname.startsWith("/api/"))) {
+    secondaryServer.handle(req, res, requestUrl.pathname, readJson, sendJson)
+      .catch(error => sendJson(res, 400, { error: error.message }));
+    return;
+  }
+
+  if (requestUrl.pathname === "/api/action" && req.method === "POST"
+    && (secondaryServer.following || secondaryServer.fenced || secondaryServer.rejoining)) {
+    const secReceivedAt = timerClockNow();
+    const secReceivedWall = wallNow();
+    readJson(req).then(async body => {
+      const clientId = registerClient(req, body);
+      if (secondaryServer.fenced || secondaryServer.rejoining) {
+        sendJson(res, 409, { ...publicState({ clientId }), actionDenied: true,
+          error: secondaryServer.fenced ? "Control has moved to SEC" : "SEC reconnection is being checked" }); return;
+      }
+      if (body.expectedStartListRevision) {
+        if (body.expectedStartListRevision !== modernStartListRevision()) {
+          sendJson(res, 409, { ...publicState({ clientId }), startListConflict: true }); return;
+        }
+        body.expectedStartListRevision = secondaryServer.sourceListRevision;
+      }
+      const result = await secondaryServer.forward(body, {
+        address: req.socket.remoteAddress, userAgent: req.headers["user-agent"] || ""
+      });
+      sendJson(res, result.status, { ...result.body, ...publicState({ clientId,
+        timerReceivedAt: secReceivedAt, receivedAt: secReceivedWall }) });
+    }).catch(error => sendJson(res, 503, { error: error.message }));
+    return;
+  }
 
   if (requestUrl.pathname === "/api/performance" && req.method === "GET") {
     if (!performanceDiagnosticsEnabled) {
@@ -1853,6 +1965,10 @@ function handleRequest(req, res) {
   }
 
   if (requestUrl.pathname === "/api/state" && req.method === "GET") {
+    if (secondaryServer.receivingBaseline) {
+      sendJson(res,503,{sec:secondaryServer.publicInfo(),serverInstanceId,error:"SEC is receiving its authoritative baseline"});
+      return;
+    }
     repairTimerClockContinuity();
     const timerReceivedAt = timerClockNow();
     const receivedAt = wallNow();
@@ -1969,6 +2085,9 @@ function handleRequest(req, res) {
         return;
       }
       const cachedCommand = commandId ? commandResults.get(commandId) : null;
+      if (!cachedCommand && commandId && secondaryServer.hasAppliedCommand(commandId)) {
+        sendJson(res, 200, { ...actionPublicState(), commandDuplicate: true }); return;
+      }
       if (cachedCommand) {
         sendJson(res, cachedCommand.status, {
           ...cachedCommand.payload,
@@ -2126,7 +2245,7 @@ function handleRequest(req, res) {
 
       if (type === "clientServerTime") {
         const targetClientId = String(body.targetClientId || "");
-        if (targetClientId && clients.has(targetClientId)) {
+        if (targetClientId && (clients.has(targetClientId) || secondaryServer.peerConnected(targetClientId))) {
           const enabledClientIds = new Set(sanitizeBrowserClientIds(timerState.serverTimeDisplayClientIds));
           if (body.enabled) enabledClientIds.add(targetClientId);
           else enabledClientIds.delete(targetClientId);
@@ -2206,7 +2325,7 @@ function handleRequest(req, res) {
       if (type === "startListDisplay") {
         const targetClientId = String(body.targetClientId || "");
         const listIndex = Number(body.listIndex);
-        if (targetClientId && clients.has(targetClientId)
+        if (targetClientId && (clients.has(targetClientId) || secondaryServer.peerConnected(targetClientId))
           && Number.isInteger(listIndex) && listIndex >= 0 && listIndex < 4
           && timerState.startLists[listIndex]) {
           const selections = sanitizeStartListDisplaySelections(
@@ -2225,7 +2344,7 @@ function handleRequest(req, res) {
 
       if (type === "startListClientLayout") {
         const targetClientId = String(body.targetClientId || "");
-        if (targetClientId && clients.has(targetClientId)
+        if (targetClientId && (clients.has(targetClientId) || secondaryServer.peerConnected(targetClientId))
           && startListIndexesForClient(targetClientId).length === 2) {
           const overrides = sanitizeStartListLayoutOverrides(timerState.startListLayoutOverrides);
           overrides[targetClientId] = Boolean(body.parallel);
@@ -2355,12 +2474,16 @@ function handleRequest(req, res) {
   }
 
   let relativePath = requestUrl.pathname === "/" ? "index.html" : decodeURIComponent(requestUrl.pathname.slice(1));
+  if (/(^|[\\/])(?:runtime-state|\.git)(?:[\\/]|$)/i.test(relativePath)
+    || /\.(?:key|pem|pfx|p12|jks)$/i.test(relativePath)) {
+    res.writeHead(403); res.end("Forbidden"); return;
+  }
   if (shouldServeLegacyViewer(req, requestUrl)) {
     relativePath = "legacy.html";
   }
   const filePath = path.resolve(root, relativePath);
 
-  if (!filePath.startsWith(root)) {
+  if (!filePath.startsWith(root + path.sep)) {
     res.writeHead(403);
     res.end("Forbidden");
     return;
@@ -2380,6 +2503,92 @@ function handleRequest(req, res) {
     res.end(body);
   });
 }
+
+function secondaryResources() {
+  const hash = crypto.createHash("sha256");
+  function visit(directory) {
+    for (const item of fs.readdirSync(directory, { withFileTypes: true }).sort((a, b) => a.name < b.name ? -1 : a.name > b.name ? 1 : 0)) {
+      const filePath = path.join(directory, item.name);
+      if (item.isDirectory()) visit(filePath);
+      else if (item.isFile() && /\.(?:ttf|otf|woff2?|wav|mp3)$/i.test(item.name)) {
+        hash.update(path.relative(root, filePath).replace(/\\/g, "/")); hash.update(fs.readFileSync(filePath));
+      }
+    }
+  }
+  visit(fontsPath); visit(beepsPath);
+  return hash.digest("hex");
+}
+
+function importSecondaryState(packet) {
+  const previousLists = JSON.stringify(timerState.startLists);
+  assignTimerState(packet.state);
+  if (JSON.stringify(timerState.startLists) !== previousLists) startListDataRevision += 1;
+  applySecondaryConfig(packet.config);
+  clientAudioOffsets.clear();
+  for (const [id, offset] of packet.audioOffsets || []) clientAudioOffsets.set(id, offset);
+  manualLegacyClients.clear();
+  for (const id of packet.manualLegacyClients || []) manualLegacyClients.add(id);
+  replicaStartedAt = timerState.running ? Number(packet.startedAt) : 0;
+  if (timerState.running) {
+    const distance = replicaStartedAt - timerClockNow();
+    timerState.startedAt = wallNow() + distance;
+    timerStartedAtMono = monoNow() + distance;
+    timerStartPending = distance > 0;
+  } else { clearTimerStartedAt(); }
+  armCurrentStateTransition();
+  scheduleSnapshotWrite();
+  broadcastState();
+}
+
+function applySecondaryConfig(value) {
+  const sourceConfig = { ...value };
+  delete sourceConfig.httpPort; delete sourceConfig.httpsPort;
+  Object.assign(config, sourceConfig);
+}
+
+secondaryServer = createSecondaryServer({
+  build: BUILD_NUMBER, instanceId: serverInstanceId, timerNow: timerClockNow,
+  primaryClientId: () => timerState.primaryClientId,
+  canPair: () => !timerState.primaryClientId && !timerState.running && !timerState.completed
+    && !timerState.elapsedBeforePause && !hasStartLists(timerState.startLists),
+  resources: secondaryResources,
+  config: () => ({ ...config }),
+  restoreConfig: applySecondaryConfig,
+  appliedCommands: () => [...commandResults.keys()],
+  clearCommandResults: () => commandResults.clear(),
+  origins: () => [...new Set([...clients.values()].map(client => client.connectionOrigin).filter(Boolean))],
+  clients: () => publicClients(orderedClientValues(), true),
+  changed: () => scheduleSnapshotWrite(true),
+  broadcast: () => { broadcastState(); broadcastDiagnostics(true); },
+  diagnostics: () => broadcastDiagnostics(),
+  exportState: knownVersion => {
+    finalizeScheduledCountdown(); finalizeOneShot();
+    if (knownVersion === timerState.version) return {};
+    return { state: { ...timerState }, config: { ...config },
+      startListRevision: modernStartListRevision(),
+      startedAt: timerState.running ? secondaryServer.clock.ready ? replicaStartedAt
+        : timerClockOrigin + timerStartedAtMono + timerClockSleepOffset : 0,
+      audioOffsets: [...clientAudioOffsets], manualLegacyClients: [...manualLegacyClients],
+      appliedCommands: secondaryServer.appliedCommandIds() };
+  },
+  importState: importSecondaryState,
+  event: event => {
+    const data = { ...event.data };
+    if (data.serverInstanceId) data.serverInstanceId = serverInstanceId;
+    sendEvent(event.name, data, client => !event.targets || event.targets.includes(client.clientId));
+  },
+  forwardAction: (body, client) => new Promise(resolve => {
+    const forwardedBody = { ...body };
+    if (forwardedBody.baseServerInstanceId) forwardedBody.baseServerInstanceId = serverInstanceId;
+    const req = Readable.from([JSON.stringify(forwardedBody)]);
+    req.method = "POST"; req.url = "/api/action"; req.fdvSecondaryForward = true;
+    req.headers = { host: `127.0.0.1:${port}`, "user-agent": client.userAgent };
+    req.socket = { remoteAddress: client.address };
+    const res = { status: 200, setHeader() {}, writeHead(status) { this.status = status; },
+      end(value) { resolve({ status: this.status, body: JSON.parse(String(value || "{}")) }); } };
+    handleRequest(req, res);
+  })
+});
 
 let runtimeStorage = runtimeStateStoragePlan(root);
 try {
@@ -2412,6 +2621,7 @@ if (performanceDiagnosticsEnabled) {
 }
 
 function flushSnapshotAndExit(exitCode = 0) {
+  secondaryServer.close();
   try {
     writeSnapshotNow();
   } finally {
