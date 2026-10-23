@@ -98,7 +98,7 @@ function harness({ realClockTiming = false } = {}) {
   vm.runInContext(`
     ${estimatorConstants}
     let standaloneMode = false, offlineReloadMode = false, serverAvailable = true;
-    let clockCalibrationPending = false;
+    let clockCalibrationPending = false, pageAudioSuspended = false;
     let serverTimeAnchor = 100000, serverPerfAnchor = 0, serverClockRate = 1;
     let serverPerfOffset = 100000, serverTimeOffset = 0;
     let serverClockRateHighConfidence = true, serverClockRateConfidence = "normal";
@@ -265,7 +265,20 @@ test("ordinary focus preserves measured history and has no forced follow-up", as
   assert.equal(h.requests.length, 1);
 });
 
-test("long hidden-page recovery rebuilds audio without treating continuous clocks as suspended", async () => {
+test("a long ordinary tab return retains valid audio and continuous clock samples", async () => {
+  const h = harness();
+  h.set("pageHiddenAt = 102000;");
+  h.advance(30000);
+  h.event("visibilitychange");
+  assert.equal(h.effects.audio.length, 0);
+  assert.equal(h.get("audioScheduleGeneration"), 5);
+  assert.equal(h.get("syncSamples.length"), 3);
+  await h.due(); await h.complete();
+  assert.equal(h.effects.audio.length, 0);
+  assert.equal(h.effects.timing.at(-1).options.rescheduleSignals, false);
+});
+
+test("long suspended-page recovery rebuilds audio without treating continuous clocks as suspended", async () => {
   const h = harness();
   h.set("pageHiddenAt = 102000; signalsInvalidatedWhileHidden = true;");
   h.advance(30000);
@@ -586,7 +599,7 @@ test("network failure cannot leave a mobile resume snap permanently hiding the c
   assert.equal(h.get("syncRequestInFlight"), false);
 });
 
-test("becoming hidden before the measured response does not restart hidden sound", async () => {
+test("becoming hidden before the measured response still restores timed sound", async () => {
   const h = harness();
   h.set("signalsInvalidatedWhileHidden = true;");
   h.event("focus");
@@ -596,10 +609,10 @@ test("becoming hidden before the measured response does not restart hidden sound
   await h.due();
   await h.complete();
   const options = h.effects.timing.at(-1).options;
-  assert.equal(options.rescheduleSignals, false);
-  assert.equal(options.includeRecentPhaseSignal, false);
+  assert.equal(options.rescheduleSignals, true);
+  assert.equal(options.includeRecentPhaseSignal, true);
   assert.equal(Boolean(options.replaceAudioSchedule), false);
-  assert.equal(h.effects.audio.length, 1);
+  assert.equal(h.effects.audio.length, 2);
 });
 
 test("a hidden standalone page ignores online without consuming its audio recovery state", async () => {
@@ -673,7 +686,7 @@ test("manual HTTP standalone restores page audio locally, not through server rec
   assert.equal(h.get("syncSamples.length"), 3);
 });
 
-test("actual recent-phase and local-reschedule helpers cannot plan sound while hidden", () => {
+test("actual recent-phase and local-reschedule helpers cannot plan sound while frozen", () => {
   const clears = [];
   const context = vm.createContext({
     document: { hidden: true }, state: { running: true, countdownOnly: false },
@@ -683,14 +696,14 @@ test("actual recent-phase and local-reschedule helpers cannot plan sound while h
     scheduleSegmentSignals: () => { throw new Error("hidden page must not schedule warnings"); }
   });
   vm.runInContext(`
-    let signalsInvalidatedWhileHidden = false, lastSegmentIndex = "1:rotation";
+    let signalsInvalidatedWhileHidden = false, pageAudioSuspended = true, lastSegmentIndex = "1:rotation";
     ${source("scheduleRecentPhaseSignalAfterResume")}
     ${source("rescheduleStandaloneSignals")}
   `, context);
   assert.equal(context.scheduleRecentPhaseSignalAfterResume({ cycle: 2, type: "rotation", start: 60 }), false);
   context.rescheduleStandaloneSignals({ forceStopAudio: true, includeRecentPhaseSignal: true });
-  assert.deepEqual(clears, [[false, true]]);
-  assert.equal(vm.runInContext("signalsInvalidatedWhileHidden", context), true);
+  assert.deepEqual(clears, [[false, true, false]]);
+  assert.equal(vm.runInContext("signalsInvalidatedWhileHidden", context), false);
   assert.equal(vm.runInContext("lastSegmentIndex", context), -1);
 });
 

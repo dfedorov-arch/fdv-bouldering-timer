@@ -3,12 +3,13 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
 using System.IO;
-using System.Linq;
 using System.Net;
 using System.Net.NetworkInformation;
 using System.Net.Sockets;
 using System.Runtime.InteropServices;
+using System.Security.Cryptography;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Windows.Forms;
 
@@ -21,13 +22,14 @@ namespace FdvBoulderingTimerLauncher
         [STAThread]
         private static void Main()
         {
+            LauncherLanguage.Load(LauncherLanguage.PreferencePath);
             bool created;
             using (var mutex = new Mutex(true, MutexName, out created))
             {
                 if (!created)
                 {
                     MessageBox.Show(
-                        "FDV Bouldering Timer Launcher is already running. Check the notification area.",
+                        LauncherLanguage.Text("FDV Bouldering Timer Launcher is already running. Check the notification area."),
                         "FDV Bouldering Timer",
                         MessageBoxButtons.OK,
                         MessageBoxIcon.Information);
@@ -40,7 +42,7 @@ namespace FdvBoulderingTimerLauncher
                 Application.ThreadException += delegate(object sender, ThreadExceptionEventArgs args)
                 {
                     MessageBox.Show(
-                        "The launcher encountered an error but can continue working.\n\n" + args.Exception.Message,
+                        LauncherLanguage.Text("The launcher encountered an error but can continue working.\n\n") + args.Exception.Message,
                         "FDV Bouldering Timer",
                         MessageBoxButtons.OK,
                         MessageBoxIcon.Warning);
@@ -97,17 +99,28 @@ namespace FdvBoulderingTimerLauncher
 
     internal sealed class LauncherForm : Form
     {
+        // CLR2's RNGCryptoServiceProvider is not IDisposable. Keep one
+        // process-lifetime provider rather than allocating one per restart.
+        private static readonly RNGCryptoServiceProvider LanguageRandom = new RNGCryptoServiceProvider();
         private readonly string _baseDirectory;
+        private readonly string _languagePreferencePath;
         private LauncherSettings _settings;
         private bool _hasHttps;
         private readonly bool _openBrowserOnStart;
         private readonly ListBox _addresses = new ListBox();
         private readonly Label _status = new Label();
+        private readonly Label _buildLabel = new Label();
         private readonly TextBox _log = new TextBox();
         private readonly Button _openButton = new Button();
         private readonly Button _copyButton = new Button();
         private readonly Button _restartButton = new Button();
         private readonly Button _stopButton = new Button();
+        private readonly Button _certificateButton = new Button();
+        private readonly Button _languageButton = new Button();
+        private readonly Label _addressTitle = new Label();
+        private readonly Label _logTitle = new Label();
+        private string _statusEnglish = "Preparing server...";
+        private string _trayEnglish = "FDV Bouldering Timer";
         private readonly NotifyIcon _tray = new NotifyIcon();
         private readonly System.Windows.Forms.Timer _startupTimer = new System.Windows.Forms.Timer();
         private readonly System.Windows.Forms.Timer _healthTimer = new System.Windows.Forms.Timer();
@@ -120,20 +133,29 @@ namespace FdvBoulderingTimerLauncher
         private bool _ready;
         private bool _allowClose;
         private bool _intentionalStop;
+        private string _launcherLanguageToken;
+        private string _pendingServerLanguage;
+        private bool _languageSyncBusy;
+        private bool _openBrowserAfterLanguageSync;
 
-        public LauncherForm()
+        public LauncherForm() : this(AppDomain.CurrentDomain.BaseDirectory, true) { }
+
+        // Passive construction is used only by off-screen native UI tests.
+        internal LauncherForm(string baseDirectory, bool startAutomatically)
         {
-            _baseDirectory = AppDomain.CurrentDomain.BaseDirectory;
+            _baseDirectory = baseDirectory;
+            _languagePreferencePath = startAutomatically ? LauncherLanguage.PreferencePath : Path.Combine(baseDirectory, "launcher-language.txt");
             _settings = LauncherSettings.Load(_baseDirectory);
             _hasHttps = HasHttpsCertificate();
             _openBrowserOnStart = Environment.GetEnvironmentVariable("FDV_LAUNCHER_NO_BROWSER") != "1";
             InitializeWindow();
             PopulateAddresses();
-            ConfigureTray();
+            ConfigureTray(startAutomatically);
+            ApplyLanguage();
 
-            Shown += delegate { StartServer(_openBrowserOnStart); };
+            if (startAutomatically) Shown += delegate { StartServer(_openBrowserOnStart); };
             FormClosing += OnFormClosing;
-            NetworkChange.NetworkAddressChanged += OnNetworkAddressChanged;
+            if (startAutomatically) NetworkChange.NetworkAddressChanged += OnNetworkAddressChanged;
         }
 
         private void InitializeWindow()
@@ -141,8 +163,8 @@ namespace FdvBoulderingTimerLauncher
             Text = "FDV Bouldering Timer";
             Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath);
             StartPosition = FormStartPosition.CenterScreen;
-            MinimumSize = new Size(560, 470);
-            ClientSize = new Size(620, 500);
+            MinimumSize = new Size(560, 510);
+            ClientSize = new Size(620, 540);
             BackColor = Color.FromArgb(17, 23, 34);
             ForeColor = Color.FromArgb(244, 247, 251);
             Font = new Font("Segoe UI", 9F, FontStyle.Regular, GraphicsUnit.Point);
@@ -152,6 +174,19 @@ namespace FdvBoulderingTimerLauncher
             header.Font = new Font(Font.FontFamily, 18F, FontStyle.Bold);
             header.AutoSize = true;
             header.Location = new Point(22, 18);
+            _buildLabel.Name = "serverBuildNumber";
+            _buildLabel.AutoSize = true;
+            _buildLabel.Font = new Font(Font.FontFamily, 12F, FontStyle.Regular);
+            _buildLabel.ForeColor = Color.FromArgb(160, 174, 192);
+            _buildLabel.Location = new Point(header.Right + 14, 25);
+            header.SizeChanged += delegate { _buildLabel.Left = header.Right + 14; };
+            Controls.Add(_buildLabel);
+
+            _languageButton.Name = "launcherLanguage";
+            _languageButton.Location = new Point(548, 22);
+            _languageButton.Size = new Size(46, 28);
+            _languageButton.Anchor = AnchorStyles.Top | AnchorStyles.Right;
+            _languageButton.Click += delegate { SwitchLanguage(); };
 
             _status.Text = "Preparing server...";
             _status.AutoSize = false;
@@ -159,7 +194,7 @@ namespace FdvBoulderingTimerLauncher
             _status.Size = new Size(560, 25);
             _status.ForeColor = Color.FromArgb(255, 200, 87);
 
-            var addressTitle = new Label();
+            var addressTitle = _addressTitle;
             addressTitle.Text = "Timer addresses";
             addressTitle.AutoSize = true;
             addressTitle.Location = new Point(24, 96);
@@ -177,13 +212,13 @@ namespace FdvBoulderingTimerLauncher
 
             _openButton.Text = "Open timer";
             _openButton.Location = new Point(24, 258);
-            _openButton.Size = new Size(125, 36);
+            _openButton.Size = new Size(110, 36);
             _openButton.Enabled = false;
             _openButton.Click += delegate { OpenSelectedAddress(); };
 
             _copyButton.Text = "Copy link";
-            _copyButton.Location = new Point(157, 258);
-            _copyButton.Size = new Size(110, 36);
+            _copyButton.Location = new Point(142, 258);
+            _copyButton.Size = new Size(125, 36);
             _copyButton.Enabled = false;
             _copyButton.Click += delegate { CopySelectedAddress(); };
 
@@ -197,13 +232,18 @@ namespace FdvBoulderingTimerLauncher
             _stopButton.Size = new Size(130, 36);
             _stopButton.Click += delegate { StopAndExit(); };
 
-            var logTitle = new Label();
+            _certificateButton.Text = "Create HTTPS certificate";
+            _certificateButton.Location = new Point(24, 304);
+            _certificateButton.Size = new Size(240, 32);
+            _certificateButton.Click += delegate { CreateHttpsCertificate(); };
+
+            var logTitle = _logTitle;
             logTitle.Text = "Server log";
             logTitle.AutoSize = true;
-            logTitle.Location = new Point(24, 312);
+            logTitle.Location = new Point(24, 352);
             logTitle.Font = new Font(Font, FontStyle.Bold);
 
-            _log.Location = new Point(24, 335);
+            _log.Location = new Point(24, 375);
             _log.Size = new Size(570, 135);
             _log.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
             _log.BackColor = Color.FromArgb(16, 20, 27);
@@ -215,6 +255,7 @@ namespace FdvBoulderingTimerLauncher
             _log.Font = new Font("Consolas", 8.5F);
 
             Controls.Add(header);
+            Controls.Add(_languageButton);
             Controls.Add(_status);
             Controls.Add(addressTitle);
             Controls.Add(_addresses);
@@ -222,6 +263,7 @@ namespace FdvBoulderingTimerLauncher
             Controls.Add(_copyButton);
             Controls.Add(_restartButton);
             Controls.Add(_stopButton);
+            Controls.Add(_certificateButton);
             Controls.Add(logTitle);
             Controls.Add(_log);
 
@@ -234,27 +276,138 @@ namespace FdvBoulderingTimerLauncher
             _networkRefreshTimer.Tick += RefreshNetworkAddresses;
         }
 
-        private void ConfigureTray()
+        private void ConfigureTray(bool visible)
         {
             var menu = new ContextMenuStrip();
-            menu.Items.Add("Show launcher", null, delegate { ShowLauncher(); });
-            menu.Items.Add("Open timer", null, delegate { OpenLocalTimer(); });
-            menu.Items.Add("Restart server", null, delegate { StartServer(false); });
+            AddTrayItem(menu, "Show launcher", delegate { ShowLauncher(); });
+            AddTrayItem(menu, "Open timer", delegate { OpenLocalTimer(); });
+            AddTrayItem(menu, "Restart server", delegate { StartServer(false); });
+            AddTrayItem(menu, "Create HTTPS certificate", delegate { ShowLauncher(); CreateHttpsCertificate(); });
             menu.Items.Add(new ToolStripSeparator());
-            menu.Items.Add("Stop and exit", null, delegate { StopAndExit(); });
+            AddTrayItem(menu, "Stop and exit", delegate { StopAndExit(); });
 
             _tray.Icon = Icon;
             _tray.Text = "FDV Bouldering Timer";
             _tray.ContextMenuStrip = menu;
-            _tray.Visible = true;
+            _tray.Visible = visible;
             _tray.DoubleClick += delegate { ShowLauncher(); };
+        }
+
+        private static string T(string english) { return LauncherLanguage.Text(english); }
+
+        private static void AddTrayItem(ContextMenuStrip menu, string text, EventHandler handler)
+        {
+            ToolStripItem item = menu.Items.Add(text, null, handler);
+            item.Tag = text;
+        }
+
+        private void SetStatusText(string english)
+        { _statusEnglish = english; _status.Text = T(english); }
+
+        private void SetTrayText(string english)
+        { _trayEnglish = english; _tray.Text = T(english); }
+
+        private void ApplyLanguage()
+        {
+            _languageButton.Text = LauncherLanguage.Russian ? "EN" : "RU";
+            _languageButton.AccessibleName = LauncherLanguage.Russian ? "Switch to English" : "Переключить на русский";
+            _addressTitle.Text = T("Timer addresses");
+            _logTitle.Text = T("Server log");
+            _openButton.Text = T("Open timer");
+            _copyButton.Text = T("Copy link");
+            _restartButton.Text = T("Restart server");
+            _stopButton.Text = T("Stop and exit");
+            _certificateButton.Text = T("Create HTTPS certificate");
+            _status.Text = T(_statusEnglish);
+            _tray.Text = T(_trayEnglish);
+            foreach (ToolStripItem item in _tray.ContextMenuStrip.Items)
+                if (item.Tag is string) item.Text = T((string)item.Tag);
+            PopulateAddresses(); // Preserve the selected URL; do not touch the server.
+        }
+
+        private void SwitchLanguage()
+        {
+            LauncherLanguage.Russian = !LauncherLanguage.Russian;
+            ApplyLanguage();
+            if (!LauncherLanguage.Save(_languagePreferencePath))
+                AppendLog("Could not save the launcher language preference.");
+            QueueServerLanguage(false);
+        }
+
+        private void QueueServerLanguage(bool openBrowser)
+        {
+            _pendingServerLanguage = LauncherLanguage.Russian ? "ru" : "en";
+            _openBrowserAfterLanguageSync = _openBrowserAfterLanguageSync || openBrowser;
+            TrySyncServerLanguage();
+        }
+
+        private void TrySyncServerLanguage()
+        {
+            if (_allowClose || _languageSyncBusy || !_ready || _serverProcess == null || _pendingServerLanguage == null) return;
+            string language = _pendingServerLanguage, token = _launcherLanguageToken;
+            int port = _settings.HttpPort;
+            Process process = _serverProcess;
+            _pendingServerLanguage = null; _languageSyncBusy = true;
+            _languageButton.Enabled = false;
+            ThreadPool.QueueUserWorkItem(delegate
+            {
+                Exception failure = null;
+                try { SendServerLanguage(port, token, language); }
+                catch (Exception error) { failure = error; }
+                try
+                {
+                    BeginInvoke(new MethodInvoker(delegate
+                    {
+                        _languageSyncBusy = false; _languageButton.Enabled = true;
+                        if (_allowClose) return;
+                        if (_serverProcess != process) { TrySyncServerLanguage(); return; }
+                        if (failure != null) AppendLog("Could not change the timer language: " + failure.Message);
+                        if (_pendingServerLanguage != null) { TrySyncServerLanguage(); return; }
+                        if (_openBrowserAfterLanguageSync)
+                        { _openBrowserAfterLanguageSync = false; OpenLocalTimer(); }
+                    }));
+                }
+                catch (InvalidOperationException) { }
+            });
+        }
+
+        internal static void SendServerLanguage(int port, string token, string language)
+        {
+            if (language != "ru" && language != "en") throw new ArgumentException("Invalid language");
+            var request = (HttpWebRequest)WebRequest.Create("http://127.0.0.1:" + port + "/api/launcher/language");
+            request.Method = "POST"; request.Proxy = null; request.AllowAutoRedirect = false;
+            request.Timeout = 7000; request.ReadWriteTimeout = 7000; request.KeepAlive = false;
+            request.ContentType = "application/json";
+            request.Headers["X-FDV-Launcher-Token"] = token;
+            byte[] body = Encoding.UTF8.GetBytes("{\"language\":\"" + language + "\"}");
+            request.ContentLength = body.Length;
+            using (var stream = request.GetRequestStream()) stream.Write(body, 0, body.Length);
+            using (var response = (HttpWebResponse)request.GetResponse())
+                if (response.StatusCode != HttpStatusCode.OK) throw new IOException("Language command was not accepted");
+        }
+
+        private static string NewLanguageToken()
+        {
+            byte[] bytes = new byte[32];
+            LanguageRandom.GetBytes(bytes);
+            return BitConverter.ToString(bytes).Replace("-", "").ToLowerInvariant();
         }
 
         private bool HasHttpsCertificate()
         {
-            var pem = File.Exists(Path.Combine(_baseDirectory, "timer-key.pem")) &&
-                      File.Exists(Path.Combine(_baseDirectory, "timer-cert.pem"));
-            return pem || File.Exists(Path.Combine(_baseDirectory, "timer-cert.pfx"));
+            return HttpsCertificate.Exists(_baseDirectory);
+        }
+
+        private void CreateHttpsCertificate()
+        {
+            using (var dialog = new HttpsCertificateDialog(_baseDirectory))
+            {
+                dialog.ShowDialog(this);
+                if (dialog.GeneratedDirectory != null) AppendLog(String.Format(T("HTTPS certificate created in {0}. Restart is required to apply it."), dialog.GeneratedDirectory));
+                // Never interrupt the server or advertise a new HTTPS listener
+                // merely because generation succeeded. Restart needs consent.
+                if (dialog.RestartRequested) StartServer(false);
+            }
         }
 
         private bool PopulateAddresses()
@@ -262,8 +415,8 @@ namespace FdvBoulderingTimerLauncher
             var selected = _addresses.SelectedItem as TimerAddress;
             var selectedUrl = selected == null ? null : selected.Url;
             var updatedAddresses = new List<TimerAddress>();
-            AddAddress(updatedAddresses, "Local HTTP", "http://127.0.0.1:" + _settings.HttpPort + "/");
-            if (_hasHttps) AddAddress(updatedAddresses, "Local HTTPS", "https://127.0.0.1:" + _settings.HttpsPort + "/");
+            AddAddress(updatedAddresses, T("Local HTTP"), "http://127.0.0.1:" + _settings.HttpPort + "/");
+            if (_hasHttps) AddAddress(updatedAddresses, T("Local HTTPS"), "https://127.0.0.1:" + _settings.HttpsPort + "/");
 
             var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             foreach (var network in NetworkInterface.GetAllNetworkInterfaces())
@@ -307,7 +460,7 @@ namespace FdvBoulderingTimerLauncher
                 network.NetworkInterfaceType == NetworkInterfaceType.GigabitEthernet ||
                 network.NetworkInterfaceType == NetworkInterfaceType.FastEthernetFx ||
                 network.NetworkInterfaceType == NetworkInterfaceType.FastEthernetT) return "Ethernet";
-            return "Network";
+            return T("Network");
         }
 
         private bool HasSameAddresses(List<TimerAddress> updatedAddresses)
@@ -342,7 +495,7 @@ namespace FdvBoulderingTimerLauncher
             if (_allowClose || IsDisposed || !IsHandleCreated) return;
             try
             {
-                BeginInvoke(new Action(delegate
+                BeginInvoke(new MethodInvoker(delegate
                 {
                     if (_allowClose) return;
                     // Windows can report several interface changes for one
@@ -363,19 +516,21 @@ namespace FdvBoulderingTimerLauncher
 
         private void StartServer(bool openBrowser)
         {
+            _pendingServerLanguage = null; _openBrowserAfterLanguageSync = false;
             _startupTimer.Stop();
             _healthTimer.Stop();
             _restartTimer.Stop();
             _ready = false;
             _intentionalStop = true;
             _openButton.Enabled = false;
-            _status.Text = "Starting server...";
+            SetStatusText("Starting server...");
             _status.ForeColor = Color.FromArgb(255, 200, 87);
             AppendLog("Starting server...");
 
             StopServerProcess();
             StopPortListeners();
             _settings = LauncherSettings.Load(_baseDirectory);
+            UpdateBuildNumber("");
             _hasHttps = HasHttpsCertificate();
             PopulateAddresses();
             // Also stop a stale listener if the configured ports changed.
@@ -406,14 +561,16 @@ namespace FdvBoulderingTimerLauncher
                 start.CreateNoWindow = true;
                 start.RedirectStandardOutput = true;
                 start.RedirectStandardError = true;
+                _launcherLanguageToken = NewLanguageToken();
+                start.EnvironmentVariables["FDV_LAUNCHER_LANGUAGE_TOKEN"] = _launcherLanguageToken;
                 start.StandardOutputEncoding = Encoding.UTF8;
                 start.StandardErrorEncoding = Encoding.UTF8;
 
                 _serverProcess = new Process();
                 _serverProcess.StartInfo = start;
                 _serverProcess.EnableRaisingEvents = true;
-                _serverProcess.OutputDataReceived += delegate(object sender, DataReceivedEventArgs args) { if (args.Data != null) AppendLog(args.Data); };
-                _serverProcess.ErrorDataReceived += delegate(object sender, DataReceivedEventArgs args) { if (args.Data != null) AppendLog(args.Data); };
+                _serverProcess.OutputDataReceived += delegate(object sender, DataReceivedEventArgs args) { if (args.Data != null) AppendRawLog(args.Data); };
+                _serverProcess.ErrorDataReceived += delegate(object sender, DataReceivedEventArgs args) { if (args.Data != null) AppendRawLog(args.Data); };
                 _serverProcess.Exited += OnServerProcessExited;
                 _serverProcess.Start();
                 _serverProcess.BeginOutputReadLine();
@@ -434,20 +591,20 @@ namespace FdvBoulderingTimerLauncher
         private void CheckServerReady(object sender, EventArgs args)
         {
             _startupAttempts++;
-            if (CanReach("http://127.0.0.1:" + _settings.HttpPort + "/api/state"))
+            if (CanReach("http://127.0.0.1:" + _settings.HttpPort + "/api/state", true))
             {
                 _startupTimer.Stop();
                 _ready = true;
                 _restartAttempts = 0;
                 _healthFailures = 0;
                 _openButton.Enabled = true;
-                _status.Text = "Server is running";
+                SetStatusText("Server is running");
                 _status.ForeColor = Color.FromArgb(87, 211, 140);
-                _tray.Text = "FDV Bouldering Timer - running";
+                SetTrayText("FDV Bouldering Timer - running");
                 AppendLog("Server is ready.");
                 AppendLog("Keep this computer connected to power and disable sleep while the timer is running.");
                 _healthTimer.Start();
-                if (_startupTimer.Tag is bool && (bool)_startupTimer.Tag) OpenLocalTimer();
+                QueueServerLanguage(_startupTimer.Tag is bool && (bool)_startupTimer.Tag);
                 return;
             }
 
@@ -459,7 +616,14 @@ namespace FdvBoulderingTimerLauncher
             }
         }
 
-        private static bool CanReach(string url)
+        private void UpdateBuildNumber(string state)
+        {
+            var match = Regex.Match(state, "\"buildNumber\"\\s*:\\s*([0-9]+)(?=\\s*[,}])");
+            _buildLabel.Text = match.Success ? "(" + match.Groups[1].Value + ")" : "";
+            Text = "FDV Bouldering Timer" + (match.Success ? "   " + _buildLabel.Text : "");
+        }
+
+        private bool CanReach(string url, bool readBuildNumber = false)
         {
             try
             {
@@ -469,6 +633,11 @@ namespace FdvBoulderingTimerLauncher
                 request.ReadWriteTimeout = 250;
                 using (var response = (HttpWebResponse)request.GetResponse())
                 {
+                    if (response.StatusCode == HttpStatusCode.OK && readBuildNumber)
+                    {
+                        using (var reader = new StreamReader(response.GetResponseStream(), Encoding.UTF8))
+                            UpdateBuildNumber(reader.ReadToEnd());
+                    }
                     return response.StatusCode == HttpStatusCode.OK;
                 }
             }
@@ -495,7 +664,7 @@ namespace FdvBoulderingTimerLauncher
 
             _healthFailures++;
             if (_healthFailures < 6) return;
-            AppendLog("Health check failed for " + _healthFailures + " seconds; restarting server.");
+            AppendLog(String.Format(T("Health check failed for {0} seconds; restarting server."), _healthFailures));
             ScheduleServerRestart("server health check failed");
         }
 
@@ -507,9 +676,9 @@ namespace FdvBoulderingTimerLauncher
             _restartTimer.Stop();
             _ready = false;
             _openButton.Enabled = false;
-            _status.Text = "Restarting server...";
+            SetStatusText("Restarting server...");
             _status.ForeColor = Color.FromArgb(255, 200, 87);
-            _tray.Text = "FDV Bouldering Timer - restarting";
+            SetTrayText("FDV Bouldering Timer - restarting");
             AppendLog("Scheduling server restart: " + reason);
 
             _intentionalStop = true;
@@ -520,7 +689,7 @@ namespace FdvBoulderingTimerLauncher
             var delay = RestartDelayMs(_restartAttempts);
             if (_restartAttempts >= 5)
             {
-                _status.Text = "Server is restarting repeatedly; check the log.";
+                SetStatusText("Server is restarting repeatedly; check the log.");
                 AppendLog("Crash-loop warning: multiple restarts in a row.");
             }
             _restartTimer.Interval = delay;
@@ -562,6 +731,11 @@ namespace FdvBoulderingTimerLauncher
 
         private void StopPortListeners()
         {
+#if FDV_LEGACY_WINDOWS
+            // Windows 7 has no NetTCPIP cmdlets. Stop only our tracked child;
+            // never kill an unrelated listener by its port on this build.
+            return;
+#else
             try
             {
                 var powershell = Path.Combine(
@@ -586,6 +760,7 @@ namespace FdvBoulderingTimerLauncher
             {
                 AppendLog("Could not stop previous port listeners: " + error.Message);
             }
+#endif
         }
 
         private void StopServerProcess()
@@ -612,9 +787,9 @@ namespace FdvBoulderingTimerLauncher
             if (_allowClose || _intentionalStop) return;
             _ready = false;
             _openButton.Enabled = false;
-            _status.Text = "Server stopped unexpectedly";
+            SetStatusText("Server stopped unexpectedly");
             _status.ForeColor = Color.FromArgb(240, 90, 89);
-            _tray.Text = "FDV Bouldering Timer - stopped";
+            SetTrayText("FDV Bouldering Timer - stopped");
             ScheduleServerRestart("server process exited unexpectedly");
         }
 
@@ -623,7 +798,7 @@ namespace FdvBoulderingTimerLauncher
             var exitedProcess = sender as Process;
             try
             {
-                BeginInvoke(new Action(delegate
+                BeginInvoke(new MethodInvoker(delegate
                 {
                     if (_serverProcess == exitedProcess) OnServerExited();
                 }));
@@ -652,7 +827,7 @@ namespace FdvBoulderingTimerLauncher
             }
             catch (Exception error)
             {
-                MessageBox.Show(error.Message, "Unable to open browser", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show(error.Message, T("Unable to open browser"), MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 
@@ -670,8 +845,8 @@ namespace FdvBoulderingTimerLauncher
             {
                 AppendLog("Clipboard is busy: " + error.Message);
                 MessageBox.Show(
-                    "Windows clipboard is busy. Wait a moment and click Copy link again.",
-                    "Unable to copy link",
+                    T("Windows clipboard is busy. Wait a moment and click Copy link again."),
+                    T("Unable to copy link"),
                     MessageBoxButtons.OK,
                     MessageBoxIcon.Warning);
             }
@@ -681,17 +856,22 @@ namespace FdvBoulderingTimerLauncher
         {
             _ready = false;
             _openButton.Enabled = false;
-            _status.Text = message;
+            SetStatusText(message);
             _status.ForeColor = Color.FromArgb(240, 90, 89);
-            _tray.Text = "FDV Bouldering Timer - error";
+            SetTrayText("FDV Bouldering Timer - error");
             AppendLog(message);
         }
 
         private void AppendLog(string message)
         {
+            AppendRawLog(T(message));
+        }
+
+        private void AppendRawLog(string message)
+        {
             if (InvokeRequired)
             {
-                BeginInvoke(new Action<string>(AppendLog), message);
+                BeginInvoke(new Action<string>(AppendRawLog), message);
                 return;
             }
             _log.AppendText("[" + DateTime.Now.ToString("HH:mm:ss") + "] " + message + Environment.NewLine);
@@ -723,7 +903,7 @@ namespace FdvBoulderingTimerLauncher
             if (_allowClose) return;
             args.Cancel = true;
             Hide();
-            _tray.ShowBalloonTip(1800, "FDV Bouldering Timer", "The server is still running. Use the tray icon to open or stop it.", ToolTipIcon.Info);
+            _tray.ShowBalloonTip(1800, "FDV Bouldering Timer", T("The server is still running. Use the tray icon to open or stop it."), ToolTipIcon.Info);
         }
 
         private void StopNetworkMonitoring()

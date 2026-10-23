@@ -17,7 +17,7 @@ function source(name) {
 function audioHarness(pending = false) {
   const timers = [], played = new Set(), sounds = [];
   const context = vm.createContext({
-    clockCalibrationPending: pending, audioScheduleGeneration: 0,
+    clockCalibrationPending: pending, audioScheduleGeneration: 0, pageAudioSuspended: false,
     document: { hidden: false }, state: { running: true }, signalsInvalidatedWhileHidden: false,
     playedSignalKeys: played, scheduledFinalSignalKey: "", manualStartWatchdogDelayMs: 250,
     canPlaySound: () => true, audioServerTime: value => value, serverNow: () => 100250,

@@ -47,7 +47,34 @@ if (uniqueBuilds.size !== 1) {
   "serve-bouldering-timer.js",
   "sw.js",
   "scripts/build-standalone-html.js",
+  "scripts/build-windows-legacy.js",
+  "scripts/get-windows-legacy-tools.ps1",
+  "ReadMe-windows-legacy.txt",
+  "compat/windows-legacy/runtime.cjs",
+  "compat/windows-legacy/start-timer-win.bat",
+  "compat/windows-legacy/launcher.exe.config",
+  "compat/windows-legacy/LauncherCompatibility.cs",
   "lib/client-action-transport.js",
+  "lib/client-server-audio.js",
+  "lib/server-audio.js",
+  "lib/server-audio-plan.js",
+  "lib/server-audio-native.js",
+  "lib/server-audio-player.ps1",
+  "lib/server-audio-player.cs",
+  "lib/speaker-keep-awake.js",
+  "native-audio/unix/FdvNativeAudio.csproj",
+  "native-audio/unix/packages.lock.json",
+  "native-audio/unix/build-player.sh",
+  "native-audio/unix/Program.cs",
+  "native-audio/unix/PcmDevice.cs",
+  "native-audio/unix/AssetDecoder.cs",
+  "native-audio/unix/ProtocolJson.cs",
+  "native-audio/unix/UnixSpeech.cs",
+  "native-audio/unix/NLAYER-LICENSE.txt",
+  "native-audio/unix/README.md",
+  "lib/vendor/NAudio.dll",
+  "lib/vendor/NAUDIO-LICENSE.txt",
+  "lib/vendor/NAUDIO-README.txt",
   "lib/client-secondary-server.js",
   "lib/secondary-server.js",
   "lib/start-list-route-editor.js",
@@ -56,11 +83,32 @@ if (uniqueBuilds.size !== 1) {
   "lib/timer-domain.js",
   "lib/timer-transitions.js",
   "lib/runtime-state-storage.js",
+  "lib/https-certificate-storage.js",
+  "lib/launcher-language.js",
+  "launcher/windows/HttpsCertificate.cs",
+  "launcher/windows/LauncherLanguage.cs",
+  "launcher/windows/HttpsCertificateDialog.cs",
   "installer/common/fdv-installed.marker",
   "beeps",
   "fonts",
   "help-assets"
 ].forEach(requirePath);
+
+const nativeAudioHash = require("node:crypto").createHash("sha256")
+  .update(fs.readFileSync(path.join(root,"lib/vendor/NAudio.dll"))).digest("hex");
+if (nativeAudioHash !== "bc4bacc3b8b28d898f1671b79f216cca439f95eb60cd32d3e3ecafbecac42780") {
+  throw new Error("Native audio dependency differs from pinned NAudio 1.10.0 net35");
+}
+if (!read("index.html").includes('<script src="lib/speaker-keep-awake.js"></script>')
+    || !read("sw.js").includes('"/lib/speaker-keep-awake.js"')
+    || !read("scripts/build-standalone-html.js").includes('lib/speaker-keep-awake.js')) {
+  throw new Error("Speaker keep-awake must load, be cached and be embedded in standalone");
+}
+if (!read("index.html").includes('<script src="lib/client-server-audio.js"></script>')
+    || !read("sw.js").includes('"/lib/client-server-audio.js"')
+    || !read("scripts/build-standalone-html.js").includes('lib/client-server-audio.js')) {
+  throw new Error("Native audio client must load, be cached and be embedded in standalone");
+}
 
 if (process.platform !== "win32"
     && (fs.statSync(path.join(root, "prepare-timer-mac.command")).mode & 0o111) === 0) {
@@ -72,7 +120,7 @@ if (!index.includes('<script src="lib/client-secondary-server.js"></script>')
     || !read("legacy.html").includes('src="lib/client-secondary-server.js?v=')
     || !read("sw.js").includes('"/lib/client-secondary-server.js"')
     || !read("scripts/build-standalone-html.js").includes('lib/client-secondary-server.js')) {
-  throw new Error("SEC client must load in Modern/Legacy, be cached and embedded in standalone");
+  throw new Error("Secondary server client must load in Modern/Legacy, be cached and embedded in standalone");
 }
 if (!index.includes('<script src="lib/start-list-route-editor.js"></script>')
     || !read("sw.js").includes('"/lib/start-list-route-editor.js"')) {

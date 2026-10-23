@@ -26,6 +26,7 @@ function harness(settings = { rotationSeconds: 60, breakSeconds: 0, oneShot: fal
   }
   elements.time = { setAttribute: noop };
   const context = vm.createContext({
+    pageAudioSuspended: false,
     performance: { now: () => now },
     window: {
       setTimeout: (callback, delay) => {
@@ -233,11 +234,12 @@ test("canonical scheduling does not repeat the new-phase signal after a boundary
   const h = harness();
   const phaseSignals = [];
   Object.assign(h.context, {
+    pageAudioSuspended: false,
     signal: kind => phaseSignals.push(kind), clearSignalTimers: () => {},
-    schedulePerformanceAudioKeepalive: () => {}, scheduleFestivalAnnouncements: () => {},
+    schedulePerformanceAudioKeepalive: () => {}, scheduleFestivalAnnouncements: () => {}, schedulePendingStartMinute: () => {},
     serverTimeForElapsed: value => value * 1000,
     shouldScheduleServerSignal: () => false, scheduleSignalAt: () => {},
-    scheduleSegmentTimeoutAt: () => {}, audioPrewarmSeconds: 1,
+    scheduleSegmentTimeoutAt: () => {}, audioPrewarmSeconds: 1, audioEarlyPrewarmSeconds: 10,
     signalLateGraceMs: { start: 1500, rotationBoundary: 1200 },
     suppressPhaseSignalsUntil: 0, lastPhaseSignalKey: "", scheduledPhaseSignalKeys: new Set()
   });

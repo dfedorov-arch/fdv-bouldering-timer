@@ -125,6 +125,7 @@ internal sealed class LauncherWindow : Window
     private bool _hasHttps;
     private readonly ListBox _addresses = new();
     private readonly TextBlock _status = new();
+    private readonly TextBlock _buildLabel = new();
     private readonly TextBox _log = new();
     private readonly Button _openButton = new() { Content = "Open timer", IsEnabled = false };
     private readonly Button _copyButton = new() { Content = "Copy link", IsEnabled = false };
@@ -240,12 +241,18 @@ internal sealed class LauncherWindow : Window
             RowSpacing = 14
         };
 
-        root.Children.Add(new TextBlock
+        var heading = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 14 };
+        heading.Children.Add(new TextBlock
         {
             Text = "FDV Bouldering Timer",
             FontSize = 24,
             FontWeight = FontWeight.Bold
         });
+        _buildLabel.FontSize = 16;
+        _buildLabel.VerticalAlignment = VerticalAlignment.Center;
+        _buildLabel.Foreground = Brush(149, 161, 181);
+        heading.Children.Add(_buildLabel);
+        root.Children.Add(heading);
 
         _status.Text = "Preparing server...";
         _status.Foreground = Brush(255, 200, 87);
@@ -442,6 +449,8 @@ internal sealed class LauncherWindow : Window
         _intentionalStop = true;
         _openButton.IsEnabled = false;
         _status.Text = "Starting server...";
+        _buildLabel.Text = "";
+        Title = "FDV Bouldering Timer";
         _status.Foreground = Brush(255, 200, 87);
         AppendLog("Starting server...");
 
@@ -534,12 +543,15 @@ internal sealed class LauncherWindow : Window
         try
         {
             _startupAttempts++;
+            string build = "";
             var reachable = await CanReach(
                 "http://127.0.0.1:" + _settings.HttpPort + "/api/state",
-                _probeCancellation.Token);
+                _probeCancellation.Token, value => build = value);
             if (generation != _probeGeneration || _allowClose) return;
             if (reachable)
             {
+                _buildLabel.Text = build.Length > 0 ? "(" + build + ")" : "";
+                Title = "FDV Bouldering Timer" + (build.Length > 0 ? " (" + build + ")" : "");
                 _startupTimer.Stop();
                 _ready = true;
                 _restartAttempts = 0;
@@ -575,7 +587,7 @@ internal sealed class LauncherWindow : Window
         }
     }
 
-    private async Task<bool> CanReach(string url, CancellationToken cancellationToken)
+    private async Task<bool> CanReach(string url, CancellationToken cancellationToken, Action<string>? readBuild = null)
     {
         try
         {
@@ -586,6 +598,10 @@ internal sealed class LauncherWindow : Window
                 request,
                 HttpCompletionOption.ResponseHeadersRead,
                 timeout.Token);
+            if (response.StatusCode == HttpStatusCode.OK && readBuild != null)
+            {
+                readBuild(LauncherBuildInfo.Read(await response.Content.ReadAsStringAsync(timeout.Token)));
+            }
             return response.StatusCode == HttpStatusCode.OK;
         }
         catch (OperationCanceledException)

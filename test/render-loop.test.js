@@ -729,7 +729,7 @@ test("a discontinuous browser clock requires measured calibration without a wall
   assert.match(index, /\(Number\.isFinite\(savedServerNow\) \? savedServerNow : savedAtWall\)\s*\+ age;/);
   assert.doesNotMatch(index, /age \* restoredRate/);
   assert.match(index, /syncSamples = \[\];\s*resetServerClockRateConfirmation\(\);/);
-  assert.match(index, /const refreshAudioSchedule = restorePage && \(clockRepaired \|\| resetStaleSignals \|\| invalidatedWhileHidden\)/);
+  assert.match(index, /const refreshAudioSchedule = !pageAudioSuspended && \(clockRepaired\s*\|\| \(restorePage && \(resetStaleSignals \|\| invalidatedWhileHidden\)\)\)/);
   assert.match(index, /rescheduleStandaloneSignals\(\{[\s\S]*?forceStopAudio:\s*true,[\s\S]*?includeRecentPhaseSignal/);
   assert.match(index, /await syncFromServer\(\{[\s\S]*?replaceAudioSchedule:\s*Boolean\(recovery\.forceClockCorrection\)/);
 });
@@ -767,15 +767,16 @@ test("page suspension invalidates stale audio and rebuilds only semantically cur
   assert.match(index, /function clearSignalTimers\([^)]*\) \{[\s\S]*?if \(forceStopAudio\) \{\s*audioScheduleGeneration \+= 1;\s*stopActiveHtmlAudio\(\)/);
   assert.match(index, /function beepSynthetic\([^)]*\)[\s\S]*?scheduledAudioNodes\.push\(item\);\s*osc\.onended/);
   assert.match(index, /scheduleGeneration !== audioScheduleGeneration[\s\S]*?bufferLastFailure = "schedule-invalidated"/);
-  assert.match(index, /document\.addEventListener\("visibilitychange"[\s\S]*?invalidateSignalsForPageSuspension\("visibility-hidden"\)/);
+  assert.doesNotMatch(index, /invalidateSignalsForPageSuspension\("visibility-hidden"\)/);
+  assert.match(index, /document\.addEventListener\("visibilitychange"[\s\S]*?checkAudioSchedulerHealth\(true\)/);
   assert.match(index, /window\.addEventListener\("pagehide"[\s\S]*?invalidateSignalsForPageSuspension\("pagehide"\)/);
   assert.match(index, /document\.addEventListener\("freeze"[\s\S]*?invalidateSignalsForPageSuspension\("freeze"\)/);
   assert.match(index, /function resumeClientSync\([^)]*\)[\s\S]*?const invalidatedWhileHidden = restorePage && signalsInvalidatedWhileHidden[\s\S]*?rescheduleStandaloneSignals\([\s\S]*?queueClientRecoverySync\(/);
   assert.match(index, /function scheduleRecentPhaseSignalAfterResume\([^)]*\)[\s\S]*?shouldScheduleServerSignal\(targetServerTime, lateGraceMs\)[\s\S]*?rotationBoundary:/);
   assert.match(index, /if \(includePhase\s*&& Date\.now\(\) >= suppressPhaseSignalsUntil/);
-  assert.match(index, /if \(document\.hidden \|\| clockCalibrationPending\) \{\s*if \(document\.hidden && state\.running\) signalsInvalidatedWhileHidden = true;\s*clearSignalTimers\(false, true\);\s*return;/);
-  assert.match(index, /function scheduleFinalWarnings\(segment\) \{\s*if \(document\.hidden \|\| clockCalibrationPending\) \{\s*if \(document\.hidden && state\.running\) signalsInvalidatedWhileHidden = true;\s*return;/);
-  assert.match(index, /if \(state\.running && !document\.hidden && remaining <= 6\) \{\s*scheduleFinalWarnings\(segment\);/);
+  assert.match(index, /if \(pageAudioSuspended \|\| clockCalibrationPending\) \{\s*clearSignalTimers\(false, true\);\s*return;/);
+  assert.match(index, /function scheduleFinalWarnings\(segment\) \{\s*if \(pageAudioSuspended \|\| clockCalibrationPending\) return;/);
+  assert.match(index, /if \(state\.running && !pageAudioSuspended && remaining <= 6\) \{\s*scheduleFinalWarnings\(segment\);/);
 });
 
 test("server response application errors stay separate from network availability", () => {
@@ -865,12 +866,13 @@ test("diagnostics use consistent inactive colors and omit unavailable Legacy Wak
   assert.match(index, /audioTimingError: Number\.isFinite\(lastAudioTimingErrorMs\)[\s\S]*?audioTimingAge: lastAudioTimingAt > 0[\s\S]*?audioTimingKind: lastAudioTimingKind/);
   assert.match(server, /const hasAudioTimingError = sourceHas[\s\S]*?const hasAudioTimingAge = sourceHas[\s\S]*?const hasAudioTimingKind = sourceHas/);
   assert.match(server, /audioTimingError: hasAudioTimingError[\s\S]*?audioTimingAge: hasAudioTimingAge[\s\S]*?audioTimingKind: hasAudioTimingKind/);
-  assert.match(index, /const audioTimingFresh = hasAudioTimingError[\s\S]*?audioTimingAge <= 60000/);
+  assert.match(index, /const audioTimingFresh = !nativeAudioActive && hasAudioTimingError[\s\S]*?audioTimingAge <= 60000/);
+  assert.match(index, /const audioOk = audioEnabled && \(nativeAudioActive \|\| client\.audioUnlocked === true\)/);
   assert.match(index, /audioTimingMagnitude > 250[\s\S]*?audioTimingMagnitude >= 100[\s\S]*?"warn"/);
   assert.match(index, /const audioStatus = !audioAvailable[\s\S]*?\? "neutral"[\s\S]*?!audioEnabled[\s\S]*?\? "inactive"[\s\S]*?audioOk[\s\S]*?\? audioTimingStatus[\s\S]*?: "bad"/);
   assert.match(index, /const legacyTabTitleRu = `Видимость вкладки:[^`]*`/);
   assert.doesNotMatch(index, /const legacyTabTitleRu = `[^`]*Wake Lock/);
-  assert.match(index, /const ruModernChips = \[legacyChip, audioChipRu, serverTimeChip, netChipRu, syncChipRu, sseChipRu, tabChipRu\]/);
+  assert.match(index, /const ruModernChips = \[legacyChip, controlChip, audioChipRu, serverTimeChip, netChipRu, syncChipRu, sseChipRu, tabChipRu\]/);
   assert.match(index, /data-server-time-client=/);
   assert.match(index, /sendServerAction\("clientServerTime", \{ targetClientId, enabled \}\);/);
   assert.match(index, /id="serverClockDisplay" class="server-clock-display"/);

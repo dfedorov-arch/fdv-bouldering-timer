@@ -2,10 +2,17 @@ name: Release
 
 on:
   push:
+    branches: [develop]
     tags: ["v*"]
+  workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
+
+# Preview installer versions stay separate from published tag versions.
+# The timer's own build number continues to come from the checked-out sources.
+env:
+  FDV_RELEASE_TAG: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || format('v0.0.{0}', github.run_number) }}
 
 jobs:
   tests:
@@ -14,6 +21,7 @@ jobs:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
         with: { node-version: "24.17.0" }
+      - run: npm ci
       - name: Run timer tests
         run: |
           node serve-bouldering-timer.js --generate-offline-audio
@@ -24,6 +32,14 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with: { node-version: "24.17.0" }
+      - name: Test native HTTPS certificate generation
+        shell: powershell
+        run: |
+          $env:FDV_TEST_WINDOWS_CERTIFICATES = '1'
+          node --test test/https-certificate.test.js test/windows-launcher.test.js
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Build Windows launcher
         shell: powershell
         run: launcher/windows/build-launcher.ps1 -OutputDirectory "$env:RUNNER_TEMP\windows-launcher"
@@ -31,6 +47,60 @@ jobs:
         with:
           name: windows-launcher
           path: ${{ runner.temp }}\windows-launcher\fdv-bouldering-timer.exe
+          if-no-files-found: error
+
+  windows-legacy:
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [x86, x64]
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with: { node-version: "24.17.0" }
+      - name: Install pinned build-only transformer
+        run: npm ci
+      - name: Fetch verified compatibility runtime and CLR2 references
+        shell: powershell
+        run: scripts/get-windows-legacy-tools.ps1 -OutputDirectory "$env:RUNNER_TEMP\legacy-tools" -Architecture '${{ matrix.arch }}'
+      - name: Build CLR2/CLR4-compatible launcher
+        shell: powershell
+        run: launcher/windows/build-launcher.ps1 -OutputDirectory "$env:RUNNER_TEMP\legacy-launcher" -LegacyReferenceDirectory "$env:RUNNER_TEMP\legacy-tools\net20\build\.NETFramework\v2.0"
+      - name: Test actual Node12 runtime and mixed-runtime SEC
+        shell: powershell
+        run: |
+          $env:FDV_LEGACY_NODE = "$env:RUNNER_TEMP\legacy-tools\node-v12.22.12-win-${{ matrix.arch }}\node.exe"
+          node --test test/windows-legacy.test.js
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $env:FDV_TEST_WINDOWS_CERTIFICATES = '1'
+          $env:FDV_NET20_REFERENCES = "$env:RUNNER_TEMP\legacy-tools\net20\build\.NETFramework\v2.0"
+          node --test test/https-certificate.test.js test/windows-launcher.test.js
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $env:FDV_TEST_SERVER_NODE12 = $env:FDV_LEGACY_NODE
+          node --test test/launcher-language.test.js test/limited-control.test.js
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Check browser clock, Web Audio and SEC against Node12
+        if: matrix.arch == 'x64'
+        shell: powershell
+        run: |
+          npx playwright install chromium
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $env:FDV_TEST_SERVER_NODE12 = "$env:RUNNER_TEMP\legacy-tools\node-v12.22.12-win-x64\node.exe"
+          npx playwright test --config test/visual/playwright.config.js clock.spec.js secondary.spec.js controls.spec.js --reporter line
+      - name: Build Windows 7/8 portable ZIP
+        shell: powershell
+        run: |
+          node serve-bouldering-timer.js --generate-offline-audio
+          node scripts/build-standalone-html.js "$env:RUNNER_TEMP\standalone.html"
+          node scripts/build-windows-legacy.js "--version=$env:FDV_RELEASE_TAG" '--arch=${{ matrix.arch }}' "--node-root=$env:RUNNER_TEMP\legacy-tools\node-v12.22.12-win-${{ matrix.arch }}" "--launcher=$env:RUNNER_TEMP\legacy-launcher\fdv-bouldering-timer.exe" "--standalone=$env:RUNNER_TEMP\standalone.html" '--output=dist'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $package = "dist\fdv-bouldering-timer-$env:FDV_RELEASE_TAG-windows7-8-${{ matrix.arch }}"
+          Compress-Archive -LiteralPath $package -DestinationPath ($package + '.zip')
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-legacy-${{ matrix.arch }}
+          path: dist/*-windows7-8-*.zip
           if-no-files-found: error
 
   unix-launchers:
@@ -50,10 +120,16 @@ jobs:
       - name: Build launcher
         run: |
           chmod +x launcher/unix/build-launcher.sh
-          export LAUNCHER_VERSION="${GITHUB_REF_NAME#v}"
+          export LAUNCHER_VERSION="${FDV_RELEASE_TAG#v}"
           launcher/unix/build-launcher.sh "${{ matrix.rid }}" "${{ runner.temp }}/unix-launcher"
           mkdir -p "${{ runner.temp }}/launcher-artifact"
           cp -R "${{ runner.temp }}/unix-launcher"/. "${{ runner.temp }}/launcher-artifact/"
+      - name: Check shared PCM mixer and Unix asset decoder without an audio device
+        run: |
+          dotnet run --project native-audio/unix/FdvNativeAudio.csproj -p:AudioSelfTest=true -p:SelfContained=false -p:PublishSingleFile=false -- --render-self-test
+      - name: Build native server audio
+        run: |
+          bash native-audio/unix/build-player.sh "${{ matrix.rid }}" "${{ runner.temp }}/launcher-artifact/native-audio"
       - uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact }}
@@ -78,15 +154,15 @@ jobs:
           WINDOWS_LAUNCHER_EXE: ${{ github.workspace }}/build-artifacts/windows-launcher/fdv-bouldering-timer.exe
         run: |
           chmod +x scripts/build-portable-releases.sh
-          scripts/build-portable-releases.sh "$GITHUB_REF_NAME" --target=windows-x64
-          unzip -q "dist/fdv-bouldering-timer-${GITHUB_REF_NAME}-windows-x64.zip" -d installer-payload
+          scripts/build-portable-releases.sh "$FDV_RELEASE_TAG" --target=windows-x64
+          unzip -q "dist/fdv-bouldering-timer-${FDV_RELEASE_TAG}-windows-x64.zip" -d installer-payload
       - name: Build MSI
         shell: powershell
         run: |
-          $version = $env:GITHUB_REF_NAME.TrimStart('v')
-          $payload = Join-Path $env:GITHUB_WORKSPACE "installer-payload\fdv-bouldering-timer-$env:GITHUB_REF_NAME-windows-x64"
+          $version = $env:FDV_RELEASE_TAG.TrimStart('v')
+          $payload = Join-Path $env:GITHUB_WORKSPACE "installer-payload\fdv-bouldering-timer-$env:FDV_RELEASE_TAG-windows-x64"
           dotnet build installer\windows\FDVInstaller.wixproj -p:PayloadDir=$payload -p:Version=$version -p:Platform=x64 -o msi-output
-          Move-Item (Get-ChildItem msi-output -Filter '*.msi' | Select-Object -First 1).FullName "dist\fdv-bouldering-timer-$env:GITHUB_REF_NAME-windows-x64.msi"
+          Move-Item (Get-ChildItem msi-output -Filter '*.msi' | Select-Object -First 1).FullName "dist\fdv-bouldering-timer-$env:FDV_RELEASE_TAG-windows-x64.msi"
       - uses: actions/upload-artifact@v4
         with: { name: windows-msi, path: dist/*.msi, if-no-files-found: error }
 
@@ -113,10 +189,10 @@ jobs:
           LINUX_LAUNCHER_ARM64: ${{ matrix.arch == 'arm64' && format('{0}/build-artifacts/linux-launcher/fdv-bouldering-timer', github.workspace) || '' }}
         run: |
           chmod +x scripts/build-portable-releases.sh scripts/build-linux-deb.sh
-          scripts/build-portable-releases.sh "$GITHUB_REF_NAME" --target=linux-${{ matrix.arch }}
+          scripts/build-portable-releases.sh "$FDV_RELEASE_TAG" --target=linux-${{ matrix.arch }}
           mkdir package
-          tar -xzf "dist/fdv-bouldering-timer-${GITHUB_REF_NAME}-linux-${{ matrix.arch }}.tar.gz" -C package
-          scripts/build-linux-deb.sh "${GITHUB_REF_NAME#v}" "${{ matrix.arch }}" "package/fdv-bouldering-timer-${GITHUB_REF_NAME}-linux-${{ matrix.arch }}" "dist/fdv-bouldering-timer-${GITHUB_REF_NAME}-linux-${{ matrix.arch }}.deb"
+          tar -xzf "dist/fdv-bouldering-timer-${FDV_RELEASE_TAG}-linux-${{ matrix.arch }}.tar.gz" -C package
+          scripts/build-linux-deb.sh "${FDV_RELEASE_TAG#v}" "${{ matrix.arch }}" "package/fdv-bouldering-timer-${FDV_RELEASE_TAG}-linux-${{ matrix.arch }}" "dist/fdv-bouldering-timer-${FDV_RELEASE_TAG}-linux-${{ matrix.arch }}.deb"
       - uses: actions/upload-artifact@v4
         with:
           name: linux-deb-${{ matrix.arch }}
@@ -146,14 +222,14 @@ jobs:
           MACOS_LAUNCHER_ARM64: ${{ matrix.arch == 'arm64' && format('{0}/build-artifacts/macos-launcher/FDV Bouldering Timer.app', github.workspace) || '' }}
         run: |
           chmod +x scripts/build-portable-releases.sh
-          scripts/build-portable-releases.sh "$GITHUB_REF_NAME" --target=macos-${{ matrix.arch }}
+          scripts/build-portable-releases.sh "$FDV_RELEASE_TAG" --target=macos-${{ matrix.arch }}
           mkdir -p package pkg-root/Applications
-          tar -xzf "dist/fdv-bouldering-timer-${GITHUB_REF_NAME}-macos-${{ matrix.arch }}.tar.gz" -C package
-          cp -R "package/fdv-bouldering-timer-${GITHUB_REF_NAME}-macos-${{ matrix.arch }}" "pkg-root/Applications/FDV Bouldering Timer"
+          tar -xzf "dist/fdv-bouldering-timer-${FDV_RELEASE_TAG}-macos-${{ matrix.arch }}.tar.gz" -C package
+          cp -R "package/fdv-bouldering-timer-${FDV_RELEASE_TAG}-macos-${{ matrix.arch }}" "pkg-root/Applications/FDV Bouldering Timer"
           cp installer/common/fdv-installed.marker "pkg-root/Applications/FDV Bouldering Timer/"
-          package_path="dist/fdv-bouldering-timer-${GITHUB_REF_NAME}-macos-${{ matrix.arch }}.pkg"
+          package_path="dist/fdv-bouldering-timer-${FDV_RELEASE_TAG}-macos-${{ matrix.arch }}.pkg"
           plutil -lint installer/macos/components.plist
-          pkgbuild --root pkg-root --component-plist installer/macos/components.plist --identifier ru.fdv.boulderingtimer --version "${GITHUB_REF_NAME#v}" --install-location / "$package_path"
+          pkgbuild --root pkg-root --component-plist installer/macos/components.plist --identifier ru.fdv.boulderingtimer --version "${FDV_RELEASE_TAG#v}" --install-location / "$package_path"
           pkgutil --expand "$package_path" pkg-expanded
           test "$(xmllint --xpath 'count(/pkg-info/relocate/bundle)' pkg-expanded/PackageInfo)" = "0"
       - uses: actions/upload-artifact@v4
@@ -175,7 +251,7 @@ jobs:
           packages: platform-tools
       - uses: gradle/actions/setup-gradle@v4
         with: { gradle-version: "8.11.1" }
-      - name: Build signed standalone APK
+      - name: Build signed Android APK (standalone and server client)
         env:
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
@@ -192,17 +268,19 @@ jobs:
           keyAlias=$ANDROID_KEY_ALIAS
           keyPassword=$ANDROID_KEY_PASSWORD
           EOF
-          version="${GITHUB_REF_NAME#v}"
+          version="${FDV_RELEASE_TAG#v}"
           IFS=. read -r major minor patch <<< "$version"
           export FDV_ANDROID_VERSION_NAME="$version"
           export FDV_ANDROID_VERSION_CODE="$((major * 10000 + minor * 100 + patch))"
           gradle -p android :app:assembleRelease
-          cp android/app/build/outputs/apk/release/app-release.apk "fdv-bouldering-timer-${GITHUB_REF_NAME}-android-standalone.apk"
+          cp android/app/build/outputs/apk/release/app-release.apk "fdv-bouldering-timer-${FDV_RELEASE_TAG}-android-standalone.apk"
       - uses: actions/upload-artifact@v4
         with: { name: android-apk, path: "fdv-bouldering-timer-*-android-standalone.apk", if-no-files-found: error }
 
   release:
-    needs: [tests, windows-installer, linux-installers, macos-installers, android-apk]
+    permissions:
+      contents: write
+    needs: [tests, windows-installer, windows-legacy, linux-installers, macos-installers, android-apk]
     runs-on: ubuntu-latest
     env: { NODE_VERSION: "24.17.0" }
     steps:
@@ -226,7 +304,7 @@ jobs:
           MACOS_LAUNCHER_ARM64: ${{ github.workspace }}/build-artifacts/macos-launcher-arm64/FDV Bouldering Timer.app
         run: |
           chmod +x scripts/build-portable-releases.sh
-          scripts/build-portable-releases.sh "$GITHUB_REF_NAME"
+          scripts/build-portable-releases.sh "$FDV_RELEASE_TAG"
       - uses: actions/download-artifact@v4
         with: { pattern: "*-msi", path: dist, merge-multiple: true }
       - uses: actions/download-artifact@v4
@@ -235,19 +313,29 @@ jobs:
         with: { pattern: "macos-pkg-*", path: dist, merge-multiple: true }
       - uses: actions/download-artifact@v4
         with: { name: android-apk, path: dist }
-      - name: Create checksums and GitHub Release
-        env:
-          GH_TOKEN: ${{ github.token }}
+      - uses: actions/download-artifact@v4
+        with: { pattern: "windows-legacy-*", path: dist, merge-multiple: true }
+      - name: Create checksums and release notes
         run: |
           cd dist
           sha256sum fdv-bouldering-timer-* > SHA256SUMS.txt
           cd ..
           printf '%s\n' \
             "Installers: Windows MSI, macOS PKG (Intel and Apple Silicon), and Linux DEB (x64 and ARM64)." \
-            "The Android APK is an autonomous single-device timer only: it has no built-in server, LAN screens, or browser synchronization." \
+            "The Android APK supports standalone mode and connection to an existing timer server, with native screen-on protection while visible. It has no built-in server or background audio service." \
             "Portable archives also remain available; they include Node.js $NODE_VERSION LTS." \
+            "Windows 7 SP1/8/8.1 Legacy ZIPs (x86/x64) use end-of-life Node.js 12.22.12; trusted isolated LAN only, never Internet-facing." \
             "SHA256SUMS.txt contains checksums for every installer." > release-notes.txt
-          if [[ -f "docs/releases/${GITHUB_REF_NAME}.md" ]]; then
-            cp "docs/releases/${GITHUB_REF_NAME}.md" release-notes.txt
+          if [[ -f "docs/releases/${FDV_RELEASE_TAG}.md" ]]; then
+            cp "docs/releases/${FDV_RELEASE_TAG}.md" release-notes.txt
           fi
-          gh release create "$GITHUB_REF_NAME" dist/* --verify-tag --title "FDV Bouldering Timer $GITHUB_REF_NAME" --notes-file release-notes.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-packages-${{ github.run_id }}
+          path: dist/*
+          if-no-files-found: error
+      - name: Publish tagged GitHub Release
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$FDV_RELEASE_TAG" dist/* --verify-tag --title "FDV Bouldering Timer $FDV_RELEASE_TAG" --notes-file release-notes.txt

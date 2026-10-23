@@ -1215,7 +1215,7 @@ test("Diagnostics switches the layout of exactly two lists on one screen", async
     const diagnosticLabels = await screenCard
       .locator(".diag-row:not(.start-list-diag-row) > .diag-chip")
       .allTextContents();
-    expect(diagnosticLabels).toEqual(["LEG", "AUDIO", "TIME", "NET", "SYNC", "SSE", "TAB"]);
+    expect(diagnosticLabels).toEqual(["LEG", "CTRL", "AUDIO", "TIME", "NET", "SYNC", "SSE", "TAB"]);
     await expect(timeButton).toHaveText("TIME");
     await expect(timeButton).toHaveClass(/inactive/);
     await expect(screenCard.locator(".diag-chip", { hasText: "TAB" })).toHaveAttribute("title", /Wake Lock/);

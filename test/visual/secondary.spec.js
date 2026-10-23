@@ -2,14 +2,15 @@
 
 const { test, expect } = require("@playwright/test");
 const path = require("node:path");
+const os = require("node:os");
 const { fixture } = require("../helpers/controlled-clock-server");
 
-async function withServers(run) {
+async function withServers(run, options = {}) {
   const cleanup = [];
   const contexts = [];
   try {
-    const primary = await fixture({after:callback=>cleanup.push(callback)}, null);
-    const backup = await fixture({after:callback=>cleanup.push(callback)}, null);
+    const primary = await fixture({after:callback=>cleanup.push(callback)}, null, options);
+    const backup = await fixture({after:callback=>cleanup.push(callback)}, null, options);
     await primary.action({clientId:"operator",type:"primary",primaryClientId:"operator"});
     await primary.action({clientId:"operator",type:"startLists",startLists:[{headers:["#","ФИО"],rows:[["1","Проверка SEC"]],routeCount:5}]});
     await primary.start({clientId:"operator",settings:{rotationSeconds:180,breakSeconds:15,oneShot:false},elapsedBeforePause:10});
@@ -35,11 +36,205 @@ async function open(browser, server, id, contexts, legacy = false) {
 
 async function pair(page, backup) {
   await page.locator("#secondaryServerButton").click();
-  await page.locator("#secondaryServerAddress").fill(backup.baseUrl);
+  const address = backup.baseUrl.replace(/^http:/, "HTTP:");
+  await page.locator("#secondaryServerAddress").pressSequentially(address);
+  await expect(page.locator("#secondaryServerAddress")).toHaveValue(address);
   await page.locator("#secondaryServerConnect").click();
   await expect(page.locator("#secondaryServerButton")).toHaveClass(/is-set/, {timeout:10000});
   await page.locator("#secondaryServerClose").click();
 }
+
+test("Secondary address typing never triggers timer hotkeys and full names are localized", async ({browser}) => {
+  await withServers(async ({primary,backup,contexts}) => {
+    const {page,errors} = await open(browser,primary,"operator",contexts);
+    const initial = await primary.state();
+    const controls = [];
+    page.on("request", request => {
+      if (request.method() === "POST" && request.url().endsWith("/api/action")) controls.push(request.postDataJSON().type);
+    });
+    for (const locale of ["ru", "en"]) {
+      if (locale === "en") await page.locator("#languageToggle").click();
+      await expect(page.locator("html")).toHaveAttribute("lang", locale);
+      await page.locator("#secondaryServerButton").click();
+      await expect(page.locator("#secondaryServerTitle")).toHaveText(locale === "ru" ? "Резервный сервер" : "Secondary server");
+      await expect(page.locator("#secondaryServerHint")).not.toContainText("SEC");
+      await expect(page.locator("#secondaryServerRemove")).toHaveText(locale === "ru" ? "Отключить резервный сервер" : "Disconnect Secondary server");
+      const address = "HTTPS://p-z.example:8443";
+      await page.locator("#secondaryServerAddress").fill("");
+      await page.locator("#secondaryServerAddress").pressSequentially(address);
+      await expect(page.locator("#secondaryServerAddress")).toHaveValue(address);
+      await page.keyboard.press("Control+q");
+      // Even a focused dialog button must not reset/start the competition.
+      await page.locator("#secondaryServerClose").focus();
+      await page.keyboard.press("p");
+      await page.keyboard.press("z");
+      await page.keyboard.press("Escape");
+      await expect(page.locator("#secondaryServerDialog")).not.toBeVisible();
+      expect((await primary.state()).running).toBe(true);
+      expect((await primary.state()).timerClock.startedAt).toBe(initial.timerClock.startedAt);
+    }
+    expect(controls.filter(type => ["reset", "start", "pause"].includes(type))).toEqual([]);
+    for (const tag of ["input", "textarea", "div", "select"]) {
+      await page.evaluate(tag => {
+        const editor = document.createElement(tag);
+        editor.id = "hotkeyEditor";
+        if (tag === "div") editor.contentEditable = "true";
+        if (tag === "select") editor.appendChild(new Option("Placeholder", ""));
+        document.body.appendChild(editor);
+        editor.focus();
+      }, tag);
+      await page.keyboard.press("p");
+      await page.keyboard.press("z");
+      await page.keyboard.press("Control+q");
+      await page.keyboard.press("Control+m");
+      await page.locator("#hotkeyEditor").evaluate(editor => editor.remove());
+    }
+    expect((await primary.state()).running).toBe(true);
+    expect((await primary.state()).timerClock.startedAt).toBe(initial.timerClock.startedAt);
+    expect(controls.filter(type => ["reset", "start", "pause", "primary"].includes(type))).toEqual([]);
+    await pair(page,backup);
+    await expect(page.locator("#secondaryServerButton")).toHaveText("SEC");
+    await expect(page.locator("#secondaryServerButton")).toHaveAttribute("title", `Secondary server: ${backup.baseUrl}`);
+    const badge = page.locator('[data-secondary-client="operator"]');
+    await expect(badge).toHaveText("SEC");
+    await expect(badge).toHaveAttribute("title", /Secondary server/);
+    await expect(badge).not.toHaveAttribute("title", /SEC\b/);
+    // The normal competition hotkeys remain functional outside editing/modal UI.
+    await page.locator("body").click({position:{x:5,y:5}});
+    await page.keyboard.press("p");
+    await expect.poll(async () => (await primary.state()).running).toBe(false);
+    await page.keyboard.press("z");
+    await expect.poll(async () => (await primary.state()).running).toBe(true);
+    await page.waitForFunction(() => state.running && !isBeforeScheduledStart());
+    // A fresh audible start has an intentional server-side lead-in; pausing
+    // before that boundary is deliberately ignored by the ordinary timer.
+    await expect.poll(async () => (await primary.state()).elapsed).toBeGreaterThan(1);
+    const pauseResponse = page.waitForResponse(response => response.url().endsWith("/api/action") && response.request().postDataJSON()?.type === "pause");
+    await page.keyboard.press("Control+q");
+    const pauseResult = await pauseResponse;
+    expect(pauseResult.status(), await pauseResult.text()).toBe(200);
+    await expect.poll(async () => (await primary.state()).running).toBe(false);
+    expect(errors).toEqual([]);
+  });
+});
+
+test("Secondary disconnect reports its active browsers in both languages and preserves running audio", async ({browser}) => {
+  await withServers(async ({primary,backup,contexts}) => {
+    const {page,errors} = await open(browser,primary,"operator",contexts);
+    const viewer = await open(browser,primary,"screen",contexts);
+    await pair(page,backup);
+    async function trackAudio() {
+      await page.evaluate(async () => {
+        await unlockAudio(false); await loadAudioBuffers();
+        const previous = new Set(scheduledAudioNodes);
+        scheduleBufferedSignalAt(getCurrentSegment(elapsedSeconds()),serverNow()+40000,"minute",false,true);
+        window.secondaryRemoveAudio = {nodes:scheduledAudioNodes.filter(node=>!previous.has(node)),generation:audioScheduleGeneration,context:audioContext};
+      });
+      expect(await page.evaluate(()=>window.secondaryRemoveAudio.nodes.length)).toBeGreaterThan(0);
+    }
+    const anchor = (await primary.state()).timerClock.startedAt;
+    await page.locator('[data-secondary-client="screen"]').click();
+    await viewer.page.waitForFunction(()=>secondaryConnection.info().onSecondary);
+    for (const locale of ["ru","en"]) {
+      if (locale === "en") await page.locator("#languageToggle").click();
+      await page.locator("#secondaryServerButton").click();
+      await trackAudio();
+      await page.locator("#secondaryServerRemove").click();
+      const status = page.locator("#secondaryServerStatus");
+      await expect(status).toHaveClass(/error/);
+      await expect(status).toContainText(locale === "ru" ? "Не удалось отключить резервный сервер" : "Could not disconnect Secondary server");
+      await expect(status).toContainText("Chrome");
+      await expect(status).toContainText("№2");
+      await expect(status).toContainText(locale === "ru" ? "6–8 секунд" : "6–8 seconds");
+      await expect(status).not.toContainText("Close the browsers");
+      expect(await page.evaluate(()=>window.secondaryRemoveAudio.nodes.every(node=>scheduledAudioNodes.includes(node)))).toBe(true);
+      if (locale === "ru") await page.screenshot({path:path.resolve(__dirname,"../../help-assets/secondary-disconnect-blocked.png")});
+      await page.locator("#secondaryServerClose").click();
+      expect((await primary.state()).sec).not.toBeNull();
+      expect((await backup.state()).sec).not.toBeNull();
+    }
+    await expect(page.locator('[data-secondary-client="screen"]')).toHaveAttribute("data-secondary-destination","primary");
+    await page.locator('[data-secondary-client="screen"]').click();
+    await expect.poll(async()=>viewer.page.evaluate(()=>({active:secondaryConnection.info().active,pending:clockCalibrationPending})))
+      .toEqual({active:primary.baseUrl,pending:false});
+    // The actual reserve registry expires the last browser contact at six seconds.
+    await page.waitForTimeout(6500);
+    await page.locator("#secondaryServerButton").click();
+    await trackAudio();
+    await page.locator("#secondaryServerRemove").click();
+    await expect(page.locator("#secondaryServerStatus")).toHaveText("Secondary server disconnected");
+    expect((await primary.state()).sec).toBeNull();
+    expect((await backup.state()).sec).toBeNull();
+    expect((await primary.state()).timerClock.startedAt).toBe(anchor);
+    expect(await page.evaluate(()=>({nodes:window.secondaryRemoveAudio.nodes.every(node=>scheduledAudioNodes.includes(node)),
+      generation:audioScheduleGeneration-window.secondaryRemoveAudio.generation,context:audioContext===window.secondaryRemoveAudio.context})))
+      .toEqual({nodes:true,generation:0,context:true});
+    expect(errors).toEqual([]);
+    expect(viewer.errors).toEqual([]);
+  });
+});
+
+test("localhost operator pairs over LAN, returns a reserve localhost alias and clears the pair without resetting audio", async ({browser}) => {
+  const address = Object.values(os.networkInterfaces()).flat().find(item=>item && item.family === "IPv4" && !item.internal)?.address;
+  test.skip(!address,"Requires a LAN IPv4 interface");
+  await withServers(async ({primary,backup,contexts}) => {
+    const {page,errors} = await open(browser,primary,"operator",contexts);
+    const viewer = await open(browser,backup,"screen",contexts);
+    await page.evaluate(async()=>{
+      await unlockAudio(false); await loadAudioBuffers();
+    });
+    await page.waitForFunction(()=>audioContext?.state==="running"&&audioContext.currentTime>0.3
+      &&!audioSchedulerHealth.needsReschedule);
+    await page.evaluate(()=>{
+      checkAudioSchedulerHealth(true);
+      const previous = new Set(scheduledAudioNodes);
+      scheduleBufferedSignalAt(getCurrentSegment(elapsedSeconds()),serverNow()+40000,"minute",false,true);
+      window.aliasAudio={nodes:scheduledAudioNodes.filter(node=>!previous.has(node)),generation:audioScheduleGeneration,context:audioContext};
+    });
+    await pair(page,{baseUrl:backup.baseUrl.replace("127.0.0.1",address)});
+    const canonical = primary.baseUrl.replace("127.0.0.1",address);
+    expect((await primary.state()).sec.primaryUrl).toBe(canonical);
+    expect(await page.evaluate(()=>secondaryConnection.info().active)).toBe(primary.baseUrl);
+    await viewer.page.waitForFunction(()=>secondaryConnection.info().onSecondary);
+    const badge=page.locator('[data-secondary-client="screen"]');
+    await expect(badge).toHaveAttribute("data-secondary-destination","primary");
+    await badge.click();
+    await expect.poll(async()=>viewer.page.evaluate(()=>({active:secondaryConnection.info().active,pending:clockCalibrationPending})))
+      .toEqual({active:canonical,pending:false});
+    await page.waitForTimeout(6500);
+    await page.locator("#secondaryServerButton").click();
+    await page.locator("#secondaryServerRemove").click();
+    await expect(page.locator("#secondaryServerStatus")).toHaveText("Резервный сервер отключён");
+    expect(await page.evaluate(()=>secondaryConnection.info().config)).toBeNull();
+    expect(await page.evaluate(()=>({nodes:window.aliasAudio.nodes.every(node=>scheduledAudioNodes.includes(node)),
+      generation:audioScheduleGeneration-window.aliasAudio.generation,context:audioContext===window.aliasAudio.context})))
+      .toEqual({nodes:true,generation:0,context:true});
+    expect(errors).toEqual([]); expect(viewer.errors).toEqual([]);
+  }, {listenHost:"0.0.0.0"});
+});
+
+test("Secondary network-address setup failures give actionable localized messages", async ({browser}) => {
+  await withServers(async ({primary,backup,contexts}) => {
+    const {page} = await open(browser,primary,"operator",contexts);
+    for (const locale of ["ru","en"]) {
+      if (locale === "en") await page.locator("#languageToggle").click();
+      for (const code of ["PRIMARY_NETWORK_ADDRESS_REQUIRED","PRIMARY_ADDRESS_UNREACHABLE"]) {
+        await page.route("**/api/sec/configure",route=>route.fulfill({status:400,json:{code,error:"Internal English error"}}));
+        await page.locator("#secondaryServerButton").click();
+        await page.locator("#secondaryServerAddress").fill(backup.baseUrl);
+        await page.locator("#secondaryServerConnect").click();
+        const status=page.locator("#secondaryServerStatus");
+        await expect(status).toHaveClass(/error/);
+        await expect(status).not.toContainText("Internal English error");
+        await expect(status).toContainText(locale === "ru" ? "основной" : "primary");
+        await expect(status).toContainText(locale === "ru" ? "сет" : "network");
+        await page.locator("#secondaryServerClose").click();
+        await page.unroute("**/api/sec/configure");
+      }
+    }
+    expect((await primary.state()).sec).toBeNull();
+  });
+});
 
 test("SEC pairs without disturbing audio, moves one screen, merges diagnostics and switches all including Legacy", async ({browser}) => {
   await withServers(async ({primary,backup,contexts}) => {
@@ -131,7 +326,7 @@ test("SEC diagnostics stay in one contained row with LEG at every control width"
       }));
       expect(rows.length).toBeGreaterThanOrEqual(3);
       for (const row of rows) {
-        expect(row.chips.length).toBe(8);
+        expect(row.chips.length).toBe(9);
         expect(row.label,JSON.stringify(size)).toBe("LEG");
         for (const chip of row.chips) {
           expect(Math.abs(chip.top-row.chips[0].top),JSON.stringify(size)).toBeLessThan(1);

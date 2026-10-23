@@ -15,7 +15,11 @@ const { createTimerTransitions } = require("./lib/timer-transitions");
 const startListDomain = require("./lib/start-list");
 const { markerColors } = require("./lib/start-list-display");
 const { runtimeStateStoragePlan, prepareRuntimeStateStorage } = require("./lib/runtime-state-storage");
+const { httpsCertificatePaths } = require("./lib/https-certificate-storage");
+const { launcherLanguageAllowed, validLauncherLanguage } = require("./lib/launcher-language");
 const { createSecondaryServer } = require("./lib/secondary-server");
+const { NativeAudio } = require("./lib/server-audio-native");
+const { createServerAudio } = require("./lib/server-audio");
 const { Readable } = require("node:stream");
 
 const root = __dirname;
@@ -26,8 +30,11 @@ const legacyRuntimeStatePath = runtimeStatePath;
 const beepsPath = path.join(root, "beeps");
 const fontsPath = path.join(root, "fonts");
 const offlineAudioPath = path.join(root, "lib", "offline-audio.js");
-const BUILD_NUMBER = 416;
+const BUILD_NUMBER = 436;
 const serverInstanceId = crypto.randomUUID();
+let serverAudio = null;
+const launcherLanguageToken = process.env.FDV_LAUNCHER_LANGUAGE_TOKEN || "";
+delete process.env.FDV_LAUNCHER_LANGUAGE_TOKEN;
 const SNAPSHOT_SCHEMA_VERSION = 1;
 const SNAPSHOT_MAX_AGE_MS = 12 * 60 * 60 * 1000;
 const PRIMARY_RESTORE_GRACE_MS = 10000;
@@ -95,6 +102,7 @@ function performanceSnapshot() {
       serverInstanceId,
       continuity: publicClockDiagnostics()
     },
+    nativeAudio: serverAudio?.snapshot(),
     gauges: {
       clients: clients.size,
       eventClients: eventClients.size,
@@ -132,6 +140,7 @@ const defaultConfig = {
   festivalAnnouncements: true,
   flashing: true,
   noSoundWarm: false,
+  speakerKeepAwake: true,
   soundProfile: "FSR_2026",
   timerFontFile: "Roboto-Variable.ttf",
   timerFont: "Arial, sans-serif",
@@ -338,6 +347,10 @@ const config = {
   festivalAnnouncements: boolParam(params, "festival_announcements", defaultConfig.festivalAnnouncements),
   flashing: boolParam(params, "flashing", defaultConfig.flashing),
   noSoundWarm: boolParam(params, "no_sound_warm", defaultConfig.noSoundWarm),
+  speakerKeepAwake: boolParam(params, "speaker_keep_awake", true),
+  speakerKeepAwakeIntervalSeconds: intParam(params, "speaker_keep_awake_interval_seconds", 180, 10, 600),
+  speakerKeepAwakeGain: Math.max(0.0001, Math.min(0.1, numberOrDefault(params.speaker_keep_awake_gain, 0.006))),
+  speakerKeepAwakeFrequencyHz: intParam(params, "speaker_keep_awake_frequency_hz", 440, 100, 2000),
   timerFontFile: initialTimerFontFile,
   timerFontUrl: fontFileUrl(initialTimerFontFile),
   timerFont: textParam(params, "timer_font", defaultConfig.timerFont),
@@ -380,10 +393,9 @@ if (process.argv.includes("--generate-offline-audio")) {
 const port = Number(process.env.PORT) || config.httpPort;
 const httpsPort = Number(process.env.HTTPS_PORT) || config.httpsPort;
 const configuredHost = String(process.env.HOST || "").trim();
-const keyPath = path.join(root, "timer-key.pem");
-const certPath = path.join(root, "timer-cert.pem");
-const pfxPath = path.join(root, "timer-cert.pfx");
-const pfxPassphrase = process.env.HTTPS_PFX_PASSPHRASE || "bouldering-timer";
+const certificatePaths = httpsCertificatePaths(root);
+const { keyPath, certPath, pfxPath } = certificatePaths;
+const pfxPassphrase = certificatePaths.managed ? "bouldering-timer" : process.env.HTTPS_PFX_PASSPHRASE || "bouldering-timer";
 
 const types = {
   ".html": "text/html; charset=utf-8",
@@ -432,6 +444,9 @@ const timerState = {
   instancesFullscreen: false,
   globalSound: config.sound,
   flashing: config.flashing,
+  muteBreakWarnings: false,
+  speakerKeepAwake: config.speakerKeepAwake,
+  limitedControlClientIds: [],
   festivalAnnouncements: config.festivalAnnouncements,
   soundProfile: config.soundProfile,
   language: config.language,
@@ -454,6 +469,7 @@ const timerState = {
 
 const clients = new Map();
 const clientAudioOffsets = new Map();
+const serverAudioDisabledClients = new Set();
 const manualLegacyClients = new Set();
 const oldBrowserClients = new Set();
 const legacyRedirectPending = new Set();
@@ -499,6 +515,14 @@ function actionRequiresPrimary(type) {
 function primaryControlAllowed(clientId) {
   if (!timerState.primaryClientId) return true;
   return Boolean(clientId && timerState.primaryClientId === clientId);
+}
+
+function limitedControlAllowed(clientId) {
+  return Boolean(clientId && timerState.primaryClientId
+    && clientId !== timerState.primaryClientId
+    && sanitizeBrowserClientIds(timerState.limitedControlClientIds).includes(clientId)
+    && !manualLegacyClients.has(clientId) && !oldBrowserClients.has(clientId)
+    && !(clients.get(clientId) || secondaryServer?.peerClient(clientId))?.legacyViewer);
 }
 
 function primaryActionAllowed(clientId, nextPrimaryClientId) {
@@ -909,6 +933,7 @@ function snapshotPayload() {
         ? { startedAt: publicStartedAt(savedAtWall, runningElapsedAtSave) } : {})
     },
     audioOffsets: [...clientAudioOffsets.entries()],
+    serverAudioDisabledClients: [...serverAudioDisabledClients],
     manualLegacyClients: [...manualLegacyClients],
     secondary: secondaryServer?.configured ? { ...secondaryServer.snapshot(), startedAt: replicaStartedAt } : null,
     clockDiagnostics: publicClockDiagnostics()
@@ -965,7 +990,10 @@ function assignTimerState(source = {}) {
     "instancesFullscreen",
     "globalSound",
     "flashing",
+    "muteBreakWarnings",
+    "limitedControlClientIds",
     "festivalAnnouncements",
+    "speakerKeepAwake",
     "soundProfile",
     "language",
     "primaryPinHash",
@@ -1023,6 +1051,9 @@ function restoreTimerSnapshot() {
     timerState.startListLayoutOverrides = sanitizeStartListLayoutOverrides(timerState.startListLayoutOverrides);
     timerState.browserPinnedClientIds = sanitizeBrowserClientIds(timerState.browserPinnedClientIds);
     timerState.serverTimeDisplayClientIds = sanitizeBrowserClientIds(timerState.serverTimeDisplayClientIds);
+    timerState.limitedControlClientIds = sanitizeBrowserClientIds(timerState.limitedControlClientIds);
+    timerState.muteBreakWarnings = Boolean(timerState.muteBreakWarnings);
+    timerState.speakerKeepAwake = timerState.speakerKeepAwake !== false;
     const pinnedBrowserIds = new Set(timerState.browserPinnedClientIds);
     timerState.browserOrder = sanitizeBrowserClientIds(timerState.browserOrder)
       .filter((clientId) => snapshot.secondary || pinnedBrowserIds.has(clientId));
@@ -1032,6 +1063,10 @@ function restoreTimerSnapshot() {
     timerState.showBrowserNumbers = Boolean(timerState.showBrowserNumbers);
     timerState.startListFinalCycle = Math.max(0, Math.round(numberOrDefault(timerState.startListFinalCycle, 0)));
     clientAudioOffsets.clear();
+    serverAudioDisabledClients.clear();
+    for (const id of Array.isArray(snapshot.serverAudioDisabledClients) ? snapshot.serverAudioDisabledClients : []) {
+      if (typeof id === "string" && id) serverAudioDisabledClients.add(id);
+    }
     if (Array.isArray(snapshot.audioOffsets)) {
       snapshot.audioOffsets.forEach(([id, offset]) => {
         if (id) clientAudioOffsets.set(String(id), Math.round(numberOrDefault(offset, 0)));
@@ -1407,6 +1442,9 @@ function publicClients(orderedClients = orderedClientValues(), localOnly = false
   const pinnedIds = pinnedBrowserIdSet();
   const local = orderedClients.map((client, index) => ({
       ...client,
+      serverAudioActive: Boolean(serverAudio?.status(client.id).active),
+      serverAudioAvailable: Boolean(serverAudio?.status(client.id).available && client.computerKey === "server-host"),
+      serverAudioDisabled: serverAudioDisabledClients.has(client.id),
       displayNumber: index + 1,
       browserPinned: pinnedIds.has(client.id),
       manualLegacy: manualLegacyClients.has(client.id),
@@ -1414,6 +1452,7 @@ function publicClients(orderedClients = orderedClientValues(), localOnly = false
       startListVisible: startListVisibleForClient(client.id),
       startListParallel: startListParallelForClient(client.id),
       showServerTime: sanitizeBrowserClientIds(timerState.serverTimeDisplayClientIds).includes(client.id),
+      limitedControl: limitedControlAllowed(client.id),
       role: client.legacyViewer ? "screen" : timerState.primaryClientId ? (timerState.primaryClientId === client.id ? "primary" : "screen") : "",
       age: now - client.lastSeen,
       connected: now - client.lastSeen < 6000
@@ -1424,7 +1463,7 @@ function publicClients(orderedClients = orderedClientValues(), localOnly = false
   const order = timerState.browserOrder;
   merged.sort((a, b) => (a.id === timerState.primaryClientId ? -1 : b.id === timerState.primaryClientId ? 1
     : order.indexOf(a.id) - order.indexOf(b.id)));
-  return merged.map((client, index) => ({ ...client, displayNumber: index + 1 }));
+  return merged.map((client, index) => ({ ...client, displayNumber: index + 1, limitedControl: limitedControlAllowed(client.id) }));
 }
 
 function setBrowserPinned(targetClientId, enabled) {
@@ -1692,6 +1731,7 @@ function publicState(options = {}) {
     browserOrder: _browserOrder,
     browserPinnedClientIds: _browserPinnedClientIds,
     serverTimeDisplayClientIds: _serverTimeDisplayClientIds,
+    limitedControlClientIds: _limitedControlClientIds,
     startLists,
     ...publicTimerState
   } = timerState;
@@ -1735,8 +1775,10 @@ function publicState(options = {}) {
       && sanitizeBrowserClientIds(timerState.serverTimeDisplayClientIds).includes(clientId)),
     serverTimezoneOffsetMinutes: new Date(sentAt).getTimezoneOffset(),
     manualLegacy: ownManualLegacy,
+    limitedControl: limitedControlAllowed(clientId),
     legacyRedirect: ownLegacyRedirect,
     audioUserOffset: ownAudioOffset,
+    serverAudio: serverAudio ? serverAudio.status(clientId) : {version:1,available:false,active:false},
     startListIndexes: startListIndexesForClient(clientId),
     startListVisible: startListVisibleForClient(clientId),
     startListParallel: startListParallelForClient(clientId),
@@ -1751,6 +1793,7 @@ function publicState(options = {}) {
 }
 
 function broadcastState() {
+  serverAudio?.changed();
   secondaryServer?.notify();
   for (const [res, eventClient] of eventClients) {
     try {
@@ -1903,12 +1946,74 @@ function handleRequest(req, res) {
   const requestUrl = new URL(req.url, `http://localhost:${port}`);
   secondaryServer?.cors(req, res);
 
+  if (requestUrl.pathname === "/api/server-audio" || requestUrl.pathname === "/api/server-audio/events") {
+    // Socket-derived locality only. Forwarded/proxied requests are deliberately
+    // ineligible: a proxy's loopback address does not prove browser co-location.
+    let sameOrigin = true;
+    try { if (req.headers.origin) sameOrigin = new URL(req.headers.origin).host === req.headers.host; } catch { sameOrigin = false; }
+    const pairedOrigin=Boolean(req.headers.origin && res.getHeader?.("access-control-allow-origin")===req.headers.origin);
+    const local = computerKeyForAddress(req.socket.remoteAddress || "") === "server-host"
+      && !req.headers.forwarded && !req.headers["x-forwarded-for"] && !req.headers["x-real-ip"]
+      && !req.fdvSecondaryForward && (sameOrigin || pairedOrigin);
+    if (!local || !serverAudio) { sendJson(res,403,{available:false,error:"Native audio requires a direct local connection"}); return; }
+    if (requestUrl.pathname.endsWith("/events") && req.method === "GET") {
+      const id=requestUrl.searchParams.get("clientId")||"",token=requestUrl.searchParams.get("token")||"";
+      res.writeHead(200,{"content-type":"text/event-stream; charset=utf-8","cache-control":"no-store","connection":"keep-alive","x-accel-buffering":"no"});
+      const send=value=>res.write(`event: route\ndata: ${JSON.stringify(value)}\n\n`);
+      const keep=setInterval(()=>{try{res.write(": keepalive\n\n");}catch{serverAudio.disconnected(id,token);}},15000);
+      req.on("close",()=>{clearInterval(keep);serverAudio.disconnected(id,token);});
+      serverAudio.activate(id,token,send,()=>res.end()).then(active=>{if(!active){send({active:false});res.end();clearInterval(keep);}})
+        .catch(()=>{res.end();clearInterval(keep);});
+      return;
+    }
+    if (req.method !== "POST" || !String(req.headers["content-type"]||"").startsWith("application/json")) {sendJson(res,405,{available:false});return;}
+    readJson(req,4096).then(async body=>{
+      const id=String(body.clientId||""),client=clients.get(id);
+      if(!client || client.computerKey!=="server-host" || body.serverInstanceId!==serverInstanceId){sendJson(res,409,{available:false,serverInstanceId});return;}
+      let result;
+      if(body.op==="prepare")result=await serverAudio.prepare(id,{wanted:body.wanted===true,forced:body.forced===true});
+      else if(body.op==="release")result=await serverAudio.release(id,String(body.token||""));
+      else if(body.op==="status")result=serverAudio.status(id);
+      else{sendJson(res,400,{available:false});return;}
+      sendJson(res,200,{...result,serverInstanceId});
+    }).catch(()=>sendJson(res,503,{available:false,serverInstanceId}));
+    return;
+  }
+
+  if (requestUrl.pathname === "/api/launcher/language") {
+    const trustedPeer = req.fdvLauncherLanguageForward === true && req.fdvSecondaryForward === true;
+    if (req.method !== "POST" || (!trustedPeer && !launcherLanguageAllowed(req, launcherLanguageToken))) {
+      sendJson(res, 403, { error: "Launcher language access denied" }); return;
+    }
+    readJson(req, 128).then(async body => {
+      if (!validLauncherLanguage(body)) { sendJson(res, 400, { error: "Only ru/en language is allowed" }); return; }
+      if (secondaryServer.fenced || secondaryServer.rejoining || secondaryServer.receivingBaseline) {
+        sendJson(res, 409, { error: "Server authority is not ready" }); return;
+      }
+      if (secondaryServer.following) {
+        const result = await secondaryServer.forward({ language: body.language }, {}, "/api/launcher/language");
+        sendJson(res, result.status, result.body); return;
+      }
+      // Match the ordinary language action's snapshot/SSE/replication path,
+      // without registering/impersonating a browser or touching timer anchors.
+      if (timerState.language !== body.language) {
+        timerState.language = body.language;
+        timerState.version += 1;
+        scheduleSnapshotWrite();
+        broadcastState();
+        broadcastDiagnostics();
+      }
+      sendJson(res, 200, { language: timerState.language, serverInstanceId });
+    }).catch(() => sendJson(res, 503, { error: "Launcher language command failed" }));
+    return;
+  }
+
   if (["/api/sec/configure", "/api/sec/remove", "/api/sec/switch"].includes(requestUrl.pathname)
     && req.method === "POST") {
     readJson(req).then(async body => {
       const clientId = registerClient(req, body);
       if (!clientId || clientId !== timerState.primaryClientId) {
-        sendJson(res, 403, { error: "Only the primary browser can configure SEC" }); return;
+        sendJson(res, 403, { error: "Only the primary browser can configure Secondary server" }); return;
       }
       if (requestUrl.pathname === "/api/sec/configure") {
         await secondaryServer.configure(body.address, `${req.socket.encrypted ? "https" : "http"}://${req.headers.host}`);
@@ -1924,7 +2029,7 @@ function handleRequest(req, res) {
         await secondaryServer.switchClient(String(body.targetClientId || ""), timerState.primaryClientId,body.destination || "secondary");
       }
       sendJson(res, 200, publicState({ clientId }));
-    }).catch(error => sendJson(res, 400, { error: error.message }));
+    }).catch(error => sendJson(res, 400, { error: error.message, code: error.code, clients: error.clients }));
     return;
   }
   if (requestUrl.pathname.startsWith("/api/sec/")
@@ -1942,7 +2047,7 @@ function handleRequest(req, res) {
       const clientId = registerClient(req, body);
       if (secondaryServer.fenced || secondaryServer.rejoining) {
         sendJson(res, 409, { ...publicState({ clientId }), actionDenied: true,
-          error: secondaryServer.fenced ? "Control has moved to SEC" : "SEC reconnection is being checked" }); return;
+          error: secondaryServer.fenced ? "Control has moved to Secondary server" : "Secondary server reconnection is being checked" }); return;
       }
       if (body.expectedStartListRevision) {
         if (body.expectedStartListRevision !== modernStartListRevision()) {
@@ -1972,7 +2077,7 @@ function handleRequest(req, res) {
 
   if (requestUrl.pathname === "/api/state" && req.method === "GET") {
     if (secondaryServer.receivingBaseline) {
-      sendJson(res,503,{sec:secondaryServer.publicInfo(),serverInstanceId,error:"SEC is receiving its authoritative baseline"});
+      sendJson(res,503,{sec:secondaryServer.publicInfo(),serverInstanceId,error:"Secondary server is receiving its authoritative baseline"});
       return;
     }
     repairTimerClockContinuity();
@@ -2083,12 +2188,34 @@ function handleRequest(req, res) {
       const type = body.type;
       const isRuntimeCommand = runtimeCommandTypes.has(type);
       const commandId = cleanCommandId(body.commandId);
-      if (actionRequiresPrimary(type) && !primaryControlAllowed(clientId)) {
+      const limitedCommand = !primaryControlAllowed(clientId) && limitedControlAllowed(clientId)
+        && ["start", "pause", "reset", "stopCountdown"].includes(type);
+      if (actionRequiresPrimary(type) && !primaryControlAllowed(clientId) && !limitedCommand) {
         sendJson(res, 403, {
           ...actionPublicState(),
           actionDenied: true
         });
         return;
+      }
+      if (limitedCommand) {
+        // Delegated controls use the authority's settings and elapsed time.
+        // Never let a Start/Stop payload become a settings/seek/schedule API.
+        const fresh = timerState.completed || (!timerState.waitingForManualStart && timerState.elapsedBeforePause === 0);
+        body = { clientId, type, commandId: body.commandId, baseVersion: body.baseVersion,
+          baseServerInstanceId: body.baseServerInstanceId,
+          intendedTimerTime: body.intendedTimerTime, intendedServerTime: body.intendedServerTime,
+          activePreset: fresh || type === "reset" ? timerState.activePreset : timerState.runtimePreset,
+          settings: fresh || type === "reset" ? {
+            rotationSeconds: timerState.draftSettings.rotationMinutes * 60,
+            breakSeconds: timerState.draftSettings.breakSeconds,
+            oneShot: timerState.draftSettings.oneShot,
+            finalRoundFormat: timerState.draftSettings.finalRoundFormat,
+            finalRestRotations: timerState.draftSettings.finalRestRotations
+          } : timerState.activeSettings,
+          elapsedBeforePause: timerState.elapsedBeforePause,
+          startHours: "", startMinutes: "", startMode: "manual",
+          manualStart: timerState.waitingForManualStart,
+          startAudioLead: body.startAudioLead === true };
       }
       const cachedCommand = commandId ? commandResults.get(commandId) : null;
       if (!cachedCommand && commandId && secondaryServer.hasAppliedCommand(commandId)) {
@@ -2099,6 +2226,10 @@ function handleRequest(req, res) {
           ...cachedCommand.payload,
           commandDuplicate: true
         });
+        return;
+      }
+      if (limitedCommand && type === "start" && timerState.running) {
+        sendJson(res, 409, { ...actionPublicState(), commandConflict: true });
         return;
       }
       const baseVersion = Number(body.baseVersion);
@@ -2282,6 +2413,28 @@ function handleRequest(req, res) {
         timerState.version += 1;
       }
 
+      if (type === "speakerKeepAwake") {
+        timerState.speakerKeepAwake = Boolean(body.enabled);
+        timerState.version += 1;
+      }
+      if (type === "muteBreakWarnings") {
+        timerState.muteBreakWarnings = Boolean(body.enabled);
+        timerState.version += 1;
+      }
+
+      if (type === "clientControl") {
+        const targetClientId = String(body.targetClientId || "");
+        const target = clients.get(targetClientId) || secondaryServer.peerClient(targetClientId);
+        if (timerState.primaryClientId && target && targetClientId !== timerState.primaryClientId
+          && !target.legacyViewer && !manualLegacyClients.has(targetClientId) && !oldBrowserClients.has(targetClientId)) {
+          const ids = new Set(sanitizeBrowserClientIds(timerState.limitedControlClientIds));
+          if (body.enabled) ids.add(targetClientId);
+          else ids.delete(targetClientId);
+          timerState.limitedControlClientIds = [...ids].slice(0, 100);
+          timerState.version += 1;
+        }
+      }
+
       if (type === "festivalAnnouncements") {
         timerState.festivalAnnouncements = Boolean(body.enabled);
         timerState.version += 1;
@@ -2374,6 +2527,15 @@ function handleRequest(req, res) {
         timerState.version += 1;
       }
 
+      if (type === "serverAudioMode") {
+        const targetClientId = String(body.targetClientId || "");
+        if (targetClientId && typeof body.enabled === "boolean") {
+          if (body.enabled) serverAudioDisabledClients.delete(targetClientId);
+          else serverAudioDisabledClients.add(targetClientId);
+          timerState.version += 1;
+        }
+      }
+
       if (type === "audioOffset") {
         const targetClientId = String(body.targetClientId || "");
         const offset = Math.max(-5000, Math.min(5000, numberOrDefault(body.offset, 0)));
@@ -2458,6 +2620,7 @@ function handleRequest(req, res) {
       broadcastState();
       broadcastDiagnostics();
       if (audioTestCommand) {
+        serverAudio?.audioTest(audioTestCommand);
         sendEvent(
           "audio-test",
           audioTestCommand,
@@ -2480,7 +2643,7 @@ function handleRequest(req, res) {
   }
 
   let relativePath = requestUrl.pathname === "/" ? "index.html" : decodeURIComponent(requestUrl.pathname.slice(1));
-  if (/(^|[\\/])(?:runtime-state|\.git)(?:[\\/]|$)/i.test(relativePath)
+  if (/(^|[\\/])(?:runtime-state|\.git|https)(?:[\\/]|$)/i.test(relativePath)
     || /\.(?:key|pem|pfx|p12|jks)$/i.test(relativePath)) {
     res.writeHead(403); res.end("Forbidden"); return;
   }
@@ -2531,6 +2694,10 @@ function importSecondaryState(packet) {
   if (JSON.stringify(timerState.startLists) !== previousLists) startListDataRevision += 1;
   applySecondaryConfig(packet.config);
   clientAudioOffsets.clear();
+  serverAudioDisabledClients.clear();
+  for (const id of Array.isArray(packet.serverAudioDisabledClients) ? packet.serverAudioDisabledClients : []) {
+    if (typeof id === "string" && id) serverAudioDisabledClients.add(id);
+  }
   for (const [id, offset] of packet.audioOffsets || []) clientAudioOffsets.set(id, offset);
   manualLegacyClients.clear();
   for (const id of packet.manualLegacyClients || []) manualLegacyClients.add(id);
@@ -2575,6 +2742,7 @@ secondaryServer = createSecondaryServer({
       startedAt: timerState.running ? secondaryServer.clock.ready ? replicaStartedAt
         : timerClockOrigin + timerStartedAtMono + timerClockSleepOffset : 0,
       audioOffsets: [...clientAudioOffsets], manualLegacyClients: [...manualLegacyClients],
+      serverAudioDisabledClients: [...serverAudioDisabledClients],
       appliedCommands: secondaryServer.appliedCommandIds() };
   },
   importState: importSecondaryState,
@@ -2587,13 +2755,24 @@ secondaryServer = createSecondaryServer({
     const forwardedBody = { ...body };
     if (forwardedBody.baseServerInstanceId) forwardedBody.baseServerInstanceId = serverInstanceId;
     const req = Readable.from([JSON.stringify(forwardedBody)]);
-    req.method = "POST"; req.url = pathname === "/api/sec/switch" ? pathname : "/api/action"; req.fdvSecondaryForward = true;
+    req.method = "POST"; req.url = ["/api/sec/switch", "/api/launcher/language"].includes(pathname) ? pathname : "/api/action"; req.fdvSecondaryForward = true;
+    req.fdvLauncherLanguageForward = pathname === "/api/launcher/language";
     req.headers = { host: `127.0.0.1:${port}`, "user-agent": client.userAgent };
     req.socket = { remoteAddress: client.address };
     const res = { status: 200, setHeader() {}, writeHead(status) { this.status = status; },
       end(value) { resolve({ status: this.status, body: JSON.parse(String(value || "{}")) }); } };
     handleRequest(req, res);
   })
+});
+
+serverAudio = createServerAudio({
+  player: new NativeAudio(root),
+  context: () => {repairTimerClockContinuity();return ({state:timerState,clients,legacyClients:manualLegacyClients,oldClients:oldBrowserClients,offsets:clientAudioOffsets,serverAudioDisabledClients,profiles:soundProfiles,keepAwakeConfig:config,
+    sampledAt:performance.now(),now:timerClockNow(),startedAt:timerState.running && timerStartedAtMono
+      ? secondaryServer?.clock.ready ? replicaStartedAt : timerClockOrigin+timerStartedAtMono+timerClockSleepOffset : 0,
+    instanceId:serverInstanceId,rate:secondaryServer?.clock.ready ? secondaryServer.clock.rate : 1,
+    fenced:Boolean(secondaryServer?.fenced || secondaryServer?.rejoining || secondaryServer?.receivingBaseline)});},
+  notify: () => broadcastState()
 });
 
 let runtimeStorage = runtimeStateStoragePlan(root);
@@ -2628,6 +2807,9 @@ if (performanceDiagnosticsEnabled) {
 
 function flushSnapshotAndExit(exitCode = 0) {
   secondaryServer.close();
+  // EOF closes the native output even if the server is killed before an ACK;
+  // the independent helper watchdog additionally fences a hung server.
+  serverAudio?.close().catch(()=>{});
   try {
     writeSnapshotNow();
   } finally {
@@ -2682,7 +2864,7 @@ function startServers(createServer, protocol, currentPort) {
 
 startServers(() => http.createServer(handleRequest), "http", port);
 
-if (fs.existsSync(keyPath) && fs.existsSync(certPath)) {
+if (!certificatePaths.managed && fs.existsSync(keyPath) && fs.existsSync(certPath)) {
   const key = fs.readFileSync(keyPath);
   const cert = fs.readFileSync(certPath);
   startServers(() => https.createServer({ key, cert }, handleRequest), "https", httpsPort);
@@ -2690,5 +2872,5 @@ if (fs.existsSync(keyPath) && fs.existsSync(certPath)) {
   const pfx = fs.readFileSync(pfxPath);
   startServers(() => https.createServer({ pfx, passphrase: pfxPassphrase }, handleRequest), "https", httpsPort);
 } else {
-  console.log("HTTPS disabled: certificate files were not found. Run create-https-certificate to enable it.");
+  console.log("HTTPS disabled: certificate files were not found. Use Create HTTPS certificate in the Windows launcher, or the platform certificate script.");
 }

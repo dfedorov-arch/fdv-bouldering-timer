@@ -3,6 +3,16 @@ plugins { id 'com.android.application' }
 def signingProperties = new Properties()
 def signingFile = rootProject.file('keystore.properties')
 if (signingFile.exists()) signingFile.withInputStream { signingProperties.load(it) }
+// Local release builds can use the existing key without writing passwords to
+// keystore.properties. CI may continue to provide that ignored file.
+def localSigningPath = System.getenv('FDV_ANDROID_KEYSTORE_PATH')
+if (localSigningPath) {
+    signingProperties['storeFile'] = localSigningPath
+    signingProperties['storePassword'] = System.getenv('FDV_ANDROID_KEYSTORE_PASSWORD')
+    signingProperties['keyAlias'] = System.getenv('FDV_ANDROID_KEY_ALIAS')
+    signingProperties['keyPassword'] = System.getenv('FDV_ANDROID_KEY_PASSWORD')
+}
+def hasReleaseSigning = signingFile.exists() || localSigningPath
 
 android {
     namespace 'ru.fdv.boulderingtimer.standalone'
@@ -23,7 +33,7 @@ android {
 
     signingConfigs {
         release {
-            if (signingFile.exists()) {
+            if (hasReleaseSigning) {
                 storeFile rootProject.file(signingProperties['storeFile'])
                 storePassword signingProperties['storePassword']
                 keyAlias signingProperties['keyAlias']
@@ -35,7 +45,7 @@ android {
     buildTypes {
         release {
             minifyEnabled false
-            signingConfig signingFile.exists() ? signingConfigs.release : signingConfigs.debug
+            signingConfig hasReleaseSigning ? signingConfigs.release : signingConfigs.debug
         }
     }
 }

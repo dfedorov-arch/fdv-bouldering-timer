@@ -1,5 +1,6 @@
 param(
-  [string]$OutputDirectory = ""
+  [string]$OutputDirectory = "",
+  [string]$LegacyReferenceDirectory = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -89,10 +90,25 @@ finally {
 }
 
 $source = Join-Path $scriptDirectory "FdvBoulderingTimerLauncher.cs"
+$certificateSource = Join-Path $scriptDirectory "HttpsCertificate.cs"
+$certificateDialog = Join-Path $scriptDirectory "HttpsCertificateDialog.cs"
+$languageSource = Join-Path $scriptDirectory "LauncherLanguage.cs"
 $output = Join-Path $OutputDirectory "fdv-bouldering-timer.exe"
-& $compiler /nologo /target:winexe /platform:anycpu /optimize+ /codepage:65001 `
-  /reference:System.dll /reference:System.Core.dll /reference:System.Drawing.dll `
-  /reference:System.Windows.Forms.dll /win32icon:$iconPath /out:$output $source
+if ($LegacyReferenceDirectory) {
+  $references = @('mscorlib.dll', 'System.dll', 'System.Drawing.dll', 'System.Windows.Forms.dll') | ForEach-Object {
+    $referencePath = Join-Path $LegacyReferenceDirectory $_
+    if (!(Test-Path -LiteralPath $referencePath)) { throw "Missing .NET 2.0 reference: $referencePath" }
+    '/reference:' + $referencePath
+  }
+  $compatibility = Join-Path $projectRoot 'compat/windows-legacy/LauncherCompatibility.cs'
+  & $compiler /nologo /noconfig /nostdlib+ /target:winexe /platform:anycpu /optimize+ /codepage:65001 `
+    /define:FDV_LEGACY_WINDOWS @references /win32icon:$iconPath /out:$output $source $certificateSource $certificateDialog $compatibility $languageSource
+  Copy-Item -LiteralPath (Join-Path $projectRoot 'compat/windows-legacy/launcher.exe.config') -Destination ($output + '.config')
+} else {
+  & $compiler /nologo /target:winexe /platform:anycpu /optimize+ /codepage:65001 `
+    /reference:System.dll /reference:System.Core.dll /reference:System.Drawing.dll `
+    /reference:System.Windows.Forms.dll /win32icon:$iconPath /out:$output $source $certificateSource $certificateDialog $languageSource
+}
 if ($LASTEXITCODE -ne 0) {
   throw "Launcher compilation failed with exit code $LASTEXITCODE."
 }

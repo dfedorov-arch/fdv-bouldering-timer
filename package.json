@@ -8,6 +8,7 @@
     "test:visual:install": "playwright install chromium"
   },
   "devDependencies": {
-    "@playwright/test": "1.62.1"
+    "@playwright/test": "1.62.1",
+    "esbuild": "0.28.2"
   }
 }

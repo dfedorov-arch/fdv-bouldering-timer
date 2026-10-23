@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "dependencies": {
+    "net8.0": {
+      "NLayer": {
+        "type": "Direct",
+        "requested": "[3.0.0, 3.0.0]",
+        "resolved": "3.0.0",
+        "contentHash": "aQrCT93NjIrJNXA7wiTSHMp9OUhGNb8YTJAwnsx2FtaNdAe74vwfguFExf6QFNU72XhNPb/bLAcdMbxvaNZgWg=="
+      }
+    },
+    "net8.0/linux-arm64": {},
+    "net8.0/linux-x64": {},
+    "net8.0/osx-arm64": {},
+    "net8.0/osx-x64": {}
+  }
+}

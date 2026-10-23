@@ -43,6 +43,34 @@ test("SEC is inert without configuration and in standalone mode", async()=>{
   }
 });
 
+test("localhost and network aliases use process identity without reconnecting or losing unpair metadata",()=>{
+  const h=browser();
+  h.set({primaryUrl:"http://192.168.1.10:8008",primaryInstanceId:"old-instance",secondaryInstanceId:"reserve-instance",sourceConnected:true});
+  h.configure();
+  assert.equal(h.controller.info().active,"http://primary:8008");
+  assert.equal(h.controller.info().onSecondary,false);
+  h.controller.observe({serverInstanceId:"foreign-instance",sec:null});
+  assert.notEqual(h.controller.info().config,null,"an unrelated server cannot remove the pair");
+  h.controller.observe({serverInstanceId:"old-instance",sec:null});
+  assert.equal(h.controller.info().config,null);
+  assert.equal(h.switches,0,"correct alias metadata must preserve active clocks/audio");
+  assert.equal(h.timers.size,0);
+});
+
+test("a directly opened reserve alias is identified and still promotes after upstream loss",()=>{
+  const h=browser();
+  const config={protocol:1,session:"session",primaryUrl:"http://192.168.1.10:8008",secondaryUrl:"http://backup:8008",
+    primaryInstanceId:"main-instance",secondaryInstanceId:"reserve-instance",role:"secondary",ready:true,sourceConnected:true,switchAll:false};
+  h.set(config);
+  h.controller.observe({serverInstanceId:"reserve-instance",sec:config});
+  assert.equal(h.controller.info().onSecondary,true);
+  h.controller.contact();h.controller.check();
+  assert.equal(h.calls.filter(call=>call.method === "POST").length,0);
+  assert.equal(h.switches,0);
+  h.set({sourceConnected:false});h.controller.check();
+  assert.equal(h.calls.filter(call=>call.method === "POST").length,1);
+});
+
 test("reserve probes do not extend primary health, and failover waits for 20 seconds", async()=>{
   const h=browser();h.configure();h.controller.contact();
   h.at(19999);h.controller.check();

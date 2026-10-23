@@ -9,6 +9,11 @@ timer-cert.pfx
 *.jks
 android/keystore.properties
 android/.fdv-release-signing-password.txt
+android/.gradle/
+android/build/
+android/app/build/
+android/app/src/main/assets/timer.html
+android/local.properties
 
 # Dependencies and generated files
 node_modules/

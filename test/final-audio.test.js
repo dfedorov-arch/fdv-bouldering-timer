@@ -33,14 +33,16 @@ function harness({ offset = 0, buffered = false, initialElapsed = 234, oneShot =
       activeSettings: { rotationSeconds: 240, breakSeconds: 0, oneShot } },
     serverNow: () => now, activeSettings: () => context.state.activeSettings, t: key => key,
     standaloneMode: false, iosAudioWorkaroundEnabled: false,
+    audioSchedulerHealth: { needsReschedule: false },
     audioUserOffsetMs: offset, audioScheduleAheadSeconds: 2.8, audioPrewarmSeconds: 2,
-    audioPrewarmBeforeBufferSeconds: 1, serverTimerLookaheadSeconds: 1.25,
+    audioPrewarmBeforeBufferSeconds: 1, audioEarlyPrewarmSeconds: 10, serverTimerLookaheadSeconds: 1.25,
     staleSignalGraceMs: 500, signalLateGraceMs: { rotationBoundary: 1200, warn: 300, warm: 1000, prewarm: 1000 },
     suppressPhaseSignalsUntil: 0, performanceDiagnosticsLevel: 0,
     performanceAudioKeepaliveExperiment: false,
     soundBuffer: () => buffered ? { duration: 0.1 } : null,
     soundSource: () => "", syntheticWarningDurationMs: 100, warningSeparationGuardMs: 20,
     canPlaySound: () => true, flash: noop, signal: noop,
+    stopSpeakerKeepAwake: noop,
     updateConnectionWarning: noop,
     schedulePerformanceAudioKeepalive: noop, scheduleFestivalAnnouncements: noop,
     scheduleSignalAt: noop, loadAudioBuffers: () => null,
@@ -68,8 +70,8 @@ function harness({ offset = 0, buffered = false, initialElapsed = 234, oneShot =
   });
   Object.defineProperty(context, "audioContext", { get: () => buffered ? { state: "running", currentTime: now / 1000 } : null });
   vm.runInContext(`
-    let audioScheduleGeneration = 0, lastSegmentIndex = -1, lastPhaseSignalKey = "", scheduledFinalSignalKey = "";
-    let clockCalibrationPending = false;
+    let audioScheduleGeneration = 0, breakWarningMuteGeneration = 0, lastSegmentIndex = -1, lastPhaseSignalKey = "", scheduledFinalSignalKey = "";
+    let clockCalibrationPending = false, pageAudioSuspended = false;
     let signalTimers = [], transitionSignalTimers = [], scheduledAudioNodes = [];
     let scheduledSignalKeys = new Set(), playedSignalKeys = new Set(), scheduledPhaseSignalKeys = new Set();
     ${["elapsedSeconds", "getCurrentSegment", "serverTimeForElapsed", "delayUntilServerTime", "isServerSignalCurrent",
@@ -77,7 +79,7 @@ function harness({ offset = 0, buffered = false, initialElapsed = 234, oneShot =
       "warningPlaybackDurationMs", "warningFallbackSuppressionReason", "fallbackPlaybackSuppressionReason",
       "scheduleSegmentTimeoutAt", "scheduleServerTimeoutAt", "scheduleBufferedSignalAt", "nextPhaseSignalKey",
       "transitionSoundKind", "schedulePhaseTransitionAt", "clearSignalTimers", "clearStoppedTimerSignals",
-      "scheduleSegmentSignals", "scheduleFinalWarnings"].map(source).join("\n")}
+      "scheduleSegmentSignals", "schedulePendingStartMinute", "cancelBreakWarningAudio", "scheduleFinalWarnings"].map(source).join("\n")}
   `, context);
   context.state.timeline = [1];
   function advance(at) {
@@ -213,7 +215,64 @@ function recoveryAudioHarness({ initialElapsed = 238, buffered = false, realCloc
   };
 }
 
-test("a forced response sent while hidden rebuilds the now-visible Final end even if queued recovery fails", async () => {
+test("ten-second preparation supplements the existing close wakes for warnings and minute signals", () => {
+  const h = harness({initialElapsed:200,buffered:true});
+  const calls=[];
+  h.context.scheduleSignalAt=(segment,target,kind)=>calls.push({target,kind});
+  h.plan();
+  assert.ok(calls.some(c=>c.kind==="prewarm"&&c.target===125000),"10s before the first warning at135000");
+  assert.ok(calls.some(c=>c.kind==="prewarm"&&c.target===133000),"retain the 2s close wake");
+  const minute=harness({initialElapsed:160,buffered:true});
+  const minuteCalls=[];
+  minute.context.scheduleSignalAt=(segment,target,kind)=>minuteCalls.push({target,kind});
+  minute.plan();
+  assert.ok(minuteCalls.some(c=>c.kind==="prewarm"&&c.target===110000),"10s before minute at120000");
+  assert.ok(minuteCalls.some(c=>c.kind==="prewarm"&&c.target===116200),"retain buffer prewarm");
+  assert.ok(minuteCalls.some(c=>c.kind==="warm"&&c.target===119200),"retain final close wake");
+});
+
+test("pending-start MINUTE and repeating scheduled START each prepare ten seconds ahead", () => {
+  const h=harness({initialElapsed:0,oneShot:false,buffered:true});
+  const calls=[];
+  h.context.state.serverStartedAt=180000;
+  h.context.scheduleSignalAt=(segment,target,kind)=>calls.push({target,kind});
+  h.plan();
+  assert.ok(calls.some(c=>c.kind==="prewarm"&&c.target===110000),"MINUTE at120000");
+  assert.ok(calls.some(c=>c.kind==="prewarm"&&c.target===170000),"START at180000");
+});
+
+test("hidden Final keeps every warning and one end, including a health rebuild retaining submitted buffers", () => {
+  const h = recoveryAudioHarness({ initialElapsed: 234, buffered: true });
+  h.context.document.hidden = true;
+  h.plan();
+  const submitted = h.get("scheduledAudioNodes").slice();
+  assert.ok(submitted.length >= 5);
+  h.advance(100500);
+  h.context.rescheduleStandaloneSignals({ preserveBufferedAudio: true, futureOnly: true });
+  assert.equal(h.get("audioScheduleGeneration"), 0);
+  assert.ok(submitted.every(node => h.get("scheduledAudioNodes").includes(node) && !node.cancelled));
+  h.advance(106200);
+  assert.equal(h.sounds.filter(sound => sound.kind === "warn").length, 5);
+  assert.equal(h.sounds.filter(sound => sound.kind === "end").length, 1);
+  assert.equal(h.sounds.find(sound => sound.kind === "end").at, 106000);
+});
+
+test("health rebuild never catches up a just-missed minute warning or scheduled-start minute", () => {
+  for (const countdownOnly of [false, true]) {
+    const h = recoveryAudioHarness({ initialElapsed: 180.5, buffered: true });
+    h.context.document.hidden = true;
+    if (countdownOnly) {
+      h.context.state.countdownOnly = true;
+      h.context.state.serverStartedAt = h.context.serverNow() + 59500;
+    }
+    h.context.rescheduleStandaloneSignals({ preserveBufferedAudio: true, futureOnly: true });
+    h.advance(101000);
+    assert.equal(h.sounds.filter(sound => sound.kind === "minute").length, 0);
+    assert.equal(h.events.filter(event => event.stage === "plan" && event.kind === "minute").length, 0);
+  }
+});
+
+test("a forced response crossing visibility rebuilds Final end even if queued recovery fails", async () => {
   for (const buffered of [false, true]) {
     const h = recoveryAudioHarness({ buffered });
     h.context.document.hidden = true;
@@ -223,6 +282,7 @@ test("a forced response sent while hidden rebuilds the now-visible Final end eve
     assert.equal(h.requests.length, 1);
     h.context.document.hidden = false;
     h.context.resumeClientSync({ restorePage: true });
+    h.context.queueClientRecoverySync({ reason: "concurrent-page-return" });
     await h.complete(0);
     assert.equal(h.policies[0].replaceAudioSchedule, true);
     assert.equal(h.policies[0].rescheduleSignals, true,
@@ -378,6 +438,94 @@ test("ordinary Classic/ Festival boundary keys and stop policy are unchanged", (
   const generation = h.get("audioScheduleGeneration");
   h.stop(false);
   assert.equal(h.get("audioScheduleGeneration"), generation);
+});
+
+test("muting break warnings keeps all rotation warnings, flashes and the exact next-start boundary", () => {
+  for (const buffered of [false, true]) {
+    const h = harness({initialElapsed:249,oneShot:false,buffered});
+    h.context.state.activeSettings.breakSeconds = 15;
+    h.context.state.muteBreakWarnings = true;
+    let flashes = 0; h.context.flash = () => flashes++;
+    h.plan(); h.advance(106100);
+    assert.deepEqual(h.sounds.map(s=>s.kind),["start"]);
+    assert.equal(h.sounds[0].at,106000);
+    assert.equal(flashes,6,"five visual warnings plus transition");
+    const rotation = harness({oneShot:false,buffered});
+    rotation.context.state.muteBreakWarnings = true;
+    rotation.plan(); rotation.advance(106100);
+    assert.deepEqual(rotation.sounds.map(s=>s.kind),["warn","warn","warn","warn","warn","start"]);
+  }
+});
+
+test("turning mute on cancels an imminent break warning without moving or cancelling start", () => {
+  const h = harness({initialElapsed:249,oneShot:false,buffered:true});
+  h.context.state.activeSettings.breakSeconds = 15;
+  h.plan(); h.advance(100850);
+  const imminent = h.nodes.find(n=>n.kind==="warn");
+  h.context.state.muteBreakWarnings = true;
+  h.context.cancelBreakWarningAudio(); h.plan(); h.advance(106100);
+  assert.equal(imminent.cancelled,true);
+  assert.deepEqual(h.sounds.map(s=>s.kind),["start"]);
+  assert.equal(h.sounds[0].at,106000);
+});
+
+test("pending scheduled start has one minute signal at its canonical target, including Final and offsets", () => {
+  for (const buffered of [false,true]) for (const oneShot of [false,true]) for (const offset of [-500,0,500]) {
+    const h = harness({buffered,oneShot,offset});
+    h.context.state.serverStartedAt = 165000;
+    h.context.state.countdownOnly = oneShot;
+    h.context.schedulePendingStartMinute();
+    h.advance(104000);
+    h.context.clearSignalTimers(); h.context.schedulePendingStartMinute();
+    h.advance(106000);
+    assert.deepEqual(h.sounds.map(s=>s.kind),["minute"]);
+    assert.equal(h.sounds[0].at,105000+offset);
+    h.context.schedulePendingStartMinute(); h.advance(106500);
+    assert.equal(h.sounds.length,1,"no duplicate on state/recovery");
+  }
+});
+
+test("pending-start minute waits for calibration and never replays stale, cancelled or manual starts", () => {
+  for (const buffered of [false,true]) {
+    for (const mode of ["calibration","stale","stop","manual"]) {
+      const h = harness({buffered});
+      h.context.state.serverStartedAt = mode==="stale" ? 150000 : 165000;
+      if (mode==="calibration") h.set("clockCalibrationPending = true;");
+      if (mode==="manual") h.context.state.manualStartLeadMs = 300;
+      h.context.schedulePendingStartMinute();
+      if (mode==="stop") { h.context.state.running=false; h.context.clearSignalTimers(false,true); }
+      h.advance(106000);
+      assert.equal(h.sounds.length,0,mode);
+    }
+  }
+});
+
+test("scheduled-start warning is not replayed after a clock-coordinate or audio-offset correction", () => {
+  const h = harness({buffered:true});
+  h.context.state.serverStartedAt = 165000;
+  h.context.state.serverStartedAtWall = 1791460800000;
+  h.context.schedulePendingStartMinute(); h.advance(105100);
+  h.context.clearSignalTimers();
+  h.context.state.serverStartedAt += 1000;
+  h.context.audioUserOffsetMs = 500;
+  h.context.schedulePendingStartMinute(); h.advance(107000);
+  assert.deepEqual(h.sounds.map(s=>s.kind),["minute"]);
+});
+
+test("an audio buffer loading across mute on/off cannot resurrect an old break-warning batch", async () => {
+  const h = harness({initialElapsed:249,oneShot:false,buffered:true});
+  h.context.state.activeSettings.breakSeconds=15;
+  let loaded=false, resolve;
+  const loading=new Promise(r=>{resolve=r;});
+  h.context.soundBuffer=()=>loaded?{duration:0.1}:null;
+  h.context.loadAudioBuffers=()=>loading;
+  h.plan();
+  h.context.state.muteBreakWarnings=true;
+  h.context.cancelBreakWarningAudio(); h.plan();
+  h.context.state.muteBreakWarnings=false; h.plan();
+  loaded=true; resolve(); await Promise.resolve();
+  h.advance(106100);
+  assert.deepEqual(h.sounds.map(s=>s.kind),["warn","warn","warn","warn","warn","start"]);
 });
 
 test("an audio-only measured recovery preserves a warning already playing and the complete Final ending", () => {

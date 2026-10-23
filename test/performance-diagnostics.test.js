@@ -40,7 +40,8 @@ test("modern performance diagnostics are opt-in and preserve critical render ord
   assert.match(index, /audioUserOffsetMs:\s*event\.audioUserOffsetMs \?\? null/);
   assert.match(index, /nextSignalTargetServerTimeMs:\s*event\.nextSignalTargetServerTimeMs \?\? null[\s\S]*?scheduledStopServerTimeMs:\s*event\.scheduledStopServerTimeMs \?\? null[\s\S]*?scheduledDurationMs:\s*event\.scheduledDurationMs \?\? null/);
   assert.match(index, /function performanceAudioTargetDetails\([^)]*explicitDetails[^)]*\)[\s\S]*?canonicalTargetServerTimeMs[\s\S]*?audioUserOffsetMs/);
-  assert.match(index, /function canPlaySound\(\) \{\s*if \(performanceSoundForced\) return true;/);
+  assert.match(index, /function browserSoundRequested\(\) \{\s*if \(performanceSoundForced\) return true;/);
+  assert.match(index, /function canPlaySound\(\) \{\s*if \(pageAudioSuspended \|\| nativeAudioRoute\?\.suppressed\(\)\) return false;\s*return browserSoundRequested\(\);/);
   assert.match(index, /function performanceAudioTarget\(signalKey\)[\s\S]*?if \(!normalizedSignalKey\) return null;[\s\S]*?if \(!targetText\) return null;/);
   assert.match(index, /function shouldUseManualStartAudioLead\(\)[\s\S]*?if \(performanceSoundForced\) return true;/);
   assert.match(index, /forcedByDiagnostics:\s*performanceSoundForced/);
@@ -91,7 +92,7 @@ test("sparse diagnostics trace every technical audio prewarm to a terminal outco
   assert.match(index, /function performancePrewarmPlanKey\([^)]*\)[\s\S]*?if \(!performanceLongRunDiagnostics/);
   assert.match(index, /function recordPerformancePrewarmLifecycle\([^)]*\)[\s\S]*?recordPerformanceAudioClock\(stage/);
   assert.match(index, /function scheduleSignalAt\([^)]*\)[\s\S]*?recordPerformancePrewarmLifecycle\("prewarm-plan", plan\)[\s\S]*?return;/);
-  assert.match(index, /scheduleServerTimeoutAt\(soundTargetServerTime,[\s\S]*?wakeAudioOutput\(kind\);\s*finishPerformancePrewarmPlan\(planKey, "prewarm-fire"/);
+  assert.match(index, /scheduleServerTimeoutAt\(soundTargetServerTime,[\s\S]*?wakeAudioOutput\(kind, isCurrentPrewarm\);\s*finishPerformancePrewarmPlan\(planKey, "prewarm-fire"/);
   assert.match(index, /onStale:\s*\(\) => \{[\s\S]*?finishPerformancePrewarmPlan\(planKey, "prewarm-stale"[\s\S]*?scheduler-window-missed/);
   assert.match(index, /function finalizeClearedPerformancePrewarmPlans\([^)]*\)[\s\S]*?"prewarm-cancelled"[\s\S]*?cancellationReason/);
   assert.match(index, /function clearSignalTimers\([^)]*\) \{[\s\S]*?finalizeClearedPerformanceAudioPlans\(preserveTransition\);\s*finalizeClearedPerformancePrewarmPlans\([\s\S]*?signalTimers\.forEach/);
@@ -124,7 +125,7 @@ test("perf=4 isolates the Android audio-clock keepalive experiment from normal o
   assert.match(index, /recordPerformanceAudioClock\("keepalive-start"[\s\S]*?startLatenessMs:[\s\S]*?scheduledDurationMs:/);
   assert.match(index, /recordPerformanceAudioClock\("keepalive-end"[\s\S]*?boundaryLatenessMs:/);
   assert.match(index, /function schedulePerformanceAudioKeepalive\(segment\)[\s\S]*?Math\.max\(segment\.start, segment\.end - performanceAudioKeepaliveLeadSeconds\)[\s\S]*?scheduleSegmentTimeoutAt/);
-  assert.match(index, /function scheduleSegmentSignals\(segment, remaining, duration, includePhase = true\) \{[\s\S]*?if \(document\.hidden \|\| clockCalibrationPending\)[\s\S]*?clearSignalTimers\(true\);\s*if \(!state\.running\) return;\s*schedulePerformanceAudioKeepalive\(segment\);/);
+  assert.match(index, /function scheduleSegmentSignals\(segment, remaining, duration, includePhase = true, options = \{\}\) \{[\s\S]*?if \(pageAudioSuspended \|\| clockCalibrationPending\)[\s\S]*?clearSignalTimers\(true, false, Boolean\(options\.preserveBufferedAudio\)\);\s*if \(!state\.running\) return;\s*schedulePerformanceAudioKeepalive\(segment\);/);
   assert.match(index, /function clearSignalTimers\([^)]*\) \{[\s\S]*?performanceAudioKeepaliveExperiment && \(!preserveTransition \|\| forceStopAudio\)[\s\S]*?stopPerformanceAudioKeepalive/);
   assert.match(index, /audioKeepaliveExperiment:\s*performanceAudioKeepaliveExperiment/);
 });
@@ -211,7 +212,7 @@ test("audio diagnostics identify planned signals whose scheduler window expired"
 
 test("critical audio lateness is bounded by signal meaning", () => {
   assert.match(index, /rotationBoundary:\s*1200,[\s\S]*?start:\s*1500,[\s\S]*?end:\s*1200,[\s\S]*?warn:\s*300/);
-  assert.match(index, /prewarm:\s*500,[\s\S]*?warm:\s*250/);
+  assert.match(index, /prewarm:\s*Infinity,[\s\S]*?warm:\s*Infinity/);
   assert.match(index, /if \(kind === "warm" \|\| kind === "prewarm"\) return signalLateGraceMs\[kind\]/);
   assert.match(index, /Number\(remote\.elapsed \|\| 0\) \* 1000 <= signalLateGraceMs\.start/g);
   assert.match(index, /lateGraceMs:\s*Math\.max\(0, signalLateGraceMs\.start - manualStartWatchdogDelayMs\)/);

@@ -12,7 +12,7 @@ const server = fs.readFileSync(path.join(root, "serve-bouldering-timer.js"), "ut
 test("server persists and broadcasts the flashing preference", () => {
   assert.match(server, /flashing: config\.flashing/);
   assert.match(server, /if \(type === "flashing"\) \{\s*timerState\.flashing = Boolean\(body\.enabled\);/);
-  assert.match(server, /"flashing",\s*"festivalAnnouncements"/);
+  assert.match(server, /"flashing",\s*"muteBreakWarnings",\s*"limitedControlClientIds",\s*"festivalAnnouncements"/);
 });
 
 test("clients apply remote flashing and keep standalone flashing locally", () => {

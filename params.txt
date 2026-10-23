@@ -29,6 +29,14 @@ festival_announcements=true
 flashing=true
 no_sound_warm=false
 
+# Keep BT speakers active during quiet periods, including pauses/waiting.
+# A short quiet tone is not guaranteed inaudible or effective on every speaker.
+# Restart the server after changing these parameters. Gain is linear amplitude.
+speaker_keep_awake=true
+speaker_keep_awake_interval_seconds=180
+speaker_keep_awake_gain=0.006
+speaker_keep_awake_frequency_hz=440
+
 # Name of a subfolder inside beeps.
 sound_profile=FSR_2026
 

@@ -32,6 +32,10 @@ function createMacLauncherFixture({
   const macos = path.join(app, "Contents", "MacOS");
   fs.mkdirSync(macos, { recursive: true });
   fs.writeFileSync(path.join(macos, "fdv-bouldering-timer"), "launcher");
+  fs.mkdirSync(path.join(root, "native-audio"));
+  fs.writeFileSync(path.join(root, "native-audio", "fdv-audio-player"), "native-player");
+  fs.writeFileSync(path.join(root, "native-audio", "NLAYER-LICENSE.txt"), "license");
+  fs.writeFileSync(path.join(root, "native-audio", "README.md"), "readme");
   if (includePdb) fs.writeFileSync(path.join(macos, "fdv-bouldering-timer.pdb"), "symbols");
   fs.writeFileSync(path.join(app, "Contents", "Info.plist"), [
     "<plist><dict>",
@@ -132,4 +136,19 @@ test("targeted packaging rejects an unknown platform", () => {
 
   assert.equal(result.status, 2);
   assert.match(result.stderr, /Unknown build target: plan9-x64/);
+});
+
+test("Unix release packaging rejects a launcher without its native audio helper", () => {
+  const fixture = createMacLauncherFixture();
+  const environment = cleanLauncherEnvironment();
+  environment.MACOS_LAUNCHER_ARM64 = fixture.app;
+  fs.unlinkSync(path.join(fixture.root, "native-audio", "fdv-audio-player"));
+  try {
+    const result = spawnSync("bash", [buildScript, "test-build", "--target=macos-arm64", "--preflight-only"], {
+      cwd: projectRoot, env: environment, encoding: "utf8"
+    });
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, /Required native audio player was not found/);
+    assert.doesNotMatch(result.stdout + result.stderr, /Downloading node-/);
+  } finally { fs.rmSync(fixture.root, { recursive: true, force: true }); }
 });

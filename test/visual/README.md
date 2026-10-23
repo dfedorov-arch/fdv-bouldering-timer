@@ -1,5 +1,11 @@
 # Visual regression tests
 
+Build 424 adds a hidden real-Web-Audio case checking the 10-second early target, a technical warm delayed over 500 ms by a real JS busy interval, unchanged canonical anchor/audible grace and paused-client suppression. Node tests use actual production scheduling/wake functions with one-second callback batching, long delays, positive/negative offsets, run/phase/lifecycle/calibration changes, async resume races and sub-ms projection of the same calendar start. No layout or continuous keepalive change is included.
+
+Validation424: clock/controls/Secondary25/25 in one run; after the final sub-ms calendar-start predicate adjustment, the affected hidden prewarm and scheduled Classic/Final MINUTE cases3/3. Node440 total,436 pass,4 expected opt-in skips; Unix-only release preflight/macOS launcher tests excluded on Windows as before. Full78 visual cases were not rerun.
+
+Build423 adds desktop/mobile real Chromium Web Audio checks with deterministic hidden visibility, a real4.4s JS busy interval, measured audio-clock-dependent preservation/replacement, canonical next-start planning, and remote Pause/Stop while hidden. Another scenario suspends/resumes the real AudioContext and dispatches freeze/resume lifecycle events. Hidden Classic/Final scheduled-start MINUTE cases retain their canonical anchor and deduplicate the cue. These are controlled browser checks, not claims about physical device sleep or every browser's background policy. Node tests independently control JS/audio progress, resume rejection/pending Stop, future-only recovery, warning/end deduplication, iOS HTML independence and unchanged clock recovery. Final clock/controls/Secondary:24/24; earlier full76:74 passed, with the two old language/LAN tests corrected to measure after actual audio-device startup and passing in the final24. All53 layout cases passed in that full run; current77 was not rerun as one final command.
+
 The suite starts an isolated timer server, launches the pinned Playwright Chromium build, and verifies layout and interaction behavior. It never uses the production server or changes its runtime state.
 
 ## Setup and commands
@@ -25,9 +31,22 @@ Never update snapshots only to make a test pass. Prefer a numeric geometry asser
 
 ## Current coverage
 
-Build 416 adds SEC→current-primary round trips on modern/Legacy displays and group return when the operator is on a following standby, without changing either server's authority epoch/start anchor. Diagnostic geometry checks cover 320, 360, 393, 768, 1024, 1280, 1600 and 1920 pixels, all eight main badges on one line with order-control clearance, LEG everywhere and a 320-pixel row without SEC. LIST layout remains independent. Deterministic controller tests verify that consumed manual return commands survive reload and cannot bounce a later automatic failover back to a failed primary.
+Build420 adds an authenticated launcher-language scenario with real Modern and
+Legacy pages. Both languages propagate while the canonical monotonic start and
+minute-signal key/target remain unchanged. As with the existing browser language
+button, SSE version changes may rebuild future audio nodes; this is not an audio
+scheduler rewrite. Node tests cover scoped token/body/origin authorization,
+PIN/primary preservation, persistence, no public token leak and reserve forwarding.
+Native Windows tests additionally click the actual launcher button, execute its
+asynchronous HTTP worker against an isolated server and check CLR2 compatibility.
 
-`secondary.spec.js` launches two isolated real Node servers, separate Modern operator/viewer contexts and a Legacy page. It pairs SEC through the real dialog, preserves already scheduled Web Audio objects/generation, moves one display without navigation, combines registries and performs group takeover. It verifies automatic role reversal, moves one screen to the recovered reserve, then transfers the whole group a second time to the same process. It captures `help-assets/secondary-server.png`. A second scenario kills the primary, checks automatic cutover after the 20-second threshold and continuous elapsed/client identity, restarts the old primary and verifies its return as reserve without failback. It never stops the operator's server. Node tests additionally cover changed operator/PIN/lists, pending Final recovery, lost reversal acknowledgements, inaccessible return addresses and retired epochs. Real-device CORS/TLS/audio tests are still required.
+Build 418 adds live reserve disconnect failures in Russian/English, exact blocking-browser identification, return/expiry/success without clearing an explicitly tracked future audio node, and localized network-address errors. A real LAN-interface case opens both operator and reserve display through localhost aliases, pairs using the reserve LAN address, returns the display to the verified primary LAN origin with actual CORS, then unpairs while preserving the operator endpoint, AudioContext and schedule generation. These isolated servers listen on ephemeral ports; the operator's running server is never used. Node tests cover route-selected IPv4/IPv6 addresses, HTTPS/domain preservation, reverse identity rejection and current-registry removal, including new clients before a heartbeat and expiry. No physical NAT/VDS/TLS topology is simulated by the LAN test.
+
+Build 417 protects URL/text fields, contenteditable elements and open dialogs from global timer hotkeys. The Secondary setup regression types uppercase HTTP/HTTPS and hostname letters P/Z as real keystrokes, checks both languages and unchanged running/start state, verifies full names in dialog/tooltips while compact buttons/badges retain SEC, and confirms ordinary P/Z/Ctrl+Q shortcuts outside editing still work. Pairing scenarios now type the address instead of assigning its value.
+
+Build 416 adds Secondary→current-primary round trips on modern/Legacy displays and group return when the operator is on a following standby, without changing either server's authority epoch/start anchor. Diagnostic geometry checks cover 320, 360, 393, 768, 1024, 1280, 1600 and 1920 pixels, all eight main badges on one line with order-control clearance, LEG everywhere and a 320-pixel row without a Secondary server. LIST layout remains independent. Deterministic controller tests verify that consumed manual return commands survive reload and cannot bounce a later automatic failover back to a failed primary.
+
+`secondary.spec.js` launches two isolated real Node servers, separate Modern operator/viewer contexts and a Legacy page. It pairs a Secondary server through the real dialog, preserves already scheduled Web Audio objects/generation, moves one display without navigation, combines registries and performs group takeover. It verifies automatic role reversal, moves one screen to the recovered reserve, then transfers the whole group a second time to the same process. It captures `help-assets/secondary-server.png`. A second scenario kills the primary, checks automatic cutover after the 20-second threshold and continuous elapsed/client identity, restarts the old primary and verifies its return as reserve without failback. It never stops the operator's server. Node tests additionally cover changed operator/PIN/lists, pending Final recovery, lost reversal acknowledgements, inaccessible return addresses and retired epochs. Real-device CORS/TLS/audio tests are still required.
 
 `clock.spec.js` uses an isolated controlled-clock server and the actual modern page. It delays the initial measured HTTP response while allowing SSE and offsets the device clock by five seconds: the page must show synchronization, create no audio plans/nodes or played keys, and recover after measurement. It also steps the server calendar clock forward/backward by two minutes while monotonic time advances normally, asserting unchanged competition anchors/version, no sound-schedule clearing, preserved Web Audio nodes, and continuous elapsed time. The pending-state screenshot is captured as `help-assets/initial-clock-sync.png`.
 
@@ -71,6 +90,14 @@ The old television is represented by a `962×541` CSS viewport even though its p
 
 These compatibility cases use modern Chromium with selected old-browser capabilities disabled, not an actual Chrome 29 engine. Final hardware confirmation still requires the television.
 
+The new APK's server mode uses this same server page; it does not introduce an
+alternate browser clock/audio implementation. Native mode selection, screen-on,
+Back and safe-area contracts are tested separately by the JVM harness in
+`test/android-insets.test.js`. Actual WebView/screen-off/speaker behavior is not
+covered by desktop Playwright: follow the physical-device matrix in
+`android/README.md` before competition use. Do not label these browser captures
+as native APK screenshots.
+
 ## Test data and artifacts
 
 - The runner is Playwright with `test/visual/playwright.config.js`.
@@ -79,3 +106,9 @@ These compatibility cases use modern Chromium with selected old-browser capabili
 - Generated reports and transient results are ignored and are not product documentation.
 
 User-guide screenshots live separately in `help-assets/`. Update them through a real browser after the interface and visual tests are stable; do not copy regression-test diffs into the manual.
+
+Build 421 `controls.spec.js` verifies CTRL assignment/revocation, hidden settings, buttons/hotkeys/Screen, gray Legacy availability, shared break mute with exact canonical start target, and one scheduled-start MINUTE in Classic/Final with real Web Audio. Unit coverage tests exact sound targets for buffered/fallback paths and offsets, initial calibration/stale/cancel guards, imminent break-node cancellation and preserved visual/rotation warnings. Server tests cover hostile runtime payloads, PIN/role isolation, persistence and reverse-RPC deduplication. The compact diagnostics matrix now measures nine badges with SEC.
+
+Build422 adds RU/EN checkbox-column/default/persistence assertions and folded/unfolded/mobile viewport tests with and without lists. CSS viewport simulation makes large vh 120px taller than visible dvh and reserves a 24px gesture inset; all four buttons must fit without scrolling while viewport dimensions change. The real user device is not emulated at the browser-engine or hardware level.
+
+Build425 native-audio.spec.js tests automatic local output handoff with a fake device, preserved browser offset, mute/re-enable/Pause, continued native scheduling while Chromium is frozen, remote Stop, page closure and locality/origin rejection. RU/EN documentation captures use the actual native-route correction panel. These are separate from the opt-in silent Windows output-device test and do not measure speaker synchronization.

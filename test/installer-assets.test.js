@@ -43,10 +43,10 @@ test("release workflow produces installable assets for every supported operating
   assert.match(androidUpdateWorkflow, /android-actions\/setup-android@v3\s+with:\s+packages: platform-tools/);
 });
 
-test("Android package is a local standalone timer and suppresses browser installation UI", () => {
+test("Android package retains its standalone timer alongside a native server launcher", () => {
   const builder = read("scripts/build-standalone-html.js");
   const index = read("index.html");
-  const activity = read("android/app/src/main/java/ru/fdv/boulderingtimer/standalone/MainActivity.java");
+  const activity = read("android/app/src/main/java/ru/fdv/boulderingtimer/standalone/TimerActivity.java");
   const manifest = read("android/app/src/main/AndroidManifest.xml");
   assert.match(builder, /process\.argv\.includes\("--android"\)/);
   assert.match(builder, /window\.FDV_ANDROID_STANDALONE/);
@@ -64,7 +64,13 @@ test("Android package is a local standalone timer and suppresses browser install
   const foregroundIcon = read("android/app/src/main/res/drawable/ic_launcher_foreground.xml");
   assert.match(foregroundIcon, /M54,61L54,40M54,61L70,50/);
   assert.match(foregroundIcon, /M49,61a5,5/);
-  assert.doesNotMatch(manifest, /android\.permission\.INTERNET/);
+  assert.match(manifest, /android\.permission\.INTERNET/);
+  assert.match(manifest, /android:usesCleartextTraffic="true"/);
+  assert.match(manifest, /android:name="\.MainActivity" android:exported="true"/);
+  assert.match(manifest, /android:name="\.TimerActivity" android:exported="false"/);
+  assert.match(manifest, /android:configChanges="orientation\|screenSize\|smallestScreenSize\|keyboardHidden"/);
+  assert.match(manifest, /android:enableOnBackInvokedCallback="true"/);
+  assert.doesNotMatch(manifest, /<service|FOREGROUND_SERVICE|WAKE_LOCK/);
 });
 
 test("desktop installers include the installed marker while portable builds omit it", () => {

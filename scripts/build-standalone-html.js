@@ -61,6 +61,8 @@ function build() {
   let html = embedClockFonts(read("index.html"));
   const offlineAudio = embedTimerFont(read("lib/offline-audio.js"));
   const clientActionTransport = read("lib/client-action-transport.js");
+  const clientServerAudio = read("lib/client-server-audio.js");
+  html = html.replace('<script src="lib/speaker-keep-awake.js"></script>', () => scriptTag(read("lib/speaker-keep-awake.js")));
   const clientSecondaryServer = read("lib/client-secondary-server.js");
   const startListDisplay = read("lib/start-list-display.js");
   const startList = read("lib/start-list.js");
@@ -104,6 +106,8 @@ function build() {
     /\s*<script src="lib\/client-action-transport\.js"><\/script>/,
     `\n  ${scriptTag(clientActionTransport)}`
   );
+  html = html.replace(/\s*<script src="lib\/client-server-audio\.js"><\/script>/,
+    () => `\n  ${scriptTag(clientServerAudio)}`);
   html = html.replace(
     /\s*<script src="lib\/client-secondary-server\.js"><\/script>/,
     () => `\n  ${scriptTag(clientSecondaryServer)}`

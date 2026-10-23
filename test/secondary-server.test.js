@@ -3,7 +3,8 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const http = require("node:http");
-const { createReplicaClock, serverAddress } = require("../lib/secondary-server");
+const os = require("node:os");
+const { createReplicaClock, serverAddress, primaryNetworkAddress } = require("../lib/secondary-server");
 const { fixture, clockOrigin } = require("./helpers/controlled-clock-server");
 
 async function sec(server, action, body = {}, options = {}) {
@@ -40,6 +41,94 @@ test("SEC addresses reject credentials and non-server URL paths", () => {
   }
 });
 
+test("primary advertisement uses the selected route only for local HTTP origins, preserving HTTPS names and ports", () => {
+  const reserve = "http://192.168.1.222:8008";
+  assert.equal(primaryNetworkAddress("http://127.0.0.1:8123", reserve, "192.168.1.10"), "http://192.168.1.10:8123");
+  assert.equal(primaryNetworkAddress("http://localhost:8123", reserve, "::ffff:10.0.0.8"), "http://10.0.0.8:8123");
+  assert.equal(primaryNetworkAddress("http://[::1]:8123", reserve, "fd00::12"), "http://[fd00::12]:8123");
+  assert.equal(primaryNetworkAddress("https://timer.example:8443", reserve, "10.0.0.8"), "https://timer.example:8443");
+  assert.equal(primaryNetworkAddress("http://192.168.1.10:8123", reserve, "10.0.0.8"), "http://192.168.1.10:8123");
+  assert.equal(primaryNetworkAddress("http://127.0.0.1:8123", "http://127.0.0.1:8124"), "http://127.0.0.1:8123");
+  for (const local of [undefined, "127.0.0.1", "0.0.0.0", "::1", "fe80::1234", "fe80::1%4"]) {
+    assert.throws(() => primaryNetworkAddress("http://localhost:8123", reserve, local), {code:"PRIMARY_NETWORK_ADDRESS_REQUIRED"});
+  }
+  assert.throws(() => primaryNetworkAddress("https://localhost:8443", reserve, "192.168.1.10"), {code:"PRIMARY_NETWORK_ADDRESS_REQUIRED"});
+});
+
+function lanAddress(t) {
+  const address = Object.values(os.networkInterfaces()).flat().find(item => item && item.family === "IPv4" && !item.internal)?.address;
+  if (!address) t.skip("A LAN IPv4 interface is required for cross-origin network advertisement");
+  return address;
+}
+
+test("localhost operator advertises a verified LAN primary and can return a reserve display", {timeout:20000}, async t => {
+  const address = lanAddress(t); if (!address) return;
+  const primary = await fixture(t,null,{listenHost:"0.0.0.0"});
+  const backup = await fixture(t,null,{listenHost:"0.0.0.0"});
+  await primary.action({type:"primary",primaryClientId:"clock-test"});
+  await primary.start({elapsedBeforePause:20});
+  const secondaryUrl = backup.baseUrl.replace("127.0.0.1",address);
+  const paired = await sec(primary,"configure",{address:secondaryUrl});
+  assert.equal(paired.status,200,JSON.stringify(paired.body));
+  assert.equal(paired.body.sec.primaryUrl,primary.baseUrl.replace("127.0.0.1",address));
+  assert.notEqual(paired.body.sec.primaryUrl,primary.baseUrl);
+  const anchor = paired.body.timerClock.startedAt;
+  const moved = await sec(primary,"switch",{targetClientId:"screen",destination:"primary"});
+  await until(async()=>(await backup.state()).sec.switchRequests.some(request=>request.clientId === "screen" && request.destination === "primary"));
+  const returned = await (await fetch(moved.body.sec.primaryUrl+"/api/state")).json();
+  assert.equal(returned.serverInstanceId,paired.body.serverInstanceId);
+  assert.equal(returned.timerClock.startedAt,anchor);
+});
+
+test("a network primary address resolving to a different process is rejected without disturbing either competition", {timeout:15000}, async t => {
+  const address = lanAddress(t); if (!address) return;
+  const primary = await fixture(t,null), backup = await fixture(t,null,{listenHost:"0.0.0.0"});
+  const wrong = await fixture(t,null,{listenHost:"0.0.0.0"});
+  await primary.action({type:"primary",primaryClientId:"clock-test"});
+  await primary.start({elapsedBeforePause:20});
+  const before = await primary.state();
+  const result = await new Promise((resolve,reject) => {
+    const request = http.request(primary.baseUrl+"/api/sec/configure", {method:"POST", headers:{
+      "content-type":"application/json", host:new URL(wrong.baseUrl.replace("127.0.0.1",address)).host
+    }}, response => {
+      let body=""; response.on("data",chunk=>{body+=chunk;});
+      response.on("end",()=>resolve({status:response.statusCode,body:JSON.parse(body)}));
+    });
+    request.on("error",reject);
+    request.end(JSON.stringify({clientId:"clock-test",address:backup.baseUrl.replace("127.0.0.1",address)}));
+  });
+  assert.equal(result.status,400);
+  assert.equal(result.body.code,"PRIMARY_ADDRESS_UNREACHABLE",JSON.stringify(result.body));
+  assert.equal((await primary.state()).sec,null);
+  assert.equal((await backup.state()).sec,null);
+  assert.equal((await primary.state()).timerClock.startedAt,before.timerClock.startedAt);
+  assert.equal((await wrong.state()).running,false);
+});
+
+test("disconnect checks the reserve registry immediately, reports only active browsers and succeeds after they expire", {timeout:20000}, async t => {
+  const primary = await fixture(t,null), backup = await fixture(t,null);
+  await primary.action({type:"primary",primaryClientId:"clock-test"});
+  await primary.start({elapsedBeforePause:20});
+  const paired = await sec(primary,"configure",{address:backup.baseUrl});
+  assert.equal(paired.status,200);
+  await fetch(backup.baseUrl+"/api/state?clientId=screen",{headers:{"user-agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/155.0.0.0 Safari/537.36"}});
+  const refused = await sec(primary,"remove");
+  assert.equal(refused.status,400);
+  assert.equal(refused.body.code,"SECONDARY_HAS_CLIENTS");
+  assert.equal(refused.body.clients.length,1);
+  assert.equal(refused.body.clients[0].id,"screen");
+  assert.match(refused.body.clients[0].label,/Chrome 155/);
+  assert.ok((await primary.state()).sec);
+  assert.ok((await backup.state()).sec);
+  await new Promise(resolve=>setTimeout(resolve,6300));
+  const removed = await sec(primary,"remove");
+  assert.equal(removed.status,200,JSON.stringify(removed.body));
+  assert.equal(removed.body.sec,null);
+  assert.equal((await backup.state()).sec,null);
+  assert.equal(removed.body.timerClock.startedAt,paired.body.timerClock.startedAt);
+  assert.equal(removed.body.running,true);
+});
+
 test("replica clock learns an independent monotonic rate and holds its timeline without packets", () => {
   let local = 100;
   const clock = createReplicaClock(() => local);
@@ -52,6 +141,22 @@ test("replica clock learns an independent monotonic rate and holds its timeline 
   const before = clock.now();
   local += 30000;
   assert.ok(Math.abs(clock.now() - before - 30030) < 0.001);
+});
+
+test("SEC baseline and forwarded changes retain per-browser native audio preference",async t=>{
+  const primary=await fixture(t,null),backup=await fixture(t,null);
+  await primary.action({type:"primary",primaryClientId:"clock-test"});
+  await primary.action({type:"serverAudioMode",targetClientId:"clock-test",enabled:false});
+  await primary.action({type:"speakerKeepAwake",enabled:false});
+  const paired=await sec(primary,"configure",{address:backup.baseUrl});
+  assert.equal(paired.status,200,JSON.stringify(paired.body));
+  assert.equal((await backup.state()).speakerKeepAwake,false);
+  await until(async()=>{try{return backup.snapshot().serverAudioDisabledClients.includes("clock-test");}catch{return false;}});
+  const forwarded=await actionThroughStandby(backup,{type:"serverAudioMode",targetClientId:"clock-test",enabled:true});
+  assert.equal(forwarded.serverAudio.enabled,true);
+  await actionThroughStandby(backup,{type:"speakerKeepAwake",enabled:true});
+  await until(async()=>(await backup.state()).speakerKeepAwake===true);
+  await until(async()=>!backup.snapshot().serverAudioDisabledClients.includes("clock-test"));
 });
 
 test("hot SEC mirrors state, preserves clock anchors, proxies commands once, and fences the old server on takeover", { timeout: 25000 }, async t => {

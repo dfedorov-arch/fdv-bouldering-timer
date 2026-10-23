@@ -94,6 +94,21 @@ target_enabled() {
   [[ "$BUILD_TARGET" == "all" || "$BUILD_TARGET" == "$1" ]]
 }
 
+native_audio_path() {
+  local launcher="$1"
+  printf '%s/native-audio/fdv-audio-player' "$(dirname "$launcher")"
+}
+
+require_unix_audio() {
+  local launcher="$1"
+  local audio_dir
+  audio_dir=$(dirname "$(native_audio_path "$launcher")")
+  if [[ -z "$launcher" || ! -f "$audio_dir/fdv-audio-player" || ! -f "$audio_dir/NLAYER-LICENSE.txt" || ! -f "$audio_dir/README.md" ]]; then
+    echo "Required native audio player was not found next to the Unix launcher: $launcher" >&2
+    return 1
+  fi
+}
+
 validate_launchers() {
   if [[ "$ALLOW_MISSING_LAUNCHERS" == true ]]; then
     echo "Launcher check skipped by explicit --without-launchers mode." >&2
@@ -105,8 +120,12 @@ validate_launchers() {
   if target_enabled "macos-x64"; then require_launcher "MACOS_LAUNCHER_X64" "${MACOS_LAUNCHER_X64:-}" "mac-app" || failed=true; fi
   if target_enabled "linux-arm64"; then require_launcher "LINUX_LAUNCHER_ARM64" "${LINUX_LAUNCHER_ARM64:-}" "file" || failed=true; fi
   if target_enabled "linux-x64"; then require_launcher "LINUX_LAUNCHER_X64" "${LINUX_LAUNCHER_X64:-}" "file" || failed=true; fi
+  if target_enabled "macos-arm64"; then require_unix_audio "${MACOS_LAUNCHER_ARM64:-}" || failed=true; fi
+  if target_enabled "macos-x64"; then require_unix_audio "${MACOS_LAUNCHER_X64:-}" || failed=true; fi
+  if target_enabled "linux-arm64"; then require_unix_audio "${LINUX_LAUNCHER_ARM64:-}" || failed=true; fi
+  if target_enabled "linux-x64"; then require_unix_audio "${LINUX_LAUNCHER_X64:-}" || failed=true; fi
   if [[ "$failed" == true ]]; then
-    echo "Release packaging requires the GUI launcher for every selected target. Use --without-launchers only for an explicitly incomplete local package." >&2
+    echo "Release packaging requires the GUI launcher for every selected target, including its native audio player on Unix. Use --without-launchers only for an explicitly incomplete local package." >&2
     exit 1
   fi
 }
@@ -275,6 +294,14 @@ SH
       find "$gui_launcher_dir" -maxdepth 1 -type f \( -name '*.so' -o -name '*.dylib' -o -name '*.json' -o -name '*.png' -o -name '*.desktop' -o -name '*.sh' \) -exec cp {} "$package/" \;
       chmod +x "$package/fdv-bouldering-timer"
     fi
+  fi
+  if [[ -n "$gui_launcher" && -f "$(native_audio_path "$gui_launcher")" ]]; then
+    local audio_dir="$package/lib/native-audio/${node_platform}-${arch}"
+    local audio_source
+    audio_source=$(dirname "$(native_audio_path "$gui_launcher")")
+    mkdir -p "$audio_dir"
+    cp "$audio_source/fdv-audio-player" "$audio_source/NLAYER-LICENSE.txt" "$audio_source/README.md" "$audio_dir/"
+    chmod +x "$audio_dir/fdv-audio-player"
   fi
   mkdir -p "$package/runtime/$runtime_name/bin"
   cp "$node_root/bin/node" "$package/runtime/$runtime_name/bin/node"

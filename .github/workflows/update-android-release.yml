@@ -26,7 +26,7 @@ jobs:
           packages: platform-tools
       - uses: gradle/actions/setup-gradle@v4
         with: { gradle-version: "8.11.1" }
-      - name: Build signed Android standalone APK
+      - name: Build signed Android APK (standalone and server client)
         env:
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}

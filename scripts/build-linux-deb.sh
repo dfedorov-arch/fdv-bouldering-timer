@@ -31,6 +31,8 @@ Section: utils
 Priority: optional
 Architecture: $DEB_ARCH
 Maintainer: FDV
+Depends: libasound2t64 | libasound2
+Recommends: espeak-ng
 Description: Network-synchronized bouldering competition timer
  Includes a local server and a desktop launcher.
 EOF

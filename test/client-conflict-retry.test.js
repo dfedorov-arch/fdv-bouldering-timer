@@ -237,7 +237,7 @@ test("actual runtime controllers do not fall back to local mutations after a ret
     const before = JSON.stringify(currentState);
     let localRenders = 0;
     const context = vm.createContext({
-      state: currentState, controlsAvailable: () => true,
+      state: currentState, controlsAvailable: () => true, timerControlsAvailable: () => true, isLimitedController: false,
       requestScreenWakeLock() {}, unlockAudio() {},
       isBeforeScheduledStart: () => scheduled,
       shouldUseManualStartAudioLead: () => true,
@@ -284,7 +284,7 @@ test("actual Stop controller ignores an older same-instance reset acknowledgemen
     }
   });
   const context = vm.createContext({state: currentState,
-    controlsAvailable: () => true, isBeforeScheduledStart: () => false,
+    controlsAvailable: () => true, timerControlsAvailable: () => true, isLimitedController: false, isBeforeScheduledStart: () => false,
     activeSettingsFromDraft: () => ({rotationSeconds: 60}),
     sendServerAction: (...args) => fixture.transport.send(...args),
     signal: kind => {if (kind === "finish") finishSounds += 1;},

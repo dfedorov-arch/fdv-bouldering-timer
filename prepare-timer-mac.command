@@ -38,6 +38,9 @@ echo "Restoring executable permissions..."
 [[ -f "$SCRIPT_DIR/fdv-bouldering-timer" ]] && /bin/chmod +x "$SCRIPT_DIR/fdv-bouldering-timer"
 [[ -f "$SCRIPT_DIR/start-timer-mac.command" ]] && /bin/chmod +x "$SCRIPT_DIR/start-timer-mac.command"
 [[ -f "$SCRIPT_DIR/create-https-certificate-mac.command" ]] && /bin/chmod +x "$SCRIPT_DIR/create-https-certificate-mac.command"
+for audio_player in "$SCRIPT_DIR"/lib/native-audio/darwin-*/fdv-audio-player(N); do
+  /bin/chmod +x "$audio_player"
+done
 
 remaining=0
 for target in "$SCRIPT_DIR/FDV Bouldering Timer.app" "$APP_EXECUTABLE" "$PORTABLE_NODE"; do
