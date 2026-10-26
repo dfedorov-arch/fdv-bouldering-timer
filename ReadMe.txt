@@ -32,6 +32,7 @@ FDV Bouldering Timer — локальный сетевой таймер для �
 - Классика: повторяющиеся ротация и короткий перерыв.
 - Фестиваль: длинный раунд и перерыв, дополнительные объявления за 60, 30, 10 и 5 минут.
 - Финал: одна ротация за запуск; следующая начинается вручную. Поддерживаются старый и новый порядок продвижения участников.
+- После «Стоп» смена начатого Финала на Классику/Фестиваль или «Старый / Новый» требует подтверждения завершения Финала. Отмена ничего не меняет; согласие сбрасывает счётчик до начала нового Финала. Смена «Старый / Новый» сохраняет длительность и число ротаций отдыха. Пауза не заменяет «Стоп».
 - При завершении на 00:00 фон и цифры сразу получают цвета перерыва (по умолчанию красный фон), без запуска отдельного перерыва. Пройденные трассы в списках обозначаются сине-фиолетовыми ромбами.
 
 Быстрый запуск
@@ -202,6 +203,7 @@ Formats
 - Classic: repeating rotation and short break.
 - Festival: long round and break with optional 60, 30, 10, and 5 minute announcements.
 - Final: one rotation per Start, followed by an operator-controlled next attempt; Old and New participant schedules are supported.
+- After Stop, changing a progressed Final to Classic/Festival or Old / New asks to end Final. Cancel preserves everything; acceptance resets the Final counter. Old / New retains duration and rest-rotation count. Pause does not replace Stop.
 - At completion on 00:00, the timer immediately uses the configured break background and text colors (red background by default), without starting a separate break. Completed routes in lists use blue-purple diamonds.
 
 Quick start

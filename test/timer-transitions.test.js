@@ -267,6 +267,32 @@ test("Final progress survives running, paused, completed and waiting states and 
   }
 });
 
+test("changing an explicitly stopped Final round format resets progress atomically, but ordinary settings do not", () => {
+  for(const [from,to] of [["old","new"],["new","old"],["old","old"],["new","new"]]) {
+    const state=baseState({activePreset:"final",runtimePreset:"final",startListFinalCycle:17,
+      activeSettings:{rotationSeconds:240,breakSeconds:0,oneShot:true,finalRoundFormat:from,finalRestRotations:3}});
+    const before=JSON.stringify(state);
+    const result=transitions.applyTimerAction(state,{type:"settings",activePreset:"final",
+      settings:{rotationMinutes:6,breakSeconds:0,oneShot:true,finalRoundFormat:to,finalRestRotations:5}});
+    assert.equal(result.state.startListFinalCycle,from===to?17:0);
+    assert.equal(result.state.activeSettings.finalRoundFormat,to);
+    assert.equal(result.state.activeSettings.rotationSeconds,360);
+    assert.equal(result.state.activeSettings.finalRestRotations,5);
+    assert.equal(result.effects.clock,"keep");assert.equal(result.effects.audioWakeCommand,null);
+    assert.equal(JSON.stringify(state),before);
+  }
+});
+
+test("changing a Final draft never clears running, paused, completed or countdown progress", () => {
+  for(const flags of [{running:true},{elapsedBeforePause:12},{completed:true},{countdownOnly:true},{waitingForManualStart:true}]) {
+    const state=baseState({activePreset:"final",runtimePreset:"final",startListFinalCycle:17,
+      activeSettings:{rotationSeconds:240,breakSeconds:0,oneShot:true,finalRoundFormat:"old"},...flags});
+    const result=transitions.applyTimerAction(state,{type:"settings",activePreset:"final",
+      settings:{rotationMinutes:4,breakSeconds:0,oneShot:true,finalRoundFormat:"new"}});
+    assert.equal(result.state.startListFinalCycle,17);
+  }
+});
+
 test("resuming a paused timer preserves its runtime preset", () => {
   const state = baseState({
     elapsedBeforePause: 12,

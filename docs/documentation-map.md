@@ -4,6 +4,8 @@ This file defines the documentation set and its source-of-truth boundaries. Prod
 
 ## User documentation
 
+Build 439 unifies end-Final confirmation for Classic/Festival and Final Old/New after Stop. Both guide languages and quick starts describe cancellation, reset-to-first-rotation, retained duration/rest count, and the unchanged Stop requirement. `format-switch.test.js`, `timer-transitions.test.js` and `visual/final-format-switch.spec.js` cover server/standalone transitions, dialog cancellation, viewers, locks and generated single-file/Android HTML persistence. Native dialogs are checked via Playwright events; existing page screenshots remain current because controls and geometry are unchanged.
+
 Build 438 includes the shared manual Final START fix released separately from main as v2.3.1 (build 437). See `releases/v2.3.1.md`, the manual-start contract in `architecture.md`, `final-manual-start.test.js`, and `visual/final-manual-start.spec.js`. No controls or layout changed, so existing screenshots remain current.
 
 Build436 adds native Core Audio/ALSA server output on macOS/Linux x64/ARM64 and the build label in Unix launchers. Shared UI/preferences/keep-awake are included in all release targets. Prerequisites, packaging and validation limits: native-audio/unix/README.md and review/cross-platform-build436.md.
