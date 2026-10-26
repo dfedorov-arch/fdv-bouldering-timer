@@ -4,6 +4,8 @@ This file defines the documentation set and its source-of-truth boundaries. Prod
 
 ## User documentation
 
+Release v2.3.1 (build 437) is a hotfix of v2.3.0 for shared manual Final START. See `releases/v2.3.1.md` and the manual-start contract in `architecture.md`. `final-manual-start.test.js` and `visual/final-manual-start.spec.js` cover both scheduling paths and real two-client delivery. No controls or layout changed, so existing screenshots remain current.
+
 | File | Audience | Purpose |
 | --- | --- | --- |
 | `README.md` | GitHub visitors | Product overview, quick start, essential features, development commands |

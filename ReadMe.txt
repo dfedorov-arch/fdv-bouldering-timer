@@ -104,6 +104,8 @@ Legacy предназначен для старых ТВ-браузеров. О�
 Звук
 ----
 
+В v2.3.1 исправлен стартовый сигнал ручного запуска Финала на дополнительных современных браузерах. После обновления перезапустите сервер и обновите все страницы таймера; звук должен быть разрешён и разблокирован на каждом звуковом устройстве. Предварительный отсчёт Финала по-прежнему требует отдельного ручного старта.
+
 Звук основного браузера и звук других браузеров настраиваются отдельно. Браузер требует хотя бы одного касания для разблокировки. Дополнительный браузер на том же компьютере, что и основной, не дублирует звук. AUDIO открывает поправку от −500 до +500 мс и тест сигналов. Профили находятся в beeps; поддерживаются WAV и MP3.
 
 Настройки и помощь
@@ -204,6 +206,8 @@ On first connection, a modern screen shows “Synchronizing time” and --:-- un
 
 Sound, settings, and help
 -------------------------
+
+v2.3.1 fixes manual Final START on other modern browsers. Restart the server and reload every timer page after upgrading; enable and unlock audio on each sound device. Final's preliminary countdown still requires a separate manual Start.
 
 Primary and remote-display sound are controlled separately. A tap is required to unlock audio. A second browser on the primary computer does not duplicate sound. AUDIO provides a −500 to +500 ms user offset and signal tests. WAV and MP3 profiles live under beeps.
 

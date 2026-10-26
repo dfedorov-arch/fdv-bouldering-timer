@@ -8,6 +8,8 @@
 
 ## Возможности
 
+В [v2.3.1](docs/releases/v2.3.1.md) исправлен стартовый сигнал ручного запуска Финала на дополнительных браузерах. После обновления перезапустите сервер и обновите все страницы; звук должен быть разрешён и разблокирован на каждом звуковом устройстве.
+
 - Форматы **Классика**, **Фестиваль** и **Финал**.
 - При завершении одноразового отсчёта на `00:00` включаются цвета перерыва (по умолчанию красный фон); пройденные трассы отмечаются сине-фиолетовыми ромбами.
 - Немедленный или отложенный старт, пауза, перемотка по полосе прогресса и ручной выбор ротации на паузе.
@@ -112,6 +114,8 @@ MIT. См. [LICENSE](LICENSE).
 A network-synchronized timer for bouldering competitions. One browser controls the event while phones, tablets, televisions, and computers on the same local network act as synchronized displays.
 
 ### Features
+
+[v2.3.1](docs/releases/v2.3.1.md) fixes manual Final START on other browsers. Restart the server and reload every page after upgrading; audio must be enabled and unlocked on each sound device.
 
 - **Classic**, **Festival**, and **Final** competition formats.
 - A completed one-shot timer at `00:00` uses the configured break colors (red background by default); completed routes use blue-purple diamonds.
