@@ -141,6 +141,8 @@ Legacy предназначен для старых ТВ-браузеров. О�
 Звук
 ----
 
+В v2.3.1 исправлен стартовый сигнал ручного запуска Финала на дополнительных современных браузерах. После обновления перезапустите сервер и обновите все страницы таймера; звук должен быть разрешён и разблокирован на каждом звуковом устройстве. Предварительный отсчёт Финала по-прежнему требует отдельного ручного старта.
+
 Дополнительный короткий прогрев запускается за 10 секунд до первого сигнала серии, минутного предупреждения и запланированного старта; ближние прогревы сохраняются. Запоздавшая техническая подготовка допускается, пока актуальны запуск и фаза. Основные сигналы сохраняют прежние допуски. no_sound_warm=true также отключает дополнительные тихие тоны.
 
 При переключении вкладки звук сохраняется. В существующем цикле таймера проверяются задержки JavaScript и ход звуковых часов. После обнаруженного разрыва восстанавливаются будущие сигналы; уже подготовленный звук сохраняется, если аудиочасы исправны. Сон устройства и принудительная заморозка страницы могут прервать воспроизведение. На Windows локальный браузер автоматически использует серверный звук (см. сборку 425).
@@ -284,6 +286,8 @@ On first connection, a modern screen, including network APK mode, shows “Synch
 
 Sound, settings, and help
 -------------------------
+
+v2.3.1 fixes manual Final START on other modern browsers. Restart the server and reload every timer page after upgrading; enable and unlock audio on each sound device. Final's preliminary countdown still requires a separate manual Start.
 
 An extra short prewarm runs 10 seconds before the first countdown/minute/scheduled-start signal, retaining the close warmups. Late technical preparation is accepted while its run and phase remain current. Competition-signal lateness limits are unchanged. no_sound_warm=true also mutes the extra quiet tones.
 

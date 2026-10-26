@@ -863,6 +863,7 @@
 
         <div id="format-final" class="platform">
           <h3>3.3. Финал</h3>
+          <p>При ручном запуске стартовый сигнал планируется по общему серверному времени на всех современных устройствах, где звук разрешён и разблокирован. Это исправлено в v2.3.1; после обновления обновите страницы на всех устройствах. Предварительный отсчёт сам по себе не запускает попытку.</p>
           <p>Одноразовый формат: каждый запуск выполняет одну ротацию и останавливается, пока оператор вручную не запустит следующую.</p>
           <ul>
             <li>Время ротации задаётся в минутах; отдельного перерыва таймера в этом формате нет.</li>
@@ -1516,6 +1517,7 @@ xattr -dr com.apple.quarantine "/полный/путь/к/fdv-bouldering-timer-m
         </div>
         <div class="platform">
           <h3>3.3. Final</h3>
+          <p>A manual Start schedules the start signal against shared server time on every modern device with audio enabled and unlocked. This is fixed in v2.3.1; reload all device pages after upgrading. The preliminary countdown does not start an attempt automatically.</p>
           <p>A one-shot format. Each Start runs one rotation and then waits for the operator. The Old list schedule sends every participant through route 1 before route 2; the New schedule moves a participant to the next route after a configurable number of complete rest rotations (3 by default). A participant on route 1 in rotation 1 prepares in rotation 4 and climbs the next route in rotation 5. This choice affects only a loaded start list.</p>
           <p>When the rotation finishes at <code>00:00</code>, the timer immediately uses the break colors (a red background by default), configured by <code>break_background_color</code> and <code>break_text_color</code>. No separate break countdown starts.</p>
           <p>To end Final and choose another format, press Stop, select Classic or Festival, and confirm “Are you sure you want to end "Final"?”. You do not need to return to Rotation 1. Cancel keeps the current Final; confirmation resets its progress, so the next Final begins at the first rotation.</p>

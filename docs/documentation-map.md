@@ -4,6 +4,8 @@ This file defines the documentation set and its source-of-truth boundaries. Prod
 
 ## User documentation
 
+Build 438 includes the shared manual Final START fix released separately from main as v2.3.1 (build 437). See `releases/v2.3.1.md`, the manual-start contract in `architecture.md`, `final-manual-start.test.js`, and `visual/final-manual-start.spec.js`. No controls or layout changed, so existing screenshots remain current.
+
 Build436 adds native Core Audio/ALSA server output on macOS/Linux x64/ARM64 and the build label in Unix launchers. Shared UI/preferences/keep-awake are included in all release targets. Prerequisites, packaging and validation limits: native-audio/unix/README.md and review/cross-platform-build436.md.
 
 Build435 corrects the unreachable sound-label width threshold. Natural desktop viewports are covered in review/sound-row-build435.md; current RU/EN wide-panel captures show the full caption.

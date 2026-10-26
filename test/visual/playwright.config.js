@@ -7,7 +7,7 @@ const root = path.resolve(__dirname, "..", "..");
 
 module.exports = defineConfig({
   testDir: __dirname,
-  testMatch: ["layout.spec.js", "clock.spec.js", "secondary.spec.js", "controls.spec.js", "native-audio.spec.js"],
+  testMatch: ["layout.spec.js", "clock.spec.js", "secondary.spec.js", "controls.spec.js", "native-audio.spec.js", "final-manual-start.spec.js"],
   fullyParallel: false,
   workers: 1,
   timeout: 45_000,

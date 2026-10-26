@@ -3212,7 +3212,7 @@
       timeline: []
     };
 
-    const pageBuildNumber = 436;
+    const pageBuildNumber = 438;
     const projectUrl = "https://github.com/dfedorov-arch/fdv-bouldering-timer";
     const buildLinkConfirmDelayMs = 550;
     const offlineSnapshotKey = "fdvBoulderingTimerOfflineSnapshot";
@@ -4735,7 +4735,8 @@
       const recentPhaseScheduled = options.includeRecentPhaseSignal
         ? scheduleRecentPhaseSignalAfterResume(segment)
         : false;
-      if (isBeforeScheduledStart() && !state.activeSettings.oneShot) {
+      if (isBeforeScheduledStart()
+        && (!state.activeSettings.oneShot || state.manualStartDisplayHold)) {
         scheduleBufferedSignalAt(segment, state.serverStartedAt, "start", true);
       }
       if (options.reason) {
@@ -6795,7 +6796,10 @@
           const recentPhaseScheduled = options.includeRecentPhaseSignal && !waitingForStart
             ? scheduleRecentPhaseSignalAfterResume(segment)
             : false;
-          if (!pageAudioSuspended && waitingForStart && !state.activeSettings.oneShot) {
+          // A manual Final start has the same shared audio lead as Classic.
+          // Its preliminary scheduled countdown must still remain silent here.
+          if (!pageAudioSuspended && waitingForStart
+            && (!state.activeSettings.oneShot || state.manualStartDisplayHold)) {
             scheduleBufferedSignalAt(segment, state.serverStartedAt, "start", true);
           }
           if (options.resumeAudioSchedule) {
