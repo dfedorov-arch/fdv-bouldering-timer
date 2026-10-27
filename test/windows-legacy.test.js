@@ -12,6 +12,36 @@ const { fixture, clockOrigin } = require("./helpers/controlled-clock-server");
 const root = path.resolve(__dirname, "..");
 const read = file => fs.readFileSync(path.join(root, file), "utf8");
 
+function assertActiveModernAuthority(state, url) {
+  assert.equal(state.sec.activeUrl, url, "The modern server must be the active authority");
+  assert.ok(state.sec.switchAll || (state.sec.role === "primary" && state.sec.primaryUrl === url
+    && state.sec.primaryInstanceId === state.serverInstanceId),
+  "Expected promoted secondary or settled modern primary: " + JSON.stringify(state.sec));
+}
+
+test("takeover assertion accepts the settled primary after automatic role reversal", {timeout:15000}, async t => {
+  const primary = await fixture(t, null), modern = await fixture(t, null);
+  await primary.action({type:"primary", primaryClientId:"clock-test"});
+  await primary.start();
+  const post = (pathname, body) => fetch(primary.baseUrl+pathname,{method:"POST",
+    headers:{"content-type":"application/json"},body:JSON.stringify({clientId:"clock-test",...body})});
+  const configured = await post("/api/sec/configure",{address:modern.baseUrl});
+  assert.equal(configured.status,200,await configured.text());
+  let state;
+  async function until(predicate) {
+    const deadline=Date.now()+6000;
+    do { state=await modern.state();if(predicate(state))return;await new Promise(r=>setTimeout(r,30)); } while(Date.now()<deadline);
+    assert.fail("Secondary state did not converge: "+JSON.stringify(state.sec));
+  }
+  await until(value=>value.sec?.ready);
+  const promoted=await post("/api/sec/switch",{targetClientId:"clock-test"});
+  assert.equal(promoted.status,200,await promoted.text());
+  assertActiveModernAuthority(await modern.state(),modern.baseUrl);
+  await until(value=>value.sec?.role==="primary");
+  assert.equal(state.sec.switchAll,false,"Completed role reversal legitimately clears the transition flag");
+  assertActiveModernAuthority(state,modern.baseUrl);
+});
+
 test("legacy compatibility is opt-in and does not replace clock/audio or browser assets", async t => {
   const destination = fs.mkdtempSync(path.join(os.tmpdir(), "fdv-node12-build-"));
   t.after(() => fs.rmSync(destination, { recursive: true, force: true }));
@@ -109,5 +139,7 @@ test("actual Node12 server preserves clocks, lists, snapshots and mixed-runtime 
   const promote = await fetch(legacy.baseUrl + "/api/sec/switch", { method: "POST", headers: { "content-type": "application/json" },
     body: JSON.stringify({ clientId: "clock-test", targetClientId: "clock-test" }) });
   assert.equal(promote.status, 200, await promote.clone().text());
-  assert.equal((await modern.state()).sec.switchAll, true);
+  // Role reversal can finish before this GET. switchAll is a transition flag,
+  // not a permanent success marker: the settled primary clears it legitimately.
+  assertActiveModernAuthority(await modern.state(),modern.baseUrl);
 });

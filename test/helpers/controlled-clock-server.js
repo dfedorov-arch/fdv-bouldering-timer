@@ -35,7 +35,12 @@ async function fixture(t, platform, { liveClocks = false, legacyRuntime = proces
       });
     }
   };
-  t.after(async () => { await stop(); fs.rmSync(directory, { recursive: true, force: true }); });
+  t.after(async () => {
+    await stop();
+    // Windows/AV can briefly retain a stopped process's cwd. Retry only
+    // documented transient removal errors; a persistent cleanup failure still fails.
+    fs.rmSync(directory, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
+  });
   for (const name of ["serve-bouldering-timer.js", "params.txt", "index.html", "legacy.html"]) {
     fs.copyFileSync(path.join(root, name), path.join(directory, name));
   }
