@@ -26,20 +26,23 @@ async function fixture(t, platform, { liveClocks = false, legacyRuntime = proces
   const profile = path.join(directory, "isolated-profile");
   fs.mkdirSync(profile);
   let child = null;
+  let childClosed = true;
   const stop = async () => {
-    if (child && child.exitCode === null && child.signalCode === null) {
-      await new Promise((resolve) => {
-        const timeout = setTimeout(() => child.kill("SIGKILL"), 3000);
-        child.once("exit", () => { clearTimeout(timeout); resolve(); });
-        child.kill("SIGTERM");
+    const stopped = child;
+    if (stopped && !childClosed) {
+      await new Promise((resolve, reject) => {
+        const force = setTimeout(() => stopped.kill("SIGKILL"), 3000);
+        const deadline = setTimeout(() => reject(new Error("Disposable server did not close its stdio")), 8000);
+        stopped.once("close", () => { clearTimeout(force); clearTimeout(deadline); resolve(); });
+        if (stopped.exitCode === null && stopped.signalCode === null) stopped.kill("SIGTERM");
       });
     }
   };
   t.after(async () => {
     await stop();
-    // Windows/AV can briefly retain a stopped process's cwd. Retry only
-    // documented transient removal errors; a persistent cleanup failure still fails.
-    fs.rmSync(directory, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
+    // Let child/pipe/libuv close callbacks drain. Synchronous retry sleeps can
+    // keep the Windows cwd handle alive while waiting for that very handle.
+    await fs.promises.rm(directory, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
   });
   for (const name of ["serve-bouldering-timer.js", "params.txt", "index.html", "legacy.html"]) {
     fs.copyFileSync(path.join(root, name), path.join(directory, name));
@@ -124,6 +127,9 @@ async function fixture(t, platform, { liveClocks = false, legacyRuntime = proces
       XDG_STATE_HOME: path.join(profile,".local","state"), HOST: listenHost, PORT: String(port), HTTPS_PORT: "0", FDV_LAUNCHER_LANGUAGE_TOKEN: launcherToken },
     stdio: ["ignore", "pipe", "pipe"]
   });
+  childClosed = false;
+  const launched = child;
+  launched.once("close", () => { if (child === launched) childClosed = true; });
   child.stdout.on("data", (data) => output.push(data.toString()));
   child.stderr.on("data", (data) => output.push(data.toString()));
   }
