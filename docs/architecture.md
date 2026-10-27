@@ -31,6 +31,10 @@ no TCP control port or polling for activation. Windows uses a registered
 show-only window message so its CLR2 builds retain the same reopen behavior.
 Linux desktops without tray presentation can restore the window by launching
 the app again. GUI close behavior does not apply to foreground console scripts.
+The initial Opened callback is guarded once per window instance: Avalonia raises
+Opened after Hide/Show as well. A headless test injects only the startup action
+counter, retaining the actual event handler, and proves repeated restoration
+does not restart the child or invalidate probes.
 
 The headless Unix harness exercises actual control objects/translation/layout
 state and a real temporary language endpoint, plus a separate owner/secondary

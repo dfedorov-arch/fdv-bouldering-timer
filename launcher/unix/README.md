@@ -37,6 +37,9 @@ desktop environments without tray icons still have the re-launch route.
 Explicit Stop and exit or OS/application shutdown cleans up and stops only
 the owned child. Console .command/.sh launchers remain foreground processes
 and still stop via Ctrl+C; they are not GUI tray applications.
+The initial Opened handler runs startup once only, even when Hide/Show raises
+Opened again. The headless harness exercises this event path with a safe startup
+counter, not a real server-launch action.
 
 `FDV_TEST_UNIX_LAUNCHER=1 node --test test/unix-launcher.test.js` uses the
 real Avalonia controls on a headless backend, a disposable language endpoint

@@ -160,6 +160,7 @@ internal sealed class LauncherWindow : Window
     private string? _pendingServerLanguage;
     private string _launcherLanguageToken = "";
     private bool _languageSyncBusy;
+    private bool _initialStartRequested;
     private bool _openBrowserAfterLanguageSync;
     private HttpsCertificateDialog? _certificateDialog;
     private readonly HttpClient _languageClient = new(new SocketsHttpHandler
@@ -194,7 +195,7 @@ internal sealed class LauncherWindow : Window
     public LauncherWindow() : this(null, true) { }
 
     // Passive construction is used by headless UI regression tests only.
-    internal LauncherWindow(string? baseDirectory, bool startAutomatically)
+    internal LauncherWindow(string? baseDirectory, bool startAutomatically, Action? initialStartOverride = null)
     {
         _baseDirectory = baseDirectory ?? DetectBaseDirectory();
         _languagePreferencePath = startAutomatically ? LauncherLanguage.PreferencePath : Path.Combine(_baseDirectory, "launcher-language.txt");
@@ -215,7 +216,15 @@ internal sealed class LauncherWindow : Window
         ConfigureTray();
         ApplyLanguage();
 
-        if (startAutomatically) Opened += (_, _) => StartServer(_openBrowserAfterStart);
+        Opened += (_, _) =>
+        {
+            // Avalonia raises Opened again after Hide/Show. Window restoration
+            // must never re-enter startup or stop/restart the running child.
+            if (_initialStartRequested) return;
+            _initialStartRequested = true;
+            if (initialStartOverride != null) initialStartOverride();
+            else if (startAutomatically) StartServer(_openBrowserAfterStart);
+        };
         Closing += OnClosing;
         _startupTimer.Tick += CheckServerReady;
         _healthTimer.Tick += CheckServerHealth;

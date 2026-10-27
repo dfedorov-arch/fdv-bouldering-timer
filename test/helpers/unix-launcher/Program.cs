@@ -78,7 +78,9 @@ internal static class UnixLauncherHarness
             LauncherLanguage.Load(preference); Check(LauncherLanguage.Russian, "Missing preference defaults to RU");
             AppBuilder.Configure<LauncherApp>().UseHeadless(new AvaloniaHeadlessPlatformOptions()).SetupWithoutStarting();
             SynchronizationContext.SetSynchronizationContext(new AvaloniaSynchronizationContext());
-            var window = new LauncherWindow(root, false); window.Show(); Dispatcher.UIThread.RunJobs();
+            var initialStarts = 0;
+            var window = new LauncherWindow(root, false, () => initialStarts++); window.Show(); Dispatcher.UIThread.RunJobs();
+            Check(initialStarts == 1, "First show must invoke the startup action once");
             try
             {
                 var fakeProcess = new Process(); // Correlation identity only: never points at or kills a real server.
@@ -114,6 +116,10 @@ internal static class UnixLauncherHarness
                 Check(!window.IsVisible && !(bool)Field(window, "_allowClose")!, "Close hides instead of exiting");
                 Check((bool)Field(window, "_ready")! && Equals(Field(window, "_probeGeneration"), generation), "Close preserves running server/probes");
                 window.ShowLauncher(); Dispatcher.UIThread.RunJobs(); Check(window.IsVisible, "Reopen restores window");
+                Check(initialStarts == 1, "Reopening must never invoke the startup action again");
+                for (var repeat = 0; repeat < 3; repeat++) { window.Close(); window.ShowLauncher(); Dispatcher.UIThread.RunJobs(); }
+                Check(initialStarts == 1 && ReferenceEquals(Field(window, "_serverProcess"), fakeProcess)
+                    && Equals(Field(window, "_probeGeneration"), generation), "Repeated hide/show preserves startup count, child and probes");
                 var tray = (TrayIcon)Field(window, "_tray")!;
                 Check(tray.IsVisible, "Tray must remain available while running");
                 Check(tray.Menu!.Items.OfType<NativeMenuItem>().Any(item => (string?)item.Header == "Стоп и выход"), "Tray exit translated");
