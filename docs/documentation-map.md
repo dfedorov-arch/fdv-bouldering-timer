@@ -4,6 +4,12 @@ This file defines the documentation set and its source-of-truth boundaries. Prod
 
 ## User documentation
 
+Build 441 adds the existing Windows certificate workflow to all macOS/Linux
+server launchers. Quick starts, both guide languages and launcher/unix/README.md
+describe managed storage, explicit replacement/restart, private/public files
+and console-script precedence. Architecture and Unix native TLS tests cover
+the shared source used by all x64/arm64 Unix artifacts. help.docx is unchanged.
+
 Build 439 unifies end-Final confirmation for Classic/Festival and Final Old/New after Stop. Both guide languages and quick starts describe cancellation, reset-to-first-rotation, retained duration/rest count, and the unchanged Stop requirement. `format-switch.test.js`, `timer-transitions.test.js` and `visual/final-format-switch.spec.js` cover server/standalone transitions, dialog cancellation, viewers, locks and generated single-file/Android HTML persistence. Native dialogs are checked via Playwright events; existing page screenshots remain current because controls and geometry are unchanged.
 
 Build 438 includes the shared manual Final START fix released separately from main as v2.3.1 (build 437). See `releases/v2.3.1.md`, the manual-start contract in `architecture.md`, `final-manual-start.test.js`, and `visual/final-manual-start.spec.js`. No controls or layout changed, so existing screenshots remain current.

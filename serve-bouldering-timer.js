@@ -30,7 +30,7 @@ const legacyRuntimeStatePath = runtimeStatePath;
 const beepsPath = path.join(root, "beeps");
 const fontsPath = path.join(root, "fonts");
 const offlineAudioPath = path.join(root, "lib", "offline-audio.js");
-const BUILD_NUMBER = 439;
+const BUILD_NUMBER = 441;
 const serverInstanceId = crypto.randomUUID();
 let serverAudio = null;
 const launcherLanguageToken = process.env.FDV_LAUNCHER_LANGUAGE_TOKEN || "";
@@ -2872,5 +2872,5 @@ if (!certificatePaths.managed && fs.existsSync(keyPath) && fs.existsSync(certPat
   const pfx = fs.readFileSync(pfxPath);
   startServers(() => https.createServer({ pfx, passphrase: pfxPassphrase }, handleRequest), "https", httpsPort);
 } else {
-  console.log("HTTPS disabled: certificate files were not found. Use Create HTTPS certificate in the Windows launcher, or the platform certificate script.");
+  console.log("HTTPS disabled: certificate files were not found. Use Create HTTPS certificate in the launcher, or the platform certificate script.");
 }

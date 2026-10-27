@@ -88,6 +88,8 @@ if (uniqueBuilds.size !== 1) {
   "launcher/windows/HttpsCertificate.cs",
   "launcher/windows/LauncherLanguage.cs",
   "launcher/windows/HttpsCertificateDialog.cs",
+  "launcher/unix/HttpsCertificate.cs",
+  "launcher/unix/HttpsCertificateDialog.cs",
   "installer/common/fdv-installed.marker",
   "beeps",
   "fonts",

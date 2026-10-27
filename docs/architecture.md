@@ -6,6 +6,33 @@ Numbered timer repetitions use **Ротация / Rotation** in both clients and
 
 ## Authority and clocks
 
+### Cross-platform launcher HTTPS certificate creation (build 441)
+
+Every server GUI has certificate creation: the existing Windows modern/CLR2
+implementation and the shared macOS/Linux Avalonia dialog. Unix uses built-in
+.NET RSA/CertificateRequest (2048-bit, SHA256, SAN IP/DNS, CA:false, serverAuth,
+365 days), not shell/OpenSSL or network discovery. Generation runs on a worker
+and prevents duplicate operations/closing while busy. Replacement and restart
+are separate confirmations, default No; no running timer, TLS context, links,
+clock or audio schedule is changed by generation alone.
+
+`launcher/unix/HttpsCertificate.cs` mirrors the server's read-only resolution:
+installed marker -> user https directory (macOS Application Support; Linux
+absolute XDG_STATE_HOME or ~/.local/state/fdv-bouldering-timer); portable ->
+root/https, then user fallback. An active portable PFX must be replaced in place.
+Legacy root PEM/PFX remains a fallback if no managed PFX exists. Atomic
+same-directory rename publishes the PFX last, with private backups/public-copy
+rollback and generation locking. Unix directories/files are 0700/0600. Trust
+stores are not changed; share only timer-public.cer. Console scripts continue
+to write legacy root files and do not replace managed certificates.
+
+`test/unix-https-certificate.test.js` covers path/marker/XDG precedence and
+opt-in native SAN, Node TLS/startup, replacement consent, permissions, backup,
+read-only fallback and listener preservation until restart. Windows generation
+and CLR2 sources are unchanged. The release workflow tests native Unix hosts
+and builds the shared UI for macOS/Linux x64/arm64. No Android client certificate
+generation is added: Android connects to a server, it is not a server launcher.
+
 ### Windows HTTPS certificate creation (build 419)
 
 The native launcher has a RU/EN selector. `LauncherLanguage.cs`

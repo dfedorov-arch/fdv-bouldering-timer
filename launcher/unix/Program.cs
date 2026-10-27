@@ -131,6 +131,7 @@ internal sealed class LauncherWindow : Window
     private readonly Button _copyButton = new() { Content = "Copy link", IsEnabled = false };
     private readonly Button _restartButton = new() { Content = "Restart server" };
     private readonly Button _stopButton = new() { Content = "Stop and exit" };
+    private readonly Button _certificateButton = new() { Content = "Create HTTPS certificate" };
     private readonly DispatcherTimer _startupTimer = new() { Interval = TimeSpan.FromMilliseconds(300) };
     private readonly DispatcherTimer _healthTimer = new() { Interval = TimeSpan.FromSeconds(1) };
     private readonly DispatcherTimer _restartTimer = new();
@@ -167,9 +168,9 @@ internal sealed class LauncherWindow : Window
         Title = "FDV Bouldering Timer";
         SetLauncherIcon();
         Width = 660;
-        Height = 540;
+        Height = 585;
         MinWidth = 560;
-        MinHeight = 470;
+        MinHeight = 515;
         Background = Brush(17, 23, 34);
         Foreground = Brush(244, 247, 251);
         FontFamily = new FontFamily("Arial");
@@ -236,7 +237,7 @@ internal sealed class LauncherWindow : Window
     {
         var root = new Grid
         {
-            RowDefinitions = new RowDefinitions("Auto,Auto,Auto,Auto,*,Auto"),
+            RowDefinitions = new RowDefinitions("Auto,Auto,Auto,Auto,Auto,*,Auto"),
             Margin = new Thickness(24),
             RowSpacing = 14
         };
@@ -290,6 +291,12 @@ internal sealed class LauncherWindow : Window
         Grid.SetRow(buttons, 3);
         root.Children.Add(buttons);
 
+        ConfigureButton(_certificateButton, 210);
+        _certificateButton.HorizontalAlignment = HorizontalAlignment.Left;
+        _certificateButton.Click += async (_, _) => await CreateHttpsCertificate();
+        Grid.SetRow(_certificateButton, 4);
+        root.Children.Add(_certificateButton);
+
         var logPanel = new Grid
         {
             RowDefinitions = new RowDefinitions("Auto,*"),
@@ -305,7 +312,7 @@ internal sealed class LauncherWindow : Window
         _log.SetValue(ScrollViewer.VerticalScrollBarVisibilityProperty, ScrollBarVisibility.Auto);
         Grid.SetRow(_log, 1);
         logPanel.Children.Add(_log);
-        Grid.SetRow(logPanel, 4);
+        Grid.SetRow(logPanel, 5);
         root.Children.Add(logPanel);
 
         var hint = new TextBlock
@@ -314,7 +321,7 @@ internal sealed class LauncherWindow : Window
             Foreground = Brush(149, 161, 181),
             TextWrapping = TextWrapping.Wrap
         };
-        Grid.SetRow(hint, 5);
+        Grid.SetRow(hint, 6);
         root.Children.Add(hint);
 
         return root;
@@ -335,9 +342,23 @@ internal sealed class LauncherWindow : Window
 
     private bool HasHttpsCertificate()
     {
-        var pem = File.Exists(Path.Combine(_baseDirectory, "timer-key.pem")) &&
-                  File.Exists(Path.Combine(_baseDirectory, "timer-cert.pem"));
-        return pem || File.Exists(Path.Combine(_baseDirectory, "timer-cert.pfx"));
+        return HttpsCertificate.Exists(_baseDirectory);
+    }
+
+    private async Task CreateHttpsCertificate()
+    {
+        _certificateButton.IsEnabled = false;
+        try
+        {
+            var dialog = new HttpsCertificateDialog(_baseDirectory);
+            await dialog.ShowDialog(this);
+            if (dialog.GeneratedDirectory != null)
+                AppendLog("HTTPS certificate created in " + dialog.GeneratedDirectory + ". Restart is required to apply it.");
+            // Do not advertise an HTTPS listener until a confirmed restart.
+            if (dialog.RestartRequested && !_allowClose) StartServer(false);
+        }
+        catch (Exception error) { AppendLog("Unable to create HTTPS certificate: " + error.Message); }
+        finally { _certificateButton.IsEnabled = true; }
     }
 
     private bool PopulateAddresses()
