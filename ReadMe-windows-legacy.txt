@@ -1,3 +1,6 @@
+Сборка 442: во всех настольных лаунчерах одинаковые команды и EN/RU. Язык окна, меню, сертификата и таймера меняется без перезапуска и сохраняется для пользователя; по умолчанию — русский. Закрытие окна скрывает лаунчер: сервер работает дальше. Откройте окно через значок в трее/строке меню или повторный запуск приложения; в macOS также через Dock. Остановка — «Стоп и выход». Консольные BAT/command/sh по-прежнему требуют открытого терминала и останавливаются Ctrl+C.
+Build 442: every desktop launcher has the same commands and EN/RU. Window/menu/certificate/timer language changes without restart and is saved per user; default is Russian. Closing only hides the launcher: the server keeps running. Reopen from tray/menu bar or launch the app again (also Dock on macOS). Use Stop and exit to stop it. Foreground BAT/command/sh scripts still require an open terminal and stop with Ctrl+C.
+
 Строка звука: без основного браузера чекбокс выровнен с верхними строками. При выбранном основном отступ от подписи10px; на узкой/средней панели подпись сокращается до «Звук в основном», с подсказкой «Звук в основном браузере».
 Sound row: without a primary browser the checkbox aligns with the rows above. With a primary, the caption gap is10px; narrow/medium panels show “Sound in primary”, with the full “Sound in primary browser” tooltip.
 

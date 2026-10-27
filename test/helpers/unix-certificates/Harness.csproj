@@ -8,5 +8,6 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="../../../launcher/unix/HttpsCertificate.cs" Link="HttpsCertificate.cs" />
+    <Compile Include="../../../launcher/windows/LauncherLanguage.cs" Link="LauncherLanguage.cs" />
   </ItemGroup>
 </Project>

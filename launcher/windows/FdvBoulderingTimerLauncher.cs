@@ -18,6 +18,11 @@ namespace FdvBoulderingTimerLauncher
     internal static class Program
     {
         private const string MutexName = "Local\\FdvBoulderingTimerLauncher";
+        [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+        private static extern uint RegisterWindowMessage(string text);
+        [DllImport("user32.dll")]
+        private static extern bool SendNotifyMessage(IntPtr window, uint message, IntPtr wParam, IntPtr lParam);
+        internal static readonly uint ShowLauncherMessage = RegisterWindowMessage("FDV.BoulderingTimer.Launcher.Show");
 
         [STAThread]
         private static void Main()
@@ -28,6 +33,8 @@ namespace FdvBoulderingTimerLauncher
             {
                 if (!created)
                 {
+                    // Show the existing GUI rather than start/stop any server.
+                    if (ShowLauncherMessage != 0 && SendNotifyMessage(new IntPtr(0xffff), ShowLauncherMessage, IntPtr.Zero, IntPtr.Zero)) return;
                     MessageBox.Show(
                         LauncherLanguage.Text("FDV Bouldering Timer Launcher is already running. Check the notification area."),
                         "FDV Bouldering Timer",
@@ -884,8 +891,22 @@ namespace FdvBoulderingTimerLauncher
             Activate();
         }
 
+        protected override void WndProc(ref Message message)
+        {
+            if (Program.ShowLauncherMessage != 0 && (uint)message.Msg == Program.ShowLauncherMessage)
+            { ShowLauncher(); return; }
+            base.WndProc(ref message);
+        }
+
         private void StopAndExit()
         {
+            PrepareExit();
+            Close();
+        }
+
+        private void PrepareExit()
+        {
+            if (_allowClose) return;
             _allowClose = true;
             StopNetworkMonitoring();
             _startupTimer.Stop();
@@ -893,14 +914,15 @@ namespace FdvBoulderingTimerLauncher
             _restartTimer.Stop();
             _intentionalStop = true;
             StopServerProcess();
-            StopPortListeners();
             _tray.Visible = false;
-            Close();
         }
 
         private void OnFormClosing(object sender, FormClosingEventArgs args)
         {
             if (_allowClose) return;
+            if (args.CloseReason == CloseReason.WindowsShutDown || args.CloseReason == CloseReason.TaskManagerClosing
+                || args.CloseReason == CloseReason.ApplicationExitCall)
+            { PrepareExit(); return; }
             args.Cancel = true;
             Hide();
             _tray.ShowBalloonTip(1800, "FDV Bouldering Timer", T("The server is still running. Use the tray icon to open or stop it."), ToolTipIcon.Info);

@@ -1,4 +1,5 @@
 using System.Globalization;
+using LauncherLanguage = FdvBoulderingTimerLauncher.LauncherLanguage;
 using System.Net;
 using System.Net.NetworkInformation;
 using System.Net.Sockets;
@@ -11,6 +12,7 @@ namespace FdvBoulderingTimer.Launcher;
 // precedence must match lib/https-certificate-storage.js (including fallback).
 internal static class HttpsCertificate
 {
+    private static string T(string english) => LauncherLanguage.Text(english);
     internal const string Password = "bouldering-timer";
     private const UnixFileMode DirectoryMode = UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute;
     private const UnixFileMode FileModePrivate = UnixFileMode.UserRead | UnixFileMode.UserWrite;
@@ -71,31 +73,31 @@ internal static class HttpsCertificate
             {
                 if (!Uri.TryCreate(name, UriKind.Absolute, out var url) || (url.Scheme != "http" && url.Scheme != "https") ||
                     url.UserInfo.Length != 0 || url.AbsolutePath != "/" || url.Query.Length != 0 || url.Fragment.Length != 0)
-                    throw new ArgumentException("Invalid server address: " + token);
+                    throw new ArgumentException(T("Invalid server address: ") + token);
                 name = url.Host;
             }
             name = name.Trim('[', ']');
             if (IPAddress.TryParse(name, out var ip))
             {
                 if (ip.Equals(IPAddress.Any) || ip.Equals(IPAddress.IPv6Any) || ip.IsIPv6LinkLocal || ip.IsIPv6Multicast || name.Contains('%'))
-                    throw new ArgumentException("Use a reachable IP: " + token);
+                    throw new ArgumentException(T("Use a reachable IP: ") + token);
                 name = ip.ToString();
             }
             else
             {
                 name = new IdnMapping().GetAscii(name.TrimEnd('.')).ToLowerInvariant();
-                if (name.Length == 0 || name.Length > 253) throw new ArgumentException("Invalid DNS name: " + token);
+                if (name.Length == 0 || name.Length > 253) throw new ArgumentException(T("Invalid DNS name: ") + token);
                 foreach (var label in name.Split('.'))
                 {
                     if (label.Length == 0 || label.Length > 63 || label[0] == '-' || label[^1] == '-' ||
                         label.Any(c => !((c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '-')))
-                        throw new ArgumentException("Invalid DNS name: " + token);
+                        throw new ArgumentException(T("Invalid DNS name: ") + token);
                 }
             }
             if (seen.Add(name)) names.Add(name);
-            if (names.Count > 64) throw new ArgumentException("Maximum 64 names.");
+            if (names.Count > 64) throw new ArgumentException(T("Maximum 64 names."));
         }
-        if (names.Count == 0) throw new ArgumentException("Enter an IP or DNS name.");
+        if (names.Count == 0) throw new ArgumentException(T("Enter an IP or DNS name."));
         return names.ToArray();
     }
 
@@ -105,7 +107,7 @@ internal static class HttpsCertificate
         if (OperatingSystem.IsWindows()) throw new PlatformNotSupportedException("Use the Windows launcher certificate generator.");
         names = NormalizeNames(string.Join('\n', names));
         userDirectory ??= UserDirectory();
-        if (!replace && Exists(root, userDirectory)) throw new IOException("A certificate already exists.");
+        if (!replace && Exists(root, userDirectory)) throw new IOException(T("A certificate already exists."));
         var active = ActivePfx(root, userDirectory);
         var destination = active == null ? PreferredDirectory(root, userDirectory) : Path.GetDirectoryName(active)!;
         prepareDirectory ??= PrepareDirectory;
@@ -121,7 +123,7 @@ internal static class HttpsCertificate
         var lockPath = Path.Combine(destination, ".generation.lock");
         using var generationLock = new FileStream(lockPath, new FileStreamOptions {
             Mode = FileMode.OpenOrCreate, Access = FileAccess.ReadWrite, Share = FileShare.None, UnixCreateMode = FileModePrivate });
-        if (!replace && Exists(root, userDirectory)) throw new IOException("A certificate already exists.");
+        if (!replace && Exists(root, userDirectory)) throw new IOException(T("A certificate already exists."));
         using var rsa = RSA.Create(2048);
         var request = new CertificateRequest("CN=FDV Bouldering Timer", rsa, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
         var san = new SubjectAlternativeNameBuilder();
@@ -157,7 +159,7 @@ internal static class HttpsCertificate
     {
         if (OperatingSystem.IsWindows()) throw new PlatformNotSupportedException();
         Directory.CreateDirectory(directory, DirectoryMode);
-        if (new DirectoryInfo(directory).LinkTarget != null) throw new IOException("Certificate directory must not be a symbolic link.");
+        if (new DirectoryInfo(directory).LinkTarget != null) throw new IOException(T("Certificate directory must not be a symbolic link."));
         File.SetUnixFileMode(directory, DirectoryMode);
         var probe = Path.Combine(directory, ".probe-" + Guid.NewGuid().ToString("N"));
         using (new FileStream(probe, new FileStreamOptions { Mode = FileMode.CreateNew, Access = FileAccess.Write,
@@ -176,8 +178,8 @@ internal static class HttpsCertificate
             { stream.Write(bytes); stream.Flush(true); }
             if (File.Exists(path))
             {
-                if (!replace) throw new IOException("A certificate already exists.");
-                if (new FileInfo(path).LinkTarget != null) throw new IOException("Certificate must not be a symbolic link.");
+                if (!replace) throw new IOException(T("A certificate already exists."));
+                if (new FileInfo(path).LinkTarget != null) throw new IOException(T("Certificate must not be a symbolic link."));
                 var backup = path + ".backup-" + Guid.NewGuid().ToString("N") + Path.GetExtension(path);
                 File.Copy(path, backup, false);
                 File.SetUnixFileMode(backup, FileModePrivate);

@@ -6,6 +6,40 @@ Numbered timer repetitions use **Ротация / Rotation** in both clients and
 
 ## Authority and clocks
 
+### Unified desktop language and launcher lifecycle (build 442)
+
+Windows/CLR2 and the four Unix builds share LauncherLanguage.cs for control,
+status, tray and certificate text. Native framework styling may differ but
+the commands/order, RU default, saved per-user choice and certificate/restart
+confirmation semantics match. Unix preference paths mirror application data:
+macOS Library/Application Support/FDV Bouldering Timer; Linux absolute
+XDG_STATE_HOME or ~/.local/state/fdv-bouldering-timer. Windows remains LOCALAPPDATA.
+
+Unix uses the existing /api/launcher/language contract, not /api/action or
+browser impersonation. Each child receives a new 32-byte capability. A bounded,
+no-proxy/no-redirect language client serializes updates and generation/process
+checks retire old completions on restart. Startup applies the choice before
+auto-opening the browser. Language changes preserve the selected address,
+readiness, timers and raw technical logs. Clock/audio/replication logic is unchanged.
+
+Ordinary window close hides the GUI on all platforms. Explicit Exit and OS/app
+shutdown stop the owned child and release monitoring/tray. Windows exit no
+longer sweeps unrelated port listeners. Unix tray/menu-bar actions mirror
+Windows, Dock Reopen restores the window, and a per-user mutex with a
+current-user-only named pipe reopens the first GUI on repeat launch. There is
+no TCP control port or polling for activation. Windows uses a registered
+show-only window message so its CLR2 builds retain the same reopen behavior.
+Linux desktops without tray presentation can restore the window by launching
+the app again. GUI close behavior does not apply to foreground console scripts.
+
+The headless Unix harness exercises actual control objects/translation/layout
+state and a real temporary language endpoint, plus a separate owner/secondary
+process pair. It never constructs an active server launcher. Tests preserve
+canonical running state/anchor and isolate HOME/LOCALAPPDATA/XDG so an operator's
+existing HTTPS key cannot enable TLS or contend for 8443 in disposable fixtures.
+Native Windows/CLR2 checks remain CI-specific; actual Dock/tray presentation
+and OS session shutdown need device/desktop verification.
+
 ### Cross-platform launcher HTTPS certificate creation (build 441)
 
 Every server GUI has certificate creation: the existing Windows modern/CLR2

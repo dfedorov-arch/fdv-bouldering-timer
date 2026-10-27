@@ -23,6 +23,8 @@ async function freePort() {
 
 async function fixture(t, platform, { liveClocks = false, legacyRuntime = process.env.FDV_TEST_SERVER_NODE12 || null, listenHost = "127.0.0.1", launcherToken = "", nativeAudioStub = false, nativeAudioDisabled = true, integerWallClock = false, nativeAudioCoordinatorSource = null } = {}) {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), "fdv-clock-continuity-"));
+  const profile = path.join(directory, "isolated-profile");
+  fs.mkdirSync(profile);
   let child = null;
   const stop = async () => {
     if (child && child.exitCode === null && child.signalCode === null) {
@@ -112,7 +114,9 @@ async function fixture(t, platform, { liveClocks = false, legacyRuntime = proces
   function launch() {
   child = spawn(legacyRuntime || process.execPath, [...(platform || nativeAudioStub ? ["--require", preloadPath] : []), path.join(directory, "serve-bouldering-timer.js")], {
     cwd: directory,
-    env: { ...process.env, HOST: listenHost, PORT: String(port), HTTPS_PORT: "0", FDV_LAUNCHER_LANGUAGE_TOKEN: launcherToken },
+    // Never load the operator's per-user HTTPS key or bind its HTTPS port.
+    env: { ...process.env, HOME: profile, USERPROFILE: profile, LOCALAPPDATA: path.join(profile,"AppData","Local"),
+      XDG_STATE_HOME: path.join(profile,".local","state"), HOST: listenHost, PORT: String(port), HTTPS_PORT: "0", FDV_LAUNCHER_LANGUAGE_TOKEN: launcherToken },
     stdio: ["ignore", "pipe", "pipe"]
   });
   child.stdout.on("data", (data) => output.push(data.toString()));

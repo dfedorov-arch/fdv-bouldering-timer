@@ -1,3 +1,6 @@
+Сборка 442: во всех настольных лаунчерах одинаковые команды и EN/RU. Язык окна, меню, сертификата и таймера меняется без перезапуска и сохраняется для пользователя; по умолчанию — русский. Закрытие окна скрывает лаунчер: сервер работает дальше. Откройте окно через значок в трее/строке меню или повторный запуск приложения; в macOS также через Dock. Остановка — «Стоп и выход». Консольные BAT/command/sh по-прежнему требуют открытого терминала и останавливаются Ctrl+C.
+Build 442: every desktop launcher has the same commands and EN/RU. Window/menu/certificate/timer language changes without restart and is saved per user; default is Russian. Closing only hides the launcher: the server keeps running. Reopen from tray/menu bar or launch the app again (also Dock on macOS). Use Stop and exit to stop it. Foreground BAT/command/sh scripts still require an open terminal and stop with Ctrl+C.
+
 «Не давать заснуть колонке» включено по умолчанию: короткий тихий тон после длительной тишины, также в ожидании старта и паузе. Работает через выбранный источник звука. Параметры params.txt: speaker_keep_awake=true; speaker_keep_awake_interval_seconds=180 (10–600 с); speaker_keep_awake_gain=0.006 (амплитуда 0.0001–0.1); speaker_keep_awake_frequency_hz=440 (100–2000 Гц). Длительность 150 мс. После изменения params.txt перезапустите сервер. Эффект зависит от модели BT-колонки; слишком тихий тон может не предотвратить сон. В браузере необходима разблокировка звука; сон/заморозка вкладки может задерживать технические сигналы. На сервере они не зависят от активности вкладки. Выключение звука и снятие флажка отменяют технический тон.
 Keep speaker awake is on by default: a short quiet tone after prolonged silence, also while waiting or paused. It uses the selected audio output. params.txt: speaker_keep_awake=true; speaker_keep_awake_interval_seconds=180 (10–600 seconds); speaker_keep_awake_gain=0.006 (linear amplitude 0.0001–0.1); speaker_keep_awake_frequency_hz=440 (100–2000 Hz). Duration150ms. Restart the server after parameter changes. Effectiveness depends on the BT speaker; a tone may be too quiet to prevent sleep. Browser playback requires audio unlocking and can be delayed by tab freezing/throttling. Native server playback is independent of tab activity. Muting sound or clearing the checkbox cancels the technical tone.
 
@@ -33,7 +36,7 @@ Build436: local modern browser audio can use the native ALSA default output on L
 
 После этого запускайте FDV Bouldering Timer из меню приложений и при необходимости закрепите его в Dock. Сам исполняемый файл в файловом менеджере может оставаться со стандартной иконкой: это нормально для Linux, иконку задаёт установленный .desktop-ярлык.
 
-Закрытие окна приложения останавливает сервер. Резервный запуск: ./start-timer-linux.sh. В этом режиме Terminal нужно держать открытым, остановка — Ctrl+C.
+Закрытие окна скрывает лаунчер, сервер продолжает работать; остановка — «Стоп и выход». Резервный запуск: ./start-timer-linux.sh. В этом режиме Terminal нужно держать открытым, остановка — Ctrl+C.
 
 Сервер слушает все локальные сетевые интерфейсы. Restart server заново читает параметры и обновляет показанные ссылки; при смене сети ссылки также обновляются автоматически.
 
@@ -62,7 +65,7 @@ For the Ubuntu/GNOME application menu and icon, run once:
 
 Then launch FDV Bouldering Timer from the applications menu and pin it to the Dock if needed. The executable itself may still show a generic icon in the file manager; this is normal on Linux because the installed .desktop entry supplies the app icon.
 
-Closing the app window stops the server. Fallback launcher: ./start-timer-linux.sh. Keep Terminal open in fallback mode; stop with Ctrl+C.
+Closing only hides the launcher; the server keeps running. Use Stop and exit to stop it. Fallback launcher: ./start-timer-linux.sh. Keep Terminal open in fallback mode; stop with Ctrl+C.
 
 The server listens on all local network interfaces. Restart server reloads parameters and displayed links; network changes refresh the links automatically as well.
 

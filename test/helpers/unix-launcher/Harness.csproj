@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType><TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable>
+    <InvariantGlobalization>true</InvariantGlobalization><StartupObject>UnixLauncherHarness</StartupObject>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Avalonia.Desktop" Version="11.3.9" />
+    <PackageReference Include="Avalonia.Themes.Fluent" Version="11.3.9" />
+    <PackageReference Include="Avalonia.Headless" Version="11.3.9" />
+    <Compile Include="../../../launcher/unix/*.cs" Link="%(Filename)%(Extension)" />
+    <Compile Include="../../../launcher/windows/LauncherLanguage.cs" Link="LauncherLanguage.cs" />
+  </ItemGroup>
+</Project>

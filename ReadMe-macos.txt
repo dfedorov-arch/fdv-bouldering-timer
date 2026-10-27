@@ -1,3 +1,6 @@
+Сборка 442: во всех настольных лаунчерах одинаковые команды и EN/RU. Язык окна, меню, сертификата и таймера меняется без перезапуска и сохраняется для пользователя; по умолчанию — русский. Закрытие окна скрывает лаунчер: сервер работает дальше. Откройте окно через значок в трее/строке меню или повторный запуск приложения; в macOS также через Dock. Остановка — «Стоп и выход». Консольные BAT/command/sh по-прежнему требуют открытого терминала и останавливаются Ctrl+C.
+Build 442: every desktop launcher has the same commands and EN/RU. Window/menu/certificate/timer language changes without restart and is saved per user; default is Russian. Closing only hides the launcher: the server keeps running. Reopen from tray/menu bar or launch the app again (also Dock on macOS). Use Stop and exit to stop it. Foreground BAT/command/sh scripts still require an open terminal and stop with Ctrl+C.
+
 «Не давать заснуть колонке» включено по умолчанию: короткий тихий тон после длительной тишины, также в ожидании старта и паузе. Работает через выбранный источник звука. Параметры params.txt: speaker_keep_awake=true; speaker_keep_awake_interval_seconds=180 (10–600 с); speaker_keep_awake_gain=0.006 (амплитуда 0.0001–0.1); speaker_keep_awake_frequency_hz=440 (100–2000 Гц). Длительность 150 мс. После изменения params.txt перезапустите сервер. Эффект зависит от модели BT-колонки; слишком тихий тон может не предотвратить сон. В браузере необходима разблокировка звука; сон/заморозка вкладки может задерживать технические сигналы. На сервере они не зависят от активности вкладки. Выключение звука и снятие флажка отменяют технический тон.
 Keep speaker awake is on by default: a short quiet tone after prolonged silence, also while waiting or paused. It uses the selected audio output. params.txt: speaker_keep_awake=true; speaker_keep_awake_interval_seconds=180 (10–600 seconds); speaker_keep_awake_gain=0.006 (linear amplitude 0.0001–0.1); speaker_keep_awake_frequency_hz=440 (100–2000 Hz). Duration150ms. Restart the server after parameter changes. Effectiveness depends on the BT speaker; a tone may be too quiet to prevent sleep. Browser playback requires audio unlocking and can be delayed by tab freezing/throttling. Native server playback is independent of tab activity. Muting sound or clearing the checkbox cancels the technical tone.
 
@@ -19,7 +22,7 @@ Build436: local modern browser audio can use native Core Audio on Intel and Appl
 2. Запустите FDV Bouldering Timer.app или файл fdv-bouldering-timer рядом с ним.
 3. Приложение сервера покажет локальный и сетевые адреса, запустит сервер и откроет браузер.
 4. На других экранах откройте сетевой адрес из окна приложения, например http://192.168.1.68:8008/.
-5. Закрытие окна приложения останавливает сервер. Restart server заново читает параметры и обновляет показанные ссылки. При смене сети ссылки также обновляются автоматически.
+5. Закрытие окна скрывает лаунчер, сервер продолжает работать; остановка — «Стоп и выход». Restart server заново читает параметры и обновляет показанные ссылки. При смене сети ссылки также обновляются автоматически.
 
 Если macOS блокирует приложение или оно открывается, но не может запустить встроенный Node.js, щёлкните правой кнопкой по prepare-timer-mac.command, выберите Открыть и подтвердите запуск. Если macOS всё равно блокирует скрипт, откройте Системные настройки → Конфиденциальность и безопасность и нажмите "Всё равно открыть". Скрипт снимает quarantine-атрибут со всего распакованного релиза и восстанавливает права запуска. После сообщения Done запустите FDV Bouldering Timer.app обычным способом.
 
@@ -50,7 +53,7 @@ The PKG installation saves state in ~/Library/Application Support/FDV Bouldering
 2. Run FDV Bouldering Timer.app or the adjacent fdv-bouldering-timer file.
 3. The server app displays local and network addresses, starts the server, and opens the browser.
 4. On other displays, open a network address from the app window, for example http://192.168.1.68:8008/.
-5. Closing the app window stops the server. Restart server reloads parameters and displayed links. Network changes refresh the links automatically as well.
+5. Closing the app window hides it without stopping the server. Use Stop and exit to stop it. Restart server reloads parameters and displayed links. Network changes refresh the links automatically as well.
 
 If macOS blocks the app, or the app opens but cannot start bundled Node.js, right-click prepare-timer-mac.command, choose Open, and confirm. If macOS still blocks the script, open System Settings → Privacy & Security and click Open Anyway. The script removes quarantine from the complete extracted release and restores executable permissions. After it reports Done, start FDV Bouldering Timer.app normally.
 

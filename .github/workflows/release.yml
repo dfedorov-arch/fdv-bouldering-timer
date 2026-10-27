@@ -5,6 +5,15 @@ on:
     branches: [develop]
     tags: ["v*"]
   workflow_dispatch:
+    inputs:
+      publish_macos_preview:
+        description: "Publish a develop-only macOS prerelease after all checks pass"
+        type: boolean
+        default: false
+      preview_installer_version:
+        description: "Numeric macOS preview installer version (not a stable release)"
+        type: string
+        default: "2.3.3"
 
 permissions:
   contents: read
@@ -12,7 +21,7 @@ permissions:
 # Preview installer versions stay separate from published tag versions.
 # The timer's own build number continues to come from the checked-out sources.
 env:
-  FDV_RELEASE_TAG: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || format('v0.0.{0}', github.run_number) }}
+  FDV_RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.publish_macos_preview && format('v{0}', inputs.preview_installer_version) || startsWith(github.ref, 'refs/tags/v') && github.ref_name || format('v0.0.{0}', github.run_number) }}
 
 jobs:
   tests:
@@ -121,6 +130,8 @@ jobs:
         with: { node-version: "24.17.0" }
       - name: Test native HTTPS certificate generation on the host architecture
         run: FDV_TEST_UNIX_CERTIFICATES=1 node --test test/unix-https-certificate.test.js
+      - name: Test Unix launcher language and lifecycle without a desktop
+        run: FDV_TEST_UNIX_LAUNCHER=1 node --test test/unix-launcher.test.js
       - name: Build launcher
         run: |
           chmod +x launcher/unix/build-launcher.sh
@@ -343,3 +354,64 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: gh release create "$FDV_RELEASE_TAG" dist/* --verify-tag --title "FDV Bouldering Timer $FDV_RELEASE_TAG" --notes-file release-notes.txt
+
+  macos-preview:
+    if: github.event_name == 'workflow_dispatch' && inputs.publish_macos_preview && github.ref == 'refs/heads/develop'
+    needs: release
+    runs-on: macos-latest
+    permissions:
+      contents: write
+      actions: read
+    concurrency:
+      group: macos-preview-${{ github.sha }}
+      cancel-in-progress: false
+    env:
+      GH_TOKEN: ${{ github.token }}
+      INSTALLER_VERSION: ${{ inputs.preview_installer_version }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with: { node-version: "24.17.0" }
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-packages-${{ github.run_id }}
+          path: ci-packages
+      - name: Package tested macOS payloads with an installable preview version
+        run: bash scripts/build-macos-preview.sh ci-packages "$RUNNER_TEMP/macos-preview" "$INSTALLER_VERSION"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos-preview-${{ github.run_id }}
+          path: ${{ runner.temp }}/macos-preview/*
+          if-no-files-found: error
+      - name: Publish verified develop-only prerelease without changing stable Latest
+        run: |
+          set -euo pipefail
+          folder="$RUNNER_TEMP/macos-preview"
+          tag=$(node -p "require(process.argv[1]).previewTag" "$folder/BUILD-INFO.json")
+          build=$(node -p "require(process.argv[1]).buildNumber" "$folder/BUILD-INFO.json")
+          [[ "$tag" =~ ^develop-[0-9]+-macos$ ]]
+          latest_before=$(gh api "repos/$GITHUB_REPOSITORY/releases/latest" --jq .tag_name)
+          if gh release view "$tag" --json isDraft,targetCommitish > "$RUNNER_TEMP/preview-release.json" 2>/dev/null; then
+            node -e 'const r=require(process.argv[1]);if(!r.isDraft||r.targetCommitish!==process.env.GITHUB_SHA)throw Error("Refusing to overwrite a published preview or another commit");' "$RUNNER_TEMP/preview-release.json"
+          else
+            if gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$tag" > "$RUNNER_TEMP/preview-tag.json" 2>/dev/null; then
+              node -e 'if(require(process.argv[1]).object.sha!==process.env.GITHUB_SHA)throw Error("Preview tag points to another commit");' "$RUNNER_TEMP/preview-tag.json"
+            fi
+            gh release create "$tag" --target "$GITHUB_SHA" --draft --prerelease --latest=false --title "FDV Bouldering Timer — develop $build (macOS preview)" --notes-file docs/releases/macos-preview.md
+          fi
+          gh release upload "$tag" "$folder"/* --clobber
+          release_id=$(gh api "repos/$GITHUB_REPOSITORY/releases?per_page=100" --jq ".[] | select(.tag_name == \"$tag\") | .id")
+          gh api "repos/$GITHUB_REPOSITORY/releases/$release_id/assets?per_page=100" > "$RUNNER_TEMP/preview-assets.json"
+          node - "$folder" "$RUNNER_TEMP/preview-assets.json" <<'JS'
+          const fs=require('fs'),path=require('path'),crypto=require('crypto');
+          const folder=process.argv[2],assets=JSON.parse(fs.readFileSync(process.argv[3],'utf8')),files=fs.readdirSync(folder);
+          if(files.length!==7||assets.length!==7)throw Error('Unexpected preview asset count');
+          for(const name of files){const file=path.join(folder,name),asset=assets.find(a=>a.name===name);
+            const digest='sha256:'+crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex');
+            if(!asset||asset.state!=='uploaded'||asset.size!==fs.statSync(file).size||asset.digest!==digest)throw Error('Asset mismatch: '+name);
+            console.log('Verified '+name);}
+          JS
+          gh release edit "$tag" --draft=false --prerelease --latest=false
+          test "$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$tag" --jq .object.sha)" = "$GITHUB_SHA"
+          test "$(gh api "repos/$GITHUB_REPOSITORY/releases/latest" --jq .tag_name)" = "$latest_before"
+          echo "Published https://github.com/$GITHUB_REPOSITORY/releases/tag/$tag" >> "$GITHUB_STEP_SUMMARY"

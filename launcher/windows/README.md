@@ -1,5 +1,13 @@
 # Windows launcher
 
+Build442 shares its caption/certificate dictionary with the macOS/Linux builds.
+All GUI launchers hide on ordinary Close and keep the server running. Repeating
+the Windows launch sends a registered show-only window message to the existing
+form instead of creating another server. Explicit Stop and exit, application
+exit and OS shutdown stop only the owned child; Exit no longer sweeps port
+listeners belonging to another process. The existing per-user mutex, tray and
+CLR2-compatible native messaging APIs are retained for Win7/Win8.
+
 ## Language / Язык
 
 The top-right EN / RU button switches the native launcher, current status,

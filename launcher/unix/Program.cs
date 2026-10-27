@@ -8,6 +8,7 @@ using System.Net.Http;
 using System.Net.NetworkInformation;
 using System.Net.Sockets;
 using System.Runtime.InteropServices;
+using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Tasks;
 using Avalonia;
@@ -21,6 +22,7 @@ using Avalonia.Media;
 using Avalonia.Styling;
 using Avalonia.Threading;
 using Avalonia.Themes.Fluent;
+using LauncherLanguage = FdvBoulderingTimerLauncher.LauncherLanguage;
 
 namespace FdvBoulderingTimer.Launcher;
 
@@ -29,6 +31,17 @@ internal static class Program
     [STAThread]
     public static void Main(string[] args)
     {
+        LauncherLanguage.Load(LauncherLanguage.PreferencePath);
+        using var instance = new LauncherInstance(() => Dispatcher.UIThread.Post(() =>
+        {
+            if (Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime { MainWindow: LauncherWindow window })
+                window.ShowLauncher();
+        }));
+        if (!instance.IsOwner)
+        {
+            if (!instance.ReopenExisting()) Console.Error.WriteLine(LauncherLanguage.Text("The launcher is already running. Open it from the tray or menu bar."));
+            return;
+        }
         BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
     }
 
@@ -52,7 +65,11 @@ internal sealed class LauncherApp : Application
     {
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
-            desktop.MainWindow = new LauncherWindow();
+            var window = new LauncherWindow();
+            desktop.MainWindow = window;
+            desktop.ShutdownRequested += (_, _) => window.PrepareExit();
+            if (TryGetFeature(typeof(IActivatableLifetime)) is IActivatableLifetime activation)
+                activation.Activated += (_, args) => { if (args.Kind == ActivationKind.Reopen) window.ShowLauncher(); };
         }
         base.OnFrameworkInitializationCompleted();
     }
@@ -121,6 +138,7 @@ internal sealed class LauncherWindow : Window
         int options);
 
     private readonly string _baseDirectory;
+    private readonly string _languagePreferencePath;
     private LauncherSettings _settings;
     private bool _hasHttps;
     private readonly ListBox _addresses = new();
@@ -132,6 +150,20 @@ internal sealed class LauncherWindow : Window
     private readonly Button _restartButton = new() { Content = "Restart server" };
     private readonly Button _stopButton = new() { Content = "Stop and exit" };
     private readonly Button _certificateButton = new() { Content = "Create HTTPS certificate" };
+    private readonly Button _languageButton = new() { Name = "launcherLanguage" };
+    private readonly TextBlock _addressTitle = new();
+    private readonly TextBlock _logTitle = new();
+    private readonly TextBlock _hint = new() { TextWrapping = TextWrapping.Wrap };
+    private readonly TrayIcon _tray = new();
+    private readonly List<(NativeMenuItem Item, string English)> _trayItems = new();
+    private string _statusEnglish = "Preparing server...";
+    private string? _pendingServerLanguage;
+    private string _launcherLanguageToken = "";
+    private bool _languageSyncBusy;
+    private bool _openBrowserAfterLanguageSync;
+    private HttpsCertificateDialog? _certificateDialog;
+    private readonly HttpClient _languageClient = new(new SocketsHttpHandler
+    { UseProxy = false, AllowAutoRedirect = false, ConnectTimeout = TimeSpan.FromSeconds(2) }) { Timeout = TimeSpan.FromSeconds(7) };
     private readonly DispatcherTimer _startupTimer = new() { Interval = TimeSpan.FromMilliseconds(300) };
     private readonly DispatcherTimer _healthTimer = new() { Interval = TimeSpan.FromSeconds(1) };
     private readonly DispatcherTimer _restartTimer = new();
@@ -159,9 +191,13 @@ internal sealed class LauncherWindow : Window
     private bool _healthCheckInProgress;
     private int _probeGeneration;
 
-    public LauncherWindow()
+    public LauncherWindow() : this(null, true) { }
+
+    // Passive construction is used by headless UI regression tests only.
+    internal LauncherWindow(string? baseDirectory, bool startAutomatically)
     {
-        _baseDirectory = DetectBaseDirectory();
+        _baseDirectory = baseDirectory ?? DetectBaseDirectory();
+        _languagePreferencePath = startAutomatically ? LauncherLanguage.PreferencePath : Path.Combine(_baseDirectory, "launcher-language.txt");
         _settings = LauncherSettings.Load(_baseDirectory);
         _hasHttps = HasHttpsCertificate();
 
@@ -176,9 +212,10 @@ internal sealed class LauncherWindow : Window
         FontFamily = new FontFamily("Arial");
 
         Content = BuildLayout();
-        PopulateAddresses();
+        ConfigureTray();
+        ApplyLanguage();
 
-        Opened += (_, _) => StartServer(_openBrowserAfterStart);
+        if (startAutomatically) Opened += (_, _) => StartServer(_openBrowserAfterStart);
         Closing += OnClosing;
         _startupTimer.Tick += CheckServerReady;
         _healthTimer.Tick += CheckServerHealth;
@@ -242,8 +279,9 @@ internal sealed class LauncherWindow : Window
             RowSpacing = 14
         };
 
-        var heading = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 14 };
-        heading.Children.Add(new TextBlock
+        var heading = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto") };
+        var title = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 14 };
+        title.Children.Add(new TextBlock
         {
             Text = "FDV Bouldering Timer",
             FontSize = 24,
@@ -252,7 +290,12 @@ internal sealed class LauncherWindow : Window
         _buildLabel.FontSize = 16;
         _buildLabel.VerticalAlignment = VerticalAlignment.Center;
         _buildLabel.Foreground = Brush(149, 161, 181);
-        heading.Children.Add(_buildLabel);
+        title.Children.Add(_buildLabel);
+        heading.Children.Add(title);
+        ConfigureButton(_languageButton, 46);
+        _languageButton.Click += (_, _) => SwitchLanguage();
+        Grid.SetColumn(_languageButton, 1);
+        heading.Children.Add(_languageButton);
         root.Children.Add(heading);
 
         _status.Text = "Preparing server...";
@@ -261,7 +304,8 @@ internal sealed class LauncherWindow : Window
         root.Children.Add(_status);
 
         var addressPanel = new StackPanel { Spacing = 8 };
-        addressPanel.Children.Add(new TextBlock { Text = "Timer addresses", FontWeight = FontWeight.Bold });
+        _addressTitle.FontWeight = FontWeight.Bold;
+        addressPanel.Children.Add(_addressTitle);
         _addresses.Height = 130;
         _addresses.Background = Brush(16, 20, 27);
         _addresses.Foreground = Brush(244, 247, 251);
@@ -271,15 +315,15 @@ internal sealed class LauncherWindow : Window
         Grid.SetRow(addressPanel, 2);
         root.Children.Add(addressPanel);
 
-        var buttons = new StackPanel
+        var buttons = new WrapPanel
         {
             Orientation = Orientation.Horizontal,
-            Spacing = 8
         };
         ConfigureButton(_openButton, 96);
         ConfigureButton(_copyButton, 88);
         ConfigureButton(_restartButton, 120);
         ConfigureButton(_stopButton, 112);
+        foreach (var button in new[] { _openButton, _copyButton, _restartButton, _stopButton }) button.Margin = new Thickness(0, 0, 8, 6);
         _openButton.Click += (_, _) => OpenSelectedAddress();
         _copyButton.Click += async (_, _) => await CopySelectedAddress();
         _restartButton.Click += (_, _) => StartServer(false);
@@ -302,7 +346,8 @@ internal sealed class LauncherWindow : Window
             RowDefinitions = new RowDefinitions("Auto,*"),
             RowSpacing = 8
         };
-        logPanel.Children.Add(new TextBlock { Text = "Server log", FontWeight = FontWeight.Bold });
+        _logTitle.FontWeight = FontWeight.Bold;
+        logPanel.Children.Add(_logTitle);
         _log.AcceptsReturn = true;
         _log.IsReadOnly = true;
         _log.Background = Brush(16, 20, 27);
@@ -315,14 +360,9 @@ internal sealed class LauncherWindow : Window
         Grid.SetRow(logPanel, 5);
         root.Children.Add(logPanel);
 
-        var hint = new TextBlock
-        {
-            Text = "Closing this window stops the server. Use Restart server if you change ports or Node.js settings.",
-            Foreground = Brush(149, 161, 181),
-            TextWrapping = TextWrapping.Wrap
-        };
-        Grid.SetRow(hint, 6);
-        root.Children.Add(hint);
+        _hint.Foreground = Brush(149, 161, 181);
+        Grid.SetRow(_hint, 6);
+        root.Children.Add(_hint);
 
         return root;
     }
@@ -347,18 +387,102 @@ internal sealed class LauncherWindow : Window
 
     private async Task CreateHttpsCertificate()
     {
+        if (_certificateDialog != null) { _certificateDialog.Activate(); return; }
         _certificateButton.IsEnabled = false;
         try
         {
             var dialog = new HttpsCertificateDialog(_baseDirectory);
+            _certificateDialog = dialog;
             await dialog.ShowDialog(this);
             if (dialog.GeneratedDirectory != null)
-                AppendLog("HTTPS certificate created in " + dialog.GeneratedDirectory + ". Restart is required to apply it.");
+                AppendLog(string.Format(T("HTTPS certificate created in {0}. Restart is required to apply it."), dialog.GeneratedDirectory));
             // Do not advertise an HTTPS listener until a confirmed restart.
             if (dialog.RestartRequested && !_allowClose) StartServer(false);
         }
         catch (Exception error) { AppendLog("Unable to create HTTPS certificate: " + error.Message); }
-        finally { _certificateButton.IsEnabled = true; }
+        finally { _certificateDialog = null; _certificateButton.IsEnabled = true; }
+    }
+
+    private static string T(string english) => LauncherLanguage.Text(english);
+
+    private void SetStatusText(string english) { _statusEnglish = english; _status.Text = T(english); _tray.ToolTipText = "FDV Bouldering Timer — " + T(english); }
+
+    private void ApplyLanguage()
+    {
+        _languageButton.Content = LauncherLanguage.Russian ? "EN" : "RU";
+        Avalonia.Automation.AutomationProperties.SetName(_languageButton, LauncherLanguage.Russian ? "Switch to English" : "Переключить на русский");
+        _addressTitle.Text = T("Timer addresses"); _logTitle.Text = T("Server log");
+        _openButton.Content = T("Open timer"); _copyButton.Content = T("Copy link");
+        _restartButton.Content = T("Restart server"); _stopButton.Content = T("Stop and exit");
+        _certificateButton.Content = T("Create HTTPS certificate");
+        _status.Text = T(_statusEnglish);
+        _tray.ToolTipText = "FDV Bouldering Timer — " + T(_statusEnglish);
+        _hint.Text = T("Closing this window hides the launcher. The server keeps running. Use Stop and exit to stop it. Launch the app again to reopen the window.");
+        foreach (var item in _trayItems) item.Item.Header = T(item.English);
+        PopulateAddresses(); // Keep the selected URL, health probes and running child intact.
+    }
+
+    private void SwitchLanguage()
+    {
+        LauncherLanguage.Russian = !LauncherLanguage.Russian;
+        ApplyLanguage();
+        if (!LauncherLanguage.Save(_languagePreferencePath)) AppendLog("Could not save the launcher language preference.");
+        QueueServerLanguage(false);
+    }
+
+    private void QueueServerLanguage(bool openBrowser)
+    {
+        _pendingServerLanguage = LauncherLanguage.Russian ? "ru" : "en";
+        _openBrowserAfterLanguageSync |= openBrowser;
+        _ = TrySyncServerLanguage();
+    }
+
+    private async Task TrySyncServerLanguage()
+    {
+        if (_allowClose || _languageSyncBusy || !_ready || _serverProcess == null || _pendingServerLanguage == null) return;
+        var language = _pendingServerLanguage; var process = _serverProcess;
+        var generation = _probeGeneration; var token = _launcherLanguageToken; var port = _settings.HttpPort;
+        _pendingServerLanguage = null; _languageSyncBusy = true; _languageButton.IsEnabled = false;
+        try { await LauncherLanguageCommand.SendAsync(_languageClient, port, token, language, _probeCancellation.Token); }
+        catch (Exception error)
+        {
+            if (!_allowClose && generation == _probeGeneration && _serverProcess == process)
+                AppendLog("Could not change the timer language: " + error.Message);
+        }
+        finally { _languageSyncBusy = false; _languageButton.IsEnabled = true; }
+        if (_allowClose) return;
+        if (_pendingServerLanguage != null) { _ = TrySyncServerLanguage(); return; }
+        if (generation != _probeGeneration || _serverProcess != process) return;
+        if (_openBrowserAfterLanguageSync) { _openBrowserAfterLanguageSync = false; OpenLocalTimer(); }
+    }
+
+    internal void ShowLauncher()
+    {
+        if (_allowClose) return;
+        Show();
+        if (WindowState == WindowState.Minimized) WindowState = WindowState.Normal;
+        Activate();
+        _certificateDialog?.Activate();
+    }
+
+    private void ConfigureTray()
+    {
+        var menu = new NativeMenu();
+        void Add(string text, Action action)
+        {
+            var item = new NativeMenuItem(text); item.Click += (_, _) => action();
+            menu.Items.Add(item); _trayItems.Add((item, text));
+        }
+        Add("Show launcher", ShowLauncher);
+        Add("Open timer", OpenLocalTimer);
+        Add("Restart server", () => StartServer(false));
+        Add("Create HTTPS certificate", () => { ShowLauncher(); _ = CreateHttpsCertificate(); });
+        menu.Items.Add(new NativeMenuItemSeparator());
+        Add("Stop and exit", StopAndExit);
+        _tray.Icon = Icon; _tray.Menu = menu; _tray.ToolTipText = "FDV Bouldering Timer";
+        _tray.Clicked += (_, _) => ShowLauncher();
+        _tray.IsVisible = true;
+        if (Application.Current != null) TrayIcon.SetIcons(Application.Current, new TrayIcons { _tray });
     }
 
     private bool PopulateAddresses()
@@ -438,7 +562,7 @@ internal sealed class LauncherWindow : Window
 
     private static void AddAddress(List<TimerAddress> addresses, string label, string url)
     {
-        addresses.Add(new TimerAddress { Label = label, Url = url });
+        addresses.Add(new TimerAddress { Label = T(label), Url = url });
     }
 
     private void OnNetworkAddressChanged(object? sender, EventArgs args)
@@ -462,6 +586,7 @@ internal sealed class LauncherWindow : Window
 
     private void StartServer(bool openBrowser)
     {
+        _pendingServerLanguage = null; _openBrowserAfterLanguageSync = false;
         BeginNewProbeCycle();
         _startupTimer.Stop();
         _healthTimer.Stop();
@@ -469,7 +594,7 @@ internal sealed class LauncherWindow : Window
         _ready = false;
         _intentionalStop = true;
         _openButton.IsEnabled = false;
-        _status.Text = "Starting server...";
+        SetStatusText("Starting server...");
         _buildLabel.Text = "";
         Title = "FDV Bouldering Timer";
         _status.Foreground = Brush(255, 200, 87);
@@ -510,10 +635,12 @@ internal sealed class LauncherWindow : Window
                 RedirectStandardError = true
             };
             start.ArgumentList.Add(serverScript);
+            _launcherLanguageToken = Convert.ToHexString(RandomNumberGenerator.GetBytes(32)).ToLowerInvariant();
+            start.Environment["FDV_LAUNCHER_LANGUAGE_TOKEN"] = _launcherLanguageToken;
 
             _serverProcess = new Process { StartInfo = start, EnableRaisingEvents = true };
-            _serverProcess.OutputDataReceived += (_, args) => { if (args.Data != null) AppendLog(args.Data); };
-            _serverProcess.ErrorDataReceived += (_, args) => { if (args.Data != null) AppendLog(args.Data); };
+            _serverProcess.OutputDataReceived += (_, args) => { if (args.Data != null) AppendLog(args.Data, technical: true); };
+            _serverProcess.ErrorDataReceived += (_, args) => { if (args.Data != null) AppendLog(args.Data, technical: true); };
             _serverProcess.Exited += OnServerProcessExited;
             _serverProcess.Start();
             _serverProcess.BeginOutputReadLine();
@@ -578,12 +705,12 @@ internal sealed class LauncherWindow : Window
                 _restartAttempts = 0;
                 _healthFailures = 0;
                 _openButton.IsEnabled = true;
-                _status.Text = "Server is running";
+                SetStatusText("Server is running");
                 _status.Foreground = Brush(87, 211, 140);
                 AppendLog("Server is ready.");
                 AppendLog("Keep this computer connected to power and disable sleep while the timer is running.");
                 _healthTimer.Start();
-                if (_openBrowserAfterStart) OpenLocalTimer();
+                QueueServerLanguage(_openBrowserAfterStart);
                 return;
             }
 
@@ -597,7 +724,7 @@ internal sealed class LauncherWindow : Window
             {
                 _startupTimer.Stop();
                 _startupAccessNoticeShown = true;
-                _status.Text = "Server process is running, but the local timer is unavailable";
+                SetStatusText("Server process is running, but the local timer is unavailable");
                 _status.Foreground = Brush(255, 200, 87);
                 AppendLog("Node.js is running, but the launcher cannot reach the local timer. Click Restart server to try again.");
             }
@@ -660,7 +787,7 @@ internal sealed class LauncherWindow : Window
 
             _healthFailures++;
             if (_healthFailures < 6) return;
-            AppendLog("Health check failed for " + _healthFailures + " seconds; restarting server.");
+            AppendLog(string.Format(T("Health check failed for {0} seconds; restarting server."), _healthFailures));
             ScheduleServerRestart("server health check failed");
         }
         finally
@@ -678,7 +805,7 @@ internal sealed class LauncherWindow : Window
         _restartTimer.Stop();
         _ready = false;
         _openButton.IsEnabled = false;
-        _status.Text = "Restarting server...";
+        SetStatusText("Restarting server...");
         _status.Foreground = Brush(255, 200, 87);
         AppendLog("Scheduling server restart: " + reason);
 
@@ -690,7 +817,7 @@ internal sealed class LauncherWindow : Window
         var delay = RestartDelay(_restartAttempts);
         if (_restartAttempts >= 5)
         {
-            _status.Text = "Server is restarting repeatedly; check the log.";
+            SetStatusText("Server is restarting repeatedly; check the log.");
             AppendLog("Crash-loop warning: multiple restarts in a row.");
         }
         _restartTimer.Interval = delay;
@@ -782,7 +909,7 @@ internal sealed class LauncherWindow : Window
             }
             catch (Exception error)
             {
-                AppendLog("Could not stop listeners on port " + port + ": " + error.Message);
+                AppendLog(string.Format(T("Could not stop listeners on port {0}: {1}"), port, error.Message));
             }
         }
     }
@@ -868,7 +995,7 @@ internal sealed class LauncherWindow : Window
             if (_allowClose || _intentionalStop) return;
             _ready = false;
             _openButton.IsEnabled = false;
-            _status.Text = "Server stopped unexpectedly";
+            SetStatusText("Server stopped unexpectedly");
             _status.Foreground = Brush(240, 90, 89);
             ScheduleServerRestart("server process exited unexpectedly");
         });
@@ -886,17 +1013,18 @@ internal sealed class LauncherWindow : Window
         OpenUrl("http://127.0.0.1:" + _settings.HttpPort + "/");
     }
 
-    private static void OpenUrl(string url)
+    private void OpenUrl(string url)
     {
         var command = RuntimeInformation.IsOSPlatform(OSPlatform.OSX) ? "open" :
             CommandExists("xdg-open") ? "xdg-open" :
             CommandExists("gio") ? "gio" : "";
-        if (command.Length == 0) return;
+        if (command.Length == 0) { AppendLog("No supported browser opener was found."); return; }
 
         var info = new ProcessStartInfo { FileName = command, UseShellExecute = false };
         if (command == "gio") info.ArgumentList.Add("open");
         info.ArgumentList.Add(url);
-        Process.Start(info);
+        try { Process.Start(info); }
+        catch (Exception error) { AppendLog("Unable to open browser: " + error.Message); }
     }
 
     private async Task CopySelectedAddress()
@@ -926,22 +1054,30 @@ internal sealed class LauncherWindow : Window
     {
         _ready = false;
         _openButton.IsEnabled = false;
-        _status.Text = message;
+        SetStatusText(message);
         _status.Foreground = Brush(240, 90, 89);
         AppendLog(message);
     }
 
-    private void AppendLog(string message)
+    private void AppendLog(string message, bool technical = false)
     {
+        var text = technical ? message : T(message);
         Dispatcher.UIThread.Post(() =>
         {
-            _log.Text += "[" + DateTime.Now.ToString("HH:mm:ss") + "] " + message + Environment.NewLine;
+            _log.Text += "[" + DateTime.Now.ToString("HH:mm:ss") + "] " + text + Environment.NewLine;
             _log.CaretIndex = _log.Text.Length;
         });
     }
 
     private void StopAndExit()
     {
+        PrepareExit();
+        Close();
+    }
+
+    internal void PrepareExit()
+    {
+        if (_allowClose) return;
         _allowClose = true;
         CancelPendingProbes();
         StopNetworkMonitoring();
@@ -950,20 +1086,16 @@ internal sealed class LauncherWindow : Window
         _restartTimer.Stop();
         _intentionalStop = true;
         StopServerProcess();
-        Close();
+        _tray.IsVisible = false; _tray.Dispose();
     }
 
     private void OnClosing(object? sender, WindowClosingEventArgs args)
     {
-        StopNetworkMonitoring();
         if (_allowClose) return;
-        _allowClose = true;
-        CancelPendingProbes();
-        _startupTimer.Stop();
-        _healthTimer.Stop();
-        _restartTimer.Stop();
-        _intentionalStop = true;
-        StopServerProcess();
+        if (args.CloseReason is WindowCloseReason.ApplicationShutdown or WindowCloseReason.OSShutdown) { PrepareExit(); return; }
+        args.Cancel = true;
+        if (_certificateDialog != null) { _certificateDialog.Activate(); return; }
+        Hide(); // Same as Windows: only explicit Exit/OS shutdown stops the child.
     }
 
     private void BeginNewProbeCycle()

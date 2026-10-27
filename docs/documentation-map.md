@@ -4,6 +4,13 @@ This file defines the documentation set and its source-of-truth boundaries. Prod
 
 ## User documentation
 
+Build442 unifies EN/RU, desktop controls, certificate translations and
+hide-on-close behavior. Platform quick starts and both guide languages explain
+tray/menu-bar restore, repeat launch, explicit exit, per-user language persistence
+and the unchanged foreground-console behavior. Shared translation and headless
+Unix lifecycle/IPC tests are documented in launcher/unix/README.md. help.docx
+is intentionally not changed.
+
 Build 441 adds the existing Windows certificate workflow to all macOS/Linux
 server launchers. Quick starts, both guide languages and launcher/unix/README.md
 describe managed storage, explicit replacement/restart, private/public files
@@ -117,6 +124,11 @@ Build 416 uses LEG on all diagnostic cards and keeps the main badges on one row,
 | `docs/standalone.html` | Generated GitHub Pages standalone timer; never edit manually |
 
 ## Developer documentation
+
+Manual macOS previews use Release workflow_dispatch on develop only, with
+publish_macos_preview=true. scripts/build-macos-preview.sh repackages successful
+CI payloads; docs/releases/macos-preview.md is their operator checklist. The
+publisher checks seven remote digests before publishing a non-Latest prerelease.
 
 | File | Purpose |
 | --- | --- |

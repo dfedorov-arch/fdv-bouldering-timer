@@ -9,8 +9,21 @@ namespace FdvBoulderingTimerLauncher
         internal static bool Russian = true;
         internal static string PreferencePath
         {
-            get { return Path.Combine(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                "FDV Bouldering Timer"), "launcher-language.txt"); }
+            get
+            {
+#if NET8_0_OR_GREATER
+                string home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+                if (OperatingSystem.IsMacOS()) return Path.Combine(home, "Library", "Application Support", "FDV Bouldering Timer", "launcher-language.txt");
+                if (OperatingSystem.IsLinux())
+                {
+                    string state = Environment.GetEnvironmentVariable("XDG_STATE_HOME") ?? "";
+                    if (String.IsNullOrEmpty(state) || !Path.IsPathFullyQualified(state)) state = Path.Combine(home, ".local", "state");
+                    return Path.Combine(state, "fdv-bouldering-timer", "launcher-language.txt");
+                }
+#endif
+                return Path.Combine(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                    "FDV Bouldering Timer"), "launcher-language.txt");
+            }
         }
 
         internal static void Load(string path)
@@ -30,7 +43,7 @@ namespace FdvBoulderingTimerLauncher
         {
             try
             {
-                Directory.CreateDirectory(Path.GetDirectoryName(path));
+                Directory.CreateDirectory(Path.GetDirectoryName(path) ?? ".");
                 File.WriteAllText(path, Russian ? "ru" : "en", Encoding.UTF8);
                 return true;
             }
@@ -40,6 +53,41 @@ namespace FdvBoulderingTimerLauncher
         }
 
         private static readonly string[,] Messages = {
+            { "Yes", "Да" }, { "No", "Нет" },
+            { "Network HTTP", "Сеть HTTP" }, { "Network HTTPS", "Сеть HTTPS" },
+            { "Closing this window hides the launcher. The server keeps running. Use Stop and exit to stop it. Launch the app again to reopen the window.", "Закрытие скрывает лаунчер: сервер продолжает работать. Для остановки нажмите «Стоп и выход». Повторный запуск приложения откроет окно." },
+            { "The launcher is already running. Open it from the tray or menu bar.", "Лаунчер уже запущен. Откройте его через значок в трее или строке меню." },
+            { "Node.js was not found. Check portable_node_mac/portable_node_linux in params.txt or install Node.js LTS.", "Node.js не найден. Проверьте portable_node_mac/portable_node_linux в params.txt или установите подходящую версию Node.js." },
+            { "Node.js was not found because macOS started the app from a temporary translocated folder. Start fdv-bouldering-timer from the archive folder instead, or remove quarantine from the extracted folder.", "Node.js не найден: macOS запустила приложение из временного изолированного каталога. Запустите fdv-bouldering-timer из папки распакованного архива или снимите карантин с этой папки." },
+            { "serve-bouldering-timer.js was not found because macOS started the app from a temporary translocated folder. Start fdv-bouldering-timer from the archive folder instead, or remove quarantine from the extracted folder.", "serve-bouldering-timer.js не найден: macOS запустила приложение из временного изолированного каталога. Запустите fdv-bouldering-timer из папки архива или снимите карантин с этой папки." },
+            { "Could not stop listeners on port {0}: {1}", "Не удалось остановить процессы на порту {0}: {1}" },
+            { "Unable to open browser: ", "Не удалось открыть браузер: " },
+            { "No supported browser opener was found.", "Не найдена программа для открытия браузера." },
+            { "Server process is running, but the local timer is unavailable", "Процесс сервера работает, но локальный таймер недоступен" },
+            { "Node.js is running, but the launcher cannot reach the local timer. Click Restart server to try again.", "Node.js работает, но лаунчер не может подключиться к локальному таймеру. Нажмите «Перезапуск сервера», чтобы повторить попытку." },
+            { "Prepared the portable Node.js runtime for macOS (removed quarantine).", "Переносимый Node.js подготовлен для macOS: карантин снят." },
+            { "Unable to prepare the portable Node.js runtime: ", "Не удалось подготовить переносимый Node.js: " },
+            { "Unable to copy link: ", "Не удалось скопировать ссылку: " },
+            { "Unable to create HTTPS certificate: ", "Не удалось создать HTTPS-сертификат: " },
+            { "Could not enumerate network addresses. Add them manually: ", "Не удалось получить сетевые адреса. Добавьте их вручную: " },
+            { "Certificate operation failed: ", "Ошибка операции с сертификатом: " },
+            { "Certificate directory must not be a symbolic link.", "Каталог сертификата не должен быть символической ссылкой." },
+            { "Certificate must not be a symbolic link.", "Файл сертификата не должен быть символической ссылкой." },
+            { "HTTPS certificate", "HTTPS-сертификат" },
+            { "Server IP addresses and DNS names, one per line.\nRemove unused entries and add the addresses your devices use.", "IP-адреса и DNS-имена сервера — по одному в строке.\nУдалите ненужные адреса и добавьте те, по которым устройства открывают таймер." },
+            { "Self-signed certificate: RSA 2048 / SHA-256, valid for 365 days.\nKeep localhost, 127.0.0.1 and ::1 for local access. Generation does not change DNS, firewall or device trust.", "Самоподписанный сертификат: RSA 2048 / SHA-256, срок 365 дней.\nДля локального доступа оставьте localhost, 127.0.0.1 и ::1. Генерация не меняет DNS, брандмауэр и доверие устройств." },
+            { "Directory: ", "Каталог: " },
+            { "\nA user directory is used if this location is not writable.", "\nПри запрете записи используется пользовательский каталог." },
+            { "The server keeps running during generation. HTTPS uses the new certificate only after a separately confirmed restart.", "Сервер продолжит работать во время генерации. HTTPS применит новый сертификат только после отдельного подтверждения перезапуска." },
+            { "Create certificate", "Создать сертификат" },
+            { "Open directory", "Открыть каталог" },
+            { "Close", "Закрыть" },
+            { "A certificate already exists. Create a new one and replace the active certificate after restart?\n\nPrevious files created here are kept as .backup files. Device trust must be configured again.", "Сертификат уже существует. Создать новый и заменить активный сертификат после перезапуска?\n\nПредыдущие файлы, созданные этой кнопкой, сохранятся как .backup. На устройствах понадобится заново настроить доверие." },
+            { "Creating certificate… The server keeps running.", "Создаётся сертификат… Сервер продолжает работать." },
+            { "Certificate created: ", "Сертификат создан: " },
+            { "timer-public.cer is the public certificate for configuring trust.\ntimer-cert.pfx contains the private key: do not share it with displays.\nConfigure trust on devices and in Node.js on both servers.", "timer-public.cer — публичный сертификат для настройки доверия.\ntimer-cert.pfx содержит закрытый ключ: не передавайте его экранам.\nНастройте доверие на устройствах и в Node.js обоих серверов." },
+            { "Restart the server now to apply the HTTPS certificate?\n\nBrowser connections will be interrupted temporarily. During a competition choose No and restart later.", "Перезапустить сервер сейчас, чтобы применить HTTPS-сертификат?\n\nСоединения с браузерами временно прервутся. Во время соревнований выберите «Нет» и перезапустите сервер позже." },
+            { "Certificate was not created: ", "Сертификат не создан: " },
             { "Preparing server...", "Подготовка сервера…" },
             { "Starting server...", "Запуск сервера…" },
             { "Timer addresses", "Адреса таймера" },

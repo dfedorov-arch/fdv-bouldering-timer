@@ -3,6 +3,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Layout;
 using Avalonia.Media;
+using LauncherLanguage = FdvBoulderingTimerLauncher.LauncherLanguage;
 
 namespace FdvBoulderingTimer.Launcher;
 
@@ -21,7 +22,8 @@ internal sealed class HttpsCertificateDialog : Window
     internal HttpsCertificateDialog(string root)
     {
         _root = root;
-        Title = "HTTPS certificate";
+        Title = T("HTTPS certificate");
+        _create.Content = T("Create certificate"); _folder.Content = T("Open directory"); _close.Content = T("Close");
         Width = 720; Height = 700; MinWidth = 580; MinHeight = 600;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
         Background = new SolidColorBrush(Color.FromRgb(17, 23, 34));
@@ -32,13 +34,13 @@ internal sealed class HttpsCertificateDialog : Window
         catch (Exception error)
         {
             _names.Text = "localhost\n127.0.0.1\n::1";
-            _status.Text = "Could not enumerate network addresses. Add them manually: " + error.Message;
+            _status.Text = T("Could not enumerate network addresses. Add them manually: ") + error.Message;
         }
         Add(layout, _names, 1);
         Add(layout, Label("Self-signed certificate: RSA 2048 / SHA-256, valid for 365 days.\nKeep localhost, 127.0.0.1 and ::1 for local access. Generation does not change DNS, firewall or device trust."), 2);
-        Add(layout, Label("Directory: " + HttpsCertificate.PreferredDirectory(root) +
-            "\nA user directory is used if this location is not writable."), 3);
-        if (string.IsNullOrEmpty(_status.Text)) _status.Text = "The server keeps running during generation. Apply HTTPS later or confirm a separate restart.";
+        Add(layout, Label(T("Directory: ") + HttpsCertificate.PreferredDirectory(root) +
+            T("\nA user directory is used if this location is not writable.")), 3);
+        if (string.IsNullOrEmpty(_status.Text)) _status.Text = T("The server keeps running during generation. HTTPS uses the new certificate only after a separately confirmed restart.");
         Add(layout, _status, 4);
         var actions = new WrapPanel { Orientation = Orientation.Horizontal };
         foreach (var button in new[] { _create, _folder, _close })
@@ -61,7 +63,8 @@ internal sealed class HttpsCertificateDialog : Window
         Closing += (_, args) => { if (_busy) args.Cancel = true; };
     }
 
-    private static TextBlock Label(string text) => new() { Text = text, TextWrapping = TextWrapping.Wrap };
+    private static string T(string english) => LauncherLanguage.Text(english);
+    private static TextBlock Label(string text) => new() { Text = T(text), TextWrapping = TextWrapping.Wrap };
     private static void Add(Grid grid, Control control, int row) { Grid.SetRow(control, row); grid.Children.Add(control); }
 
     private async Task Generate()
@@ -75,14 +78,14 @@ internal sealed class HttpsCertificateDialog : Window
         try
         {
             var replace = HttpsCertificate.Exists(_root);
-            if (replace && !await Confirm(this, "A certificate already exists. Create a new one and replace it after restart?\n\nPrevious managed files are kept as .backup files. Device trust must be configured again.")) return;
+            if (replace && !await Confirm(this, "A certificate already exists. Create a new one and replace the active certificate after restart?\n\nPrevious files created here are kept as .backup files. Device trust must be configured again.")) return;
             _status.Foreground = Brushes.White;
-            _status.Text = "Creating certificate… The server keeps running.";
+            _status.Text = T("Creating certificate… The server keeps running.");
             GeneratedDirectory = await Task.Run(() => HttpsCertificate.Generate(_root, names, replace));
             _folder.IsEnabled = true;
             _status.Foreground = new SolidColorBrush(Color.FromRgb(38, 208, 124));
-            _status.Text = "Certificate created: " + GeneratedDirectory +
-                "\ntimer-public.cer is the public certificate for configuring trust.\ntimer-cert.pfx contains the private key: do not share it with displays.\nConfigure trust on devices and in Node.js on both servers.";
+            _status.Text = T("Certificate created: ") + GeneratedDirectory + Environment.NewLine +
+                T("timer-public.cer is the public certificate for configuring trust.\ntimer-cert.pfx contains the private key: do not share it with displays.\nConfigure trust on devices and in Node.js on both servers.");
             if (await Confirm(this, "Restart the server now to apply the HTTPS certificate?\n\nBrowser connections will be interrupted temporarily. During a competition choose No and restart later."))
             { RestartRequested = true; _busy = false; Close(); }
         }
@@ -93,18 +96,18 @@ internal sealed class HttpsCertificateDialog : Window
     private void ShowError(string message)
     {
         _status.Foreground = new SolidColorBrush(Color.FromRgb(240, 90, 89));
-        _status.Text = "Certificate operation failed: " + message;
+        _status.Text = T("Certificate operation failed: ") + message;
     }
 
     private static Task<bool> Confirm(Window owner, string text)
     {
-        var dialog = new Window { Title = "HTTPS certificate", Width = 560, MinWidth = 420,
+        var dialog = new Window { Title = T("HTTPS certificate"), Width = 560, MinWidth = 420,
             SizeToContent = SizeToContent.Height, CanResize = false, WindowStartupLocation = WindowStartupLocation.CenterOwner };
         var layout = new StackPanel { Margin = new Thickness(20), Spacing = 18 };
         layout.Children.Add(Label(text));
         var actions = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Spacing = 10 };
-        var yes = new Button { Content = "Yes" };
-        var no = new Button { Content = "No", IsCancel = true };
+        var yes = new Button { Content = T("Yes") };
+        var no = new Button { Content = T("No"), IsCancel = true };
         yes.Click += (_, _) => dialog.Close(true);
         no.Click += (_, _) => dialog.Close(false);
         actions.Children.Add(yes); actions.Children.Add(no); layout.Children.Add(actions);

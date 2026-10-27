@@ -10,7 +10,6 @@ namespace FdvBoulderingTimerLauncher
     internal sealed class HttpsCertificateDialog : Form
     {
         private readonly string _root;
-        private readonly bool _ru;
         private readonly TextBox _names = new TextBox();
         private readonly Label _status = new Label();
         private readonly Button _create = new CertificateButton();
@@ -52,8 +51,7 @@ namespace FdvBoulderingTimerLauncher
         internal HttpsCertificateDialog(string root)
         {
             _root = root;
-            _ru = LauncherLanguage.Russian;
-            Text = _ru ? "HTTPS-сертификат" : "HTTPS certificate";
+            Text = LauncherLanguage.Text("HTTPS certificate");
             StartPosition = FormStartPosition.CenterParent;
             MinimumSize = new Size(580, 560); ClientSize = new Size(680, 650);
             AutoScaleMode = AutoScaleMode.Font;
@@ -67,30 +65,26 @@ namespace FdvBoulderingTimerLauncher
             layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
             for (int row = 2; row < 6; row++) layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
             Controls.Add(layout);
-            layout.Controls.Add(Label(_ru ? "IP-адреса и DNS-имена сервера — по одному в строке.\nУдалите ненужные адреса и добавьте те, по которым устройства открывают таймер."
-                : "Server IP addresses and DNS names, one per line.\nRemove unused entries and add the addresses your devices use."), 0, 0);
+            layout.Controls.Add(Label(LauncherLanguage.Text("Server IP addresses and DNS names, one per line.\nRemove unused entries and add the addresses your devices use.")), 0, 0);
             _names.Name = "certificateNames"; _names.Dock = DockStyle.Fill; _names.Multiline = true;
             _names.ScrollBars = ScrollBars.Vertical; _names.AcceptsReturn = true;
             _names.BackColor = Color.FromArgb(16, 20, 27); _names.ForeColor = ForeColor;
             _names.Text = String.Join(Environment.NewLine, HttpsCertificate.DefaultNames());
             layout.Controls.Add(_names, 0, 1);
-            layout.Controls.Add(Label(_ru ? "Самоподписанный сертификат: RSA 2048 / SHA-256, срок 365 дней.\nДля локального доступа оставьте localhost, 127.0.0.1 и ::1. Генерация не меняет DNS, брандмауэр и доверие устройств."
-                : "Self-signed certificate: RSA 2048 / SHA-256, valid for 365 days.\nKeep localhost, 127.0.0.1 and ::1 for local access. Generation does not change DNS, firewall or device trust."), 0, 2);
-            layout.Controls.Add(Label((_ru ? "Каталог: " : "Directory: ") + HttpsCertificate.PreferredDirectory(root)
-                + (_ru ? "\nПри запрете записи используется пользовательский каталог."
-                    : "\nA user directory is used if this location is not writable.")), 0, 3);
+            layout.Controls.Add(Label(LauncherLanguage.Text("Self-signed certificate: RSA 2048 / SHA-256, valid for 365 days.\nKeep localhost, 127.0.0.1 and ::1 for local access. Generation does not change DNS, firewall or device trust.")), 0, 2);
+            layout.Controls.Add(Label((LauncherLanguage.Text("Directory: ")) + HttpsCertificate.PreferredDirectory(root)
+                + (LauncherLanguage.Text("\nA user directory is used if this location is not writable."))), 0, 3);
             _status.Name = "certificateStatus"; _status.AutoSize = true; _status.Dock = DockStyle.Fill;
             _status.Margin = new Padding(3, 10, 3, 10);
-            _status.Text = _ru ? "Сервер продолжит работать во время генерации. HTTPS применит новый сертификат только после отдельного подтверждения перезапуска."
-                : "The server keeps running during generation. HTTPS uses the new certificate only after a separately confirmed restart.";
+            _status.Text = LauncherLanguage.Text("The server keeps running during generation. HTTPS uses the new certificate only after a separately confirmed restart.");
             layout.Controls.Add(_status, 0, 4);
             var actions = new FlowLayoutPanel(); actions.AutoSize = true; actions.Dock = DockStyle.Fill; actions.WrapContents = true;
-            _create.Name = "createCertificate"; _create.Text = _ru ? "Создать сертификат" : "Create certificate";
+            _create.Name = "createCertificate"; _create.Text = LauncherLanguage.Text("Create certificate");
             _create.AutoSize = true; _create.MinimumSize = new Size(155, 34); _create.Click += Generate;
-            _folder.Name = "openCertificateFolder"; _folder.Text = _ru ? "Открыть каталог" : "Open directory";
+            _folder.Name = "openCertificateFolder"; _folder.Text = LauncherLanguage.Text("Open directory");
             _folder.AutoSize = true; _folder.MinimumSize = new Size(155, 34); _folder.Enabled = false;
             _folder.Click += delegate { if (GeneratedDirectory != null) Process.Start(new ProcessStartInfo(GeneratedDirectory) { UseShellExecute = true }); };
-            _close.Text = _ru ? "Закрыть" : "Close"; _close.AutoSize = true; _close.MinimumSize = new Size(100, 34);
+            _close.Text = LauncherLanguage.Text("Close"); _close.AutoSize = true; _close.MinimumSize = new Size(100, 34);
             _close.Click += delegate { Close(); };
             actions.Controls.Add(_create); actions.Controls.Add(_folder); actions.Controls.Add(_close);
             layout.Controls.Add(actions, 0, 5);
@@ -109,12 +103,10 @@ namespace FdvBoulderingTimerLauncher
             try { names = HttpsCertificate.NormalizeNames(_names.Text); }
             catch (Exception error) { ShowError(error.Message); return; }
             bool replace = HttpsCertificate.Exists(_root);
-            if (replace && MessageBox.Show(this, _ru
-                ? "Сертификат уже существует. Создать новый и заменить активный сертификат после перезапуска?\n\nПредыдущие файлы, созданные этой кнопкой, сохранятся как .backup. На устройствах понадобится заново настроить доверие."
-                : "A certificate already exists. Create a new one and replace the active certificate after restart?\n\nPrevious files created here are kept as .backup files. Device trust must be configured again.",
+            if (replace && MessageBox.Show(this, LauncherLanguage.Text("A certificate already exists. Create a new one and replace the active certificate after restart?\n\nPrevious files created here are kept as .backup files. Device trust must be configured again."),
                 Text, MessageBoxButtons.YesNo, MessageBoxIcon.Warning, MessageBoxDefaultButton.Button2) != DialogResult.Yes) return;
             _busy = true; _create.Enabled = false; _close.Enabled = false; _names.Enabled = false;
-            _status.ForeColor = ForeColor; _status.Text = _ru ? "Создаётся сертификат… Сервер продолжает работать." : "Creating certificate… The server keeps running.";
+            _status.ForeColor = ForeColor; _status.Text = LauncherLanguage.Text("Creating certificate… The server keeps running.");
             ThreadPool.QueueUserWorkItem(delegate
             {
                 string directory = null; Exception failure = null;
@@ -130,12 +122,9 @@ namespace FdvBoulderingTimerLauncher
             _busy = false; _create.Enabled = true; _close.Enabled = true; _names.Enabled = true;
             if (failure != null) { ShowError(failure.Message); return; }
             GeneratedDirectory = directory; _folder.Enabled = true; _status.ForeColor = Color.FromArgb(38, 208, 124);
-            _status.Text = (_ru ? "Сертификат создан: " : "Certificate created: ") + directory + Environment.NewLine
-                + (_ru ? "timer-public.cer — публичный сертификат для настройки доверия.\ntimer-cert.pfx содержит закрытый ключ: не передавайте его экранам.\nНастройте доверие на устройствах и в Node.js обоих серверов."
-                    : "timer-public.cer is the public certificate for configuring trust.\ntimer-cert.pfx contains the private key: do not share it with displays.\nConfigure trust on devices and in Node.js on both servers.");
-            if (MessageBox.Show(this, _ru
-                ? "Перезапустить сервер сейчас, чтобы применить HTTPS-сертификат?\n\nСоединения с браузерами временно прервутся. Во время соревнований выберите «Нет» и перезапустите сервер позже."
-                : "Restart the server now to apply the HTTPS certificate?\n\nBrowser connections will be interrupted temporarily. During a competition choose No and restart later.",
+            _status.Text = (LauncherLanguage.Text("Certificate created: ")) + directory + Environment.NewLine
+                + (LauncherLanguage.Text("timer-public.cer is the public certificate for configuring trust.\ntimer-cert.pfx contains the private key: do not share it with displays.\nConfigure trust on devices and in Node.js on both servers."));
+            if (MessageBox.Show(this, LauncherLanguage.Text("Restart the server now to apply the HTTPS certificate?\n\nBrowser connections will be interrupted temporarily. During a competition choose No and restart later."),
                 Text, MessageBoxButtons.YesNo, MessageBoxIcon.Warning, MessageBoxDefaultButton.Button2) == DialogResult.Yes)
             { RestartRequested = true; DialogResult = DialogResult.OK; Close(); }
         }
@@ -143,7 +132,7 @@ namespace FdvBoulderingTimerLauncher
         private void ShowError(string error)
         {
             _status.ForeColor = Color.FromArgb(240, 90, 89);
-            _status.Text = (_ru ? "Сертификат не создан: " : "Certificate was not created: ") + error;
+            _status.Text = LauncherLanguage.Text("Certificate operation failed: ") + error;
         }
     }
 }

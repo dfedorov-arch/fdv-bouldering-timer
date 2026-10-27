@@ -33,7 +33,7 @@ test("Windows language switch remembers the choice and queues only authenticated
   assert.match(switchBody,/QueueServerLanguage\(false\)/);
   assert.doesNotMatch(switchBody,/StartServer|StopServer|\.Start\(|_settings\s*=/);
   assert.match(source,/AppendRawLog\(args.Data\)/);
-  assert.match(fs.readFileSync(path.join(projectRoot,"launcher/windows/HttpsCertificateDialog.cs"),"utf8"),/_ru = LauncherLanguage.Russian/);
+  assert.match(fs.readFileSync(path.join(projectRoot,"launcher/windows/HttpsCertificateDialog.cs"),"utf8"),/LauncherLanguage.Text\("HTTPS certificate"\)/);
 });
 
 test("native RU/EN launcher preserves state and sends authenticated language to an isolated server",{timeout:30000},async t=>{
