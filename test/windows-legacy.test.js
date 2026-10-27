@@ -20,7 +20,10 @@ function assertActiveModernAuthority(state, url) {
 }
 
 test("takeover assertion accepts the settled primary after automatic role reversal", {timeout:15000}, async t => {
-  const primary = await fixture(t, null), modern = await fixture(t, null);
+  // This is an authority-state assertion, not a one-second HTTP benchmark.
+  // Windows cold filesystem/AV work can delay a local response on shared CI.
+  const primary = await fixture(t, null, {requestTimeoutMs:3000});
+  const modern = await fixture(t, null, {requestTimeoutMs:3000});
   await primary.action({type:"primary", primaryClientId:"clock-test"});
   await primary.start();
   const post = (pathname, body) => fetch(primary.baseUrl+pathname,{method:"POST",

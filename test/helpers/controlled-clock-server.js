@@ -21,7 +21,7 @@ async function freePort() {
   return port;
 }
 
-async function fixture(t, platform, { liveClocks = false, legacyRuntime = process.env.FDV_TEST_SERVER_NODE12 || null, listenHost = "127.0.0.1", launcherToken = "", nativeAudioStub = false, nativeAudioDisabled = true, integerWallClock = false, nativeAudioCoordinatorSource = null } = {}) {
+async function fixture(t, platform, { liveClocks = false, legacyRuntime = process.env.FDV_TEST_SERVER_NODE12 || null, listenHost = "127.0.0.1", launcherToken = "", nativeAudioStub = false, nativeAudioDisabled = true, integerWallClock = false, nativeAudioCoordinatorSource = null, requestTimeoutMs = 1000 } = {}) {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), "fdv-clock-continuity-"));
   const profile = path.join(directory, "isolated-profile");
   fs.mkdirSync(profile);
@@ -130,7 +130,7 @@ async function fixture(t, platform, { liveClocks = false, legacyRuntime = proces
   launch();
   const baseUrl = `http://127.0.0.1:${port}`;
   const state = async () => {
-    const response = await fetch(`${baseUrl}/api/state?diagnostics=1`, { signal: AbortSignal.timeout(1000) });
+    const response = await fetch(`${baseUrl}/api/state?diagnostics=1`, { signal: AbortSignal.timeout(requestTimeoutMs) });
     assert.equal(response.status, 200);
     return response.json();
   };
@@ -147,7 +147,7 @@ async function fixture(t, platform, { liveClocks = false, legacyRuntime = proces
   const action = async (body) => {
     const response = await fetch(`${baseUrl}/api/action`, {
       method: "POST", headers: { "content-type": "application/json" },
-      body: JSON.stringify({ clientId: "clock-test", ...body }), signal: AbortSignal.timeout(1000)
+      body: JSON.stringify({ clientId: "clock-test", ...body }), signal: AbortSignal.timeout(requestTimeoutMs)
     });
     assert.equal(response.status, 200);
     return response.json();
