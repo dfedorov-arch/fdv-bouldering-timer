@@ -4,6 +4,8 @@ This file defines the documentation set and its source-of-truth boundaries. Prod
 
 ## User documentation
 
+Release v2.3.2 (build 440) selectively backports develop build 439's unified end-Final confirmation for Classic/Festival and Final Old/New after Stop. Both guide languages, quick starts and `releases/v2.3.2.md` cover cancellation, reset-to-first-rotation, preserved duration/rest count and the unchanged Stop requirement. `format-switch.test.js`, `timer-transitions.test.js` and `visual/final-format-switch.spec.js` verify both clients and generated standalone/Android HTML. Native dialogs are checked through Playwright events; page layout is unchanged and existing screenshots remain current. Other develop features are not included.
+
 Release v2.3.1 (build 437) is a hotfix of v2.3.0 for shared manual Final START. See `releases/v2.3.1.md` and the manual-start contract in `architecture.md`. `final-manual-start.test.js` and `visual/final-manual-start.spec.js` cover both scheduling paths and real two-client delivery. No controls or layout changed, so existing screenshots remain current.
 
 | File | Audience | Purpose |

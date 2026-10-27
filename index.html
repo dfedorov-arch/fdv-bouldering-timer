@@ -3095,7 +3095,7 @@
       timeline: []
     };
 
-    const pageBuildNumber = 437;
+    const pageBuildNumber = 440;
     const projectUrl = "https://github.com/dfedorov-arch/fdv-bouldering-timer";
     const buildLinkConfirmDelayMs = 550;
     const offlineSnapshotKey = "fdvBoulderingTimerOfflineSnapshot";
@@ -6265,24 +6265,44 @@
       };
     }
 
-    async function setPreset(name) {
-      if (!controlsAvailable() || presetChangeInFlight || !presets[name]) return;
-      if (formatSelectionLocked()) return;
+    async function setPreset(name, options = {}) {
+      const roundChange = name === "final"
+        && (options.finalRoundFormat === "old" || options.finalRoundFormat === "new");
+      const currentRoundFormat = () => state.activeSettings?.finalRoundFormat === "new" ? "new" : "old";
+      const restoreRoundSelection = () => {
+        if (!roundChange) return;
+        const previous = currentRoundFormat();
+        els.finalRoundFormatInputs.forEach((input) => { input.checked = input.value === previous; });
+        updateParameterLabels();
+      };
+      if (!controlsAvailable() || presetChangeInFlight || !presets[name] || formatSelectionLocked()
+        || (roundChange && (state.activePreset !== "final" || options.finalRoundFormat === currentRoundFormat()))) {
+        restoreRoundSelection();
+        return;
+      }
       const finishFinal = finalRoundProgressLocked();
-      if (finishFinal && (name === "final" || !window.confirm(t("finishFinalConfirm")))) return;
+      if (finishFinal && ((name === "final" && !roundChange) || !window.confirm(t("finishFinalConfirm")))) {
+        restoreRoundSelection();
+        return;
+      }
+      const nextDraft = roundChange
+        ? { ...draftSettings(), finalRoundFormat: options.finalRoundFormat }
+        : presets[name];
       presetChangeInFlight = true;
+      syncButtons();
       try {
       state.activePreset = name;
       els.presets.forEach((button) => button.classList.toggle("active", button.dataset.preset === name));
-      if (presets[name]) {
-        setInputsFromDraft(presets[name]);
-      }
+      setInputsFromDraft(nextDraft);
       if (!standaloneMode) {
         const sent = await sendServerAction("settings", {
           activePreset: state.activePreset,
           settings: draftSettings()
         });
-        if (sent !== true) return;
+        if (sent !== true) {
+          restoreRoundSelection();
+          return;
+        }
       } else {
         if (finishFinal) state.startListFinalCycle = 0;
         saveOfflineSnapshot();
@@ -11170,7 +11190,9 @@
       els.climbMinutes.disabled = !available || timerParametersLocked;
       els.breakSeconds.disabled = !available || timerParametersLocked;
       els.finalRestRotations.disabled = !available || timerParametersLocked;
-      els.finalRoundFormatInputs.forEach((input) => { input.disabled = !available || timerParametersLocked; });
+      els.finalRoundFormatInputs.forEach((input) => {
+        input.disabled = !available || formatSelectionLocked() || presetChangeInFlight;
+      });
       [els.startHours, els.startMinutes].forEach((input) => { input.disabled = !available; });
       els.soundProfileSelect.disabled = !available || (state.running && !beforeScheduledStart)
         || state.elapsedBeforePause > 0
@@ -12303,9 +12325,7 @@
 
     els.finalRoundFormatInputs.forEach((input) => {
       input.addEventListener("change", () => {
-        updateParameterLabels();
-        lastStartListRenderKey = "";
-        commitDraftSettingsChange();
+        setPreset("final", { finalRoundFormat: input.value });
       });
     });
 

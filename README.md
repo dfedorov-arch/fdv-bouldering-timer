@@ -8,9 +8,10 @@
 
 ## Возможности
 
-В [v2.3.1](docs/releases/v2.3.1.md) исправлен стартовый сигнал ручного запуска Финала на дополнительных браузерах. После обновления перезапустите сервер и обновите все страницы; звук должен быть разрешён и разблокирован на каждом звуковом устройстве.
+В [v2.3.2](docs/releases/v2.3.2.md) смена остановленного Финала на Классику/Фестиваль и «Старый / Новый» используют единое подтверждение завершения. Исправление стартового сигнала из v2.3.1 сохранено. После обновления перезапустите сервер и обновите все страницы.
 
 - Форматы **Классика**, **Фестиваль** и **Финал**.
+- После «Стоп» выход из начатого Финала в Классику/Фестиваль и смена «Старый / Новый» используют одно подтверждение: отмена сохраняет прогресс, согласие начинает новый формат с первой ротации.
 - При завершении одноразового отсчёта на `00:00` включаются цвета перерыва (по умолчанию красный фон); пройденные трассы отмечаются сине-фиолетовыми ромбами.
 - Немедленный или отложенный старт, пауза, перемотка по полосе прогресса и ручной выбор ротации на паузе.
 - Единое серверное время для всех экранов и точное планирование звуков.
@@ -115,9 +116,10 @@ A network-synchronized timer for bouldering competitions. One browser controls t
 
 ### Features
 
-[v2.3.1](docs/releases/v2.3.1.md) fixes manual Final START on other browsers. Restart the server and reload every page after upgrading; audio must be enabled and unlocked on each sound device.
+[v2.3.2](docs/releases/v2.3.2.md) unifies confirmation when changing a stopped Final to Classic/Festival or Old / New. The v2.3.1 START fix is retained. Restart the server and reload every page after upgrading.
 
 - **Classic**, **Festival**, and **Final** competition formats.
+- After Stop, leaving a progressed Final for Classic/Festival or switching Old / New uses the same confirmation: cancel preserves progress; acceptance starts the new format at rotation one.
 - A completed one-shot timer at `00:00` uses the configured break colors (red background by default); completed routes use blue-purple diamonds.
 - Immediate or scheduled start, pause, progress scrubbing, and paused rotation selection.
 - Server-authoritative timing with local continuation during a short network outage.
