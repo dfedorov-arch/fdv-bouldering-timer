@@ -147,6 +147,9 @@ if [[ "$RID" == osx-* ]]; then
   mkdir -p "$APP_DIR/Contents/MacOS" "$APP_DIR/Contents/Resources"
   cp -R "$PUBLISH_DIR"/. "$APP_DIR/Contents/MacOS/"
   chmod +x "$APP_DIR/Contents/MacOS/fdv-bouldering-timer"
+  # SetLauncherIcon loads this PNG beside the executable for the menu-bar icon.
+  # Keep it inside the signed app: portable/PKG packaging copies the app only.
+  cp "$ICON_PNG" "$APP_DIR/Contents/MacOS/timer-launcher.png"
   ICONSET_DIR="$OUTPUT_DIR/timer-launcher.iconset"
   mkdir -p "$ICONSET_DIR"
   python3 - "$ICONSET_DIR" <<'PY'

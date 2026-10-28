@@ -4,6 +4,26 @@ This file defines the documentation set and its source-of-truth boundaries. Prod
 
 ## User documentation
 
+macOS Dock/Finder Reopen now toggles open/minimized launcher windows and restores
+hidden ones. Certificate dialogs stay reachable; explicit menu/IPC Show still
+always restores. Quick starts, both guide languages and the Unix README describe
+the behavior; the passive headless harness checks that it preserves the server,
+readiness, probes and one-time startup. Real Dock interaction needs native GUI QA.
+
+macOS menu-bar icon packaging keeps the generated PNG inside the signed `.app`,
+next to its executable, and preflight rejects missing/empty icon assets. See
+launcher/unix/README.md and architecture.md for the Dock/menu-bar distinction
+and raw `dotnet publish` limitations.
+
+Current development handoff: [CHAT_HANDOFF.md](CHAT_HANDOFF.md). It records
+the checked Git/worktree state, build443 language synchronization, validation
+limits, local test launch and preview/release boundaries for a new chat.
+
+Build443 makes desktop language synchronization bidirectional using metadata
+headers on existing server health responses, with no additional polls. The
+server's restored language wins at readiness unless a local choice is pending.
+See architecture.md and CHAT_HANDOFF.md for race guards and validation limits.
+
 Build442 unifies EN/RU, desktop controls, certificate translations and
 hide-on-close behavior. Platform quick starts and both guide languages explain
 tray/menu-bar restore, repeat launch, explicit exit, per-user language persistence

@@ -25,13 +25,15 @@ function cleanLauncherEnvironment() {
 }
 
 function createMacLauncherFixture({
-  includePdb = false
+  includePdb = false,
+  includeTrayIcon = true
 } = {}) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "fdv-mac-launcher-test-"));
   const app = path.join(root, "FDV Bouldering Timer.app");
   const macos = path.join(app, "Contents", "MacOS");
   fs.mkdirSync(macos, { recursive: true });
   fs.writeFileSync(path.join(macos, "fdv-bouldering-timer"), "launcher");
+  if (includeTrayIcon) fs.writeFileSync(path.join(macos, "timer-launcher.png"), "icon");
   fs.mkdirSync(path.join(root, "native-audio"));
   fs.writeFileSync(path.join(root, "native-audio", "fdv-audio-player"), "native-player");
   fs.writeFileSync(path.join(root, "native-audio", "NLAYER-LICENSE.txt"), "license");
@@ -97,6 +99,23 @@ test("targeted packaging requires only the selected platform launcher", () => {
   } finally {
     fs.rmSync(fixture.root, { recursive: true, force: true });
   }
+});
+
+test("macOS packaging rejects a missing or empty menu-bar icon before downloads", () => {
+  const fixture = createMacLauncherFixture({ includeTrayIcon: false });
+  const environment = cleanLauncherEnvironment();
+  environment.MACOS_LAUNCHER_ARM64 = fixture.app;
+  try {
+    for (const emptyIcon of [false, true]) {
+      if (emptyIcon) fs.writeFileSync(path.join(fixture.app, "Contents", "MacOS", "timer-launcher.png"), "");
+      const result = spawnSync("bash", [buildScript, "test-build", "--target=macos-arm64", "--preflight-only"], {
+        cwd: projectRoot, env: environment, encoding: "utf8"
+      });
+      assert.equal(result.status, 1);
+      assert.match(result.stderr, /Required macOS menu-bar icon was not found/);
+      assert.doesNotMatch(result.stdout + result.stderr, /Downloading node-/);
+    }
+  } finally { fs.rmSync(fixture.root, { recursive: true, force: true }); }
 });
 
 test("macOS packaging rejects debug symbols without requiring local-network discovery declarations", () => {

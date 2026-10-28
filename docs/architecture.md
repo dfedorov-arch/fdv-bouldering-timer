@@ -27,7 +27,11 @@ readiness, timers and raw technical logs. Clock/audio/replication logic is uncha
 Ordinary window close hides the GUI on all platforms. Explicit Exit and OS/app
 shutdown stop the owned child and release monitoring/tray. Windows exit no
 longer sweeps unrelated port listeners. Unix tray/menu-bar actions mirror
-Windows, Dock Reopen restores the window, and a per-user mutex with a
+Windows. macOS Reopen (Dock/Finder) minimizes a visible, non-minimized launcher
+or restores a hidden/minimized one; an open certificate dialog instead keeps
+its owner visible and is activated. Menu/tray Show and single-instance IPC
+always restore without toggling. These window-only actions preserve the child,
+readiness, health probes and one-time startup guard. A per-user mutex with a
 current-user-only named pipe reopens the first GUI on repeat launch. There is
 no TCP control port or polling for activation. Windows uses a registered
 show-only window message so its CLR2 builds retain the same reopen behavior.
@@ -383,6 +387,13 @@ Schema changes require a version migration or explicit safe fallback. Integratio
 ## Launcher networking
 
 Desktop launchers start the server on the wildcard listener (`0.0.0.0`) so every active local interface can accept connections. They refresh parsed settings and displayed links whenever the server restarts, and refresh network links when the operating system reports an address change. Address discovery is local interface enumeration only: the macOS/Linux launcher must not initiate Bonjour browsing merely to trigger a Local Network permission prompt. Health probes are serialized and bounded so a stopped or changing server cannot accumulate connections.
+
+macOS app packaging includes `Contents/MacOS/timer-launcher.png` beside the
+executable for the existing `SetLauncherIcon` lookup and tray assignment. The
+separate `Contents/Resources/timer-launcher.icns` supplies the Dock/Finder icon.
+Both are included before signing; portable/PKG builders copy the complete app.
+Release preflight rejects a missing or empty menu-bar PNG before downloads.
+Raw `dotnet publish` alone does not generate these icon assets.
 
 The macOS PKG installs its payload at `/Applications/FDV Bouldering Timer`. Its component property list explicitly disables bundle relocation, preventing Installer from redirecting an upgrade to an older portable copy of `FDV Bouldering Timer.app` found elsewhere on disk. The release workflow expands every generated PKG and verifies that its relocation list is empty before publishing it.
 

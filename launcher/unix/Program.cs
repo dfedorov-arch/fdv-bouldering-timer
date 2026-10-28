@@ -69,7 +69,7 @@ internal sealed class LauncherApp : Application
             desktop.MainWindow = window;
             desktop.ShutdownRequested += (_, _) => window.PrepareExit();
             if (TryGetFeature(typeof(IActivatableLifetime)) is IActivatableLifetime activation)
-                activation.Activated += (_, args) => { if (args.Kind == ActivationKind.Reopen) window.ShowLauncher(); };
+                activation.Activated += (_, args) => { if (args.Kind == ActivationKind.Reopen) window.ReopenFromDock(); };
         }
         base.OnFrameworkInitializationCompleted();
     }
@@ -480,6 +480,17 @@ internal sealed class LauncherWindow : Window
         if (_pendingServerLanguage != null) { _ = TrySyncServerLanguage(); return; }
         if (generation != _probeGeneration || _serverProcess != process) return;
         if (_openBrowserAfterLanguageSync) { _openBrowserAfterLanguageSync = false; OpenLocalTimer(); }
+    }
+
+    internal void ReopenFromDock()
+    {
+        if (_allowClose) return;
+        // Keep an operator dialog reachable instead of minimizing its owner.
+        if (_certificateDialog != null) { ShowLauncher(); return; }
+        if (IsVisible && WindowState != WindowState.Minimized)
+            WindowState = WindowState.Minimized;
+        else
+            ShowLauncher();
     }
 
     internal void ShowLauncher()

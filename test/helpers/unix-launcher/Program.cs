@@ -156,14 +156,41 @@ internal static class UnixLauncherHarness
                 for (var repeat = 0; repeat < 3; repeat++) { window.Close(); window.ShowLauncher(); Dispatcher.UIThread.RunJobs(); }
                 Check(initialStarts == 1 && ReferenceEquals(Field(window, "_serverProcess"), fakeProcess)
                     && Equals(Field(window, "_probeGeneration"), generation), "Repeated hide/show preserves startup count, child and probes");
+                for (var repeat = 0; repeat < 3; repeat++)
+                {
+                    window.ReopenFromDock(); Dispatcher.UIThread.RunJobs();
+                    Check(window.IsVisible && window.WindowState == WindowState.Minimized, "Dock re-click minimizes an open window");
+                    window.ReopenFromDock(); Dispatcher.UIThread.RunJobs();
+                    Check(window.IsVisible && window.WindowState == WindowState.Normal, "Dock restores a minimized window");
+                }
+                window.Close(); window.ReopenFromDock(); Dispatcher.UIThread.RunJobs();
+                Check(window.IsVisible && window.WindowState == WindowState.Normal, "Dock restores a hidden window");
+                var dockDialog = new HttpsCertificateDialog(root); dockDialog.Show();
+                Set(window, "_certificateDialog", dockDialog);
+                try
+                {
+                    window.ReopenFromDock(); Dispatcher.UIThread.RunJobs();
+                    Check(window.IsVisible && window.WindowState == WindowState.Normal && dockDialog.IsVisible,
+                        "Dock keeps the certificate dialog and its owner reachable");
+                }
+                finally { Set(window, "_certificateDialog", null); dockDialog.Close(); }
+                Check(initialStarts == 1 && ReferenceEquals(Field(window, "_serverProcess"), fakeProcess)
+                    && Equals(Field(window, "_probeGeneration"), generation) && (bool)Field(window, "_ready")!,
+                    "Dock toggles must preserve the server, readiness, probes and one-time startup");
+                window.WindowState = WindowState.Minimized; window.ShowLauncher(); Dispatcher.UIThread.RunJobs();
+                Check(window.IsVisible && window.WindowState == WindowState.Normal, "Menu/IPC show still restores without toggling");
+                window.ShowLauncher(); Dispatcher.UIThread.RunJobs();
+                Check(window.WindowState == WindowState.Normal, "Repeated explicit show never minimizes");
                 var tray = (TrayIcon)Field(window, "_tray")!;
                 Check(tray.IsVisible, "Tray must remain available while running");
                 Check(tray.Menu!.Items.OfType<NativeMenuItem>().Any(item => (string?)item.Header == "Стоп и выход"), "Tray exit translated");
                 window.PrepareExit(); Check(!tray.IsVisible && (bool)Field(window, "_allowClose")!, "Explicit Exit retires tray and stops lifecycle");
+                window.Hide(); window.ReopenFromDock(); Dispatcher.UIThread.RunJobs();
+                Check(!window.IsVisible, "Dock cannot reopen a launcher that is exiting");
                 File.WriteAllText(preference, "invalid"); LauncherLanguage.Load(preference); Check(LauncherLanguage.Russian, "Invalid preference defaults to RU");
                 LauncherLanguage.Russian = false; Check(LauncherLanguage.Save(preference), "Can save EN"); LauncherLanguage.Russian = true;
                 LauncherLanguage.Load(preference); Check(!LauncherLanguage.Russian, "Saved EN survives relaunch");
-                Console.WriteLine("RU/EN, certificate labels, preference, selected URL, child identity, probes, hide/reopen and explicit exit: OK");
+                Console.WriteLine("RU/EN, certificate labels, preference, selected URL, child identity, probes, hide/reopen, Dock minimize/restore and explicit exit: OK");
             }
             finally { window.PrepareExit(); window.Close(); Dispatcher.UIThread.RunJobs(); }
             return 0;

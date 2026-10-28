@@ -32,7 +32,11 @@ Closing the GUI now **hides it without stopping Node**. A tray/menu-bar menu
 contains Show launcher, Open timer, Restart server, HTTPS certificate and
 Stop and exit. Click the app again to restore a hidden window: a per-user
 mutex and current-user-only named pipe wake the existing instance without
-starting another server. The macOS Dock Reopen event also restores it. Linux
+starting another server. On macOS, clicking the Dock icon minimizes an open
+launcher and restores a minimized/hidden launcher. An open certificate dialog
+keeps its owner visible and is activated instead. The menu-bar Show launcher
+command and single-instance IPC always show the window without toggling.
+macOS sends the same Reopen event for reopening the app in Finder. Linux
 desktop environments without tray icons still have the re-launch route.
 Explicit Stop and exit or OS/application shutdown cleans up and stops only
 the owned child. Console .command/.sh launchers remain foreground processes
@@ -95,7 +99,14 @@ launcher/unix/build-launcher.sh osx-arm64
 
 The generated executable is written to `dist/unix-launcher/<runtime-id>`.
 For macOS, the script also creates `FDV Bouldering Timer.app` so users can
-launch the timer from Finder. GitHub Actions builds these launchers
+launch the timer from Finder. The Dock icon is the bundle's ICNS resource;
+the menu-bar icon uses `Contents/MacOS/timer-launcher.png` next to the executable.
+Both are included before signing, so copying the `.app` into portable/PKG
+packages preserves them. Packaging rejects a missing or empty menu-bar PNG.
+A raw `dotnet publish` output does not include these generated icons; use the
+build script for a complete macOS app (or put `timer-launcher.png` beside a
+locally published executable for its menu-bar icon).
+GitHub Actions builds these launchers
 automatically and includes them in the portable releases. The launcher must
 remain next to `serve-bouldering-timer.js`, `params.txt`, and the other timer
 files. `start-timer-mac.command` and `start-timer-linux.sh` remain fallback
