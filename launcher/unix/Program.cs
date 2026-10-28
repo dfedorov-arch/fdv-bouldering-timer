@@ -160,6 +160,7 @@ internal sealed class LauncherWindow : Window
     private string? _pendingServerLanguage;
     private string _launcherLanguageToken = "";
     private bool _languageSyncBusy;
+    private long _languageIntentRevision;
     private bool _initialStartRequested;
     private bool _openBrowserAfterLanguageSync;
     private HttpsCertificateDialog? _certificateDialog;
@@ -433,6 +434,7 @@ internal sealed class LauncherWindow : Window
 
     private void SwitchLanguage()
     {
+        _languageIntentRevision++;
         LauncherLanguage.Russian = !LauncherLanguage.Russian;
         ApplyLanguage();
         if (!LauncherLanguage.Save(_languagePreferencePath)) AppendLog("Could not save the launcher language preference.");
@@ -444,6 +446,21 @@ internal sealed class LauncherWindow : Window
         _pendingServerLanguage = LauncherLanguage.Russian ? "ru" : "en";
         _openBrowserAfterLanguageSync |= openBrowser;
         _ = TrySyncServerLanguage();
+    }
+
+    private void AdoptServerLanguage(string[]? state, long intentRevision)
+    {
+        // Health checks are serialized; the caller also checks the child/probe
+        // generation. Never adopt a reply spanning a local language command.
+        if (!LauncherLanguage.ValidServerLanguage(state!) || _allowClose ||
+            intentRevision != _languageIntentRevision || _languageSyncBusy ||
+            _pendingServerLanguage != null || _certificateDialog != null) return;
+        var russian = state![0] == "ru";
+        if (LauncherLanguage.Russian == russian) return;
+        LauncherLanguage.Russian = russian;
+        ApplyLanguage();
+        if (!LauncherLanguage.Save(_languagePreferencePath)) AppendLog("Could not save the launcher language preference.");
+        // Deliberately do not QueueServerLanguage: server adoption is read-only.
     }
 
     private async Task TrySyncServerLanguage()
@@ -458,7 +475,7 @@ internal sealed class LauncherWindow : Window
             if (!_allowClose && generation == _probeGeneration && _serverProcess == process)
                 AppendLog("Could not change the timer language: " + error.Message);
         }
-        finally { _languageSyncBusy = false; _languageButton.IsEnabled = true; }
+        finally { _languageIntentRevision++; _languageSyncBusy = false; _languageButton.IsEnabled = true; }
         if (_allowClose) return;
         if (_pendingServerLanguage != null) { _ = TrySyncServerLanguage(); return; }
         if (generation != _probeGeneration || _serverProcess != process) return;
@@ -701,9 +718,11 @@ internal sealed class LauncherWindow : Window
         {
             _startupAttempts++;
             string build = "";
+            string[]? languageState = null;
+            var intentRevision = _languageIntentRevision;
             var reachable = await CanReach(
                 "http://127.0.0.1:" + _settings.HttpPort + "/api/state",
-                _probeCancellation.Token, value => build = value);
+                _probeCancellation.Token, value => build = value, value => languageState = value);
             if (generation != _probeGeneration || _allowClose) return;
             if (reachable)
             {
@@ -719,7 +738,12 @@ internal sealed class LauncherWindow : Window
                 AppendLog("Server is ready.");
                 AppendLog("Keep this computer connected to power and disable sleep while the timer is running.");
                 _healthTimer.Start();
-                QueueServerLanguage(_openBrowserAfterStart);
+                if (LauncherLanguage.ValidServerLanguage(languageState!) && _pendingServerLanguage == null)
+                {
+                    AdoptServerLanguage(languageState, intentRevision);
+                    if (_openBrowserAfterStart) OpenLocalTimer();
+                }
+                else QueueServerLanguage(_openBrowserAfterStart); // Compatibility with older servers.
                 return;
             }
 
@@ -744,7 +768,7 @@ internal sealed class LauncherWindow : Window
         }
     }
 
-    private async Task<bool> CanReach(string url, CancellationToken cancellationToken, Action<string>? readBuild = null)
+    private async Task<bool> CanReach(string url, CancellationToken cancellationToken, Action<string>? readBuild = null, Action<string[]>? readLanguage = null)
     {
         try
         {
@@ -755,6 +779,11 @@ internal sealed class LauncherWindow : Window
                 request,
                 HttpCompletionOption.ResponseHeadersRead,
                 timeout.Token);
+            if (response.StatusCode == HttpStatusCode.OK && readLanguage != null)
+            {
+                string Header(string name) => response.Headers.TryGetValues(name, out var values) ? values.FirstOrDefault() ?? "" : "";
+                readLanguage(new[] { Header("X-FDV-Language"), Header("X-FDV-Server-Instance"), Header("X-FDV-State-Version") });
+            }
             if (response.StatusCode == HttpStatusCode.OK && readBuild != null)
             {
                 readBuild(LauncherBuildInfo.Read(await response.Content.ReadAsStringAsync(timeout.Token)));
@@ -784,12 +813,15 @@ internal sealed class LauncherWindow : Window
         var generation = _probeGeneration;
         try
         {
+            string[]? languageState = null;
+            var intentRevision = _languageIntentRevision;
             var reachable = await CanReach(
                 "http://127.0.0.1:" + _settings.HttpPort + "/api/state",
-                _probeCancellation.Token);
+                _probeCancellation.Token, readLanguage: value => languageState = value);
             if (generation != _probeGeneration || _allowClose || !_ready) return;
             if (reachable)
             {
+                AdoptServerLanguage(languageState, intentRevision);
                 _healthFailures = 0;
                 return;
             }

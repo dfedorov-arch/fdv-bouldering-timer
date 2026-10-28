@@ -143,6 +143,8 @@ namespace FdvBoulderingTimerLauncher
         private string _launcherLanguageToken;
         private string _pendingServerLanguage;
         private bool _languageSyncBusy;
+        private long _languageIntentRevision;
+        private bool _serverLanguageAvailable;
         private bool _openBrowserAfterLanguageSync;
 
         public LauncherForm() : this(AppDomain.CurrentDomain.BaseDirectory, true) { }
@@ -334,6 +336,7 @@ namespace FdvBoulderingTimerLauncher
 
         private void SwitchLanguage()
         {
+            _languageIntentRevision++;
             LauncherLanguage.Russian = !LauncherLanguage.Russian;
             ApplyLanguage();
             if (!LauncherLanguage.Save(_languagePreferencePath))
@@ -365,6 +368,7 @@ namespace FdvBoulderingTimerLauncher
                 {
                     BeginInvoke(new MethodInvoker(delegate
                     {
+                        _languageIntentRevision++;
                         _languageSyncBusy = false; _languageButton.Enabled = true;
                         if (_allowClose) return;
                         if (_serverProcess != process) { TrySyncServerLanguage(); return; }
@@ -391,6 +395,20 @@ namespace FdvBoulderingTimerLauncher
             using (var stream = request.GetRequestStream()) stream.Write(body, 0, body.Length);
             using (var response = (HttpWebResponse)request.GetResponse())
                 if (response.StatusCode != HttpStatusCode.OK) throw new IOException("Language command was not accepted");
+        }
+
+        private void AdoptServerLanguage(string[] state, long intentRevision)
+        {
+            if (!LauncherLanguage.ValidServerLanguage(state) || _allowClose ||
+                intentRevision != _languageIntentRevision || _languageSyncBusy ||
+                _pendingServerLanguage != null || OwnedForms.Length != 0) return;
+            bool russian = state[0] == "ru";
+            if (LauncherLanguage.Russian == russian) return;
+            LauncherLanguage.Russian = russian;
+            ApplyLanguage();
+            if (!LauncherLanguage.Save(_languagePreferencePath))
+                AppendLog("Could not save the launcher language preference.");
+            // No POST here: adopting the server state must not echo a command.
         }
 
         private static string NewLanguageToken()
@@ -611,7 +629,10 @@ namespace FdvBoulderingTimerLauncher
                 AppendLog("Server is ready.");
                 AppendLog("Keep this computer connected to power and disable sleep while the timer is running.");
                 _healthTimer.Start();
-                QueueServerLanguage(_startupTimer.Tag is bool && (bool)_startupTimer.Tag);
+                bool openBrowser = _startupTimer.Tag is bool && (bool)_startupTimer.Tag;
+                if (_serverLanguageAvailable && _pendingServerLanguage == null)
+                { if (openBrowser) OpenLocalTimer(); }
+                else QueueServerLanguage(openBrowser); // Compatibility with older servers.
                 return;
             }
 
@@ -632,6 +653,8 @@ namespace FdvBoulderingTimerLauncher
 
         private bool CanReach(string url, bool readBuildNumber = false)
         {
+            _serverLanguageAvailable = false;
+            long intentRevision = _languageIntentRevision;
             try
             {
                 var request = (HttpWebRequest)WebRequest.Create(url);
@@ -640,6 +663,13 @@ namespace FdvBoulderingTimerLauncher
                 request.ReadWriteTimeout = 250;
                 using (var response = (HttpWebResponse)request.GetResponse())
                 {
+                    if (response.StatusCode == HttpStatusCode.OK)
+                    {
+                        string[] state = new string[] { response.Headers["X-FDV-Language"],
+                            response.Headers["X-FDV-Server-Instance"], response.Headers["X-FDV-State-Version"] };
+                        _serverLanguageAvailable = LauncherLanguage.ValidServerLanguage(state);
+                        AdoptServerLanguage(state, intentRevision);
+                    }
                     if (response.StatusCode == HttpStatusCode.OK && readBuildNumber)
                     {
                         using (var reader = new StreamReader(response.GetResponseStream(), Encoding.UTF8))

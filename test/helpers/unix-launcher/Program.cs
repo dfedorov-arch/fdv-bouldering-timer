@@ -51,7 +51,7 @@ internal static class UnixLauncherHarness
                 form.Show();
                 try
                 {
-                    ((TextBlock)Field(form, "_buildLabel")!).Text = "(442)";
+                    ((TextBlock)Field(form, "_buildLabel")!).Text = "(443)";
                     Call(form, "SetStatusText", "Server is running");
                     ((TextBlock)Field(form, "_status")!).Foreground = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.FromRgb(87, 211, 140));
                     ((Button)Field(form, "_openButton")!).IsEnabled = true;
@@ -85,6 +85,14 @@ internal static class UnixLauncherHarness
             {
                 var fakeProcess = new Process(); // Correlation identity only: never points at or kills a real server.
                 Set(window, "_ready", true); Set(window, "_serverProcess", fakeProcess); Set(window, "_launcherLanguageToken", args[3]);
+                // A restored RU server must not be overwritten by a stale EN launcher preference.
+                LauncherLanguage.Russian = false; Call(window, "ApplyLanguage");
+                Set(window, "_ready", false); Set(window, "_openBrowserAfterStart", false);
+                Call(window, "CheckServerReady", null!, EventArgs.Empty);
+                Pump(() => (bool)Field(window, "_ready")! && !(bool)Field(window, "_startupCheckInProgress")!);
+                ((DispatcherTimer)Field(window, "_healthTimer")!).Stop();
+                Check(LauncherLanguage.Russian && Field(window, "_pendingServerLanguage") == null
+                    && !(bool)Field(window, "_languageSyncBusy")!, "Readiness adopts restored server language without POST");
                 Call(window, "SetStatusText", "Server is running");
                 var generation = Field(window, "_probeGeneration");
                 var addresses = (ListBox)Field(window, "_addresses")!;
@@ -112,7 +120,35 @@ internal static class UnixLauncherHarness
                     }
                     finally { dialog.Close(); }
                 }
+                // Consume the same headers-only path as the periodic health check.
+                LauncherLanguage.Russian = false;
+                string[]? observed = null;
+                var probe = (Task<bool>)Call(window, "CanReach", "http://127.0.0.1:" + args[2] + "/api/state",
+                    CancellationToken.None, null!, (Action<string[]>)(value => observed = value))!;
+                Pump(() => probe.IsCompleted);
+                Check(probe.GetAwaiter().GetResult() && LauncherLanguage.ValidServerLanguage(observed!), "Actual health metadata");
+                var intent = (long)Field(window, "_languageIntentRevision")!;
+                Call(window, "AdoptServerLanguage", observed!, intent);
+                Check(LauncherLanguage.Russian && File.ReadAllText(preference).Trim() == "ru", "Server language is adopted and saved");
+                Check(Field(window, "_pendingServerLanguage") == null && !(bool)Field(window, "_languageSyncBusy")!, "Adoption must not POST back");
+                var english = new[] { "en", Guid.NewGuid().ToString(), "0" };
+                Call(window, "AdoptServerLanguage", english, intent - 1);
+                Check(LauncherLanguage.Russian, "Reject a response spanning a local choice");
+                Set(window, "_languageSyncBusy", true); Call(window, "AdoptServerLanguage", english, intent);
+                Check(LauncherLanguage.Russian, "In-flight local command wins over health"); Set(window, "_languageSyncBusy", false);
+                Set(window, "_pendingServerLanguage", "ru"); Call(window, "AdoptServerLanguage", english, intent);
+                Check(LauncherLanguage.Russian, "Queued local choice wins over health"); Set(window, "_pendingServerLanguage", null);
+                var activeDialog = new HttpsCertificateDialog(root); Set(window, "_certificateDialog", activeDialog);
+                Call(window, "AdoptServerLanguage", english, intent);
+                Check(LauncherLanguage.Russian, "An open certificate dialog keeps a stable language");
+                Set(window, "_certificateDialog", null); activeDialog.Close();
+                foreach (var invalid in new[] { new[] { "en", "bad-instance", "1" }, new[] { "en", english[1], "-1" }, new[] { "xx", english[1], "1" } })
+                { Call(window, "AdoptServerLanguage", invalid, intent); Check(LauncherLanguage.Russian, "Ignore invalid metadata"); }
                 window.Close(); Dispatcher.UIThread.RunJobs();
+                Call(window, "AdoptServerLanguage", english, intent);
+                Check(!LauncherLanguage.Russian, "Hidden launcher follows restarted server with lower version");
+                Check(Equals(Field(window, "_probeGeneration"), generation) && ReferenceEquals(Field(window, "_serverProcess"), fakeProcess), "Adoption preserves child and probes");
+                Call(window, "AdoptServerLanguage", observed!, intent);
                 Check(!window.IsVisible && !(bool)Field(window, "_allowClose")!, "Close hides instead of exiting");
                 Check((bool)Field(window, "_ready")! && Equals(Field(window, "_probeGeneration"), generation), "Close preserves running server/probes");
                 window.ShowLauncher(); Dispatcher.UIThread.RunJobs(); Check(window.IsVisible, "Reopen restores window");

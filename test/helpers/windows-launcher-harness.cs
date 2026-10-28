@@ -45,7 +45,9 @@ internal static class WindowsLauncherHarness
                     form.GetType().GetField("_serverProcess", BindingFlags.Instance | BindingFlags.NonPublic).SetValue(form, self);
                     form.GetType().GetField("_launcherLanguageToken", BindingFlags.Instance | BindingFlags.NonPublic).SetValue(form, args[3]);
                     ((LauncherSettings)Field(form, "_settings")).HttpPort = Int32.Parse(args[2]);
+                    LauncherLanguage.Russian = desired == "ru"; Call(form, "ApplyLanguage");
                     Call(form, "CanReach", "http://127.0.0.1:" + args[2] + "/api/state", true);
+                    Check(LauncherLanguage.Russian == (desired == "en"), "Existing readiness response adopts server language");
                     Check(((Label)Field(form, "_buildLabel")).Text == "(" + args[5] + ")", "Build comes from actual readiness response");
                     form.GetType().GetField("_ready", BindingFlags.Instance | BindingFlags.NonPublic).SetValue(form, true);
                     ((Button)Field(form, "_languageButton")).PerformClick();
@@ -143,6 +145,23 @@ internal static class WindowsLauncherHarness
                 Check(((Button)Field(form, "_openButton")).Enabled, "Ready button state preserved");
                 Check(status.Text == "Сервер работает", "Second switch updates status");
                 using (var dialog = new HttpsCertificateDialog(root)) Check(dialog.Text == "HTTPS-сертификат", "Russian certificate dialog");
+                form.GetType().GetField("_pendingServerLanguage", BindingFlags.Instance | BindingFlags.NonPublic).SetValue(form, null);
+                long intent = (long)Field(form, "_languageIntentRevision");
+                string[] english = new string[] { "en", Guid.NewGuid().ToString(), "0" };
+                Call(form, "AdoptServerLanguage", english, intent - 1);
+                Check(LauncherLanguage.Russian, "Stale health response must not undo local selection");
+                form.GetType().GetField("_languageSyncBusy", BindingFlags.Instance | BindingFlags.NonPublic).SetValue(form, true);
+                Call(form, "AdoptServerLanguage", english, intent);
+                Check(LauncherLanguage.Russian, "Health must not override in-flight command");
+                form.GetType().GetField("_languageSyncBusy", BindingFlags.Instance | BindingFlags.NonPublic).SetValue(form, false);
+                Call(form, "AdoptServerLanguage", new string[] { "en", "bad", "1" }, intent);
+                Check(LauncherLanguage.Russian, "Ignore malformed health metadata");
+                form.Hide(); Call(form, "AdoptServerLanguage", english, intent);
+                Check(!LauncherLanguage.Russian && status.Text == "Server is running", "Hidden launcher adopts server language");
+                Check(File.ReadAllText(preference).Trim() == "en" && Field(form, "_pendingServerLanguage") == null,
+                    "Adoption saves preference without an echo command");
+                Call(form, "AdoptServerLanguage", new string[] { "ru", Guid.NewGuid().ToString(), "0" }, intent);
+                Check(LauncherLanguage.Russian, "Restarted server language is authoritative at a lower version");
                 foreach (string timer in new string[] { "_startupTimer", "_healthTimer", "_restartTimer", "_networkRefreshTimer" })
                     Check(!((System.Windows.Forms.Timer)Field(form, timer)).Enabled, "Language must not start timers: " + timer);
                 Check(Field(form, "_serverProcess") == null, "Language must not spawn a server");

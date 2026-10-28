@@ -22,6 +22,26 @@ function unchanged(before, after) {
   assert.equal(after.timerClock.startedAt,before.timerClock.startedAt,"Monotonic anchor changed");
 }
 
+test("existing state health responses carry matching language metadata, including after restart",async t=>{
+  const server=await fixture(t,null);
+  async function check(query="") {
+    const response=await fetch(server.baseUrl+"/api/state"+query), state=await response.json();
+    assert.equal(response.status,200);
+    assert.equal(response.headers.get("x-fdv-language"),state.language);
+    assert.equal(response.headers.get("x-fdv-state-version"),String(state.version));
+    assert.equal(response.headers.get("x-fdv-server-instance"),state.serverInstanceId);
+    return state;
+  }
+  const before=await check();
+  await server.action({type:"language",language:"en"});
+  assert.equal((await check()).language,"en");
+  assert.equal((await check("?legacy=1")).language,"en");
+  await server.restart();
+  const after=await check();
+  assert.notEqual(after.serverInstanceId,before.serverInstanceId);
+  assert.equal(after.language,"en");
+});
+
 test("launcher capability permits only non-browser loopback requests and strict language-only bodies",()=>{
   const token=crypto.randomBytes(32).toString("hex");
   const request={headers:{"x-fdv-launcher-token":token},socket:{remoteAddress:"127.0.0.1"}};

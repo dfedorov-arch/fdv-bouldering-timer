@@ -56,6 +56,7 @@ test("Unix headless UI, real language endpoint and per-user single-instance rest
     assert.ok(fs.statSync(image).size>2000,"Rendered control frame must contain content");
   }
   const after=await server.state();assert.equal(after.language,"ru");
+  assert.equal(after.version,before.version+2,"Only two explicit button choices change state; health adoption must not POST back");
   for(const field of ["running","primaryClientId","activePreset","elapsedBeforePause","soundProfile"])
     assert.deepEqual(after[field],before[field],field+" must not change");
   assert.equal(after.timerClock.startedAt,before.timerClock.startedAt);

@@ -7,6 +7,18 @@ namespace FdvBoulderingTimerLauncher
     internal static class LauncherLanguage
     {
         internal static bool Russian = true;
+        // Keep this parser compatible with CLR 2.0 (Windows 7/8 packages).
+        internal static bool ValidServerLanguage(string[] state)
+        {
+            if (state == null || state.Length != 3 || (state[0] != "ru" && state[0] != "en")) return false;
+            long version;
+            if (!Int64.TryParse(state[2], System.Globalization.NumberStyles.None,
+                System.Globalization.CultureInfo.InvariantCulture, out version) || version < 0) return false;
+            try { return new Guid(state[1]) != Guid.Empty; }
+            catch (ArgumentException) { return false; }
+            catch (FormatException) { return false; }
+            catch (OverflowException) { return false; }
+        }
         internal static string PreferencePath
         {
             get

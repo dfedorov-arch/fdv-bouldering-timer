@@ -30,7 +30,7 @@ const legacyRuntimeStatePath = runtimeStatePath;
 const beepsPath = path.join(root, "beeps");
 const fontsPath = path.join(root, "fonts");
 const offlineAudioPath = path.join(root, "lib", "offline-audio.js");
-const BUILD_NUMBER = 442;
+const BUILD_NUMBER = 443;
 const serverInstanceId = crypto.randomUUID();
 let serverAudio = null;
 const launcherLanguageToken = process.env.FDV_LAUNCHER_LANGUAGE_TOKEN || "";
@@ -2101,6 +2101,11 @@ function handleRequest(req, res) {
         includeClients,
         startListRevision: requestUrl.searchParams.get("startListRevision") || ""
       });
+    // Desktop health checks consume only headers after startup. Use this exact
+    // snapshot, not a separate language poll or a second state read.
+    res.setHeader("X-FDV-Language", responseState.language);
+    res.setHeader("X-FDV-State-Version", String(responseState.version));
+    res.setHeader("X-FDV-Server-Instance", serverInstanceId);
     sendJson(res, 200, responseState);
     if (clientId) legacyRedirectPending.delete(clientId);
     return;

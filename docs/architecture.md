@@ -6,7 +6,7 @@ Numbered timer repetitions use **Ротация / Rotation** in both clients and
 
 ## Authority and clocks
 
-### Unified desktop language and launcher lifecycle (build 442)
+### Unified desktop language and launcher lifecycle (builds 442–443)
 
 Windows/CLR2 and the four Unix builds share LauncherLanguage.cs for control,
 status, tray and certificate text. Native framework styling may differ but
@@ -18,8 +18,10 @@ XDG_STATE_HOME or ~/.local/state/fdv-bouldering-timer. Windows remains LOCALAPPD
 Unix uses the existing /api/launcher/language contract, not /api/action or
 browser impersonation. Each child receives a new 32-byte capability. A bounded,
 no-proxy/no-redirect language client serializes updates and generation/process
-checks retire old completions on restart. Startup applies the choice before
-auto-opening the browser. Language changes preserve the selected address,
+checks retire old completions on restart. From443, startup first adopts the
+server language through the existing health response; a pending explicit local
+choice still takes precedence. Browser changes flow back through those same
+health checks without additional requests or an echo command. Language changes preserve the selected address,
 readiness, timers and raw technical logs. Clock/audio/replication logic is unchanged.
 
 Ordinary window close hides the GUI on all platforms. Explicit Exit and OS/app
@@ -92,10 +94,25 @@ path and are idempotent when already selected. A following reserve forwards this
 specific path through authenticated reverse RPC; an internal request marker is
 set only by the server's peer callback, never accepted from JSON/HTTP headers.
 Fenced/rejoining/baseline-loading nodes reject changes. Pending native choices
-are coalesced/serialized and process-bound; startup readiness applies the current
-choice before optional browser opening. Failure logs a warning and does not
-restart anything; no periodic language polling/retry is added. Browser changes
-are not polled back into the launcher. Existing SSE language changes may rebuild
+are coalesced/serialized and process-bound. From build443, existing successful
+GET /api/state health responses include X-FDV-Language, X-FDV-State-Version and
+X-FDV-Server-Instance from the same response snapshot. All desktop launchers
+consume these headers (no additional request/timer, no periodic JSON body read).
+At readiness the restored server language is authoritative, rather than being
+overwritten by the saved launcher preference. A choice queued locally while
+starting is still sent; servers without valid metadata retain the old startup
+behavior for compatibility. Pending/in-flight local commands block adoption;
+a local intent revision, incremented on selection and command completion,
+rejects responses spanning that command. Unix health checks are serialized and
+probe-generation checked after await; Windows health reads run serially on the
+UI thread. No comparison across unrelated state-version/instance epochs is
+made, so server restarts and reserve authority changes can legitimately lower
+the version. Invalid/missing metadata leaves the UI unchanged. Adopting state
+updates controls/tray and the saved preference without POSTing back or touching
+the child, clock, health timers or competition state. Hidden windows still adopt.
+Certificate dialogs keep a stable language while open; adoption resumes at the
+next health check after closing, and new dialogs use the adopted language.
+Failure logs a warning and does not restart anything. Existing SSE language changes may rebuild
 future audio nodes as before, but the canonical start anchor and sound targets
 remain unchanged; the audio implementation is untouched.
 Certificate dialogs inherit the selection, including custom validation errors.
