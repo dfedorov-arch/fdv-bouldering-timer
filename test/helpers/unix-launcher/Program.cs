@@ -36,6 +36,12 @@ internal static class UnixLauncherHarness
                 return 0;
             }
             if (args[0] == "language-path") { Console.WriteLine(LauncherLanguage.PreferencePath); return 0; }
+            if (args[0] == "send-pin")
+            {
+                using var client = new HttpClient(new SocketsHttpHandler { UseProxy = false, AllowAutoRedirect = false }) { Timeout = TimeSpan.FromSeconds(7) };
+                LauncherLanguageCommand.SendPinAsync(client, int.Parse(args[1]), args[2], args[3], CancellationToken.None).GetAwaiter().GetResult();
+                return 0;
+            }
             if (args[0] == "send-language")
             {
                 using var client = new HttpClient(new SocketsHttpHandler { UseProxy = false, AllowAutoRedirect = false }) { Timeout = TimeSpan.FromSeconds(7) };
@@ -61,7 +67,7 @@ internal static class UnixLauncherHarness
                     addresses.Items.Add(new TimerAddress { Label = "Wi-Fi HTTP", Url = "http://192.168.1.10:8008/" }); addresses.SelectedIndex = 0;
                     Dispatcher.UIThread.RunJobs();
                     using var frame = form.CaptureRenderedFrame() ?? throw new Exception("No rendered frame"); frame.Save(args[2]);
-                    foreach (var name in new[] { "_languageButton", "_openButton", "_copyButton", "_restartButton", "_stopButton", "_certificateButton", "_hint" })
+                    foreach (var name in new[] { "_languageButton", "_openButton", "_copyButton", "_restartButton", "_stopButton", "_certificateButton", "_pinButton", "_hint" })
                     {
                         var control = (Control)Field(form, name)!; var point = control.TranslatePoint(new Point(0, 0), form)!.Value;
                         Check(point.X >= 0 && point.Y >= 0 && point.X + control.Bounds.Width <= form.ClientSize.Width + 1 && point.Y + control.Bounds.Height <= form.ClientSize.Height + 1,

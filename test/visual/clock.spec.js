@@ -22,7 +22,7 @@ test("hidden audio prepares ten seconds ahead and accepts delayed technical wake
     try {
       const page=await context.newPage(),errors=[];
       page.on("pageerror",e=>errors.push(e.message));
-      await page.addInitScript(()=>sessionStorage.setItem("boulderingTimerClientId","clock-test"));
+      await page.addInitScript(c=>{sessionStorage.setItem("boulderingTimerClientId",c.clientId);sessionStorage.setItem("fdvBrowserSecret",c.secret);},await server.credentials("clock-test"));
       await page.goto(server.baseUrl+"/?perf=3",{waitUntil:"domcontentloaded"});
       await page.waitForFunction(()=>!clockCalibrationPending);
       await page.evaluate(async()=>{await unlockAudio(false);await loadAudioBuffers();});
@@ -81,7 +81,7 @@ for (const mobile of [false,true]) test(`hidden ${mobile?"mobile":"desktop"} pla
     try {
       const page = await context.newPage(), errors = [];
       page.on("pageerror", error => errors.push(error.message));
-      await page.addInitScript(() => sessionStorage.setItem("boulderingTimerClientId","clock-test"));
+      await page.addInitScript(c=>{sessionStorage.setItem("boulderingTimerClientId",c.clientId);sessionStorage.setItem("fdvBrowserSecret",c.secret);},await server.credentials("clock-test"));
       await page.goto(server.baseUrl+"/?perf=3",{waitUntil:"domcontentloaded"});
       await page.waitForFunction(() => !clockCalibrationPending);
       await page.evaluate(async () => {
@@ -158,7 +158,7 @@ test("suspended audio is cancelled before resume and freeze blocks hidden schedu
     try {
       const page = await context.newPage(), errors = [];
       page.on("pageerror",e=>errors.push(e.message));
-      await page.addInitScript(()=>sessionStorage.setItem("boulderingTimerClientId","clock-test"));
+      await page.addInitScript(c=>{sessionStorage.setItem("boulderingTimerClientId",c.clientId);sessionStorage.setItem("fdvBrowserSecret",c.secret);},await server.credentials("clock-test"));
       await page.goto(server.baseUrl+"/",{waitUntil:"domcontentloaded"});
       await page.waitForFunction(()=>!clockCalibrationPending);
       const result = await page.evaluate(async () => {
@@ -238,7 +238,7 @@ test("launcher language updates Modern and Legacy without moving clock or sound 
     await server.start({settings:{rotationSeconds:70,breakSeconds:15,oneShot:false}});
     const context=await browser.newContext();
     try{
-      await context.addInitScript(()=>sessionStorage.setItem("boulderingTimerClientId","clock-test"));
+      await context.addInitScript(c=>{sessionStorage.setItem("boulderingTimerClientId",c.clientId);sessionStorage.setItem("fdvBrowserSecret",c.secret);},await server.credentials("clock-test"));
       const page=await context.newPage(), legacy=await context.newPage();
       await page.goto(server.baseUrl+"/?perf=3",{waitUntil:"domcontentloaded"});
       await legacy.goto(server.baseUrl+"/legacy.html?clientId=language-legacy",{waitUntil:"domcontentloaded"});

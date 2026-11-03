@@ -1,4 +1,5 @@
 "use strict";
+const { authenticatedFetch: fetch, credentials } = require("../helpers/browser-session");
 
 const { test, expect } = require("@playwright/test");
 const {
@@ -42,7 +43,7 @@ async function withRouteCountEditor(browser, run) {
   const previous = await (await fetch(`${server.baseUrl}/api/state`)).json();
   const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
   const id = "visual-route-count-editor";
-  await context.addInitScript(id => sessionStorage.setItem("boulderingTimerClientId", id), id);
+  await context.addInitScript(c => { sessionStorage.setItem("boulderingTimerClientId", c.clientId); sessionStorage.setItem("fdvBrowserSecret", c.secret); }, await credentials(server.baseUrl,id));
   const page = await context.newPage();
   const commands = [];
   page.on("request", request => {
@@ -803,9 +804,7 @@ test("Festival hides the unavailable start-list switch", async ({ browser }) => 
   });
 
   const context = await browser.newContext({ viewport: { width: 1000, height: 800 } });
-  await context.addInitScript(() => {
-    window.sessionStorage.setItem("boulderingTimerClientId", "performance-baseline");
-  });
+  await context.addInitScript(c => { sessionStorage.setItem("boulderingTimerClientId", c.clientId); sessionStorage.setItem("fdvBrowserSecret", c.secret); }, await credentials(server.baseUrl,"performance-baseline"));
   const page = await context.newPage();
   try {
     await page.goto(`${server.baseUrl}/`, { waitUntil: "domcontentloaded" });
@@ -822,9 +821,7 @@ test("Festival hides the unavailable start-list switch", async ({ browser }) => 
 test("Disabling remote fullscreen exits viewers once without overriding later manual fullscreen", async ({ browser }) => {
   const screenId = "visual-fullscreen-screen";
   const screenContext = await browser.newContext({ viewport: { width: 1000, height: 800 } });
-  await screenContext.addInitScript((id) => {
-    window.sessionStorage.setItem("boulderingTimerClientId", id);
-  }, screenId);
+  await screenContext.addInitScript(c => { sessionStorage.setItem("boulderingTimerClientId", c.clientId); sessionStorage.setItem("fdvBrowserSecret", c.secret); }, await credentials(server.baseUrl,screenId));
   const screen = await screenContext.newPage();
   try {
     await screen.goto(`${server.baseUrl}/`, { waitUntil: "domcontentloaded" });
@@ -869,9 +866,7 @@ test("Disabling remote fullscreen exits viewers once without overriding later ma
 test("Large phone fullscreen keeps the server clock inside a timer-only screen", async ({ browser }) => {
   const clientId = "visual-phone-fullscreen-clock";
   const context = await browser.newContext({ viewport: { width: 430, height: 932 } });
-  await context.addInitScript((id) => {
-    window.sessionStorage.setItem("boulderingTimerClientId", id);
-  }, clientId);
+  await context.addInitScript(c => { sessionStorage.setItem("boulderingTimerClientId", c.clientId); sessionStorage.setItem("fdvBrowserSecret", c.secret); }, await credentials(server.baseUrl,clientId));
   const page = await context.newPage();
   try {
     await page.goto(`${server.baseUrl}/`, { waitUntil: "domcontentloaded" });
@@ -918,9 +913,7 @@ test("Paused festival progress stays under a motionless held pointer during serv
   await action(server.baseUrl, "seek", { elapsed: 60 });
 
   const context = await browser.newContext({ viewport: { width: 1100, height: 800 } });
-  await context.addInitScript(() => {
-    window.sessionStorage.setItem("boulderingTimerClientId", "performance-baseline");
-  });
+  await context.addInitScript(c => { sessionStorage.setItem("boulderingTimerClientId", c.clientId); sessionStorage.setItem("fdvBrowserSecret", c.secret); }, await credentials(server.baseUrl,"performance-baseline"));
   const page = await context.newPage();
   let pointerHeld = false;
   try {
@@ -948,9 +941,7 @@ test("Paused festival progress stays under a motionless held pointer during serv
 
 test("Manual restart after a completed scheduled start shows cycle 1 immediately", async ({ browser }) => {
   const context = await browser.newContext({ viewport: { width: 1000, height: 800 } });
-  await context.addInitScript(() => {
-    window.sessionStorage.setItem("boulderingTimerClientId", "performance-baseline");
-  });
+  await context.addInitScript(c => { sessionStorage.setItem("boulderingTimerClientId", c.clientId); sessionStorage.setItem("fdvBrowserSecret", c.secret); }, await credentials(server.baseUrl,"performance-baseline"));
   const page = await context.newPage();
   try {
     await page.goto(`${server.baseUrl}/`, { waitUntil: "domcontentloaded" });
@@ -1012,9 +1003,7 @@ test("Diagnostics outlines Legacy only when the browser can use the normal inter
     viewport: { width: 800, height: 600 },
     userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/79.0.3945.130 Safari/537.36"
   });
-  await primaryContext.addInitScript(() => {
-    window.sessionStorage.setItem("boulderingTimerClientId", "performance-baseline");
-  });
+  await primaryContext.addInitScript(c => { sessionStorage.setItem("boulderingTimerClientId", c.clientId); sessionStorage.setItem("fdvBrowserSecret", c.secret); }, await credentials(server.baseUrl,"performance-baseline"));
   try {
     const primaryPage = await primaryContext.newPage();
     await primaryPage.goto(`${server.baseUrl}/`, { waitUntil: "domcontentloaded" });
@@ -1154,9 +1143,7 @@ test("Diagnostics switches the layout of exactly two lists on one screen", async
     screen = await openModern(browser, server.baseUrl, screenId, { width: 1000, height: 800 }, [0, 1]);
     await action(server.baseUrl, "primary", { primaryClientId: null });
     const primaryContext = await browser.newContext({ viewport: { width: 1200, height: 900 } });
-    await primaryContext.addInitScript((id) => {
-      window.sessionStorage.setItem("boulderingTimerClientId", id);
-    }, primaryId);
+    await primaryContext.addInitScript(c => { sessionStorage.setItem("boulderingTimerClientId", c.clientId); sessionStorage.setItem("fdvBrowserSecret", c.secret); }, await credentials(server.baseUrl,primaryId));
     const primaryPage = await primaryContext.newPage();
     primary = { context: primaryContext, page: primaryPage };
     await primaryPage.goto(`${server.baseUrl}/`, { waitUntil: "domcontentloaded" });

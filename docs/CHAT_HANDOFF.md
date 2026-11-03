@@ -2,6 +2,75 @@
 
 Обновлено: 3 ноября 2026 года. Перед работой сверить Git и текущие процессы.
 
+## Новое: develop448 — шифрованный обмен серверов, включая Win7/8
+
+Поверх локальной447 реализована448. Пользователь запросил commit/push develop
+и сборку пакетов всех ОС; начинается упаковка2.3.5, без stable release.
+Итоговые commit/run/пакеты будут записаны после завершения сборки.
+Рабочий сервер и отдельный тестовый сервер447 не перезапускались этим изменением.
+
+- Новыйlib/secondary-crypto.js: X25519, HKDF-SHA256 черезcreateHmac дляNode12,
+  AES-256-GCM. Начальное сопряжение выводит общий секрет без его передачи.
+  При reconnect/restart — свежий DH с HMAC-подтверждением существующим секретом.
+- Все peer POST и ответы зашифрованы: pair, ping, replicate, commands, rejoin,
+  return-ready, promote, unpair. Нет открытого x-fdv-secondary-key и fallback.
+  Public identity/status/handshake содержат только публичные данные/proofs;
+  browser takeover остаётся защищённым browser-session действием.
+- Directional keys/nonces, counter replay window1024, path/status binding,
+  эфемерные каналы не сохраняются. Корневой секрет пары — только private snapshot.
+  Старые сохранённые пары могут поднять новый канал после обновления обоих peers;
+  работающий старый бинарник продолжит старый протокол, поэтому обновлять оба.
+- Время DH исключено из измерения часов, cache TTL монотонный. Тест с задержкой
+  handshake220ms подтверждает отсутствие смещения часов. Якоря/сигналы не менялись.
+- Согласованный предел защиты: пассивный перехват закрыт; при первом сопряжении
+  без сверки отпечатка активный MITM остаётся возможен. Browser HTTP не шифруется.
+- README/help/architecture обновлены; offline/standalone448 пересобраны;
+  verify-release-inputs прошёл. Legacy bundler включает новый модуль автоматически.
+
+Проверки448: полный Node567total/560pass/0fail/7skip, включая реальные Node12
+тесты (/private/tmp/fdv448-final-node.log). Node12.22.12 darwin-x64 скачан сnodejs.org,
+SHA256 сверён с официальным SHASUMS256. Mixed Node12/modern в обе стороны,
+restart/reverse RPC/role reversal —5pass в/private/tmp/fdv448-node12-both.log.
+Crypto6pass: wire capture, secrets отсутствуют, tamper/replay/path/status/old-protocol
+rejection, slow handshake (/private/tmp/fdv448-crypto-final.log).
+BrowserSEC:8pass modern,3pass Node12,1pass RU/EN crypto errors; логи
+/private/tmp/fdv448-browser-{sec,node12,errors}.log. Windows CI x86/x64 запускает
+добавленный mixed crypto case; реальная Win7/8 локально не проверялась.
+
+## Новое: develop 447 — сессии браузеров и PIN лаунчера
+
+По запросу пользователя реализована локальная разработка447 поверхc78f491.
+Изменения пока без commit/push, без установщиков447 и без перезапуска рабочего
+сервера446. Готовые пакеты ниже относятся к446/74c1c50.
+
+- Случайный256-bit секрет вкладки, на сервере только SHA256; public ID не
+  авторизует команды, изменение metadata, SEC administration или native prepare.
+  Секрет только в sessionStorage и HTTP header, не вURL/SSE/diagnostics.
+- Общий PIN независим от основного браузера. Первое назначение с PIN защищено;
+  source не обходит проверку. Лимит попыток по source address, не clientId.
+- Windows/Legacy и Unix лаунчеры: «PIN управления», установка/смена/удаление через
+  локальный process capability. Смена отзывает подтверждения, не останавливая
+  таймер. В режиме Экран PIN не мешает; возврат к панели требует подтверждения.
+  Выданные CTRL сохраняются. Без PIN до назначения основного поведение прежнее.
+- PIN plaintext больше не возвращается и не сохраняется; старый snapshot очищается.
+  Даже истёкший snapshot сохраняет PIN. При обновлении со старой версии без
+  секретов вкладки получают новые ID; основной и CTRL назначаются заново.
+- Сессии/PIN revision сохраняются и реплицируются, отдельная session revision не
+  меняет timer version/anchor. Проверены reverse RPC и автоматический failover.
+  Empty standby с установленным PIN нельзя перепарить поверх его защиты.
+- HTTP сохранён осознанно: remote secrets идут незашифрованно; localhost остаётся
+  локальным. Не обещать защиту от сетевого MITM.
+
+Проверки: полный Node559/551pass/0fail/8skip (до дополнительного migration case),
+/private/tmp/fdv447-full-node3.log. Новые security cases вtest/browser-auth.test.js.
+Browser: CTRL+PIN+audio reload3pass; Final format+SEC13pass; layout3pass;
+command delivery+manual Final12pass. Security8pass в/private/tmp/fdv447-security8.log.
+Offline bundle иdocs/standalone.html пересобраны447; verify-release-inputs прошёл.
+Unix launcher build0warnings/errors, native headless/UI+реальный PIN transport
+3pass: /private/tmp/fdv447-native-launcher2.log. Windows native здесь не запускался;
+его harness обновлён для CI. Подробные результаты в/private/tmp/fdv447-*.log и текущем git diff.
+help.docx не менялся.
+
 ## Проект и рабочие каталоги
 
 Таймер соревнований по болдерингу: Классика, Фестиваль, Финал (старый/новый),
@@ -13,7 +82,7 @@ Legacy-экран без звука, автономный HTML и Android APK.
 - Стабильная линия: `/Users/fd/Documents/fdv-bouldering-timer-stable`, `main`,
   сборка440 / v2.3.2 / da03969771edf88140e63398ead4818b322854bd.
 - Рабочая папка чата: `/Users/fd/Documents/ChatGPT/Timer 2`; это не исходники.
-- Текущая разработка: сборка446. Код готовых установщиков74c1c50, результат последующим docs-only commit.
+- Текущая локальная разработка: сборка448 (см. выше). Готовые установщики446:74c1c50, результат последующим docs-only commit.
   Актуальный hash брать из `git log -1` и `git rev-parse origin/develop`.
 
 ## Завершено: коммиты и установочные пакеты develop

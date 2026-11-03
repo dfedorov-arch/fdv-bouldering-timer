@@ -124,6 +124,7 @@ namespace FdvBoulderingTimerLauncher
         private readonly Button _stopButton = new Button();
         private readonly Button _certificateButton = new Button();
         private readonly Button _languageButton = new Button();
+        private readonly Button _pinButton = new Button();
         private readonly Label _addressTitle = new Label();
         private readonly Label _logTitle = new Label();
         private string _statusEnglish = "Preparing server...";
@@ -246,6 +247,12 @@ namespace FdvBoulderingTimerLauncher
             _certificateButton.Size = new Size(240, 32);
             _certificateButton.Click += delegate { CreateHttpsCertificate(); };
 
+            _pinButton.Name = "launcherPin";
+            _pinButton.Location = new Point(275, 304);
+            _pinButton.Size = new Size(180, 32);
+            _pinButton.Click += delegate { EditControlPin(); };
+            Controls.Add(_pinButton);
+
             var logTitle = _logTitle;
             logTitle.Text = "Server log";
             logTitle.AutoSize = true;
@@ -327,6 +334,7 @@ namespace FdvBoulderingTimerLauncher
             _restartButton.Text = T("Restart server");
             _stopButton.Text = T("Stop and exit");
             _certificateButton.Text = T("Create HTTPS certificate");
+            _pinButton.Text = T("Control PIN");
             _status.Text = T(_statusEnglish);
             _tray.Text = T(_trayEnglish);
             foreach (ToolStripItem item in _tray.ContextMenuStrip.Items)
@@ -380,6 +388,62 @@ namespace FdvBoulderingTimerLauncher
                 }
                 catch (InvalidOperationException) { }
             });
+        }
+
+        private void EditControlPin()
+        {
+            if (!_ready || String.IsNullOrEmpty(_launcherLanguageToken))
+            { MessageBox.Show(this, T("Server is not ready."), T("Control PIN")); return; }
+            _pinButton.Enabled = false;
+            using (var dialog = new Form())
+            {
+                dialog.Text = T("Control PIN"); dialog.ClientSize = new Size(360, 210);
+                dialog.StartPosition = FormStartPosition.CenterParent; dialog.FormBorderStyle = FormBorderStyle.FixedDialog;
+                dialog.MaximizeBox = false; dialog.MinimizeBox = false;
+                var label = new Label { Text = T("Enter a new four-digit PIN. Browsers must confirm the new PIN before controlling the timer."),
+                    Location = new Point(16, 16), Size = new Size(328, 55) };
+                var input = new TextBox { Name = "controlPin", UseSystemPasswordChar = true, MaxLength = 4,
+                    Location = new Point(16, 80), Width = 328 };
+                var status = new Label { Location = new Point(16, 110), Size = new Size(328, 35) };
+                var save = new Button { Text = T("Save PIN"), Location = new Point(16, 155), Size = new Size(100, 32) };
+                var clear = new Button { Text = T("Remove PIN"), Location = new Point(125, 155), Size = new Size(105, 32) };
+                var cancel = new Button { Text = T("Close"), Location = new Point(239, 155), Size = new Size(105, 32), DialogResult = DialogResult.Cancel };
+                Action<string> submit = delegate(string pin)
+                {
+                    if (pin.Length != 0 && !Regex.IsMatch(pin, "^[0-9]{4}$")) { status.Text = T("Enter four digits."); return; }
+                    save.Enabled = clear.Enabled = false;
+                    int port = _settings.HttpPort; string token = _launcherLanguageToken;
+                    ThreadPool.QueueUserWorkItem(delegate
+                    {
+                        Exception failure = null;
+                        try { SendServerPin(port, token, pin); } catch (Exception error) { failure = error; }
+                        try { dialog.BeginInvoke(new MethodInvoker(delegate {
+                            if (failure == null) dialog.Close();
+                            else { status.Text = T("Could not change the control PIN."); save.Enabled = clear.Enabled = true; }
+                        })); } catch (InvalidOperationException) { }
+                    });
+                };
+                save.Click += delegate { if (input.Text.Length == 0) { status.Text = T("Enter four digits."); return; } submit(input.Text); };
+                clear.Click += delegate { submit(""); };
+                dialog.Controls.AddRange(new Control[] { label, input, status, save, clear, cancel });
+                dialog.AcceptButton = save; dialog.CancelButton = cancel;
+                dialog.ShowDialog(this);
+            }
+            _pinButton.Enabled = true;
+        }
+
+        internal static void SendServerPin(int port, string token, string pin)
+        {
+            if (pin != "" && !Regex.IsMatch(pin, "^[0-9]{4}$")) throw new ArgumentException("Invalid PIN");
+            var request = (HttpWebRequest)WebRequest.Create("http://127.0.0.1:" + port + "/api/launcher/pin");
+            request.Method = "POST"; request.Proxy = null; request.AllowAutoRedirect = false;
+            request.Timeout = 7000; request.ReadWriteTimeout = 7000; request.KeepAlive = false;
+            request.ContentType = "application/json"; request.Headers["X-FDV-Launcher-Token"] = token;
+            byte[] body = Encoding.UTF8.GetBytes("{\"pin\":\"" + pin + "\"}");
+            request.ContentLength = body.Length;
+            using (var stream = request.GetRequestStream()) stream.Write(body, 0, body.Length);
+            using (var response = (HttpWebResponse)request.GetResponse())
+                if (response.StatusCode != HttpStatusCode.OK) throw new IOException("PIN command was not accepted");
         }
 
         internal static void SendServerLanguage(int port, string token, string language)

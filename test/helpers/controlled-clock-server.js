@@ -7,6 +7,8 @@ const path = require("node:path");
 const net = require("node:net");
 const { spawn } = require("node:child_process");
 
+const { authenticatedFetch: fetch, credentials } = require("./browser-session");
+
 const root = path.resolve(__dirname, "..", "..");
 const clockOrigin = Date.UTC(2026, 9, 8, 12, 0, 0);
 
@@ -174,6 +176,8 @@ async function fixture(t, platform, { liveClocks = false, legacyRuntime = proces
     activePreset: "classic", settings: { rotationSeconds: 60, breakSeconds: 15, oneShot: false }, ...options });
   const snapshot = () => JSON.parse(fs.readFileSync(path.join(directory, "runtime-state", "timer-state.json"), "utf8"));
   return { frame, state, action, start, snapshot, output, baseUrl, stop,
+    credentials: id => credentials(baseUrl,id),
+    snapshotPath: path.join(directory,"runtime-state","timer-state.json"),
     nativeEvents: () => fs.existsSync(nativeAudioLog) ? fs.readFileSync(nativeAudioLog,"utf8").trim().split("\n").filter(Boolean).map(line=>JSON.parse(line)) : [],
     restart: async () => { await stop(); launch(); await ready(); } };
 }

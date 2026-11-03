@@ -24,7 +24,7 @@ async function withServers(run, options = {}) {
 async function open(browser, server, id, contexts, legacy = false) {
   const context = await browser.newContext({viewport:{width:1280,height:900}});
   contexts.push(context);
-  await context.addInitScript(id => sessionStorage.setItem("boulderingTimerClientId", id), id);
+  await context.addInitScript(c=>{sessionStorage.setItem("boulderingTimerClientId",c.clientId);sessionStorage.setItem("fdvBrowserSecret",c.secret);},await server.credentials(id));
   const page = await context.newPage();
   const errors = [];
   page.on("pageerror",error=>errors.push(error.message));
@@ -219,7 +219,7 @@ test("Secondary network-address setup failures give actionable localized message
     const {page} = await open(browser,primary,"operator",contexts);
     for (const locale of ["ru","en"]) {
       if (locale === "en") await page.locator("#languageToggle").click();
-      for (const code of ["PRIMARY_NETWORK_ADDRESS_REQUIRED","PRIMARY_ADDRESS_UNREACHABLE"]) {
+      for (const code of ["PRIMARY_NETWORK_ADDRESS_REQUIRED","PRIMARY_ADDRESS_UNREACHABLE","SEC_CRYPTO_UNSUPPORTED","SEC_CRYPTO_INVALID","SEC_CRYPTO_CHANNEL"]) {
         await page.route("**/api/sec/configure",route=>route.fulfill({status:400,json:{code,error:"Internal English error"}}));
         await page.locator("#secondaryServerButton").click();
         await page.locator("#secondaryServerAddress").fill(backup.baseUrl);
@@ -227,8 +227,8 @@ test("Secondary network-address setup failures give actionable localized message
         const status=page.locator("#secondaryServerStatus");
         await expect(status).toHaveClass(/error/);
         await expect(status).not.toContainText("Internal English error");
-        await expect(status).toContainText(locale === "ru" ? "основной" : "primary");
-        await expect(status).toContainText(locale === "ru" ? "сет" : "network");
+        await expect(status).toContainText(code.startsWith("SEC_CRYPTO") ? locale === "ru" ? "защищённое" : "protected" : locale === "ru" ? "основной" : "primary");
+        await expect(status).toContainText(code.startsWith("SEC_CRYPTO") ? locale === "ru" ? "сборки" : "build" : locale === "ru" ? "сет" : "network");
         await page.locator("#secondaryServerClose").click();
         await page.unroute("**/api/sec/configure");
       }

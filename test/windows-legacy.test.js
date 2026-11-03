@@ -1,4 +1,5 @@
 "use strict";
+const { authenticatedFetch: fetch } = require("./helpers/browser-session");
 
 const test = require("node:test");
 const assert = require("node:assert/strict");
@@ -145,4 +146,36 @@ test("actual Node12 server preserves clocks, lists, snapshots and mixed-runtime 
   // Role reversal can finish before this GET. switchAll is a transition flag,
   // not a permanent success marker: the settled primary clears it legitimately.
   assertActiveModernAuthority(await modern.state(),modern.baseUrl);
+});
+
+test("encrypted SEC works in both Node12/modern directions, renews channels after restart and preserves authority",{timeout:30000},async t=>{
+  if(!runtime)return t.skip("Set FDV_LEGACY_NODE; release CI runs official Windows Node12 x86/x64");
+  for(const legacyPrimary of [true,false]){
+    const primary=await fixture(t,null,{legacyRuntime:legacyPrimary?runtime:null});
+    const backup=await fixture(t,null,{legacyRuntime:legacyPrimary?null:runtime});
+    await primary.action({type:"primary",primaryClientId:"clock-test"});
+    await primary.action({type:"primaryPin",pin:"2486"});
+    await primary.start();
+    const anchor=(await primary.state()).timerClock.startedAt;
+    const setup=await fetch(primary.baseUrl+"/api/sec/configure",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({clientId:"clock-test",address:backup.baseUrl})});
+    assert.equal(setup.status,200,await setup.clone().text());
+    async function until(fn){const deadline=Date.now()+7000;while(Date.now()<deadline){if(await fn())return;await new Promise(r=>setTimeout(r,30));}assert.fail("Mixed Node12 encrypted SEC did not converge");}
+    await until(async()=>(await backup.state()).sec.ready);
+    assert.equal((await backup.state()).sec.encrypted,true);
+    await backup.action({type:"language",language:"en"});
+    assert.equal((await primary.state()).language,"en","reverse command is encrypted and accepted by the other runtime");
+    const root=primary.snapshot().secondary.pair.key;
+    await backup.restart();
+    await until(async()=>(await backup.state()).sec.ready&&(await backup.state()).primaryPinSet);
+    await primary.action({type:"language",language:"ru"});
+    await until(async()=>(await backup.state()).language==="ru");
+    assert.equal(backup.snapshot().secondary.pair.key,root,"persistent pair identity survives fresh ephemeral channel keys");
+    const raw=await globalThis.fetch(backup.baseUrl+"/api/sec/ping",{method:"POST",headers:{"content-type":"application/json","x-fdv-secondary-key":root},body:"{}"});
+    assert.equal(raw.status,409,"even the old secret header cannot authorize plaintext peer requests");
+    const switched=await fetch(primary.baseUrl+"/api/sec/switch",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({clientId:"clock-test",targetClientId:"clock-test"})});
+    assert.equal(switched.status,200,await switched.clone().text());
+    await until(async()=>(await backup.state()).sec.role==="primary"&&(await primary.state()).sec.role==="secondary");
+    assert.equal((await backup.state()).timerClock.startedAt,anchor);
+    assert.equal((await primary.state()).timerClock.startedAt,anchor);
+  }
 });

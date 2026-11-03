@@ -9,7 +9,7 @@ async function withServer(run,options={}){
 }
 async function open(page,server){
   await server.action({type:"primary",primaryClientId:"clock-test"});
-  await page.addInitScript(()=>sessionStorage.setItem("boulderingTimerClientId","clock-test"));
+  await page.addInitScript(c=>{sessionStorage.setItem("boulderingTimerClientId",c.clientId);sessionStorage.setItem("fdvBrowserSecret",c.secret);},await server.credentials("clock-test"));
   await page.goto(server.baseUrl+"/",{waitUntil:"domcontentloaded"});
   await page.waitForFunction(()=>nativeAudioRoute?.snapshot().active && nativeAudioRoute.suppressed());
 }

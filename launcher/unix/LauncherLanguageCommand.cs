@@ -5,6 +5,16 @@ namespace FdvBoulderingTimer.Launcher;
 
 internal static class LauncherLanguageCommand
 {
+    internal static async Task SendPinAsync(HttpClient client, int port, string token, string pin, CancellationToken cancellationToken)
+    {
+        if (pin != "" && !System.Text.RegularExpressions.Regex.IsMatch(pin, "^[0-9]{4}$")) throw new ArgumentException("Invalid PIN");
+        using var request = new HttpRequestMessage(HttpMethod.Post, "http://127.0.0.1:" + port + "/api/launcher/pin");
+        request.Headers.Add("X-FDV-Launcher-Token", token);
+        request.Content = new StringContent("{\"pin\":\"" + pin + "\"}", Encoding.UTF8, "application/json");
+        using var response = await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+        if (response.StatusCode != HttpStatusCode.OK) throw new IOException("PIN command was not accepted");
+    }
+
     internal static async Task SendAsync(HttpClient client, int port, string token, string language, CancellationToken cancellationToken)
     {
         if (language != "ru" && language != "en") throw new ArgumentException("Invalid language");

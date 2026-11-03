@@ -155,6 +155,13 @@ namespace FdvBoulderingTimerLauncher
             { "Could not stop previous port listeners: ", "Не удалось остановить прежние процессы на портах: " },
             { "Link copied: ", "Ссылка скопирована: " },
             { "Clipboard is busy: ", "Буфер обмена занят: " },
+            { "Control PIN", "PIN управления" },
+            { "Save PIN", "Сохранить PIN" },
+            { "Remove PIN", "Удалить PIN" },
+            { "Enter four digits.", "Введите четыре цифры." },
+            { "Server is not ready.", "Сервер ещё не готов." },
+            { "Could not change the control PIN.", "Не удалось изменить PIN управления." },
+            { "Enter a new four-digit PIN. Browsers must confirm the new PIN before controlling the timer.", "Введите новый PIN из четырёх цифр. Для управления браузерам потребуется подтвердить новый PIN." },
             { "Could not change the timer language: ", "Не удалось изменить язык таймера: " }
         };
 

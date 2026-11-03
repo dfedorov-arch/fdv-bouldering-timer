@@ -150,6 +150,8 @@ internal sealed class LauncherWindow : Window
     private readonly Button _restartButton = new() { Content = "Restart server" };
     private readonly Button _stopButton = new() { Content = "Stop and exit" };
     private readonly Button _certificateButton = new() { Content = "Create HTTPS certificate" };
+    private readonly Button _pinButton = new() { Name = "launcherPin" };
+    private Window? _pinDialog;
     private readonly Button _languageButton = new() { Name = "launcherLanguage" };
     private readonly TextBlock _addressTitle = new();
     private readonly TextBlock _logTitle = new();
@@ -349,8 +351,12 @@ internal sealed class LauncherWindow : Window
         ConfigureButton(_certificateButton, 210);
         _certificateButton.HorizontalAlignment = HorizontalAlignment.Left;
         _certificateButton.Click += async (_, _) => await CreateHttpsCertificate();
-        Grid.SetRow(_certificateButton, 4);
-        root.Children.Add(_certificateButton);
+        ConfigureButton(_pinButton, 160);
+        _pinButton.Click += async (_, _) => await EditControlPin();
+        var settingsButtons = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 12 };
+        settingsButtons.Children.Add(_certificateButton); settingsButtons.Children.Add(_pinButton);
+        Grid.SetRow(settingsButtons, 4);
+        root.Children.Add(settingsButtons);
 
         var logPanel = new Grid
         {
@@ -414,6 +420,39 @@ internal sealed class LauncherWindow : Window
         finally { _certificateDialog = null; _certificateButton.IsEnabled = true; }
     }
 
+    private async Task EditControlPin()
+    {
+        if (_pinDialog != null) { _pinDialog.Activate(); return; }
+        var dialog = new Window { Title = T("Control PIN"), Width = 400, Height = 290,
+            CanResize = false, WindowStartupLocation = WindowStartupLocation.CenterOwner };
+        var input = new TextBox { Name = "controlPin", PasswordChar = '●', MaxLength = 4, Watermark = "0000" };
+        var status = new TextBlock { TextWrapping = TextWrapping.Wrap };
+        var save = new Button { Content = T("Save PIN") };
+        var clear = new Button { Content = T("Remove PIN") };
+        var close = new Button { Content = T("Close") };
+        var buttons = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 12 };
+        buttons.Children.Add(save); buttons.Children.Add(clear); buttons.Children.Add(close);
+        var panel = new StackPanel { Margin = new Thickness(20), Spacing = 14 };
+        panel.Children.Add(new TextBlock { Text = T("Enter a new four-digit PIN. Browsers must confirm the new PIN before controlling the timer."), TextWrapping = TextWrapping.Wrap });
+        panel.Children.Add(input); panel.Children.Add(status); panel.Children.Add(buttons);
+        dialog.Content = panel;
+        async Task Submit(string pin)
+        {
+            if (!_ready || string.IsNullOrEmpty(_launcherLanguageToken)) { status.Text = T("Server is not ready."); return; }
+            if (pin != "" && !System.Text.RegularExpressions.Regex.IsMatch(pin, "^[0-9]{4}$")) { status.Text = T("Enter four digits."); return; }
+            save.IsEnabled = clear.IsEnabled = false;
+            try {
+                await LauncherLanguageCommand.SendPinAsync(_languageClient, _settings.HttpPort, _launcherLanguageToken, pin, _probeCancellation.Token);
+                dialog.Close();
+            } catch (Exception) { status.Text = T("Could not change the control PIN."); save.IsEnabled = clear.IsEnabled = true; }
+        }
+        save.Click += async (_, _) => { if (string.IsNullOrEmpty(input.Text)) status.Text = T("Enter four digits."); else await Submit(input.Text); };
+        clear.Click += async (_, _) => await Submit("");
+        close.Click += (_, _) => dialog.Close();
+        _pinButton.IsEnabled = false; _pinDialog = dialog;
+        try { await dialog.ShowDialog(this); } finally { _pinDialog = null; _pinButton.IsEnabled = true; }
+    }
+
     private static string T(string english) => LauncherLanguage.Text(english);
 
     private void SetStatusText(string english) { _statusEnglish = english; _status.Text = T(english); _tray.ToolTipText = "FDV Bouldering Timer — " + T(english); }
@@ -426,6 +465,7 @@ internal sealed class LauncherWindow : Window
         _openButton.Content = T("Open timer"); _copyButton.Content = T("Copy link");
         _restartButton.Content = T("Restart server"); _stopButton.Content = T("Stop and exit");
         _certificateButton.Content = T("Create HTTPS certificate");
+        _pinButton.Content = T("Control PIN");
         _status.Text = T(_statusEnglish);
         _tray.ToolTipText = "FDV Bouldering Timer — " + T(_statusEnglish);
         _hint.Text = T("Closing this window hides the launcher. The server keeps running. Use Stop and exit to stop it. Launch the app again to reopen the window.");
@@ -455,7 +495,7 @@ internal sealed class LauncherWindow : Window
         // generation. Never adopt a reply spanning a local language command.
         if (!LauncherLanguage.ValidServerLanguage(state!) || _allowClose ||
             intentRevision != _languageIntentRevision || _languageSyncBusy ||
-            _pendingServerLanguage != null || _certificateDialog != null) return;
+            _pendingServerLanguage != null || _certificateDialog != null || _pinDialog != null) return;
         var russian = state![0] == "ru";
         if (LauncherLanguage.Russian == russian) return;
         LauncherLanguage.Russian = russian;

@@ -120,3 +120,12 @@ timer-public.cer for trust setup, not timer-cert.pfx with its private key.
 Trust is not installed automatically; configure Node.js trust on both servers
 for a Secondary pair. The modern BAT generator is not included. Console users
 can supply suitable root PEM/PFX files when no managed certificate exists.
+
+
+Сборка 448: шифрованный обмен основного и резервного серверов работает на
+Node12.22.12 без дополнительных криптобиблиотек. Обновите оба сервера до одной
+сборки; открытого fallback нет. Это не шифрует HTTP браузеров и не подтверждает
+отпечаток сервера при первом сопряжении.
+Build 448: encrypted primary/standby traffic works on Node12.22.12 without extra
+crypto libraries. Update both servers to the same build; no plaintext fallback.
+This does not encrypt browser HTTP or verify the peer fingerprint at first pairing.

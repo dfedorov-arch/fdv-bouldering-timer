@@ -1,4 +1,5 @@
 "use strict";
+const { authenticatedFetch: fetch, credentials } = require("./helpers/browser-session");
 
 const test = require("node:test");
 const assert = require("node:assert/strict");
@@ -87,9 +88,10 @@ test("a network primary address resolving to a different process is rejected wit
   await primary.action({type:"primary",primaryClientId:"clock-test"});
   await primary.start({elapsedBeforePause:20});
   const before = await primary.state();
+  const operatorSecret = (await primary.credentials("clock-test")).secret;
   const result = await new Promise((resolve,reject) => {
     const request = http.request(primary.baseUrl+"/api/sec/configure", {method:"POST", headers:{
-      "content-type":"application/json", host:new URL(wrong.baseUrl.replace("127.0.0.1",address)).host
+      "content-type":"application/json", "x-fdv-client-secret":operatorSecret, host:new URL(wrong.baseUrl.replace("127.0.0.1",address)).host
     }}, response => {
       let body=""; response.on("data",chunk=>{body+=chunk;});
       response.on("end",()=>resolve({status:response.statusCode,body:JSON.parse(body)}));
@@ -303,9 +305,11 @@ test("a returning primary becomes the reserve of the new authority, including a 
   assert.equal(returned.primaryPinSet,true);
   assert.equal(returned.startLists[0].rows[0][1],"После отказа");
   assert.equal(returned.timerClock.startedAt,active.timerClock.startedAt);
-  const stalePacket=await fetch(primary.baseUrl+"/api/sec/replicate",{method:"POST",
-    headers:{"content-type":"application/json","x-fdv-secondary-key":originalPair.key},
-    body:JSON.stringify({session:originalPair.session,epoch:0,sourceInstanceId:"obsolete-source",sequence:999})});
+  const {createSecureTransport}=require("../lib/secondary-crypto");
+  const {requestJson}=require("../lib/secondary-server");
+  const transport=createSecureTransport({instanceId:require("node:crypto").randomUUID(),request:requestJson,key:()=>originalPair.key,canPair:()=>false});
+  const stalePacket=await transport.request(primary.baseUrl,"/api/sec/replicate",
+    {session:originalPair.session,epoch:0,sourceInstanceId:"obsolete-source",sequence:999},originalPair.key);
   assert.equal(stalePacket.status,409);
   assert.equal((await primary.state()).sec.ready,true,"old epoch must not reset the current replica clock");
   assert.ok(Math.abs(returned.elapsed-(await backup.state()).elapsed)<0.1);
@@ -387,9 +391,10 @@ test("an unreachable return address leaves the old server fenced, not a falsely 
   const backup=await fixture(t,null);
   await primary.action({type:"primary",primaryClientId:"clock-test"});
   await primary.start({elapsedBeforePause:5});
+  const operatorSecret = (await primary.credentials("clock-test")).secret;
   const paired=await new Promise((resolve,reject)=>{
     const request=http.request(primary.baseUrl+"/api/sec/configure",{method:"POST",
-      headers:{"content-type":"application/json",host:"127.0.0.1:1"}},response=>{
+      headers:{"content-type":"application/json","x-fdv-client-secret":operatorSecret,host:"127.0.0.1:1"}},response=>{
       let body="";response.on("data",chunk=>{body+=chunk;});
       response.on("end",()=>resolve({status:response.statusCode,body:JSON.parse(body)}));
     });
@@ -398,8 +403,10 @@ test("an unreachable return address leaves the old server fenced, not a falsely 
   });
   assert.equal(paired.status,200,JSON.stringify(paired.body));
   assert.equal(paired.body.sec.primaryUrl,"http://127.0.0.1:1");
+  const { rememberCredentials } = require("./helpers/browser-session");
+  rememberCredentials(backup.baseUrl, "clock-test", await primary.credentials("clock-test"));
   await primary.stop();
-  const takeover=await sec(backup,"takeover",{session:paired.body.sec.session},{headers:{Origin:"http://127.0.0.1:1"}});
+  const takeover=await sec(backup,"takeover",{session:paired.body.sec.session},{headers:{Origin:"http://127.0.0.1:1","x-fdv-client-secret":operatorSecret}});
   assert.equal(takeover.status,200);
   await backup.action({type:"pause"});
   const paused=(await backup.state()).elapsed;

@@ -18,7 +18,7 @@ async function withPages(browser,run) {
     await stoppedFinal(server);
     for(const id of ["clock-test","format-viewer"]) {
       const context=await browser.newContext();contexts.push(context);
-      await context.addInitScript(id=>sessionStorage.setItem("boulderingTimerClientId",id),id);
+      await context.addInitScript(c=>{sessionStorage.setItem("boulderingTimerClientId",c.clientId);sessionStorage.setItem("fdvBrowserSecret",c.secret);},await server.credentials(id));
       const page=await context.newPage();pages.push(page);
       page.on("pageerror",error=>errors.push(error.message));
       await page.goto(server.baseUrl,{waitUntil:"domcontentloaded"});

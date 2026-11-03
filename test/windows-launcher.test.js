@@ -65,6 +65,14 @@ test("native RU/EN launcher preserves state and sends authenticated language to 
   if(process.env.FDV_NET20_REFERENCES)executables.push(compileAndRun(true));
   const token="1".repeat(64), server=await fixture(t,null,{launcherToken:token});
   for(const executable of executables){
+    for(const pin of ["1234",""]){
+      const status=await new Promise((resolve,reject)=>{
+        const child=spawn(executable,["send-pin",new URL(server.baseUrl).port,token,pin],{stdio:"pipe"});
+        let errors="";child.stderr.on("data",data=>errors+=data);child.once("error",reject);child.once("exit",code=>resolve({code,errors}));
+      });
+      assert.equal(status.code,0,status.errors);
+      assert.equal((await server.state()).primaryPinSet,Boolean(pin));
+    }
     for(const language of ["en","ru"]){
       const status=await new Promise((resolve,reject)=>{
         const build=fs.readFileSync(path.join(projectRoot,"serve-bouldering-timer.js"),"utf8").match(/const BUILD_NUMBER = (\d+);/)[1];

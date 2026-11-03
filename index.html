@@ -2974,9 +2974,24 @@
         padding: clamp(10px, 2.5dvh, 18px) 12px;
       }
     }
+    #controlPinGate[hidden] { display: none; }
+    #controlPinGate { position: fixed; inset: 0; z-index: 20000; display: grid; place-items: center; background: rgba(0,0,0,.8); padding: 16px; }
+    #controlPinForm { width: min(100%, 360px); background: #161c26; color: #fff; border: 1px solid #556; border-radius: 12px; padding: 24px; }
+    #controlPinForm input { width: 100%; margin-bottom: 12px; font-size: 24px; }
+    #controlPinForm button { width: 100%; min-height: 44px; }
+    #controlPinMessage { min-height: 1.5em; color: #ffb76b; }
   </style>
 </head>
 <body>
+  <div id="controlPinGate" role="dialog" aria-modal="true" aria-labelledby="controlPinTitle" hidden>
+    <form id="controlPinForm">
+      <h2 id="controlPinTitle">PIN</h2>
+      <input id="controlPinValue" type="password" inputmode="numeric" pattern="[0-9]{4}" maxlength="4" autocomplete="off" aria-label="PIN" required>
+      <button type="submit">OK</button>
+      <p id="controlPinMessage" role="status"></p>
+      <button id="controlPinScreen" type="button">Перейти в режим экрана</button>
+    </form>
+  </div>
   <main class="app">
     <aside class="controls" aria-label="Панель управления">
       <div class="brand">
@@ -3081,7 +3096,7 @@
           </span>
         </div>
         <div id="primaryPinPanel" class="primary-pin-panel" hidden>
-          <input id="primaryPinInput" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="4" placeholder="0000" autocomplete="off" aria-label="PIN">
+          <input id="primaryPinInput" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="4" placeholder="0000" autocomplete="off" aria-label="PIN">
           <button id="primaryPinApply" type="button">OK</button>
           <button id="primaryPinClear" type="button" hidden>Clear</button>
           <span id="primaryPinStatus" aria-live="polite"></span>
@@ -3241,7 +3256,6 @@
       primaryClientId: null,
       primaryPinSet: false,
       ownPrimaryPinSaved: false,
-      ownPrimaryPinValue: "",
       showBrowserNumbers: false,
       browserDisplayNumber: 0,
       showServerTime: false,
@@ -3256,7 +3270,7 @@
       timeline: []
     };
 
-    const pageBuildNumber = 446;
+    const pageBuildNumber = 448;
     const projectUrl = "https://github.com/dfedorov-arch/fdv-bouldering-timer";
     const buildLinkConfirmDelayMs = 550;
     const offlineSnapshotKey = "fdvBoulderingTimerOfflineSnapshot";
@@ -3363,13 +3377,13 @@
         serverRecoveredTitle: "Связь с сервером восстановлена",
         serverRecoveredText: "Автономный таймер продолжает работать отдельно. Вернуться к состоянию сервера?",
         returnToServer: "Вернуться к серверу",
-        primaryPinTitle: "PIN основного браузера",
+        primaryPinTitle: "PIN управления",
         primaryPinUnset: "PIN не задан",
         primaryPinSet: "PIN задан",
         primaryPinSaved: "PIN сохранён",
         primaryPinCleared: "PIN очищен",
         primaryPinInvalid: "Введите 4 цифры",
-        primaryPinPrompt: "Введите PIN основного браузера",
+        primaryPinPrompt: "Введите PIN управления",
         primaryPinWrong: "Неверный PIN",
         primaryPinBlocked: "Слишком много попыток",
         clear: "Очистить",
@@ -3464,13 +3478,13 @@
         serverRecoveredTitle: "Server connection restored",
         serverRecoveredText: "The standalone timer is still running separately. Return to the server state?",
         returnToServer: "Return to server",
-        primaryPinTitle: "Primary browser PIN",
+        primaryPinTitle: "Control PIN",
         primaryPinUnset: "PIN is not set",
         primaryPinSet: "PIN is set",
         primaryPinSaved: "PIN saved",
         primaryPinCleared: "PIN cleared",
         primaryPinInvalid: "Enter 4 digits",
-        primaryPinPrompt: "Enter primary browser PIN",
+        primaryPinPrompt: "Enter control PIN",
         primaryPinWrong: "Wrong PIN",
         primaryPinBlocked: "Too many attempts",
         clear: "Clear",
@@ -4612,10 +4626,11 @@
     function revealControlsIfAllowed() {
       document.body.classList.toggle("controls-ready", !isViewerClient);
       syncControlsScrollbarPadding();
+      updateControlPinGate();
     }
 
     function controlsAvailable() {
-      return serverAvailable || standaloneMode;
+      return (serverAvailable || standaloneMode) && (standaloneMode || !state.primaryPinRequired);
     }
 
     function timerControlsAvailable() {
@@ -5303,11 +5318,11 @@
       }
     }
 
-    const clientId = safeStorageGet("sessionStorage", "boulderingTimerClientId") || createClientId();
+    let clientId = safeStorageGet("sessionStorage", "boulderingTimerClientId") || createClientId();
     safeStorageSet("sessionStorage", "boulderingTimerClientId", clientId);
     let lastSecondaryUiKey = "";
     const secondaryConnection = window.FDVSecondaryServer.create(window, {
-      disabled: isLocalStandalonePage(), clientId: () => clientId,
+      disabled: isLocalStandalonePage(), clientId: () => clientId, secret: () => browserSession.secret(),
       changed: () => updateSecondaryUi(),
       rolesChanged: next => {
         if (next.secondaryInstanceId) retiredServerInstanceIds.delete(next.secondaryInstanceId);
@@ -5332,7 +5347,25 @@
     });
     window.FDVSecondaryConnection = secondaryConnection;
     // Retain the page, audio context, fullscreen and client identity on cutover.
-    const fetch = (...args) => secondaryConnection.fetch(...args);
+    const browserSession = window.FDVSecondaryServer.createSession(window, secondaryConnection, () => clientId, id => { clientId = id; });
+    const fetch = async (path, init = {}) => {
+      if (!/^\/?api\//.test(path) || isLocalStandalonePage()) return secondaryConnection.fetch(path, init);
+      const previousId = clientId;
+      await new Promise((resolve, reject) => browserSession.ensure(error => error ? reject(error) : resolve()));
+      if (clientId !== previousId) {
+        if (path.includes("?")) path = path.replace(/([?&]clientId=)[^&]*/, "$1" + encodeURIComponent(clientId));
+        if (init.body) {
+          const body = JSON.parse(init.body);
+          if (body.clientId === previousId) body.clientId = clientId;
+          if (body.type === "primary" && body.primaryClientId === previousId) body.primaryClientId = clientId;
+          init = { ...init, body: JSON.stringify(body) };
+        }
+      }
+      const response = await secondaryConnection.fetch(path, { ...init,
+        headers: { ...init.headers, "x-fdv-client-secret": browserSession.secret() } });
+      if (response.status === 401) browserSession.reset();
+      return response;
+    };
     const EventSource = window.EventSource ? function (url, options) {
       return new window.EventSource(secondaryConnection.url(url), options);
     } : null;
@@ -6834,8 +6867,9 @@
         || isLimitedController !== nextLimitedController;
       state.primaryClientId = primaryClientId;
       state.primaryPinSet = Boolean(remote.primaryPinSet);
+      state.primaryPinRequired = Boolean(remote.primaryPinRequired);
+      state.primaryPinRevision = remote.primaryPinRevision || 0;
       state.ownPrimaryPinSaved = Boolean(remote.ownPrimaryPinSaved);
-      state.ownPrimaryPinValue = String(remote.ownPrimaryPinValue || "");
       state.showBrowserNumbers = Boolean(remote.showBrowserNumbers);
       state.browserDisplayNumber = Math.max(0, Math.round(Number(remote.browserDisplayNumber) || 0));
       state.showServerTime = Boolean(remote.showServerTime);
@@ -9849,7 +9883,7 @@
           const controller = new AbortController();
           const timeout = setTimeout(() => controller.abort(),body.op === "prepare" ? 30000 : 5000);
           try {
-            const response = await window.fetch(sourceEndpoint || endpoint(), {method:"POST",headers:{"content-type":"application/json"},
+            const response = await window.fetch(sourceEndpoint || endpoint(), {method:"POST",headers:{"content-type":"application/json","x-fdv-client-secret":browserSession.secret()},
               body:JSON.stringify({clientId,...body}),cache:"no-store",signal:controller.signal});
             if (!response.ok && !(body.op === "release" && response.status === 409)) throw new Error("Native audio request rejected");
             return await response.json();
@@ -12244,6 +12278,11 @@
 
     async function setPrimaryModeWithOptions(enabled, options = {}) {
       if (!serverAvailable || standaloneMode) return;
+      if (enabled && state.primaryPinSet && !state.ownPrimaryPinSaved && !options.pin) {
+        const pin = promptPrimaryPin();
+        if (pin === null) return false;
+        options = { ...options, pin };
+      }
       els.primaryToggle.checked = enabled;
       const changed = await sendServerAction("primary", {
         primaryClientId: enabled ? clientId : null,
@@ -12309,6 +12348,9 @@
 
     function secondarySetupError(remote) {
       const ru = language === "ru";
+      if (["SEC_CRYPTO_UNSUPPORTED", "SEC_CRYPTO_INVALID", "SEC_CRYPTO_CHANNEL"].includes(remote.code)) return ru
+        ? "Не удалось установить защищённое соединение между серверами. Обновите оба сервера до одной актуальной сборки и повторите подключение."
+        : "Could not establish a protected connection between servers. Update both servers to the same current build and reconnect.";
       if (remote.code === "SECONDARY_HAS_CLIENTS") {
         const browsers = (remote.clients || []).map(client => {
           const known = lastKnownClients.find(item => item.id === client.id);
@@ -12376,7 +12418,7 @@
         if (targetClientId === clientId && destination === "secondary") {
           try {
             const response = await window.fetch(`${info.config.secondaryUrl}/api/sec/takeover`, {
-              method: "POST", headers: { "content-type": "application/json" },
+              method: "POST", headers: { "content-type": "application/json", "x-fdv-client-secret": browserSession.secret() },
               body: JSON.stringify({ session: info.config.session, clientId })
             });
             if (!response.ok) throw new Error(language === "ru" ? "Резервный сервер недоступен" : "Secondary server unavailable");
@@ -12408,7 +12450,7 @@
       els.primaryPinPanel.hidden = nextHidden;
       els.primaryPinStatus.textContent = state.primaryPinSet ? t("primaryPinSet") : t("primaryPinUnset");
       if (!nextHidden) {
-        els.primaryPinInput.value = state.ownPrimaryPinValue || "";
+        els.primaryPinInput.value = "";
         els.primaryPinInput.focus();
         els.primaryPinInput.select();
       }
@@ -12438,6 +12480,47 @@
       els.primaryPinStatus.textContent = t("primaryPinCleared");
       closePrimaryPinPanel();
     }
+
+    function updateControlPinGate() {
+      const dialog = document.getElementById("controlPinGate");
+      const visible = !standaloneMode && serverAvailable && state.primaryPinRequired && !isViewerClient
+        && !document.body.classList.contains("fullscreen") && !document.fullscreenElement;
+      if (!visible) { dialog.hidden = true; return; }
+      const revision = String(state.primaryPinRevision || 0);
+      if (dialog.hidden || dialog.dataset.revision !== revision) {
+        document.getElementById("controlPinValue").value = "";
+        document.getElementById("controlPinMessage").textContent = "";
+        dialog.dataset.revision = revision;
+        dialog.hidden = false;
+        document.getElementById("controlPinValue").focus();
+      }
+      document.getElementById("controlPinTitle").textContent = t("primaryPinPrompt");
+      document.getElementById("controlPinScreen").textContent = language === "ru" ? "Перейти в режим экрана" : "Switch to screen mode";
+    }
+
+    document.getElementById("controlPinForm").addEventListener("submit", async event => {
+      event.preventDefault();
+      const input = document.getElementById("controlPinValue");
+      const pin = input.value.trim();
+      if (!/^\d{4}$/.test(pin)) { document.getElementById("controlPinMessage").textContent = t("primaryPinInvalid"); return; }
+      const result = await sendServerAction("confirmPin", { pin });
+      input.value = "";
+      if (result !== true) document.getElementById("controlPinMessage").textContent = t(result === "pin-blocked" ? "primaryPinBlocked" : "primaryPinWrong");
+      updateControlPinGate();
+    });
+    document.getElementById("controlPinScreen").addEventListener("click", async () => {
+      await toggleFullscreen();
+      updateControlPinGate();
+    });
+    document.getElementById("controlPinGate").addEventListener("keydown", event => {
+      if (event.key === "Escape") { event.preventDefault(); document.getElementById("controlPinScreen").click(); }
+      if (event.key === "Tab") {
+        const fields = [...event.currentTarget.querySelectorAll("input, button")];
+        const index = fields.indexOf(document.activeElement);
+        event.preventDefault();
+        fields[(index + (event.shiftKey ? -1 : 1) + fields.length) % fields.length].focus();
+      }
+    });
 
     function promptPrimaryPin() {
       const pin = window.prompt(t("primaryPinPrompt"));
@@ -12544,6 +12627,7 @@
       screenModeRequested = true;
       document.body.classList.add("fullscreen");
       refreshStartListScreenMode();
+      updateControlPinGate();
       revealExitFullscreenButton();
       if (document.documentElement.requestFullscreen) {
         try {
@@ -12571,6 +12655,7 @@
       document.body.classList.remove("exit-fullscreen-visible");
       document.body.classList.remove("fullscreen");
       refreshStartListScreenMode();
+      updateControlPinGate();
       if (document.fullscreenElement) {
         try {
           await document.exitFullscreen();
@@ -13338,6 +13423,7 @@
         document.body.classList.remove("fullscreen", "exit-fullscreen-visible");
       }
       refreshStartListScreenMode();
+      updateControlPinGate();
       if (isViewerClient && instancesFullscreenEnabled && !document.fullscreenElement) {
         pendingViewerFullscreen = true;
       }

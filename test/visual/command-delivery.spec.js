@@ -9,8 +9,9 @@ async function setup(browser,run){
     await server.action({type:"primary",primaryClientId:"clock-test"});
     const context=await browser.newContext({viewport:{width:393,height:852},isMobile:true,hasTouch:true,
       userAgent:"Mozilla/5.0 (Linux; Android 15) AppleWebKit/537.36 Chrome/130.0.0.0 SamsungBrowser/28.0 Mobile Safari/537.36"});contexts.push(context);
-    await context.addInitScript(()=>{
-      sessionStorage.setItem("boulderingTimerClientId","delivery-phone");
+    await context.addInitScript(c=>{
+      sessionStorage.setItem("boulderingTimerClientId",c.clientId);
+      sessionStorage.setItem("fdvBrowserSecret",c.secret);
       window.dropStateEvents=false;
       const Native=window.EventSource;
       window.EventSource=class extends Native{
@@ -19,7 +20,7 @@ async function setup(browser,run){
           listener.call(this,event);
         },options);}
       };
-    });
+    },await server.credentials("delivery-phone"));
     const phone=await context.newPage();phone.on("pageerror",error=>errors.push(error.message));
     await phone.goto(server.baseUrl,{waitUntil:"domcontentloaded"});
     await phone.waitForFunction(()=>!clockCalibrationPending&&eventSourceConnected);
@@ -97,7 +98,7 @@ test("Legacy acknowledges its own completed render and mode commands recover thr
 test("operator shows clear receipts without expanding the diagnostic chip row",async({browser})=>{
   await setup(browser,async({server,phone,client,contexts})=>{
     const c=await browser.newContext({viewport:{width:1440,height:1000}});contexts.push(c);
-    await c.addInitScript(()=>sessionStorage.setItem("boulderingTimerClientId","clock-test"));
+    await c.addInitScript(c=>{sessionStorage.setItem("boulderingTimerClientId",c.clientId);sessionStorage.setItem("fdvBrowserSecret",c.secret);},await server.credentials("clock-test"));
     const operator=await c.newPage();await operator.goto(server.baseUrl,{waitUntil:"domcontentloaded"});
     await operator.waitForFunction(()=>!clockCalibrationPending&&isPrimaryClient);
     const dot=operator.locator('.browser-delivery-status[data-delivery-status="applied"]').first();

@@ -1,4 +1,5 @@
 "use strict";
+const { authenticatedFetch: fetch, credentials } = require("./helpers/browser-session");
 const test = require("node:test"), assert = require("node:assert/strict");
 const delivery = require("../lib/client-delivery");
 const { fixture } = require("./helpers/controlled-clock-server");

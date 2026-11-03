@@ -1,4 +1,5 @@
 "use strict";
+const { authenticatedFetch: fetch, credentials } = require("./helpers/browser-session");
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const crypto = require("node:crypto");

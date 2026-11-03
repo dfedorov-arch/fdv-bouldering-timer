@@ -1,4 +1,5 @@
 "use strict";
+const { authenticatedFetch: fetch, credentials } = require("../test/helpers/browser-session");
 
 const fs = require("node:fs");
 const net = require("node:net");
@@ -139,6 +140,8 @@ async function main() {
     await performanceSnapshot(baseUrl, true);
     await prepareScenario(baseUrl, scenario);
     const serverLoad = await performanceSnapshot(baseUrl);
+    const credentialFile = argumentValue("--client-credentials-file");
+    if (credentialFile) fs.writeFileSync(credentialFile, JSON.stringify(await credentials(baseUrl,"performance-baseline")), {mode:0o600});
     console.log(`Baseline server ready: ${baseUrl}/?perf=1`);
     console.log(`Legacy client: ${baseUrl}/legacy.html?perf=1&clientId=baseline-legacy`);
     console.log(`Scenario: ${scenario.id}`);

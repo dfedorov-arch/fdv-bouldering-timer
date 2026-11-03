@@ -10,7 +10,10 @@ async function runFixture(run) {
 }
 async function open(browser,server,id,viewport={width:1280,height:900},legacy=false,options={}) {
   const context=await browser.newContext({viewport,...options});
-  await context.addInitScript(id=>sessionStorage.setItem("boulderingTimerClientId",id),id);
+  await context.addInitScript(c=>{
+    sessionStorage.setItem("boulderingTimerClientId",c.clientId);
+    sessionStorage.setItem("fdvBrowserSecret",c.secret);
+  },await server.credentials(id));
   const page=await context.newPage(), errors=[];
   page.on("pageerror",e=>errors.push(e.message));
   await page.goto(server.baseUrl+(legacy?`/legacy.html?clientId=${id}`:"/"),{waitUntil:"domcontentloaded"});
@@ -388,4 +391,55 @@ for (const withLists of [false,true]) test(`limited controls fit folding-phone v
       expect(errors).toEqual([]);
     } finally {await context.close();}
   });
+});
+
+test("launcher PIN gates controls, stays out of screen mode, and requires current PIN after rotation and reload",async({browser})=>{
+  const cleanup=[],token="a".repeat(64);
+  const server=await fixture({after:fn=>cleanup.push(fn)},"darwin",{liveClocks:true,launcherToken:token});
+  let opened;
+  async function rotate(pin){
+    const response=await fetch(server.baseUrl+"/api/launcher/pin",{method:"POST",headers:{"content-type":"application/json","x-fdv-launcher-token":token},body:JSON.stringify({pin})});
+    expect(response.status).toBe(200);
+  }
+  try{
+    await rotate("1234");
+    opened=await open(browser,server,"clock-test");
+    const page=opened.page;
+    const gate=page.locator("#controlPinGate");
+    await expect(gate).toBeVisible();
+    expect((await server.state()).primaryClientId).toBe(null);
+    await page.locator("#controlPinScreen").click({timeout:4000});
+    await expect(gate).toBeHidden();
+    await page.waitForFunction(()=>!!document.fullscreenElement);
+    await expect(page.locator(".controls")).toBeHidden();
+    await page.evaluate(()=>exitScreenMode());
+    await expect(gate).toBeVisible();
+    await page.locator("#controlPinValue").fill("0000");
+    await page.locator('#controlPinForm button[type="submit"]').click({timeout:4000});
+    await expect(page.locator("#controlPinMessage")).toHaveText("Неверный PIN");
+    await page.locator("#controlPinValue").fill("1234");
+    await page.locator('#controlPinForm button[type="submit"]').click({timeout:4000});
+    await expect(gate).toBeHidden();
+    await page.locator("#primaryToggle").check();
+    await expect.poll(async()=>(await server.state()).primaryClientId).toBe("clock-test");
+    await server.start();
+    const anchor=(await server.state()).timerClock.startedAt;
+    await page.evaluate(()=>toggleFullscreen());
+    await rotate("5678");
+    await page.waitForFunction(()=>state.primaryPinRequired);
+    await expect(gate).toBeHidden();
+    await page.evaluate(()=>exitScreenMode());
+    await expect(gate).toBeVisible();
+    expect((await server.state()).timerClock.startedAt).toBe(anchor);
+    await page.reload({waitUntil:"domcontentloaded"});
+    await expect(gate).toBeVisible();
+    await page.locator("#controlPinValue").fill("5678");
+    await page.locator('#controlPinForm button[type="submit"]').click({timeout:4000});
+    await expect(gate).toBeHidden();
+    expect((await server.state()).timerClock.startedAt).toBe(anchor);
+    expect(opened.errors).toEqual([]);
+  }finally{
+    if(opened)await opened.context.close().catch(()=>{});
+    for(const fn of cleanup.reverse())await fn();
+  }
 });

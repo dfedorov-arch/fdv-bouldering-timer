@@ -69,6 +69,12 @@ test("Unix headless UI, real language endpoint and per-user single-instance rest
   assert.equal(after.timerClock.startedAt,before.timerClock.startedAt);
   await run(["send-language",port,token,"en"]);assert.equal((await server.state()).language,"en");
   await run(["send-language",port,"0".repeat(64),"ru"],1);assert.equal((await server.state()).language,"en");
+  await run(["send-pin",port,token,"1234"]);
+  assert.equal((await server.state()).primaryPinSet,true);
+  assert.equal((await server.state()).timerClock.startedAt,before.timerClock.startedAt);
+  await run(["send-pin",port,"0".repeat(64),"5678"],1);
+  await run(["send-pin",port,token,""]);
+  assert.equal((await server.state()).primaryPinSet,false);
   const identity=path.join(directory,"instance");let owner,logs="";
   async function stopOwner(){if(owner&&owner.exitCode===null&&owner.signalCode===null)await new Promise(resolve=>{owner.once("exit",resolve);owner.stdin.end("exit\n");});}
   t.after(stopOwner);

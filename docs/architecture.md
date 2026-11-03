@@ -299,7 +299,7 @@ Normal removal sends authenticated `requireNoClients` to the reserve; its curren
 
 Build 417 uses full Резервный / Secondary names in dialog text, tooltips and errors; SEC is retained only as a compact button/badge label and in documentation referring to that label. Internal `sec` API/storage fields are unchanged. Global hotkeys ignore already-handled/composition events, inputs, textareas, selects, editable content and open dialogs, so typing HTTP or a hostname cannot reset/start/pause the competition. This adds no polling or geometry work and does not alter clock/audio scheduling.
 
-The primary's Secondary server setup pairs one empty, running server with the same application build and deterministic binary audio/font hash. It refuses a pre-existing competition, primary browser, different build or resource mismatch. A private random 256-bit pairing key authenticates replication and is persisted only in the runtime snapshot; static serving denies runtime-state, Git metadata and key files. Public state exposes the session identifier and addresses, never the key. Pairing is server-to-server, not a cross-origin browser POST. This is not a replacement for firewall/access control: existing primary-client/PIN controls remain the application's control boundary.
+The primary's Secondary server setup pairs one empty, running server with the same application build and deterministic binary audio/font hash. It refuses a pre-existing competition, primary browser, different build or resource mismatch. A private 256-bit pair secret derived through X25519 authenticates encrypted channels and is persisted only in the runtime snapshot; static serving denies runtime-state, Git metadata and key files. Public state exposes the session identifier and addresses, never the key. Pairing is server-to-server, not a cross-origin browser POST. This is not a replacement for firewall/access control: existing primary-client/PIN controls remain the application's control boundary.
 
 The primary pushes at one-second intervals, coalescing an immediate push after changes. Full canonical state/configuration, list data/revision, audio offsets, Legacy choices and recent applied command IDs are sent only when the version differs; clock measurements, browser registries and pending commands/events accompany heartbeats. Audio/font binaries are not transferred. The standby uses four-timestamp, low-RTT measurements to align its own monotonic clock to the original primary timer coordinate. It learns a bounded rate after a sufficient sample span with repeated candidate confirmation, limits incremental offset corrections, and keeps that affine clock running without packets. It preserves the logical start anchor, rather than restarting from a rounded elapsed value. Its calendar compatibility API is derived separately for Legacy. Only corroborated host sleep advances a paused monotonic source; a wall-clock step alone does not repair it.
 
@@ -663,3 +663,105 @@ also verifies the transferred app where codesign is available. Both macOS PKG
 jobs now expand the final payload and verify the app and native audio helper
 before upload. Resource placement follows Apple's code/resource bundle layout:
 https://developer.apple.com/library/archive/technotes/tn2206/_index.html .
+
+
+### Browser authorization and launcher control PIN (build 447)
+
+`POST /api/session` issues a 256-bit random per-tab secret. The client keeps it
+in sessionStorage and sends it only in `X-FDV-Client-Secret`, never in URLs,
+public state, diagnostics or SSE. The server stores SHA-256 hashes in private
+`browserSessions` snapshot/replica data. A public clientId alone cannot mutate
+client metadata, execute commands, administer Secondary server or prepare native
+audio. SSE remains read-only and uses authenticated HTTP polls for metadata and
+receipts. Modern and ES5 Legacy share the session bootstrap implementation;
+standalone HTML/APK bypass network sessions.
+
+Session provisioning cannot claim a protected or already occupied ID. Old
+snapshots without secrets require new identities and explicit primary/CTRL
+assignment. Client preferences for old IDs are not proof of ownership. Sessions
+and PIN confirmations persist across reload/restart and follow authority changes.
+A separate private session revision replicates new credentials without changing
+the timer version, start anchor, cue keys or command-conflict version. Forwarded
+browser commands carry the credential inside the existing private authenticated
+peer RPC. CORS permits its header only for the paired origins. Browser-triggered
+standby promotion also verifies a session; automatic promotion after source loss
+continues to work for authenticated displays.
+
+The shared PIN is independent of primaryClientId. `confirmPin` records the current
+PIN revision in the authenticated session; all primary assignments check the
+server policy independently of client-supplied source. Setting/replacing a PIN
+invalidates previous confirmations; setting it from an already confirmed primary
+confirms that issuing session. The local launcher route does not grant any browser
+confirmation. Before primary assignment, authenticated sessions retain existing
+control behavior when no PIN exists; with a PIN they must first confirm it. Once
+primary is assigned, CTRL retains only its existing four runtime commands and
+keeps working through PIN rotation. Authorization and PIN checks precede command
+cache lookup. Incorrect PIN attempts are limited by observed source address, not
+a freely chosen browser ID; launcher replacement clears lockout for recovery.
+
+`POST /api/launcher/pin` reuses the per-child launcher capability with strict
+loopback/non-browser checks and a PIN-only body. Windows/CLR2 and Avalonia launchers
+provide masked PIN input, Save and Remove actions. A following launcher forwards
+through the private peer RPC. No cleartext PIN is returned or retained in the
+snapshot. Even an expired timer snapshot retains access settings. An empty server
+with a configured PIN refuses incoming pairing that could overwrite its policy.
+
+The browser gate appears when the control panel is visible and its confirmation
+is missing/stale. Screen mode closes it, preserves rendering/audio and allows
+returning to the panel to enter the current PIN. PIN changes do not pause/reset
+the competition or change browser roles. HTTP remains intentionally supported:
+this prevents ID spoofing and guessing session secrets, but does not protect
+remote credentials or page code against network interception/modification.
+
+
+### Encrypted peer transport, including Windows Legacy (build 448)
+
+`lib/secondary-crypto.js` wraps all peer POST requests and responses. Public
+`/api/sec/identity`, read-only browser status and `/api/sec/handshake` expose only
+identity/build, ephemeral public keys, random channel IDs/nonces and proofs.
+Browser `/api/sec/takeover` remains a browser-session-authorized action; it is
+not a peer replication API. `requestJson` refuses any old plaintext secret header.
+
+Initial pairing uses ephemeral X25519 keys and RFC5869 HKDF-SHA256 to derive the
+shared 256-bit pair secret; the pair payload and acknowledgement are encrypted.
+The secret is never part of the pairing JSON. As previously accepted, initial
+pairing is unauthenticated against an active intermediary: there is no fingerprint
+confirmation/PKI. Pair only the intended servers; this feature protects against
+passive capture and subsequent packet spoofing, not active first-pair MITM.
+
+After restart or channel expiry, both servers retain their private pair secret
+and authenticate a new X25519 handshake with HMAC-SHA256 proofs covering the
+public keys/instances/nonces/channel transcript. Only the secret is persisted;
+ephemeral channel keys/counters are not. Pre-448 persisted pairs can establish the
+new encrypted channel with their existing pair secret once both peers are updated;
+no request silently returns to the legacy transport. An old binary must be updated
+on both ends, since updating its peer cannot prevent that old binary from sending
+its original plaintext traffic.
+
+HKDF derives two AES-256 keys and two 4-byte nonce prefixes. Each request has a
+strictly increasing safe-integer counter; a 12-byte GCM nonce combines its prefix
+and counter. Replies use the opposite key/prefix with the corresponding request
+counter, exactly once. AAD binds protocol/channel/counter/path and response HTTP
+status. Authentication completes before parsing or invoking any state changes.
+A 1024-counter receive window permits bounded request reordering while rejecting
+replays. Channel IDs change with every handshake; replaying a pre-restart packet
+cannot recreate its old in-memory channel. Unknown-channel responses trigger one
+fresh authenticated handshake, never a plaintext retry. The same channels work
+through authority reversal; role names are not used as cryptographic directions.
+Channel caches are bounded and expire by monotonic idle time.
+
+Encrypted JSON has a bounded 16MiB plaintext size; replication wire limits allow
+base64 overhead (24MiB). The existing public lists API is unchanged. Clock samples
+are taken around the actual protected request after channel setup, excluding DH
+setup latency from the four-timestamp clock fit; a delayed-handshake regression
+checks this separately. No competition anchors, cue identifiers or audio paths
+are changed by channel establishment.
+
+All primitives use Node's bundled crypto/OpenSSL. X25519/diffieHellman and GCM work
+in official Node12.22.12. HKDF uses built-in createHmac because hkdfSync was added
+later. Tests match RFC5869 case1 and modern native HKDF, capture real HTTP wire data,
+reject altered/replayed/wrong-path/wrong-status/old-protocol messages, and exercise
+Node12/modern peers in both directions with restart, reverse commands and takeover.
+Release Windows CI runs the mixed-runtime case for both x86 and x64. Local testing
+used the SHA256-verified official macOS x64 Node12 runtime; it is not a physical
+Windows7/8 validation.

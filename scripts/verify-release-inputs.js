@@ -79,6 +79,7 @@ if (uniqueBuilds.size !== 1) {
   "lib/vendor/NAUDIO-README.txt",
   "lib/client-secondary-server.js",
   "lib/secondary-server.js",
+  "lib/secondary-crypto.js",
   "lib/start-list-route-editor.js",
   "lib/vendor/xlsx.mini.min.js",
   "lib/vendor/SHEETJS-LICENSE.txt",

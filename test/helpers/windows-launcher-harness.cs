@@ -24,6 +24,11 @@ internal static class WindowsLauncherHarness
     {
         try
         {
+            if (args[0] == "send-pin")
+            {
+                LauncherForm.SendServerPin(Int32.Parse(args[1]), args[2], args[3]);
+                return 0;
+            }
             if (args[0] == "send-language")
             {
                 LauncherForm.SendServerLanguage(Int32.Parse(args[1]), args[2], args[3]);

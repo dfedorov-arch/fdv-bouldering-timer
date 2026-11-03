@@ -1,4 +1,5 @@
 "use strict";
+const { authenticatedFetch: fetch, credentials, rememberCredentials } = require("../helpers/browser-session");
 
 const path = require("node:path");
 const { spawn } = require("node:child_process");
@@ -54,11 +55,14 @@ function visualStartLists() {
 }
 
 async function startLayoutServer() {
+  const fs = require("node:fs"), os = require("node:os");
+  const authDirectory = fs.mkdtempSync(path.join(os.tmpdir(),"fdv-visual-session-"));
+  const authFile = path.join(authDirectory,"session.json");
   const child = spawn(process.execPath, [
     path.join(root, "scripts", "run-performance-baseline.js"),
     "--serve",
     "--scenario",
-    "four-120x5-incidents"
+    "four-120x5-incidents", "--client-credentials-file", authFile
   ], {
     cwd: root,
     stdio: ["ignore", "pipe", "pipe"]
@@ -87,6 +91,8 @@ async function startLayoutServer() {
   });
 
   await ready;
+  rememberCredentials(baseUrl,"performance-baseline",JSON.parse(fs.readFileSync(authFile,"utf8")));
+  fs.rmSync(authDirectory,{recursive:true,force:true});
   await action(baseUrl, "startLists", { startLists: visualStartLists() });
   await action(baseUrl, "startListEnabled", { enabled: true });
   return {
@@ -167,9 +173,10 @@ async function stabilizeTimer(baseUrl, elapsed = 350) {
 
 async function openModern(browser, baseUrl, clientId, viewport, indexes) {
   const context = await browser.newContext({ viewport });
-  await context.addInitScript((id) => {
-    window.sessionStorage.setItem("boulderingTimerClientId", id);
-  }, clientId);
+  await context.addInitScript(c => {
+    sessionStorage.setItem("boulderingTimerClientId",c.clientId);
+    sessionStorage.setItem("fdvBrowserSecret",c.secret);
+  },await credentials(baseUrl,clientId));
   const page = await context.newPage();
   await page.goto(`${baseUrl}/`, { waitUntil: "domcontentloaded" });
   await selectProtocols(baseUrl, clientId, indexes);
@@ -191,6 +198,10 @@ async function openLegacy(browser, baseUrl, clientId, viewport, indexes, stickyF
       }
     });
   }
+  await context.addInitScript(c => {
+    sessionStorage.setItem("boulderingTimerClientId",c.clientId);
+    sessionStorage.setItem("fdvBrowserSecret",c.secret);
+  },await credentials(baseUrl,clientId));
   const page = await context.newPage();
   await clientState(baseUrl, clientId);
   await action(baseUrl, "legacyMode", { targetClientId: clientId, enabled: true });

@@ -632,12 +632,12 @@
   </div>
   <div id="protocolPane"><div id="protocolLayout"></div></div>
 
-  <script src="lib/start-list-display.js?v=446"></script>
-  <script src="lib/client-secondary-server.js?v=446"></script>
-  <script src="lib/client-delivery.js?v=446"></script>
+  <script src="lib/start-list-display.js?v=448"></script>
+  <script src="lib/client-secondary-server.js?v=448"></script>
+  <script src="lib/client-delivery.js?v=448"></script>
   <script>
     (function () {
-      var legacyBuildNumber = 446;
+      var legacyBuildNumber = 448;
       var state = null;
       var serverOffset = 0;
       var lastContact = 0;
@@ -960,7 +960,7 @@
       var clientId = queryValue("clientId") || storedClientId || ("legacy-" + String(new Date().getTime()) + "-" + String(Math.random()).slice(2));
       var secondaryRequestGeneration = 0;
       var secondaryConnection = window.FDVSecondaryServer.create(window, {
-        clientId: function () { return clientId; },
+        clientId: function () { return clientId; }, secret: function () { return browserSession ? browserSession.secret() : ""; },
         switched: function () {
           secondaryRequestGeneration += 1;
           if (activeRequest) { try { activeRequest.abort(); } catch (error) {} }
@@ -970,6 +970,9 @@
           scheduleRequest(0);
         }
       });
+      var browserSession = window.FDVSecondaryServer.createSession(window, secondaryConnection,
+        function () { return clientId; }, function (id) { clientId = id; });
+      var sessionReady = false, sessionPending = false;
       var isOldBrowser = !window.Promise || !window.fetch || !window.requestAnimationFrame || !window.performance;
       try {
         sessionStorage.setItem("boulderingTimerClientId", clientId);
@@ -2732,6 +2735,16 @@
       }
 
       function requestState() {
+        if (!sessionReady) {
+          if (sessionPending) return;
+          sessionPending = true;
+          browserSession.ensure(function (error) {
+            sessionPending = false;
+            sessionReady = !error;
+            if (error) scheduleRequest(1500); else requestState();
+          });
+          return;
+        }
         var xhr = new XMLHttpRequest();
         var secondaryGeneration = secondaryRequestGeneration;
         performanceCount("stateRequests");
@@ -2757,6 +2770,7 @@
         activeRequestStartedAt = new Date().getTime();
         url += "&secondaryAvailable=" + (secondaryConnection.info().available ? "1" : "0");
         xhr.open("GET", secondaryConnection.url(url), true);
+        xhr.setRequestHeader("x-fdv-client-secret", browserSession.secret());
         try {
           xhr.timeout = 5000;
         } catch (error) {}

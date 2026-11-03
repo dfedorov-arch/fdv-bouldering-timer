@@ -31,7 +31,7 @@ const legacyRuntimeStatePath = runtimeStatePath;
 const beepsPath = path.join(root, "beeps");
 const fontsPath = path.join(root, "fonts");
 const offlineAudioPath = path.join(root, "lib", "offline-audio.js");
-const BUILD_NUMBER = 446;
+const BUILD_NUMBER = 448;
 const serverInstanceId = crypto.randomUUID();
 let serverAudio = null;
 const launcherLanguageToken = process.env.FDV_LAUNCHER_LANGUAGE_TOKEN || "";
@@ -454,7 +454,10 @@ const timerState = {
   primaryPinHash: "",
   primaryPinSalt: "",
   primaryPinClientId: "",
-  primaryPinValue: "",
+  primaryPinValue: "", // Legacy snapshot field: never populated or exposed.
+  primaryPinRevision: 0,
+  browserSessions: {},
+  browserSessionRevision: 0,
   startLists: [null],
   startListParallel: false,
   startListEnabled: false,
@@ -511,6 +514,45 @@ const runtimeCommandTypes = new Set(["start", "pause", "stopCountdown", "reset",
 
 function actionRequiresPrimary(type) {
   return type !== "primary" && type !== "primaryPin";
+}
+
+function sessionFor(clientId) {
+  return clientId && Object.prototype.hasOwnProperty.call(timerState.browserSessions, clientId)
+    ? timerState.browserSessions[clientId] : null;
+}
+
+function authenticatedBrowser(req, clientId) {
+  const token = req.headers["x-fdv-client-secret"];
+  const session = sessionFor(clientId);
+  if (!session || typeof token !== "string" || !/^[a-f0-9]{64}$/.test(token)) return false;
+  const hash = crypto.createHash("sha256").update(token).digest("hex");
+  return typeof session.hash === "string" && session.hash.length === 64
+    && crypto.timingSafeEqual(Buffer.from(hash), Buffer.from(session.hash));
+}
+
+function pinConfirmed(clientId) {
+  return !primaryPinActive() || sessionFor(clientId)?.pinRevision === timerState.primaryPinRevision;
+}
+
+// Public IDs are labels, never credentials. Old snapshot IDs cannot be claimed.
+function issueBrowserSession(req, body) {
+  let id = typeof body.clientId === "string" && /^[a-zA-Z0-9_-]{1,160}$/.test(body.clientId) ? body.clientId : "";
+  if (authenticatedBrowser(req, id)) return { clientId: id };
+  if (!id || sessionFor(id) || clients.has(id) || id === timerState.primaryClientId
+    || sanitizeBrowserClientIds(timerState.limitedControlClientIds).includes(id)
+    || sanitizeBrowserClientIds(timerState.browserOrder).includes(id)) id = crypto.randomUUID();
+  if (Object.keys(timerState.browserSessions).length >= 2000) return null;
+  const secret = crypto.randomBytes(32).toString("hex");
+  Object.defineProperty(timerState.browserSessions, id, { enumerable: true, configurable: true, writable: true,
+    value: { hash: crypto.createHash("sha256").update(secret).digest("hex"), pinRevision: -1 } });
+  timerState.browserSessionRevision += 1;
+  scheduleSnapshotWrite();
+  secondaryServer?.notify();
+  return { clientId: id, secret };
+}
+
+function browserPinAllowed(clientId) {
+  return pinConfirmed(clientId) || (timerState.primaryClientId && timerState.primaryClientId !== clientId);
 }
 
 function primaryControlAllowed(clientId) {
@@ -1001,6 +1043,9 @@ function assignTimerState(source = {}) {
     "primaryPinSalt",
     "primaryPinClientId",
     "primaryPinValue",
+    "primaryPinRevision",
+    "browserSessions",
+    "browserSessionRevision",
     "startLists",
     "startListParallel",
     "startListEnabled",
@@ -1027,12 +1072,16 @@ function restoreTimerSnapshot() {
     const now = wallNow();
     const age = now - savedAtWall;
     if (!Number.isFinite(savedAtWall) || age < 0 || age > SNAPSHOT_MAX_AGE_MS) {
-      console.warn("Timer state snapshot is too old; starting from defaults.");
+      for (const key of ["primaryPinHash", "primaryPinSalt", "primaryPinRevision", "browserSessions", "browserSessionRevision"]) {
+        if (Object.prototype.hasOwnProperty.call(snapshot.timerState, key)) timerState[key] = snapshot.timerState[key];
+      }
+      console.warn("Timer state snapshot is too old; starting timer from defaults and retaining access settings.");
       return false;
     }
 
     restoreClockDiagnostics(snapshot.clockDiagnostics);
     assignTimerState(snapshot.timerState);
+    timerState.primaryPinValue = "";
     timerState.activeSettings = normalizeActiveSettings(timerState.activeSettings, {
       rotationSeconds: config.classicRotationMinutes * 60,
       breakSeconds: config.classicBreakSeconds,
@@ -1206,10 +1255,7 @@ function cleanPrimaryPin(value) {
 }
 
 function primaryPinActive() {
-  return Boolean(timerState.primaryClientId
-    && timerState.primaryPinHash
-    && timerState.primaryPinSalt
-    && timerState.primaryPinClientId === timerState.primaryClientId);
+  return Boolean(timerState.primaryPinHash && timerState.primaryPinSalt);
 }
 
 function primaryPinHash(pin, salt) {
@@ -1221,7 +1267,10 @@ function setPrimaryPin(clientId, pin) {
   timerState.primaryPinSalt = salt;
   timerState.primaryPinHash = primaryPinHash(pin, salt);
   timerState.primaryPinClientId = clientId || "";
-  timerState.primaryPinValue = pin;
+  timerState.primaryPinValue = "";
+  timerState.primaryPinRevision = (Number(timerState.primaryPinRevision) || 0) + 1;
+  primaryPinFailures.clear();
+  if (clientId && timerState.browserSessions[clientId]) timerState.browserSessions[clientId].pinRevision = timerState.primaryPinRevision;
 }
 
 function clearPrimaryPin() {
@@ -1229,6 +1278,8 @@ function clearPrimaryPin() {
   timerState.primaryPinSalt = "";
   timerState.primaryPinClientId = "";
   timerState.primaryPinValue = "";
+  timerState.primaryPinRevision = (Number(timerState.primaryPinRevision) || 0) + 1;
+  primaryPinFailures.clear();
 }
 
 function primaryPinFailure(clientId) {
@@ -1375,6 +1426,7 @@ function scheduleDeliveryRecovery() {
 function registerClient(req, source = {}) {
   const id = sourceValue(source, "clientId") || req.headers["x-client-id"];
   if (!id) return null;
+  if (!authenticatedBrowser(req, id)) return null;
   const now = wallNow();
   const userAgent = req.headers["user-agent"] || "";
   const existing = clients.get(id) || {};
@@ -1821,6 +1873,8 @@ function publicState(options = {}) {
     primaryPinSalt: _primaryPinSalt,
     primaryPinClientId: _primaryPinClientId,
     primaryPinValue: _primaryPinValue,
+    browserSessions: _browserSessions,
+    browserSessionRevision: _browserSessionRevision,
     startListDisplaySelections: _startListDisplaySelections,
     startListLayoutOverrides: _startListLayoutOverrides,
     browserOrder: _browserOrder,
@@ -1855,14 +1909,9 @@ function publicState(options = {}) {
       httpsPort
     },
     primaryPinSet: primaryPinActive(),
-    ownPrimaryPinSaved: Boolean(clientId
-      && timerState.primaryPinHash
-      && timerState.primaryPinClientId === clientId),
-    ownPrimaryPinValue: clientId
-      && timerState.primaryPinHash
-      && timerState.primaryPinClientId === clientId
-      ? timerState.primaryPinValue || ""
-      : "",
+    primaryPinRequired: primaryPinActive() && !pinConfirmed(clientId)
+      && (!timerState.primaryClientId || timerState.primaryClientId === clientId),
+    ownPrimaryPinSaved: pinConfirmed(clientId),
     clients: includeClients ? publicClients(orderedClients) : [],
     diagnosticsIncluded: includeClients,
     ...(includeClients ? { clockDiagnostics: publicClockDiagnostics() } : {}),
@@ -2079,7 +2128,7 @@ function handleRequest(req, res) {
     if (req.method !== "POST" || !String(req.headers["content-type"]||"").startsWith("application/json")) {sendJson(res,405,{available:false});return;}
     readJson(req,4096).then(async body=>{
       const id=String(body.clientId||""),client=clients.get(id);
-      if(!client || client.computerKey!=="server-host" || body.serverInstanceId!==serverInstanceId){sendJson(res,409,{available:false,serverInstanceId});return;}
+      if(!authenticatedBrowser(req,id) || !client || client.computerKey!=="server-host" || body.serverInstanceId!==serverInstanceId){sendJson(res,409,{available:false,serverInstanceId});return;}
       let result;
       if(body.op==="prepare")result=await serverAudio.prepare(id,{wanted:body.wanted===true,forced:body.forced===true});
       else if(body.op==="release")result=await serverAudio.release(id,String(body.token||""));
@@ -2087,6 +2136,44 @@ function handleRequest(req, res) {
       else{sendJson(res,400,{available:false});return;}
       sendJson(res,200,{...result,serverInstanceId});
     }).catch(()=>sendJson(res,503,{available:false,serverInstanceId}));
+    return;
+  }
+
+  if (requestUrl.pathname === "/api/session" && req.method === "POST") {
+    readJson(req, 512).then(async body => {
+      if (secondaryServer.fenced || secondaryServer.rejoining || secondaryServer.receivingBaseline) {
+        sendJson(res, 409, { error: "Server authority is not ready" }); return;
+      }
+      if (secondaryServer.following) {
+        const result = await secondaryServer.forward(body, { secret: req.headers["x-fdv-client-secret"] }, "/api/session");
+        sendJson(res, result.status, result.body); return;
+      }
+      const result = issueBrowserSession(req, body);
+      sendJson(res, result ? 200 : 429, result || { error: "Too many browser sessions" });
+    }).catch(() => sendJson(res, 400, { error: "Invalid session request" }));
+    return;
+  }
+
+  if (requestUrl.pathname === "/api/launcher/pin") {
+    const trustedPeer = req.fdvLauncherPinForward === true && req.fdvSecondaryForward === true;
+    if (req.method !== "POST" || (!trustedPeer && !launcherLanguageAllowed(req, launcherLanguageToken))) {
+      sendJson(res, 403, { error: "Launcher PIN access denied" }); return;
+    }
+    readJson(req, 128).then(async body => {
+      if (!body || Object.keys(body).length !== 1 || typeof body.pin !== "string"
+        || (body.pin !== "" && !cleanPrimaryPin(body.pin))) { sendJson(res, 400, { error: "Expected four-digit PIN or empty PIN" }); return; }
+      if (secondaryServer.fenced || secondaryServer.rejoining || secondaryServer.receivingBaseline) {
+        sendJson(res, 409, { error: "Server authority is not ready" }); return;
+      }
+      if (secondaryServer.following) {
+        const result = await secondaryServer.forward(body, {}, "/api/launcher/pin");
+        sendJson(res, result.status, result.body); return;
+      }
+      if (body.pin) setPrimaryPin(null, body.pin); else clearPrimaryPin();
+      timerState.version += 1;
+      scheduleSnapshotWrite(); broadcastState(); broadcastDiagnostics();
+      sendJson(res, 200, { primaryPinSet: primaryPinActive(), primaryPinRevision: timerState.primaryPinRevision });
+    }).catch(() => sendJson(res, 400, { error: "Launcher PIN command failed" }));
     return;
   }
 
@@ -2122,7 +2209,8 @@ function handleRequest(req, res) {
     && req.method === "POST") {
     readJson(req).then(async body => {
       const clientId = registerClient(req, body);
-      if (!clientId || clientId !== timerState.primaryClientId) {
+      if (!clientId) { sendJson(res, 401, { sessionRequired: true }); return; }
+      if (!clientId || clientId !== timerState.primaryClientId || !pinConfirmed(clientId)) {
         sendJson(res, 403, { error: "Only the primary browser can configure Secondary server" }); return;
       }
       if (requestUrl.pathname === "/api/sec/configure") {
@@ -2132,7 +2220,7 @@ function handleRequest(req, res) {
       } else {
         if (secondaryServer.following) {
           const result = await secondaryServer.forward(body,{
-            address:req.socket.remoteAddress,userAgent:req.headers["user-agent"] || ""
+            address:req.socket.remoteAddress,userAgent:req.headers["user-agent"] || "", secret:req.headers["x-fdv-client-secret"]
           },"/api/sec/switch");
           sendJson(res,result.status,{...result.body,...publicState({clientId})}); return;
         }
@@ -2155,6 +2243,7 @@ function handleRequest(req, res) {
     const secReceivedWall = wallNow();
     readJson(req).then(async body => {
       const clientId = registerClient(req, body);
+      if (!clientId) { sendJson(res, 401, { sessionRequired: true }); return; }
       if (secondaryServer.fenced || secondaryServer.rejoining) {
         sendJson(res, 409, { ...publicState({ clientId }), actionDenied: true,
           error: secondaryServer.fenced ? "Control has moved to Secondary server" : "Secondary server reconnection is being checked" }); return;
@@ -2166,7 +2255,7 @@ function handleRequest(req, res) {
         body.expectedStartListRevision = secondaryServer.sourceListRevision;
       }
       const result = await secondaryServer.forward(body, {
-        address: req.socket.remoteAddress, userAgent: req.headers["user-agent"] || ""
+        address: req.socket.remoteAddress, userAgent: req.headers["user-agent"] || "", secret: req.headers["x-fdv-client-secret"]
       });
       sendJson(res, result.status, { ...result.body, ...publicState({ clientId,
         timerReceivedAt: secReceivedAt, receivedAt: secReceivedWall }) });
@@ -2222,7 +2311,7 @@ function handleRequest(req, res) {
   }
 
   if (requestUrl.pathname === "/api/events" && req.method === "GET") {
-    const eventClientId = registerClient(req, requestUrl.searchParams);
+    const eventClientId = requestUrl.searchParams.get("clientId") || null;
     const eventClient = {
       keepAlive: null,
       clientId: eventClientId,
@@ -2258,7 +2347,7 @@ function handleRequest(req, res) {
   }
 
   if (requestUrl.pathname === "/api/diagnostics/events" && req.method === "GET") {
-    const eventClientId = registerClient(req, requestUrl.searchParams);
+    const eventClientId = requestUrl.searchParams.get("clientId") || null;
     res.writeHead(200, {
       "content-type": "text/event-stream; charset=utf-8",
       "cache-control": "no-store",
@@ -2288,6 +2377,7 @@ function handleRequest(req, res) {
       repairTimerClockContinuity();
       const timerReceivedAt = timerClockNow();
       const clientId = registerClient(req, body);
+      if (!clientId) { sendJson(res, 401, { sessionRequired: true }); return; }
       const now = wallNow();
       const actionPublicState = () => publicState({
         receivedAt: now,
@@ -2301,6 +2391,19 @@ function handleRequest(req, res) {
       const commandId = cleanCommandId(body.commandId);
       const limitedCommand = !primaryControlAllowed(clientId) && limitedControlAllowed(clientId)
         && ["start", "pause", "reset", "stopCountdown"].includes(type);
+      const pinKey = req.socket.remoteAddress || "unknown";
+      if (type === "confirmPin") {
+        if (!verifyPrimaryPin(pinKey, body.pin)) {
+          sendJson(res, 403, { ...actionPublicState(), primaryPinRequired: true,
+            primaryPinBlockedUntil: primaryPinFailures.get(pinKey)?.blockedUntil || 0 }); return;
+        }
+        sessionFor(clientId).pinRevision = timerState.primaryPinRevision;
+        timerState.version += 1; scheduleSnapshotWrite(); broadcastState();
+        sendJson(res, 200, actionPublicState()); return;
+      }
+      if (type !== "primary" && !browserPinAllowed(clientId)) {
+        sendJson(res, 403, { ...actionPublicState(), primaryPinRequired: true }); return;
+      }
       if (actionRequiresPrimary(type) && !primaryControlAllowed(clientId) && !limitedCommand) {
         sendJson(res, 403, {
           ...actionPublicState(),
@@ -2423,31 +2526,20 @@ function handleRequest(req, res) {
           });
           return;
         }
-        const shortcutTakeover = body.source === "shortcut"
-          && nextPrimaryClientId
-          && timerState.primaryClientId
-          && timerState.primaryClientId !== nextPrimaryClientId;
-        let verifiedTakeoverPin = "";
-        if (shortcutTakeover && primaryPinActive()) {
-          const cleanPin = cleanPrimaryPin(body.pin);
-          if (!verifyPrimaryPin(clientId, cleanPin)) {
-            const entry = primaryPinFailures.get(clientId || "") || {};
-            sendJson(res, 403, {
-              ...actionPublicState(),
-              primaryPinRequired: true,
-              primaryPinBlockedUntil: entry.blockedUntil || 0
-            });
-            return;
+        if (nextPrimaryClientId && primaryPinActive() && !pinConfirmed(clientId)) {
+          if (!verifyPrimaryPin(pinKey, body.pin)) {
+            sendJson(res, 403, { ...actionPublicState(), primaryPinRequired: true,
+              primaryPinBlockedUntil: primaryPinFailures.get(pinKey)?.blockedUntil || 0 }); return;
           }
-          verifiedTakeoverPin = cleanPin;
+          sessionFor(clientId).pinRevision = timerState.primaryPinRevision;
         }
+        // An unconfirmed primary may relinquish its role and become a screen.
         timerState.primaryClientId = nextPrimaryClientId;
-        if (verifiedTakeoverPin) setPrimaryPin(nextPrimaryClientId, verifiedTakeoverPin);
         timerState.version += 1;
       }
 
       if (type === "primaryPin") {
-        const currentPrimary = timerState.primaryClientId === clientId;
+        const currentPrimary = timerState.primaryClientId === clientId && pinConfirmed(clientId);
         if (!currentPrimary) {
           sendJson(res, 403, {
             ...actionPublicState(),
@@ -2834,7 +2926,8 @@ function applySecondaryConfig(value) {
 secondaryServer = createSecondaryServer({
   build: BUILD_NUMBER, instanceId: serverInstanceId, timerNow: timerClockNow,
   primaryClientId: () => timerState.primaryClientId,
-  canPair: () => !timerState.primaryClientId && !timerState.running && !timerState.completed
+  authorizeBrowser: (req, id) => authenticatedBrowser(req, id) && browserPinAllowed(id),
+  canPair: () => !primaryPinActive() && !timerState.primaryClientId && !timerState.running && !timerState.completed
     && !timerState.elapsedBeforePause && !hasStartLists(timerState.startLists),
   resources: secondaryResources,
   config: () => ({ ...config }),
@@ -2846,9 +2939,17 @@ secondaryServer = createSecondaryServer({
   changed: () => scheduleSnapshotWrite(true),
   broadcast: () => { broadcastState(); broadcastDiagnostics(true); },
   diagnostics: () => broadcastDiagnostics(),
-  exportState: knownVersion => {
+  browserSessionRevision: () => timerState.browserSessionRevision,
+  importSessions: packet => {
+    timerState.browserSessions = packet.browserSessions;
+    timerState.browserSessionRevision = packet.browserSessionRevision;
+    scheduleSnapshotWrite();
+  },
+  exportState: (knownVersion, knownSessionRevision) => {
     finalizeScheduledCountdown(); finalizeOneShot();
-    if (knownVersion === timerState.version) return {};
+    if (knownVersion === timerState.version) return knownSessionRevision === timerState.browserSessionRevision ? {} : {
+      browserSessions: timerState.browserSessions, browserSessionRevision: timerState.browserSessionRevision
+    };
     return { state: { ...timerState }, config: { ...config },
       startListRevision: modernStartListRevision(),
       startedAt: timerState.running ? secondaryServer.clock.ready ? replicaStartedAt
@@ -2867,9 +2968,10 @@ secondaryServer = createSecondaryServer({
     const forwardedBody = { ...body };
     if (forwardedBody.baseServerInstanceId) forwardedBody.baseServerInstanceId = serverInstanceId;
     const req = Readable.from([JSON.stringify(forwardedBody)]);
-    req.method = "POST"; req.url = ["/api/sec/switch", "/api/launcher/language"].includes(pathname) ? pathname : "/api/action"; req.fdvSecondaryForward = true;
+    req.method = "POST"; req.url = ["/api/sec/switch", "/api/launcher/language", "/api/launcher/pin", "/api/session"].includes(pathname) ? pathname : "/api/action"; req.fdvSecondaryForward = true;
     req.fdvLauncherLanguageForward = pathname === "/api/launcher/language";
-    req.headers = { host: `127.0.0.1:${port}`, "user-agent": client.userAgent };
+    req.fdvLauncherPinForward = pathname === "/api/launcher/pin";
+    req.headers = { host: `127.0.0.1:${port}`, "user-agent": client.userAgent, "x-fdv-client-secret": client.secret };
     req.socket = { remoteAddress: client.address };
     const res = { status: 200, setHeader() {}, writeHead(status) { this.status = status; },
       end(value) { resolve({ status: this.status, body: JSON.parse(String(value || "{}")) }); } };
