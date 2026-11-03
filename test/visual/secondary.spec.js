@@ -103,6 +103,7 @@ test("Secondary address typing never triggers timer hotkeys and full names are l
     await page.locator("body").click({position:{x:5,y:5}});
     await page.keyboard.press("p");
     await expect.poll(async () => (await primary.state()).running).toBe(false);
+    await page.waitForFunction(()=>!state.running);
     await page.keyboard.press("z");
     await expect.poll(async () => (await primary.state()).running).toBe(true);
     await page.waitForFunction(() => state.running && !isBeforeScheduledStart());
@@ -259,6 +260,13 @@ test("SEC pairs without disturbing audio, moves one screen, merges diagnostics a
     await viewer.page.waitForFunction(()=>secondaryConnection.info().onSecondary);
     await expect(badge).not.toHaveClass(/inactive|neutral/);
     expect(viewer.page.url()).toContain(primary.baseUrl);
+    await expect.poll(async()=>(await primary.state()).clients.find(client=>client.id==="screen")?.delivery?.status).toBe("applied");
+    await primary.action({clientId:"operator",type:"legacyMode",targetClientId:"screen",enabled:true});
+    await expect(viewer.page).toHaveURL(/legacy\.html/);
+    await expect.poll(async()=>{const c=(await primary.state()).clients.find(client=>client.id==="screen");return c?.legacyViewer&&c.delivery?.status==="applied";}).toBe(true);
+    await primary.action({clientId:"operator",type:"legacyMode",targetClientId:"screen",enabled:false});
+    await expect(viewer.page).not.toHaveURL(/legacy\.html/);
+    await expect.poll(async()=>{const c=(await primary.state()).clients.find(client=>client.id==="screen");return !c?.legacyViewer&&c?.delivery?.status==="applied";}).toBe(true);
     await expect(badge).toHaveAttribute("data-secondary-destination","primary");
     await badge.click();
     await viewer.page.waitForFunction(url=>secondaryConnection.info().active === url && !clockCalibrationPending,primary.baseUrl);
@@ -293,6 +301,7 @@ test("SEC pairs without disturbing audio, moves one screen, merges diagnostics a
     await page.waitForFunction(url=>secondaryConnection.info().active === url && !clockCalibrationPending,primary.baseUrl);
     await expect.poll(async()=>{try { const s=await backup.state();return s.sec.epoch === 2 && s.sec.role === "secondary" && s.sec.ready;} catch(_){return false;}}).toBe(true);
     expect((await primary.state()).running).toBe(false);
+    await expect.poll(async()=>(await primary.state()).clients.filter(client=>["operator","screen","old-tv"].includes(client.id)&&client.delivery?.status==="applied").length).toBe(3);
     expect(await page.evaluate(()=>audioContext === window.secAudioBefore.context)).toBe(true);
     expect(operator.errors).toEqual([]);
     expect(viewer.errors).toEqual([]);

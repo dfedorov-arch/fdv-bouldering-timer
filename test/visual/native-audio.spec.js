@@ -17,7 +17,7 @@ async function toggleAudioPanel(page){
   await page.waitForFunction(()=>performance.now()-lastAudioChipToggleAt>=300);
   await page.locator('[data-audio-client="clock-test"]').click();
 }
-test("local native route retains the browser offset, stops with its checkbox and can be re-enabled",async({page})=>{
+test("local native route retains the browser offset, stops with its radio selection and can be re-enabled",async({page})=>{
   await withServer(async server=>{
     const errors=[];page.on("pageerror",e=>errors.push(e.message));await open(page,server);
     expect(await page.evaluate(()=>({wanted:browserSoundRequested(),local:canPlaySound()}))).toEqual({wanted:true,local:false});
@@ -25,15 +25,17 @@ test("local native route retains the browser offset, stops with its checkbox and
     await page.waitForFunction(()=>lastKnownClients.some(c=>c.id===clientId && c.serverAudioActive));
     await page.evaluate(()=>revealControlsIfAllowed());
     await toggleAudioPanel(page);
-    await expect(page.locator("[data-native-audio-label]")).toHaveText("Звук воспроизводит сервер");
+    await expect(page.locator("[data-native-audio-label]")).toHaveText("Звук через:");
     await expect(page.locator("[data-audio-offset-value]")).toContainText("-300");
+    await expect(page.locator('[data-delivery-client="clock-test"]')).toHaveAttribute("data-delivery-status","applied");
     await page.locator(".browser-item.primary-browser").screenshot({path:path.resolve(__dirname,"../../help-assets/server-audio.png")});
     await toggleAudioPanel(page);
     await expect(page.locator("[data-native-audio-label]")).toHaveCount(0);
     await server.action({type:"language",language:"en"});
     await expect(page.locator("html")).toHaveAttribute("lang","en");
     await toggleAudioPanel(page);
-    await expect(page.locator("[data-native-audio-label]")).toHaveText("Sound is played by the server");
+    await expect(page.locator("[data-native-audio-label]")).toHaveText("Sound via:");
+    await expect(page.locator('[data-delivery-client="clock-test"]')).toHaveAttribute("data-delivery-status","applied");
     await page.locator(".browser-item.primary-browser").screenshot({path:path.resolve(__dirname,"../../help-assets/server-audio-en.png")});
     await toggleAudioPanel(page);
     await expect(page.locator("[data-native-audio-label]")).toHaveCount(0);
@@ -70,39 +72,42 @@ test("frozen browser delegates two full rotations to the server and remote Stop 
   });
 });
 
-test("native output checkbox returns sound to the browser, survives reload and preserves correction",async({page})=>{
+test("native output radios return sound to the browser, survives reload and preserves correction",async({page})=>{
   await withServer(async server=>{
     await open(page,server);
     await server.action({type:"audioOffset",targetClientId:"clock-test",offset:-300});
     await page.evaluate(async()=>{revealControlsIfAllowed();await unlockAudio(false);await loadAudioBuffers();});
     await toggleAudioPanel(page);
-    const checkbox=page.locator('[data-server-audio-enabled="clock-test"]');
-    await expect(checkbox).toBeChecked();
-    await expect(checkbox.locator("..")).toHaveAttribute("title",/скрытой или спящей вкладке/);
-    const label=await page.locator("[data-native-audio-label]").boundingBox(),box=await checkbox.boundingBox();
-    expect(box.x-label.x-label.width).toBeGreaterThanOrEqual(12);
-    await checkbox.uncheck();
+    const serverRadio=page.locator('[data-server-audio-client="clock-test"][data-server-audio-route="server"]');
+    const browserRadio=page.locator('[data-server-audio-client="clock-test"][data-server-audio-route="browser"]');
+    await expect(serverRadio).toBeChecked();
+    await expect(serverRadio.locator("..")).toHaveAttribute("title",/скрытой или спящей вкладке/);
+    await expect(browserRadio).not.toBeChecked();
+    await expect(page.locator(".native-audio-setting")).toHaveText(/Звук через:\s*сервер\s*браузер/);
+    const serverBox=await serverRadio.boundingBox(),browserBox=await browserRadio.boundingBox();
+    expect(browserBox.x-serverBox.x-serverBox.width).toBeGreaterThanOrEqual(6);
+    await browserRadio.check();
     await page.waitForFunction(()=>!nativeAudioRoute.suppressed() && canPlaySound() && nativeAudioOffer.enabled===false);
-    await expect(checkbox).not.toBeChecked();
-    await expect(page.locator("[data-native-audio-label]")).toHaveText("Звук воспроизводит браузер");
+    await expect(serverRadio).not.toBeChecked();
+    await expect(page.locator("[data-native-audio-label]")).toHaveText("Звук через:");
     await expect(page.locator("[data-audio-offset-value]")).toContainText("-300");
     await page.reload({waitUntil:"domcontentloaded"});
     await page.waitForFunction(()=>nativeAudioOffer?.enabled===false && !nativeAudioRoute.suppressed());
     await page.evaluate(()=>revealControlsIfAllowed());await toggleAudioPanel(page);
-    await expect(checkbox).not.toBeChecked();
+    await expect(serverRadio).not.toBeChecked();
     await server.action({type:"language",language:"en"});
-    await expect(checkbox.locator("..")).toHaveAttribute("title",/hidden or sleeping tab/);
+    await expect(serverRadio.locator("..")).toHaveAttribute("title",/hidden or sleeping tab/);
     await expect(page.locator("[data-audio-offset-value]")).toContainText("-300");
-    await checkbox.check();
+    await browserRadio.focus();await browserRadio.press("ArrowLeft");
     await page.waitForFunction(()=>nativeAudioRoute.suppressed() && nativeAudioRoute.snapshot().active);
-    await expect(checkbox).toBeChecked();
+    await expect(serverRadio).toBeChecked();
     expect(await page.evaluate(()=>({local:canPlaySound(),nodes:scheduledAudioNodes.length}))).toEqual({local:false,nodes:0});
     await server.start({settings:{rotationSeconds:60,breakSeconds:15,oneShot:false},elapsedBeforePause:54});
     await expect.poll(()=>server.nativeEvents().filter(e=>e.stage==="plan").at(-1)?.cues.some(c=>c.kind==="warn")).toBe(true);
     const anchor=(await server.state()).timerClock.startedAt;
     const cue=server.nativeEvents().filter(e=>e.stage==="plan").at(-1).cues.find(c=>c.kind==="warn");
     expect(cue.at).toBeCloseTo(anchor+55000-300,1);
-    await checkbox.uncheck();
+    await browserRadio.check();
     await page.waitForFunction(()=>!nativeAudioRoute.suppressed() && nativeAudioOffer.enabled===false);
     await expect.poll(()=>page.evaluate(()=>lastKnownClients.find(c=>c.id===clientId)?.serverAudioActive)).toBe(false);
   });
@@ -166,4 +171,34 @@ for(const preset of ["classic","festival","final"])test(`scheduled ${preset} min
     expect((await server.state()).startedAt).toBe(before.startedAt);
     expect(await page.evaluate(()=>state.countdownOnly)).toBe(preset==="final");
   },{integerWallClock:true,nativeAudioCoordinatorSource:process.env.FDV_TEST_NATIVE_AUDIO_BASELINE||null});
+});
+
+
+test("unavailable native output keeps its disabled radios, explains failure and recovers in the open editor",async({page})=>{
+  await withServer(async server=>{
+    await open(page,server);
+    await server.action({type:"audioOffset",targetClientId:"clock-test",offset:-300});
+    await page.waitForFunction(()=>lastKnownClients.find(c=>c.id===clientId)?.audioUserOffset===-300);
+    await page.evaluate(()=>revealControlsIfAllowed());await toggleAudioPanel(page);
+    const serverRadio=page.locator('[data-server-audio-client="clock-test"][data-server-audio-route="server"]');
+    const browserRadio=page.locator('[data-server-audio-client="clock-test"][data-server-audio-route="browser"]');
+    await expect(serverRadio).toBeEnabled();
+    await page.request.get(server.baseUrl+"/__fixture_audio_failure");
+    await expect(serverRadio).toBeVisible();await expect(serverRadio).toBeDisabled();
+    await expect(browserRadio).toBeDisabled();await expect(browserRadio).toBeChecked();
+    await expect(serverRadio).not.toBeChecked();
+    await expect(serverRadio.locator("..")).toHaveAttribute("title",/Проигрыватель завершился.*исчерпаны/);
+    await expect(page.locator("[data-native-audio-label]")).toHaveText("Звук через:");
+    await page.waitForFunction(()=>!nativeAudioRoute.suppressed());
+    // Reopening the editor used to hide the selector entirely.
+    await toggleAudioPanel(page);await toggleAudioPanel(page);await expect(serverRadio).toBeDisabled();
+    await expect(page.locator("[data-audio-offset-value]")).toContainText("-300");
+    await server.action({type:"language",language:"en"});
+    await expect(serverRadio.locator("..")).toHaveAttribute("title",/The player exited.*exhausted/);
+    await page.request.get(server.baseUrl+"/__fixture_audio_recovered");
+    await expect(serverRadio).toBeEnabled();await expect(serverRadio).toBeChecked();
+    await page.waitForFunction(()=>nativeAudioRoute.suppressed() && nativeAudioRoute.snapshot().active);
+    await expect(page.locator("[data-native-audio-label]")).toHaveText("Sound via:");
+    await expect(page.locator("[data-audio-offset-value]")).toContainText("-300");
+  });
 });

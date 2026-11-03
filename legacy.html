@@ -632,11 +632,12 @@
   </div>
   <div id="protocolPane"><div id="protocolLayout"></div></div>
 
-  <script src="lib/start-list-display.js?v=443"></script>
-  <script src="lib/client-secondary-server.js?v=436"></script>
+  <script src="lib/start-list-display.js?v=446"></script>
+  <script src="lib/client-secondary-server.js?v=446"></script>
+  <script src="lib/client-delivery.js?v=446"></script>
   <script>
     (function () {
-      var legacyBuildNumber = 443;
+      var legacyBuildNumber = 446;
       var state = null;
       var serverOffset = 0;
       var lastContact = 0;
@@ -686,6 +687,7 @@
         || /(?:^|[?&])legacyStickyFallback=1(?:&|$)/.test(window.location.search || "");
       var lastLegacySnapshotSavedAt = 0;
       var lastLegacySnapshotVersion = null;
+      var stateDelivery = window.FDVClientDelivery.createClient();
       var legacySnapshotSaveIntervalMs = 5000;
       var storedClientId = "";
       var storedFitText = "";
@@ -1671,7 +1673,7 @@
         var key;
         for (key in remote) {
           if (!Object.prototype.hasOwnProperty.call(remote, key)) continue;
-          if (key === "legacyProtocols" || key === "startLists") continue;
+          if (key === "legacyProtocols" || key === "startLists" || key === "delivery") continue;
           compact[key] = remote[key];
         }
         return compact;
@@ -2744,6 +2746,11 @@
           + "&renderDelay=" + encodeURIComponent(lastRenderDelayMs === null ? "" : String(lastRenderDelayMs))
           + "&renderDelayAge=" + encodeURIComponent(lastRenderDelayAt ? String(Math.max(0, new Date().getTime() - lastRenderDelayAt)) : "")
           + "&clientBuild=" + encodeURIComponent(String(legacyBuildNumber));
+        var receipt = stateDelivery.report();
+        url += "&deliveryBlocked=" + (fullscreenWanted() && !fullscreenElement() ? "fullscreen" : "")
+          + "&deliveryProtocol=1&deliveryReceived=" + encodeURIComponent(receipt.deliveryReceived)
+          + "&deliveryApplied=" + encodeURIComponent(receipt.deliveryApplied)
+          + "&stateVersion=" + encodeURIComponent(state ? String(state.version || "") : "");
         abortStaleRequest();
         if (activeRequest) return;
         activeRequest = xhr;
@@ -2779,6 +2786,7 @@
           }
           if (secondaryConnection.observe(remote)) return;
           secondaryConnection.contact();
+          stateDelivery.receive(remote);
           if (remote.legacyRedirect) {
             sessionStorage.setItem("boulderingTimerClientId", clientId);
             sessionStorage.setItem("boulderingTimerForceModern", "1");
@@ -2807,7 +2815,11 @@
           updateServerOffset(remote.now, requestStartedAt || responseReceivedAt, responseReceivedAt);
           saveLegacySnapshot(state);
           lastContact = responseReceivedAt;
-          scheduleRender(render());
+          try {
+            stateDelivery.prepare(remote);
+            scheduleRender(render());
+            if (!fullscreenWanted() || fullscreenElement()) stateDelivery.rendered();
+          } catch (error) { stateDelivery.failed(); }
           scheduleRequest(1000);
         };
         xhr.onerror = function () {

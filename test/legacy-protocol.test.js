@@ -21,7 +21,7 @@ test("Legacy start-list display core remains parseable by ES5-era browsers", () 
 test("Legacy requests protocol data conditionally and stores it separately from timer snapshots", () => {
   assert.match(legacy, /protocolRevision=" \+ encodeURIComponent\(protocolRevision\)/);
   assert.match(legacy, /legacyProtocolSnapshotKey = "fdvBoulderingTimerLegacyProtocols"/);
-  assert.match(legacy, /if \(key === "legacyProtocols" \|\| key === "startLists"\) continue/);
+  assert.match(legacy, /if \(key === "legacyProtocols" \|\| key === "startLists" \|\| key === "delivery"\) continue/);
   assert.match(legacy, /Object\.prototype\.hasOwnProperty\.call\(remote, "legacyProtocols"\)/);
 });
 

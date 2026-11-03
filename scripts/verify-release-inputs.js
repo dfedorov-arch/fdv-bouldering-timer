@@ -55,6 +55,7 @@ if (uniqueBuilds.size !== 1) {
   "compat/windows-legacy/launcher.exe.config",
   "compat/windows-legacy/LauncherCompatibility.cs",
   "lib/client-action-transport.js",
+  "lib/client-delivery.js",
   "lib/client-server-audio.js",
   "lib/server-audio.js",
   "lib/server-audio-plan.js",

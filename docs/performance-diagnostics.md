@@ -234,3 +234,53 @@ Browser distinction (updated in429): pending MINUTE keys use the calendar start,
 Build431 AUDIO checkbox: In AUDIO diagnostics, the checkbox beside the status allows server playback for the selected browser (on by default). Uncheck for browser audio; hidden or sleeping tabs may miss signals. The sound offset is preserved. The choice is saved by tab ID across disconnection, reload and server restoration; a new tab has its own ID and settings. Native cancellation/acknowledgement precedes browser resume; check native route and browser output separately when diagnosing background audio.
 
 Build432 speaker keep-awake uses kind keep-awake in native diagnostics. It never changes work cue keys/targets or the selected browser correction. Browser oscillator is intentionally separate from scheduledAudioNodes. Keep speaker awake is on by default: a short quiet tone after prolonged silence, also while waiting or paused. It uses the selected audio output. params.txt: speaker_keep_awake=true; speaker_keep_awake_interval_seconds=180 (10–600 seconds); speaker_keep_awake_gain=0.006 (linear amplitude 0.0001–0.1); speaker_keep_awake_frequency_hz=440 (100–2000 Hz). Duration150ms. Restart the server after parameter changes. Effectiveness depends on the BT speaker; a tone may be too quiet to prevent sleep. Browser playback requires audio unlocking and can be delayed by tab freezing/throttling. Native server playback is independent of tab activity. Muting sound or clearing the checkbox cancels the technical tone.
+
+## Command delivery (build 444)
+
+Cards distinguish state receipt from successful application/DOM rendering using
+`delivery`, keyed by authority identity/epoch and state version. `stateVersion`
+alone is not a render acknowledgement. Existing diagnostics carry deliveryProtocol,
+deliveryReceived, deliveryApplied, deliveryBlocked and bounded sound-check receipts.
+A sound receipt is processing evidence only.
+
+Use `?perf=1` on operator and screen to investigate a missed command. Retain both
+logs, the command time and card confirmation state. Existing HTTP requests are the
+fallback; command-triggered stream repair preserves measured clock history.
+Public connected reflects real browser reports rather than outgoing server pings.
+A transport can retain registry/native-audio presence while its JS report or
+command application remains unconfirmed.
+
+
+## Native clock discontinuities (build 445)
+
+`/api/performance` (when explicitly enabled) includes native output health and
+the bounded native event list. `output.now` is the helper's monotonic time, not
+a calendar timestamp or the server timer coordinate. `clock-reanchor` records
+`correctionMs` and `rttMs` when a finite low-RTT heartbeat detects an offset
+step over100ms. Stable noise must not repeatedly stop output. Verify sleep
+discontinuities in both directions, delayed sample rejection, future-only
+replanning, and unchanged canonical timer/correction. The existing heartbeat
+is evaluated before native cue projection; there is no additional poller.
+
+A real CoreAudio silent-PCM check also simulates a one-hour Node/native gap
+without making the machine sleep. It verifies native deadline execution and
+playhead progress, not acoustic sound or every physical sleep transition.
+The helper and Node files must be updated together and the server restarted.
+
+
+## Native process recovery (build 446)
+
+Existing `/api/state` audio status includes `recovery.state` (ready, recovering,
+exhausted, unsupported), `attempt`, `limit`, `reason`, and `epoch`, even when
+performance diagnostics are off. Local public clients include serverAudioLocal
+and serverAudioRecovery so the sound editor can remain visible after failure.
+Native bounded events include player-exit (code/signal), recovery-attempt,
+recovery-wait, recovery-exhausted and recovered. There are at most three retries
+per failure burst; the delays are 1s, 3s, 10s after preceding failure.
+`player-output-stalled` means renderReads stopped advancing for 2.5 seconds
+despite timely heartbeat replies; it is not an acoustic measurement.
+
+Browser route diagnostics record server-audio-retry; the route snapshot exposes
+recoveryAttempt and recoveryExhausted. Transport retries have the same 1/3/10s
+limit and wait for release before retrying; they do not restart a healthy native
+process. Old prepare failures are fenced by the current route epoch.

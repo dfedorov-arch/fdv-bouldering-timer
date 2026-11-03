@@ -100,7 +100,8 @@ async function fixture(t, platform, { liveClocks = false, legacyRuntime = proces
       os.uptime = () => 1000 + frame().uptime / 1000;
     }
     ${nativeAudioStub ? `const record = value => fs.appendFileSync(${JSON.stringify(nativeAudioLog)},JSON.stringify(value)+"\\n");
-    require(${JSON.stringify(path.join(directory,"lib/server-audio-native.js"))}).NativeAudio = class {
+    const NativeAudioStub = class {
+      get recoveryStatus(){return {state:this.supported?"ready":"exhausted",reason:"player-exited",attempt:3,limit:3,epoch:this.supported?this.recoveredEpoch||0:0};}
       constructor(){this.supported=true;this.timers=[];this.played=new Set();this.generation="";this.onEvent=()=>{};}
       async prepare(){record({stage:"prepare"});}
       async stop(){for(const timer of this.timers)clearTimeout(timer);this.timers=[];record({stage:"stop"});}
@@ -114,6 +115,17 @@ async function fixture(t, platform, { liveClocks = false, legacyRuntime = proces
       }
       async cancel(){} async keepalive(){} async close(){await this.stop();}
       fail(){this.supported=false;this.stop();if(this.onFailure)this.onFailure("stub-failure");}
+    };
+    require(${JSON.stringify(path.join(directory,"lib/server-audio-native.js"))}).NativeAudio = class extends NativeAudioStub {constructor(){super();global.fdvFixtureAudio=this;}};` : ""}
+    ${nativeAudioStub ? `const http=require("http"),emit=http.Server.prototype.emit;
+    http.Server.prototype.emit=function(name,req,res){
+      if(name==="request" && req.url==="/__fixture_audio_failure"){
+        global.fdvFixtureAudio.fail();res.end("ok");return true;
+      }
+      if(name==="request" && req.url==="/__fixture_audio_recovered"){
+        global.fdvFixtureAudio.supported=true;global.fdvFixtureAudio.recoveredEpoch=1;global.fdvFixtureAudio.onEvent({stage:"recovered",epoch:1});res.end("ok");return true;
+      }
+      return emit.apply(this,arguments);
     };` : ""}
     if (${Boolean(platform)}) Object.defineProperty(process, "platform", { value: ${JSON.stringify(platform)} });
   `);

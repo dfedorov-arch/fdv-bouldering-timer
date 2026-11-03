@@ -4,6 +4,27 @@ This file defines the documentation set and its source-of-truth boundaries. Prod
 
 ## User documentation
 
+Build446 documents bounded native audio recovery, a disabled unavailable-route
+checkbox with RU/EN explanation, retry exhaustion, and future-only lease
+reacquisition. Architecture and performance docs specify retry/reset and
+output-stall detection; tests cover process death, IPC/device stalls, simulated
+sleep gaps, retry exhaustion, shutdown, and browser release/recovery races.
+
+Build445 adds recovery of the Node/native audio clock mapping after sleep.
+RU/EN sound guides and quick starts explain future-only recovery and the need
+for an audible check; architecture and performance docs define low-RTT samples,
+reanchor fencing, matched helper deployment and the existing heartbeat.
+Native bridge/coordinator regressions cover simulated sleep, noisy/delayed or
+malformed samples, opposite clock jumps and cancellation of old plans.
+
+Build444 adds per-display receipt/application confirmation and immediate recovery
+of command delivery through existing SSE/HTTP transports. Both guide languages
+and platform quick starts describe labels, fullscreen gestures and sound-check
+limits. Browser captures: `help-assets/command-delivery.png` and
+`command-delivery-en.png`. Architecture documents identity, safe replay, report
+freshness and native-audio continuity. Tests: `command-delivery.test.js`,
+`visual/command-delivery.spec.js` and extended Secondary browser scenarios.
+
 macOS Dock/Finder Reopen now toggles open/minimized launcher windows and restores
 hidden ones. Certificate dialogs stay reachable; explicit menu/IPC Show still
 always restores. Quick starts, both guide languages and the Unix README describe

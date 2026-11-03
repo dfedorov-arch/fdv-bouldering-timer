@@ -12,6 +12,7 @@ const {
   runningElapsedAfterRestore
 } = require("./lib/timer-domain");
 const { createTimerTransitions } = require("./lib/timer-transitions");
+const clientDelivery = require("./lib/client-delivery");
 const startListDomain = require("./lib/start-list");
 const { markerColors } = require("./lib/start-list-display");
 const { runtimeStateStoragePlan, prepareRuntimeStateStorage } = require("./lib/runtime-state-storage");
@@ -30,7 +31,7 @@ const legacyRuntimeStatePath = runtimeStatePath;
 const beepsPath = path.join(root, "beeps");
 const fontsPath = path.join(root, "fonts");
 const offlineAudioPath = path.join(root, "lib", "offline-audio.js");
-const BUILD_NUMBER = 443;
+const BUILD_NUMBER = 446;
 const serverInstanceId = crypto.randomUUID();
 let serverAudio = null;
 const launcherLanguageToken = process.env.FDV_LAUNCHER_LANGUAGE_TOKEN || "";
@@ -1298,6 +1299,79 @@ function timerDisplayStatusLabel() {
   return running ? "roundRunning" : "pause";
 }
 
+let deliveryTarget = { key: "", version: 0, at: 0 };
+let deliveryRecoveryTimer = null;
+const deliveryEvents = [];
+const pendingLegacyDeliveries = new Map();
+
+function currentDeliveryTarget() {
+  const key = clientDelivery.key(serverInstanceId, timerState.version, secondaryServer?.publicInfo());
+  if (key !== deliveryTarget.key) deliveryTarget = { key, version: timerState.version, at: performance.now() };
+  return deliveryTarget;
+}
+
+function deliveryMetadata(clientId) {
+  const target = currentDeliveryTarget();
+  const now = timerClockNow();
+  return { protocol: 1, key: target.key, version: target.version,
+    events: deliveryEvents.filter(event => event.targets.includes(clientId)
+      && !event.receipts[clientId] && event.expiresAt >= now && event.data.deliveryStateKey === target.key)
+      .map(event => ({ name: event.name, data: event.data })) };
+}
+
+function clientDeliveryStatus(client) {
+  const target = currentDeliveryTarget();
+  let stateStatus = clientDelivery.status(client, target.key, performance.now() - target.at);
+  if (pendingLegacyDeliveries.has(client.id) && pendingLegacyDeliveries.get(client.id) === client.legacyViewer) pendingLegacyDeliveries.delete(client.id);
+  if (stateStatus === "applied" && pendingLegacyDeliveries.has(client.id)) stateStatus = "received";
+  const event = [...deliveryEvents].reverse().find(entry => entry.targets.includes(client.id)
+    && entry.createdAt >= target.at);
+  const eventResult = event?.receipts[client.id];
+  const eventStatus = !event ? null : eventResult === "applied" ? "applied"
+    : eventResult === "failed" || eventResult === "expired" || timerClockNow() > event.expiresAt ? "unconfirmed"
+    : "pending";
+  return { protocol: 1, key: target.key, version: target.version, state: stateStatus,
+    status: stateStatus === "applied" && eventStatus ? eventStatus : stateStatus, blocked: client.deliveryBlocked || "",
+    event: event ? event.name : "", eventStatus };
+}
+
+function acceptDeliveryReceipts(clientId, source) {
+  const raw = sourceValue(source, "deliveryEvents");
+  if (typeof raw !== "string" || raw.length > 5000) return;
+  let receipts;
+  try { receipts = JSON.parse(raw); } catch (_) { return; }
+  if (!Array.isArray(receipts)) return;
+  for (const receipt of receipts.slice(-32)) {
+    if (!receipt || !["applied", "expired", "failed"].includes(receipt.result)) continue;
+    const event = deliveryEvents.find(entry => entry.id === receipt.id && entry.targets.includes(clientId));
+    if (event) event.receipts[clientId] = receipt.result;
+  }
+}
+
+// One bounded command-triggered repair, not a new polling loop. A live client
+// normally acknowledges in its next existing state request (within two seconds).
+function scheduleDeliveryRecovery() {
+  const target = currentDeliveryTarget();
+  if (deliveryRecoveryTimer) clearTimeout(deliveryRecoveryTimer);
+  deliveryRecoveryTimer = setTimeout(() => {
+    deliveryRecoveryTimer = null;
+    if (currentDeliveryTarget().key !== target.key) return;
+    for (const [res, eventClient] of eventClients) {
+      const client = clients.get(eventClient.clientId);
+      const unconfirmedEvent = deliveryEvents.some(event => event.targets.includes(eventClient.clientId)
+        && !event.receipts[eventClient.clientId] && timerClockNow() <= event.expiresAt);
+      if (client?.deliveryProtocol === 1 && !serverAudio?.status(client.id).active
+        && (client.deliveryReceived !== target.key || unconfirmedEvent)) {
+        clearInterval(eventClient.keepAlive);
+        eventClients.delete(res);
+        try { if (!res.destroyed && !res.writableEnded) res.end(); } catch (_) { res.destroy?.(); }
+      }
+    }
+    broadcastDiagnostics(true);
+  }, 3000);
+  deliveryRecoveryTimer.unref?.();
+}
+
 function registerClient(req, source = {}) {
   const id = sourceValue(source, "clientId") || req.headers["x-client-id"];
   if (!id) return null;
@@ -1314,7 +1388,10 @@ function registerClient(req, source = {}) {
   const hasAudioTimingAge = sourceHas(source, "audioTimingAge");
   const hasAudioTimingKind = sourceHas(source, "audioTimingKind");
   const legacyViewer = optionalBool(reportedLegacy, existing.legacyViewer === true);
-  if (reportedLegacy !== null && reportedLegacy !== undefined && reportedLegacy !== "" && legacyViewer === false && manualLegacyClients.delete(id)) {
+  const expectedLegacy = pendingLegacyDeliveries.get(id);
+  if (expectedLegacy !== undefined && reportedLegacy !== null && reportedLegacy !== undefined
+    && legacyViewer === expectedLegacy) pendingLegacyDeliveries.delete(id);
+  if (expectedLegacy !== true && reportedLegacy !== null && reportedLegacy !== undefined && reportedLegacy !== "" && legacyViewer === false && manualLegacyClients.delete(id)) {
     scheduleSnapshotWrite();
   }
   clients.set(id, {
@@ -1336,6 +1413,8 @@ function registerClient(req, source = {}) {
     computerKey: computerKeyForAddress(req.socket.remoteAddress || ""),
     protocol: req.socket.encrypted ? "HTTPS" : "HTTP",
     lastSeen: now,
+    lastReportAt: sourceHas(source, "deliveryProtocol") || sourceHas(source, "latency") || legacyViewer
+      ? now : existing.lastReportAt ?? now,
     latency,
     offset: optionalNumber(sourceValue(source, "offset"), existing.offset ?? null),
     syncError: syncError ?? (usesFallbackSync ? latency / 2 : null),
@@ -1377,9 +1456,16 @@ function registerClient(req, source = {}) {
     eventSourceConnected: optionalBool(sourceValue(source, "eventSourceConnected"), existing.eventSourceConnected ?? null),
     lastSseAge: optionalNumber(sourceValue(source, "lastSseAge"), existing.lastSseAge ?? null),
     sseRestarts: optionalNumber(sourceValue(source, "sseRestarts"), existing.sseRestarts ?? null),
-    stateVersion: legacyViewer ? timerState.version : optionalNumber(sourceValue(source, "stateVersion"), existing.stateVersion ?? null),
+    deliveryBlocked: String(sourceHas(source, "deliveryBlocked") ? sourceValue(source, "deliveryBlocked") || "" : existing.deliveryBlocked || "").slice(0, 32),
+    deliveryEvents: String(sourceValue(source, "deliveryEvents") || existing.deliveryEvents || "[]").slice(0, 5000),
+    deliveryProtocol: sourceHas(source, "clientBuild") && !sourceHas(source, "deliveryProtocol")
+      ? null : optionalNumber(sourceValue(source, "deliveryProtocol"), existing.deliveryProtocol ?? null),
+    deliveryReceived: String(sourceHas(source, "deliveryReceived") ? sourceValue(source, "deliveryReceived") || "" : existing.deliveryReceived || "").slice(0, 300),
+    deliveryApplied: String(sourceHas(source, "deliveryApplied") ? sourceValue(source, "deliveryApplied") || "" : existing.deliveryApplied || "").slice(0, 300),
+    stateVersion: optionalNumber(sourceValue(source, "stateVersion"), existing.stateVersion ?? null),
     displayStatus: legacyViewer ? timerDisplayStatusLabel() : sourceValue(source, "displayStatus") || existing.displayStatus || ""
   });
+  acceptDeliveryReceipts(id, source);
   if (optionalBool(sourceValue(source, "oldBrowser"), false)) {
     oldBrowserClients.add(id);
   }
@@ -1418,6 +1504,7 @@ function orderedClientValues() {
   for (const [id, client] of clients) {
     if (now - client.lastSeen > 30000) {
       clients.delete(id);
+      pendingLegacyDeliveries.delete(id);
       manualLegacyClients.delete(id);
       oldBrowserClients.delete(id);
       if (!secondaryServer?.peerConnected(id)) removeUnpinnedBrowserOrderClient(id);
@@ -1444,6 +1531,8 @@ function publicClients(orderedClients = orderedClientValues(), localOnly = false
       ...client,
       serverAudioActive: Boolean(serverAudio?.status(client.id).active),
       serverAudioAvailable: Boolean(serverAudio?.status(client.id).available && client.computerKey === "server-host"),
+      serverAudioLocal: client.computerKey === "server-host" && !manualLegacyClients.has(client.id) && !oldBrowserClients.has(client.id),
+      serverAudioRecovery: client.computerKey === "server-host" ? serverAudio?.status(client.id).recovery : null,
       serverAudioDisabled: serverAudioDisabledClients.has(client.id),
       displayNumber: index + 1,
       browserPinned: pinnedIds.has(client.id),
@@ -1454,12 +1543,18 @@ function publicClients(orderedClients = orderedClientValues(), localOnly = false
       showServerTime: sanitizeBrowserClientIds(timerState.serverTimeDisplayClientIds).includes(client.id),
       limitedControl: limitedControlAllowed(client.id),
       role: client.legacyViewer ? "screen" : timerState.primaryClientId ? (timerState.primaryClientId === client.id ? "primary" : "screen") : "",
-      age: now - client.lastSeen,
-      connected: now - client.lastSeen < 6000
+      age: now - (client.lastReportAt ?? client.lastSeen),
+      connected: now - (client.lastReportAt ?? client.lastSeen) < 6000
     }));
+  for (const client of local) client.delivery = clientDeliveryStatus(client);
   if (localOnly || !secondaryServer?.configured) return local;
   const merged = secondaryServer.mergeClients(local);
-  for (const client of merged) ensureBrowserOrderClient(client.id);
+  for (const client of merged) {
+    ensureBrowserOrderClient(client.id);
+    // Peer receipts retain their authority/epoch key, never their old green status.
+    acceptDeliveryReceipts(client.id, client);
+    client.delivery = clientDeliveryStatus(client);
+  }
   const order = timerState.browserOrder;
   merged.sort((a, b) => (a.id === timerState.primaryClientId ? -1 : b.id === timerState.primaryClientId ? 1
     : order.indexOf(a.id) - order.indexOf(b.id)));
@@ -1740,6 +1835,7 @@ function publicState(options = {}) {
     ...(includeStartLists ? { startLists } : {}),
     startListRevision,
     serverInstanceId,
+    delivery: deliveryMetadata(clientId),
     startedAt: publicStartedAt(sentAt, elapsed),
     timerClock: {
       version: 1,
@@ -1792,7 +1888,10 @@ function publicState(options = {}) {
   }
 }
 
+let lastBroadcastDeliveryKey = "";
 function broadcastState() {
+  const key = currentDeliveryTarget().key;
+  if (key !== lastBroadcastDeliveryKey) { lastBroadcastDeliveryKey = key; scheduleDeliveryRecovery(); }
   serverAudio?.changed();
   secondaryServer?.notify();
   for (const [res, eventClient] of eventClients) {
@@ -1855,8 +1954,19 @@ function broadcastDiagnostics(force = false) {
 }
 
 function sendEvent(eventName, data, predicate = () => true) {
+  const recipients = publicClients().filter(client => predicate({ clientId: client.id }));
+  const targets = recipients.map(client => client.id);
+  const id = data.deliveryId || crypto.randomUUID();
+  const expiresAt = Number(data.deliveryExpiresAt) || (Number(data.timerTime) || timerClockNow())
+    + (eventName === "audio-test" ? 1500 : 5000);
+  data = { ...data, deliveryId: id, deliveryExpiresAt: expiresAt, deliveryStateKey: data.deliveryStateKey || currentDeliveryTarget().key };
+  if (eventName === "audio-test") {
+    const modernTargets = recipients.filter(client => !client.legacyViewer).map(client => client.id);
+    deliveryEvents.push({ id, name: eventName, data, targets: modernTargets, expiresAt, createdAt: performance.now(), receipts: {} });
+    if (deliveryEvents.length > 64) deliveryEvents.shift();
+    scheduleDeliveryRecovery();
+  }
   if (secondaryServer?.configured) {
-    const targets = publicClients().map(client => ({ clientId: client.id })).filter(predicate).map(client => client.clientId);
     secondaryServer.event({ name: eventName, data, targets });
   }
   const payload = `event: ${eventName}\ndata: ${JSON.stringify(data)}\n\n`;
@@ -2134,9 +2244,7 @@ function handleRequest(req, res) {
     eventClient.startListRevision = initialState.startListRevision;
     const keepAlive = setInterval(() => {
       try {
-        if (eventClientId && clients.has(eventClientId)) {
-          clients.get(eventClientId).lastSeen = wallNow();
-        }
+        if (eventClientId && clients.has(eventClientId)) clients.get(eventClientId).lastSeen = wallNow();
         res.write(`event: ping\ndata: ${wallNow()}\n\n`);
       } catch (error) {}
     }, 15000);
@@ -2163,9 +2271,7 @@ function handleRequest(req, res) {
     }
     const keepAlive = setInterval(() => {
       try {
-        if (eventClientId && clients.has(eventClientId)) {
-          clients.get(eventClientId).lastSeen = wallNow();
-        }
+        if (eventClientId && clients.has(eventClientId)) clients.get(eventClientId).lastSeen = wallNow();
         res.write(`event: ping\ndata: ${wallNow()}\n\n`);
       } catch (error) {}
     }, 15000);
@@ -2557,6 +2663,7 @@ function handleRequest(req, res) {
         const targetClientId = String(body.targetClientId || "");
         const enabled = Boolean(body.enabled);
         if (targetClientId && targetClientId !== timerState.primaryClientId) {
+          pendingLegacyDeliveries.set(targetClientId, enabled);
           if (enabled) {
             manualLegacyClients.add(targetClientId);
           } else {

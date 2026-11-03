@@ -209,7 +209,7 @@ namespace FDVNativeAudio {
         return null;
       }
       if(op=="close"){Stop();alive=false;return null;}
-      if(op=="keepalive"){lock(gate)return new{bufferMs=OutputBufferMs,bufferCount=OutputBufferCount,renderReads,emptyQueueReads,maxReadGapMs,maxRenderMs,maxSimultaneousVoices};}
+      if(op=="keepalive"){lock(gate)return new{now=Now(),bufferMs=OutputBufferMs,bufferCount=OutputBufferCount,renderReads,emptyQueueReads,maxReadGapMs,maxRenderMs,maxSimultaneousVoices};}
       throw new InvalidOperationException("Unknown player operation");
     }
     public static void Run(){

@@ -36,6 +36,9 @@ test("existing state health responses carry matching language metadata, includin
   await server.action({type:"language",language:"en"});
   assert.equal((await check()).language,"en");
   assert.equal((await check("?legacy=1")).language,"en");
+  // Windows terminates the child without POSIX signal flushing. Wait for the
+  // ordinary debounced snapshot before testing restoration, as other cases do.
+  await until(()=>{try{return server.snapshot().timerState.language==="en";}catch(_){return false;}});
   await server.restart();
   const after=await check();
   assert.notEqual(after.serverInstanceId,before.serverInstanceId);

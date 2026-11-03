@@ -270,3 +270,115 @@ test("native quiet pulses run while stopped and cancellation never resets work a
  assert.equal(h.calls.some(c=>c[0]==="stop"),false);
  assert.ok(h.calls.some(c=>c[0]==="cancel" && c[1].keepAwake));
 });
+
+
+test("native clock discontinuity is checked before cue submission and cancels obsolete native plans",async()=>{
+  const h=harness();await h.claim();h.calls.length=0;h.c.now=105200;
+  let changed=false;
+  h.player.keepalive=async()=>{
+    h.calls.push(["keepalive"]);
+    if(!changed){changed=true;h.player.onEvent({stage:"clock-reanchor",correctionMs:-3600000});}
+  };
+  await h.route.reconcile();await settle();
+  const replaceAt=h.calls.findIndex(call=>call[0]==="replace");
+  assert.ok(replaceAt>=0);
+  assert.ok(h.calls.findIndex(call=>call[0]==="keepalive")<replaceAt);
+  assert.ok(h.calls.some(call=>call[0]==="stop"));
+  assert.ok(h.queues().at(-1)[1].every(cue=>cue.at>h.c.now),"do not replay pre-wake cues");
+});
+
+
+test("a recovered native process requires a new lease and schedules only future cues",async()=>{
+  const h=harness();await h.claim();h.player.supported=false;h.player.onFailure("player-timeout");await settle();
+  assert.equal(h.route.status("a").active,false);h.calls.length=0;
+  h.player.supported=true;h.player.onEvent({stage:"recovered",epoch:1});await settle();
+  assert.equal(h.queues().length,0,"recovery alone cannot take audio away from the browser");
+  h.c.now=105200;await h.claim();
+  assert.ok(h.queues().at(-1)[1].every(cue=>cue.at>h.c.now));
+});
+
+test("browser reconnects after recovery even if availability changed while release was pending",async()=>{
+  const calls=[];let release;
+  const route=create({post:async body=>{calls.push(body.op);return body.op==="prepare"
+    ? {available:true,token:"t"+calls.length,serverInstanceId:"s"}
+    : new Promise(resolve=>release=()=>resolve({active:false,serverInstanceId:"s"}));},
+    connect:()=>({addEventListener(){},close(){}}),stopLocal:()=>calls.push("mute"),resumeLocal:()=>calls.push("resume")});
+  route.update({wanted:true,available:true,instance:"s",recoveryEpoch:0});await settle();
+  route.update({wanted:true,available:false,instance:"s",recoveryEpoch:0});await settle();
+  route.update({wanted:true,available:true,instance:"s",recoveryEpoch:1});await settle();
+  assert.equal(calls.filter(c=>c==="prepare").length,1);
+  release();await settle();await settle();
+  assert.equal(calls.filter(c=>c==="prepare").length,2);assert.equal(route.suppressed(),true);
+});
+
+test("a browser that missed the unavailable sample still releases the old native lease on recovery",async()=>{
+  const h=clientHarness();h.route.update({wanted:true,available:true,instance:"s",recoveryEpoch:0});h.offer();await settle();
+  h.route.update({wanted:true,available:true,instance:"s",recoveryEpoch:1});await settle();
+  assert.equal(h.calls.filter(c=>c[0]==="release").length,1);
+  assert.equal(h.calls.filter(c=>c[0]==="prepare").length,2);
+});
+
+
+test("a stale prepare failure cannot block a newly recovered audio route",async()=>{
+  const calls=[];let fail;
+  const route=create({post:body=>{calls.push(body.op);return new Promise((resolve,reject)=>fail=reject);},
+    connect(){},stopLocal(){},resumeLocal(){}});
+  route.update({wanted:true,available:true,instance:"s",recoveryEpoch:0});
+  route.update({wanted:true,available:false,instance:"s",recoveryEpoch:0});
+  route.update({wanted:true,available:true,instance:"s",recoveryEpoch:1});
+  fail(new Error("old request failed"));await settle();
+  assert.equal(calls.filter(c=>c==="prepare").length,2);route.suspend();
+});
+
+test("browser audio channel retries failed transport at most three times and cancels on suspension",async()=>{
+  const jobs=new Set(),calls=[];
+  const route=create({setTimer:(fn,ms)=>{const job={fn,ms};jobs.add(job);return job;},clearTimer:job=>jobs.delete(job),
+    post:async body=>{calls.push(body.op);throw new Error("local transport lost");},
+    connect(){},stopLocal(){},resumeLocal(){}});
+  const policy={wanted:true,available:true,instance:"s",recoveryEpoch:0};route.update(policy);await settle();
+  for(const ms of [1000,3000,10000]){
+    assert.equal(jobs.size,1);const job=[...jobs][0];assert.equal(job.ms,ms);jobs.delete(job);job.fn();await settle();
+  }
+  assert.equal(calls.length,4);assert.equal(jobs.size,0);assert.equal(route.snapshot().recoveryExhausted,true);
+  for(let i=0;i<10;i++)route.update(policy);
+  assert.equal(calls.length,4,"ordinary state updates do not reset the retry budget");route.suspend();
+});
+
+test("native stream errors release audio before retrying and suspension cancels scheduled retry",async()=>{
+  const jobs=new Set(),calls=[],listeners={};let release,stream;
+  const route=create({setTimer:(fn,ms)=>{const job={fn,ms};jobs.add(job);return job;},clearTimer:job=>jobs.delete(job),
+    post:async body=>{calls.push(body.op);return body.op==="prepare"?{available:true,token:"t",serverInstanceId:"s"}
+      : new Promise(resolve=>release=()=>resolve({active:false,serverInstanceId:"s"}));},
+    connect:()=>stream={addEventListener:(name,fn)=>listeners[name]=fn,close(){}},
+    stopLocal:()=>calls.push("mute"),resumeLocal:()=>calls.push("resume")});
+  route.update({wanted:true,available:true,instance:"s"});await settle();stream.onerror();await settle();
+  assert.equal(route.suppressed(),true);assert.equal(jobs.size,0);
+  release();await settle();assert.equal(route.suppressed(),false);assert.equal(jobs.size,1);
+  route.suspend();assert.equal(jobs.size,0);assert.equal(calls.filter(c=>c==="prepare").length,1);
+});
+
+
+test("native process failure holds browser release ACK until the old helper closes",async()=>{
+  const h=harness(),token=await h.claim();let exit;
+  h.player.retiring=new Promise(resolve=>exit=resolve);h.player.supported=false;
+  h.player.onFailure("player-timeout");let released=false;
+  const pending=h.route.release("a",token).then(()=>released=true);
+  await settle();assert.equal(released,false);exit();await pending;assert.equal(released,true);
+});
+
+test("browser channel retry budget resets only after a continuous healthy minute",async()=>{
+  let at=0,first=true,stream;const jobs=new Set(),listeners={};
+  const route=create({now:()=>at,setTimer:(fn,ms)=>{const j={fn,ms};jobs.add(j);return j;},clearTimer:j=>jobs.delete(j),
+    post:async body=>{
+      if(body.op==="release")return {active:false,serverInstanceId:"s"};
+      if(first){first=false;throw new Error("transport");}
+      return {available:true,token:"t",serverInstanceId:"s"};
+    },connect:()=>stream={addEventListener:(name,fn)=>listeners[name]=fn,close(){}},stopLocal(){},resumeLocal(){}});
+  const policy={wanted:true,available:true,instance:"s"};route.update(policy);await settle();
+  const job=[...jobs][0];jobs.delete(job);job.fn();await settle();
+  listeners.route({data:JSON.stringify({active:true,serverInstanceId:"s"})});
+  at=3600000;route.update(policy);assert.equal(route.snapshot().recoveryAttempt,1,"sleep does not count");
+  for(let i=1;i<=60;i++){at=3600000+i*1000;route.update(policy);}
+  assert.equal(route.snapshot().recoveryAttempt,0);stream.onerror();await settle();
+  assert.equal([...jobs][0].ms,1000);route.suspend();
+});

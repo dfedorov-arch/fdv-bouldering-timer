@@ -44,3 +44,6 @@ runtime-state/
 .mimocode/
 .continue/
 fdv-bouldering-timer.code-workspace
+
+# Generated native audio runtime; CI builds it from native-audio sources
+/lib/native-audio/

@@ -11,7 +11,7 @@ on:
         type: boolean
         default: false
       preview_installer_version:
-        description: "Numeric macOS preview installer version (not a stable release)"
+        description: "Numeric installer version for manual develop builds (not a stable release)"
         type: string
         default: "2.3.3"
 
@@ -21,7 +21,7 @@ permissions:
 # Preview installer versions stay separate from published tag versions.
 # The timer's own build number continues to come from the checked-out sources.
 env:
-  FDV_RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.publish_macos_preview && format('v{0}', inputs.preview_installer_version) || startsWith(github.ref, 'refs/tags/v') && github.ref_name || format('v0.0.{0}', github.run_number) }}
+  FDV_RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.preview_installer_version != '' && format('v{0}', inputs.preview_installer_version) || startsWith(github.ref, 'refs/tags/v') && github.ref_name || format('v0.0.{0}', github.run_number) }}
 
 jobs:
   tests:

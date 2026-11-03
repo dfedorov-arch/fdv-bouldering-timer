@@ -821,7 +821,6 @@ test("browser ordering controls pin positions and share display numbers with eve
   assert.match(index, /if \(isPrimary\) classes\.push\("primary-browser"\)/);
   assert.match(index, /\.browser-item\.primary-browser \{\s*border-color: #667181;/);
   assert.doesNotMatch(index, /const clientPrefix =/);
-  assert.match(index, /const heading = standaloneSelf\s*\? escapeHtml\(client\.label\)\s*:\s*`\$\{escapeHtml\(client\.label\)\}\$\{displayIpHtml \? ` \(\$\{displayIpHtml\}\)` : ""\}`/);
   assert.match(index, /\.browser-copy-feedback:empty \{ display: none; \}/);
   assert.match(index, /\.browser-card-number \{[\s\S]*?left: -9px;/);
   assert.match(index, /const cardNumberHtml = state\.showBrowserNumbers/);

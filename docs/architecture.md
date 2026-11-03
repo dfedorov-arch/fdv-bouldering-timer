@@ -4,6 +4,142 @@ This document describes the current implementation contract. User-facing documen
 
 Numbered timer repetitions use **Ротация / Rotation** in both clients and the incident editor. This is a display-only terminology change: `cycle`, `seekCycle`, `startCycle`, `resumeCycle`, saved state, and imported Cycle column aliases retain their existing names and behavior.
 
+## Compact route and delivery controls (build 446, visual follow-up)
+
+The sound editor presents “Звук через: сервер [radio] [radio] браузер”
+(“Sound via: server … browser”). Both native HTML radios share a per-client
+name and support keyboard arrow navigation. Existing serverAudioMode boolean,
+preferences, offsets, prepare/release and bounded recovery remain unchanged.
+Unavailable server output disables both radios, selects the browser fallback
+visually, and retains the saved server preference for subsequent recovery.
+Open editors update radio labels, selection and tooltip in place.
+
+Delivery uses an empty8px circle directly after the IP in the heading rather
+than a separate line. The existing statuses map to green (applied), yellow
+(pending/received), red (unconfirmed), gray (unsupported). Its title and
+accessible name contain the current status, blocked reason and receipt caveat.
+The circle is keyboard-focusable. In-place updates refresh its status/tooltip
+without adding text. The heading stays on one line: the full IPv4 address and
+dot are kept while a long browser name is ellipsized with its full title.
+This is a client-only visual follow-up to446: no server restart is needed;
+reload the page to receive it. The matched standalone HTML is regenerated.
+
+## Bounded native audio recovery (build 446)
+
+NativeAudio preserves a failure reason and exposes recovery state, attempt,
+limit and epoch in existing state responses. The local browser's sound editor
+retains its route radio group when unavailable; it is disabled and has an RU/EN tooltip.
+Existing open editors update availability/status without losing unsaved offsets.
+Remote/Legacy and standalone clients do not acquire a native output control.
+
+Failures revoke leases, cancel reservations and return audio to the browser.
+One recovery task retries after 1, 3 and 10 seconds (after the preceding attempt
+fails), with no fourth attempt. The old child must close before a replacement
+can start. Each attempt redoes startup clock samples and reloads PCM silently;
+availability returns only after preparation succeeds. The normal prepare/mute/
+activate handshake must run again; recovery alone never starts native cues.
+A recovery epoch also reconnects clients that missed the unavailable state.
+Pending browser releases are allowed to finish before a new lease is obtained.
+The existing future-only cue guards prevent replay of missed signals.
+
+The existing heartbeat checks renderReads progress where available; 2.5 seconds
+without progress fails the output even if IPC still replies. A long heartbeat
+gap (including sleep) starts a fresh output grace period. Sixty seconds of
+continuous successful health checks, with no gap over 2.5 seconds, resets the
+retry budget. A short recovery, user commands, browser refreshes or sleep do
+not reset it. Missing/unsupported helpers are never retried. Server shutdown
+cancels scheduled retries. After exhaustion, the tooltip requests a server
+restart; there is no automatic unbounded loop or new polling interval.
+
+The browser/native lease transport also has at most three delayed retries
+(1/3/10s) after an inactive stream, connection failure or failed preparation.
+It waits for confirmed native release before retrying. Ordinary state updates
+do not reset the budget; one minute of continuous active-route updates does.
+Long gaps do not count. Suspension cancels retries, and a new server instance
+gets its own budget. A stale prepare failure or old-epoch stream callback cannot
+disable a newly recovered route. All retries are one-shot timers, not pollers.
+
+The physical CoreAudio probe kills only its isolated helper, observes recovery,
+and confirms a future zero-PCM signal is executed. Automated simulated-sleep
+and stalled-output tests do not establish acoustic audibility after real sleep.
+
+## Native clock bridge recovery (build 445)
+
+The native process returns its monotonic `now` in the existing `keepalive`
+reply. On macOS, modern Node/libuv can include sleep while .NET8 Stopwatch
+uses CLOCK_UPTIME_RAW, so the five startup ping samples alone are insufficient.
+NativeAudio accepts only finite numeric samples with local IPC RTT at most50ms;
+an offset step greater than100ms reanchors the bridge and emits one
+`clock-reanchor` event. Ordinary IPC noise leaves the accepted offset unchanged.
+A request spanning sleep or a long scheduling gap is not a valid sample.
+
+The existing coordinator heartbeat runs before cue submission. A reanchor
+invalidates only the native queue/generation, takes the current canonical timer time as its recovery
+floor and reruns the same serialized coordinator with future cues. It does not
+seek the timer, change competition version, clock rate, browser calibration,
+saved correction, or replay pre-sleep signals. Existing manual-start and natural
+completion guards remain in force. No new polling or retry loop is added.
+Native helper and JavaScript must be deployed together; old helper replies
+without a numeric timestamp remain readable but cannot supply this recovery.
+
+This fixes native deadline mapping after a clock discontinuity, not all browser
+Web Audio silence. AUDIO permission/clock indicators do not prove acoustic
+output; actual device/sleep/route tests remain necessary before competitions.
+
+## State delivery receipts (build 444)
+
+Modern and Legacy report receipt keys in existing state requests and ordinary
+Modern action diagnostics. Keys combine primary process identity, Secondary
+session/authority epoch and canonical state version. They are diagnostic data,
+not capabilities, and cannot be compared across unrelated authority epochs.
+Restarts and role changes cannot inherit an old green acknowledgement, even
+when versions decrease. Secondary merging re-evaluates the current authority key.
+
+Receipt is recorded after state-identity checks. Application is recorded only
+after the entire state apply succeeds and the DOM is rendered, including a
+visible start list's existing deferred render. Calibration, resume display hold,
+active scrubbing and a browser-blocked fullscreen request leave it unconfirmed.
+The next existing request reports the result. An unacknowledged snapshot is
+fully reapplied even if its version was already observed by the clock path:
+partial failure cannot become green through the older stateVersion diagnostic.
+Legacy's version is client-reported, not inferred by the server. Old clients
+without this protocol show confirmation unavailable.
+
+Cards show an inline color dot with Applied / Received / Awaiting confirmation /
+Unconfirmed in its tooltip, with blocked reasons such as a fullscreen gesture. This confirms the current canonical state,
+not that every intermediate superseded state was shown. Recovery sends snapshots
+and never repeats Start/Pause/Seek. Sound checks have separate processed-event
+receipts; these do not prove physical audible output. Expired/failed sound checks
+remain unconfirmed.
+
+Existing GET /api/state is the fallback. A newer snapshot missed by SSE is applied
+and queues bounded stream repair immediately. SSE errors also queue recovery
+immediately through the existing serialized coordinator with a two-second repair
+cooldown. Measured clock samples, rate/anchor, audio nodes and client identity
+keep ordinary reconnect semantics. There is no additional polling loop, receipt
+endpoint or competition-version increment. The idle watchdog remains 25 seconds
+with 15-second server pings; command delivery has its own bounded three-second
+server check, closing an unacknowledged main SSE so EventSource can reconnect.
+Active native-audio clients retain their main transport for registry continuity;
+existing HTTP fallback and immediate error recovery still operate. The native
+audio lease and watchdog are unchanged.
+
+Registry retention and report freshness are separate. Outgoing SSE pings retain
+transport presence via lastSeen, preserving background native-audio semantics.
+They never refresh lastReportAt. Public age/connected and delivery status use the
+last real browser report, so an outgoing write cannot make a stale screen green.
+
+Sound-check fallback has at most 64 transient server entries and 32 per-tab
+receipts. SSE/HTTP use one deduplicated handler, the original absolute target and
+expiry. A later canonical state or authority change supersedes the old test
+context, preventing diagnostic sound from reappearing over a newly started run.
+Bounded sessionStorage event receipts survive reload; interrupted handlers
+are unconfirmed rather than replayed. They are not timer snapshots, settings or
+SEC canonical state. Mirrored events keep their identity. Legacy remains silent;
+mode switching is confirmed by the new page applying its state. Clock math,
+competition transitions, sound lateness windows and separate-server takeover
+thresholds remain unchanged.
+
 ## Authority and clocks
 
 ### Unified desktop language and launcher lifecycle (builds 442–443)
@@ -499,3 +635,14 @@ Shared persisted speakerKeepAwake defaults true. The speaker-keep-awake.js UMD p
 Build433 changes only the default speaker quiet interval to180 seconds, in params and the common server/browser fallback. Existing explicit params values still override the default. Tone duration, gain, frequency and priority guards are unchanged.
 
 Build434 sound row uses an inline-size CSS container (300px full-label threshold (corrected in435)). Short captions are the safe fallback for clients without container queries. updateSoundLabel sets RU/EN full/short spans, full title and checkbox accessible name on role/language updates. A non-primary row gives the main label full width and the standard35px right slot; a primary uses a20px slot with10px caption gap. Audio and clock logic are unchanged.
+
+
+### Build446 packaging readiness follow-up
+
+At sound-row widths up to310px, the secondary sound label uses no additional
+flex gap; its35px input slot and the main10px gap are unchanged. This prevents
+RU overflow at240px and300px without changing the300px full-caption threshold.
+Windows language restoration tests wait for ordinary snapshot persistence
+before terminating the child. Manual release workflow runs use the supplied
+preview_installer_version even when macOS prerelease publication is disabled,
+so develop installers can have an upgradeable numeric version without a tag.
