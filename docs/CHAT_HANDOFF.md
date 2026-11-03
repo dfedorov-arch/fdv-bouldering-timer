@@ -2,11 +2,51 @@
 
 Обновлено: 3 ноября 2026 года. Перед работой сверить Git и текущие процессы.
 
+## Завершено: commit/push и пакеты develop448 /2.3.5
+
+Текущий запрос пользователя выполнен. Вdevelop опубликованы:
+-45aac79c909151d987569c51291f4616d66ec06a — сессии/PIN447 и encrypted peer448;
+-648a26811dfe0082c15f5e14979ce6194b63f540 — bounded polling HTTP503 во время
+  приёма baseline в новом mixed-runtime тесте; production code не менялся.
+Именно648a268 — source commit готовых пакетов. Последующий docs-only HEAD
+фиксирует результат, его hash читать изgit log -1; повторная CI не нужна.
+main/da03969771edf88140e63398ead4818b322854bd и stable Latestv2.3.2 не менялись.
+
+Итоговый GitHub Actions run41711270555 — SUCCESS,15successful jobs;
+незапрошенная публикация macOS preview skipped. Inputs:
+publish_macos_preview=false,preview_installer_version=2.3.5.
+https://github.com/dfedorov-arch/fdv-bouldering-timer/actions/runs/41711270555
+Artifact release-packages-41711270555,ID13267444279,956882485байт:
+https://github.com/dfedorov-arch/fdv-bouldering-timer/actions/runs/41711270555/artifacts/13267444279
+GitHub Release не создавался. Техническая версия пакетов2.3.5,таймер448.
+
+Все14payload скачаны локально и SHA256 сверены сCI SHA256SUMS.txt:
+`/Users/fd/Documents/ChatGPT/Timer 2/builds/develop-448-648a268`.
+Содержимое: Windows MSI x64+modern ZIP; Windows7/8 ZIP x86/x64;
+macOS PKG+portable tar.gz arm64/x64; Linux DEB+portable tar.gz arm64/x64;
+Android APK иstandalone HTML. Общий размер payload964237321байт.
+BUILD-INFO.json/CI-ARTIFACT.json содержат source/run,имена,размеры иSHA256.
+
+ОбаPKG распакованы во временные каталоги:9критичных файлов совпали с648a268,
+включаяsecondary-crypto/server/client scripts; версия2.3.5,иконка вResources;
+codesign --verify --deep --strict app и--strict native helper успешны.
+ОбаWin7/8 ZIP: защищённый протокол присутствует,старого plaintext header нет,
+4исходных текста совпали сcommit с учётомEOL,собранные server bundles идентичны
+междуx86/x64 и прошли--check настоящимNode12. Результаты вMACOS-*-VERIFICATION.json
+иWINDOWS-LEGACY-*-VERIFICATION.json. Пакеты не устанавливались и не запускались;
+рабочие серверы не перезапускались этим запросом.
+
+Предыдущая попыткаrun41710431400 на45aac79 выявила вновомx86 тесте переходный
+HTTP503 при смене ролей. В648a268 poll повторяет только ожидаемый baseline503,
+проверяет готовность обеих ролей и сохраняет7s bound; все другие ошибки пробрасывает.
+Полный повторный CI прошёл,включая реальныйWindows Node12 x86/x64 ибраузерыx64.
+Скачивание полного набора делалось возобновляемыми ranges сcheckpoint иlock;
+финально каждый payload повторно проверенSHA. Старые пакеты446 остаются историей.
+
 ## Новое: develop448 — шифрованный обмен серверов, включая Win7/8
 
-Поверх локальной447 реализована448. Пользователь запросил commit/push develop
-и сборку пакетов всех ОС; начинается упаковка2.3.5, без stable release.
-Итоговые commit/run/пакеты будут записаны после завершения сборки.
+Поверх локальной447 реализована448. Commit/push и упаковка2.3.5 завершены,
+см. итоговый раздел выше. Stable release не публиковался.
 Рабочий сервер и отдельный тестовый сервер447 не перезапускались этим изменением.
 
 - Новыйlib/secondary-crypto.js: X25519, HKDF-SHA256 черезcreateHmac дляNode12,
@@ -39,9 +79,8 @@ BrowserSEC:8pass modern,3pass Node12,1pass RU/EN crypto errors; логи
 
 ## Новое: develop 447 — сессии браузеров и PIN лаунчера
 
-По запросу пользователя реализована локальная разработка447 поверхc78f491.
-Изменения пока без commit/push, без установщиков447 и без перезапуска рабочего
-сервера446. Готовые пакеты ниже относятся к446/74c1c50.
+Изменения447 поверхc78f491 вошли в448/45aac79; готовые пакеты448 указаны выше.
+Отдельного набора установщиков447 нет. Сервер446 не перезапускался этим изменением.
 
 - Случайный256-bit секрет вкладки, на сервере только SHA256; public ID не
   авторизует команды, изменение metadata, SEC administration или native prepare.
