@@ -159,7 +159,19 @@ test("encrypted SEC works in both Node12/modern directions, renews channels afte
     const anchor=(await primary.state()).timerClock.startedAt;
     const setup=await fetch(primary.baseUrl+"/api/sec/configure",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({clientId:"clock-test",address:backup.baseUrl})});
     assert.equal(setup.status,200,await setup.clone().text());
-    async function until(fn){const deadline=Date.now()+7000;while(Date.now()<deadline){if(await fn())return;await new Promise(r=>setTimeout(r,30));}assert.fail("Mixed Node12 encrypted SEC did not converge");}
+    async function until(fn){
+      const deadline=Date.now()+7000;
+      while(Date.now()<deadline){
+        try { if(await fn())return; }
+        catch(error){
+          // A recovering standby deliberately withholds state while importing
+          // its baseline. Retry only that HTTP503 assertion, never other errors.
+          if(error.code!=="ERR_ASSERTION"||error.actual!==503||error.expected!==200)throw error;
+        }
+        await new Promise(r=>setTimeout(r,30));
+      }
+      assert.fail("Mixed Node12 encrypted SEC did not converge");
+    }
     await until(async()=>(await backup.state()).sec.ready);
     assert.equal((await backup.state()).sec.encrypted,true);
     await backup.action({type:"language",language:"en"});
@@ -174,7 +186,10 @@ test("encrypted SEC works in both Node12/modern directions, renews channels afte
     assert.equal(raw.status,409,"even the old secret header cannot authorize plaintext peer requests");
     const switched=await fetch(primary.baseUrl+"/api/sec/switch",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({clientId:"clock-test",targetClientId:"clock-test"})});
     assert.equal(switched.status,200,await switched.clone().text());
-    await until(async()=>(await backup.state()).sec.role==="primary"&&(await primary.state()).sec.role==="secondary");
+    await until(async()=>{
+      const active=await backup.state(),standby=await primary.state();
+      return active.sec.role==="primary"&&active.sec.ready&&standby.sec.role==="secondary"&&standby.sec.ready;
+    });
     assert.equal((await backup.state()).timerClock.startedAt,anchor);
     assert.equal((await primary.state()).timerClock.startedAt,anchor);
   }
