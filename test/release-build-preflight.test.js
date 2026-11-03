@@ -33,7 +33,9 @@ function createMacLauncherFixture({
   const macos = path.join(app, "Contents", "MacOS");
   fs.mkdirSync(macos, { recursive: true });
   fs.writeFileSync(path.join(macos, "fdv-bouldering-timer"), "launcher");
-  if (includeTrayIcon) fs.writeFileSync(path.join(macos, "timer-launcher.png"), "icon");
+  const resources = path.join(app, "Contents", "Resources");
+  fs.mkdirSync(resources, { recursive: true });
+  if (includeTrayIcon) fs.writeFileSync(path.join(resources, "timer-launcher.png"), "icon");
   fs.mkdirSync(path.join(root, "native-audio"));
   fs.writeFileSync(path.join(root, "native-audio", "fdv-audio-player"), "native-player");
   fs.writeFileSync(path.join(root, "native-audio", "NLAYER-LICENSE.txt"), "license");
@@ -107,7 +109,7 @@ test("macOS packaging rejects a missing or empty menu-bar icon before downloads"
   environment.MACOS_LAUNCHER_ARM64 = fixture.app;
   try {
     for (const emptyIcon of [false, true]) {
-      if (emptyIcon) fs.writeFileSync(path.join(fixture.app, "Contents", "MacOS", "timer-launcher.png"), "");
+      if (emptyIcon) fs.writeFileSync(path.join(fixture.app, "Contents", "Resources", "timer-launcher.png"), "");
       const result = spawnSync("bash", [buildScript, "test-build", "--target=macos-arm64", "--preflight-only"], {
         cwd: projectRoot, env: environment, encoding: "utf8"
       });
@@ -170,4 +172,25 @@ test("Unix release packaging rejects a launcher without its native audio helper"
     assert.match(result.stderr, /Required native audio player was not found/);
     assert.doesNotMatch(result.stdout + result.stderr, /Downloading node-/);
   } finally { fs.rmSync(fixture.root, { recursive: true, force: true }); }
+});
+
+
+test("macOS app signature survives an ordinary ZIP transfer without resource xattrs", {
+  skip: process.platform !== "darwin" || !process.env.FDV_TEST_MACOS_APP_PATH
+}, t => {
+  const app = path.resolve(process.env.FDV_TEST_MACOS_APP_PATH);
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "fdv-mac-signature-transfer-"));
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }));
+  const archive = path.join(directory, "app.zip"), extracted = path.join(directory, "extracted");
+  const zipped = spawnSync("zip", ["-q", "-r", "-X", archive, path.basename(app)], {
+    cwd: path.dirname(app), env: { ...process.env, COPYFILE_DISABLE: "1" }, encoding: "utf8", timeout: 60000
+  });
+  assert.equal(zipped.status, 0, zipped.error?.message || zipped.stderr);
+  const unpacked = spawnSync("unzip", ["-q", archive, "-d", extracted], { encoding: "utf8", timeout: 60000 });
+  assert.equal(unpacked.status, 0, unpacked.error?.message || unpacked.stderr);
+  const restored = path.join(extracted, path.basename(app));
+  assert.ok(fs.statSync(path.join(restored, "Contents", "Resources", "timer-launcher.png")).size > 0);
+  assert.equal(fs.existsSync(path.join(restored, "Contents", "MacOS", "timer-launcher.png")), false);
+  const checked = spawnSync("codesign", ["--verify", "--deep", "--strict", restored], { encoding: "utf8" });
+  assert.equal(checked.status, 0, checked.error?.message || checked.stderr);
 });

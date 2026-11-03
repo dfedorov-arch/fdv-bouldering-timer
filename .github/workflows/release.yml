@@ -139,6 +139,9 @@ jobs:
           launcher/unix/build-launcher.sh "${{ matrix.rid }}" "${{ runner.temp }}/unix-launcher"
           mkdir -p "${{ runner.temp }}/launcher-artifact"
           cp -R "${{ runner.temp }}/unix-launcher"/. "${{ runner.temp }}/launcher-artifact/"
+          if [[ '${{ matrix.rid }}' == osx-* ]]; then
+            FDV_TEST_MACOS_APP_PATH="${{ runner.temp }}/unix-launcher/FDV Bouldering Timer.app" node --test test/release-build-preflight.test.js
+          fi
       - name: Check shared PCM mixer and Unix asset decoder without an audio device
         run: |
           dotnet run --project native-audio/unix/FdvNativeAudio.csproj -p:AudioSelfTest=true -p:SelfContained=false -p:PublishSingleFile=false -- --render-self-test
@@ -245,7 +248,11 @@ jobs:
           package_path="dist/fdv-bouldering-timer-${FDV_RELEASE_TAG}-macos-${{ matrix.arch }}.pkg"
           plutil -lint installer/macos/components.plist
           pkgbuild --root pkg-root --component-plist installer/macos/components.plist --identifier ru.fdv.boulderingtimer --version "${FDV_RELEASE_TAG#v}" --install-location / "$package_path"
-          pkgutil --expand "$package_path" pkg-expanded
+          pkgutil --expand-full "$package_path" pkg-expanded
+          packaged="pkg-expanded/Payload/Applications/FDV Bouldering Timer"
+          test -s "$packaged/FDV Bouldering Timer.app/Contents/Resources/timer-launcher.png"
+          codesign --verify --deep --strict "$packaged/FDV Bouldering Timer.app"
+          codesign --verify --strict "$packaged/lib/native-audio/darwin-${{ matrix.arch }}/fdv-audio-player"
           test "$(xmllint --xpath 'count(/pkg-info/relocate/bundle)' pkg-expanded/PackageInfo)" = "0"
       - uses: actions/upload-artifact@v4
         with:

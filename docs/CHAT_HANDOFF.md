@@ -49,6 +49,18 @@ Windows Node subset7pass/1platform-skip. Сохранённый docs/standalone.
 Не включать сгенерированный `lib/native-audio/` в Git: путь добавлен в ignore.
 CI собирает аудиобинарники из исходников для каждой архитектуры.
 
+## Дополнительная проверка macOS PKG после успешного CI
+
+Run41599355843 на4350cae был SUCCESS, все9скачанных payload совпали с CI SHA.
+Но локальная codesign --verify --deep --strict распакованного arm64 PKG нашла
+unsigned nested code: Contents/MacOS/timer-launcher.png. Данные в каталоге кода
+подписывались через xattrs, которые обычный CI ZIP не сохраняет. Нельзя считать
+эти macOS PKG окончательно готовыми. В следующем commit PNG перемещён в
+Contents/Resources, loader ищет этот путь первым только наmacOS. Linux/dev
+fallback paths сохранены. Добавлены реальный ZIP-transfer signature test и
+проверка готового PKG после expand-full на обеих архитектурах. Новая сборка
+запускается после локальной проверки. Ничего не устанавливать/не перезапускать.
+
 ## Что изменено
 
 -444: подтверждения получения и применения всех команд через существующие

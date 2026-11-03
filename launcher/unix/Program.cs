@@ -260,11 +260,12 @@ internal sealed class LauncherWindow : Window
 
     private void SetLauncherIcon()
     {
-        foreach (var iconPath in new[]
-        {
-            Path.Combine(AppContext.BaseDirectory, "timer-launcher.png"),
-            Path.Combine(_baseDirectory, "timer-launcher.png")
-        })
+        var iconPaths = new List<string>();
+        if (OperatingSystem.IsMacOS())
+            iconPaths.Add(Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "Resources", "timer-launcher.png")));
+        iconPaths.Add(Path.Combine(AppContext.BaseDirectory, "timer-launcher.png"));
+        iconPaths.Add(Path.Combine(_baseDirectory, "timer-launcher.png"));
+        foreach (var iconPath in iconPaths)
         {
             try
             {

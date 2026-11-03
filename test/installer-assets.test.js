@@ -27,7 +27,7 @@ test("release workflow produces installable assets for every supported operating
   assert.match(workflow, /linux-installers:[\s\S]*?\.deb/);
   assert.match(workflow, /macos-installers:[\s\S]*?\.pkg/);
   assert.match(workflow, /pkgbuild --root pkg-root --component-plist installer\/macos\/components\.plist/);
-  assert.match(workflow, /pkgutil --expand "\$package_path" pkg-expanded/);
+  assert.match(workflow, /pkgutil --expand(?:-full)? "\$package_path" pkg-expanded/);
   assert.match(workflow, /xmllint --xpath 'count\(\/pkg-info\/relocate\/bundle\)' pkg-expanded\/PackageInfo/);
   const macComponents = read("installer/macos/components.plist");
   assert.match(macComponents, /<key>BundleIsRelocatable<\/key>\s*<false\/>/);

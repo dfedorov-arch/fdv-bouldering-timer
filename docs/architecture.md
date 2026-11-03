@@ -646,3 +646,20 @@ Windows language restoration tests wait for ordinary snapshot persistence
 before terminating the child. Manual release workflow runs use the supplied
 preview_installer_version even when macOS prerelease publication is disabled,
 so develop installers can have an upgradeable numeric version without a tag.
+
+
+### macOS icon resource transfer and final package signatures
+
+The menu-bar PNG lives in Contents/Resources, with the launcher trying that
+location first only on macOS. Linux and development fallback paths remain.
+Data in Contents/MacOS can be treated as nested non-Mach-O code whose signature
+is carried in extended attributes; ordinary CI ZIP transfer does not preserve
+those attributes. Local validation of the4350cae PKG exposed an unsigned PNG
+after transfer even though the initial app signature had passed in CI.
+
+The new opt-in macOS preflight ZIPs the real built app without resource xattrs,
+unpacks it and verifies --deep --strict before upload. The portable builder
+also verifies the transferred app where codesign is available. Both macOS PKG
+jobs now expand the final payload and verify the app and native audio helper
+before upload. Resource placement follows Apple's code/resource bundle layout:
+https://developer.apple.com/library/archive/technotes/tn2206/_index.html .

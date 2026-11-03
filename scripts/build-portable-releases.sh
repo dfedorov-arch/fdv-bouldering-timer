@@ -79,7 +79,7 @@ require_launcher() {
       echo "Required macOS app bundle is incomplete: $variable_name=$launcher_path" >&2
       return 1
     fi
-    if [[ ! -s "$launcher_path/Contents/MacOS/timer-launcher.png" ]]; then
+    if [[ ! -s "$launcher_path/Contents/Resources/timer-launcher.png" ]]; then
       echo "Required macOS menu-bar icon was not found in the app bundle: $variable_name=$launcher_path" >&2
       return 1
     fi
@@ -283,6 +283,9 @@ build_unix() {
     if [[ "$os" == "macos" && -d "$gui_launcher" ]]; then
       cp -R "$gui_launcher" "$package/FDV Bouldering Timer.app"
       chmod +x "$package/FDV Bouldering Timer.app/Contents/MacOS/fdv-bouldering-timer"
+      if command -v codesign >/dev/null 2>&1; then
+        codesign --verify --deep --strict "$package/FDV Bouldering Timer.app"
+      fi
       cat > "$package/fdv-bouldering-timer" <<'SH'
 #!/usr/bin/env bash
 set -euo pipefail
