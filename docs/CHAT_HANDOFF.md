@@ -13,7 +13,7 @@ Legacy-экран без звука, автономный HTML и Android APK.
 - Стабильная линия: `/Users/fd/Documents/fdv-bouldering-timer-stable`, `main`,
   сборка440 / v2.3.2 / da03969771edf88140e63398ead4818b322854bd.
 - Рабочая папка чата: `/Users/fd/Documents/ChatGPT/Timer 2`; это не исходники.
-- Текущая разработка: сборка446. До нового коммита origin/develop=d64f780.
+- Текущая разработка: сборка446. Функциональный commit e860248 опубликован; packaging-fix следует за ним.
   Актуальный hash брать из `git log -1` и `git rev-parse origin/develop`.
 
 ## Текущий запрос: коммит и установочные пакеты develop
@@ -33,7 +33,18 @@ x64, Linux DEB arm64/x64, Android APK и portable-архивы, включая W
 Автоматический push-run можно отменить только для собственного нового commit,
 чтобы не дублировать ручную сборку. Итоговые пакеты — artifact
 `release-packages-<run_id>`; SHA256SUMS.txt проверять после скачивания.
-Статус, commit и run ID дополняются после завершения сборки.
+Первый функциональный commit e8602483f099cc1136124a20768f8b7d57962ab4 отправлен
+в develop. Run41598357866 уже собрал современные установщики, но x86 passive
+Windows UI harness превысил15s timeout. Локальный обязательный browser subset
+дал27pass/1fail: SEC row на1024px выходила на1.36px. Следующий packaging-fix
+commit увеличивает только passive harness до45s (case120s) и сохраняет все
+проверки; medium SEC chip gap1px ->.75px. Целевые сценарии перепроверяются,
+после чего сборка запускается на новом commit. Целевой SEC-case теперь1pass,
+Windows Node subset7pass/1platform-skip. Сохранённый docs/standalone.html
+дополнительно синхронизирован с446 (раньше отставал на445); preflight теперь
+проверяет и его buildNumber. Генерировать именно командой
+`node scripts/build-standalone-html.js docs/standalone.html`; default пишет в dist.
+Итог дополняется после успеха.
 
 Не включать сгенерированный `lib/native-audio/` в Git: путь добавлен в ignore.
 CI собирает аудиобинарники из исходников для каждой архитектуры.

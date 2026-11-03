@@ -24,6 +24,7 @@ function requirePath(relativePath) {
 const builds = new Map([
   ["index.html", matchBuild("index.html", /const pageBuildNumber = (\d+);/)],
   ["legacy.html", matchBuild("legacy.html", /var legacyBuildNumber = (\d+);/)],
+  ["docs/standalone.html", matchBuild("docs/standalone.html", /const pageBuildNumber = (\d+);/)],
   ["serve-bouldering-timer.js", matchBuild("serve-bouldering-timer.js", /const BUILD_NUMBER = (\d+);/)],
   ["sw.js", matchBuild("sw.js", /const BUILD_NUMBER = (\d+);/)],
   ["lib/offline-audio.js", matchBuild("lib/offline-audio.js", /"buildNumber":(\d+)/)]

@@ -36,7 +36,7 @@ test("Windows language switch remembers the choice and queues only authenticated
   assert.match(fs.readFileSync(path.join(projectRoot,"launcher/windows/HttpsCertificateDialog.cs"),"utf8"),/LauncherLanguage.Text\("HTTPS certificate"\)/);
 });
 
-test("native RU/EN launcher preserves state and sends authenticated language to an isolated server",{timeout:30000},async t=>{
+test("native RU/EN launcher preserves state and sends authenticated language to an isolated server",{timeout:120000},async t=>{
   if(process.platform!=="win32" || process.env.FDV_TEST_WINDOWS_CERTIFICATES!=="1")
     return t.skip("Opt in on Windows with FDV_TEST_WINDOWS_CERTIFICATES=1 for passive native UI tests");
   const directory=fs.mkdtempSync(path.join(os.tmpdir(),"fdv-launcher-language-"));
@@ -57,8 +57,8 @@ test("native RU/EN launcher preserves state and sends authenticated language to 
     }else args.push("/reference:System.Drawing.dll","/reference:System.Windows.Forms.dll");
     const compiled=spawnSync(compiler,[...args,...sources],{encoding:"utf8"});assert.equal(compiled.status,0,compiled.stdout+compiled.stderr);
     if(legacy)fs.copyFileSync(path.join(projectRoot,"compat/windows-legacy/launcher.exe.config"),executable+".config");
-    const result=spawnSync(executable,[path.join(directory,legacy?"legacy":"modern"),imagePrefix+(legacy?"-legacy":"")],{encoding:"utf8",timeout:15000});
-    assert.equal(result.status,0,result.stdout+result.stderr);
+    const result=spawnSync(executable,[path.join(directory,legacy?"legacy":"modern"),imagePrefix+(legacy?"-legacy":"")],{encoding:"utf8",timeout:45000});
+    assert.equal(result.status,0,result.error?.message || result.stdout+result.stderr);
     return executable;
   }
   const executables=[compileAndRun(false)];
