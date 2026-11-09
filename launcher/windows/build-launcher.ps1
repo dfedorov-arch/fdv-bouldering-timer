@@ -89,6 +89,7 @@ finally {
   $bitmap.Dispose()
 }
 
+$updateSource = Join-Path $scriptDirectory "LauncherUpdates.cs"
 $source = Join-Path $scriptDirectory "FdvBoulderingTimerLauncher.cs"
 $certificateSource = Join-Path $scriptDirectory "HttpsCertificate.cs"
 $certificateDialog = Join-Path $scriptDirectory "HttpsCertificateDialog.cs"
@@ -102,12 +103,12 @@ if ($LegacyReferenceDirectory) {
   }
   $compatibility = Join-Path $projectRoot 'compat/windows-legacy/LauncherCompatibility.cs'
   & $compiler /nologo /noconfig /nostdlib+ /target:winexe /platform:anycpu /optimize+ /codepage:65001 `
-    /define:FDV_LEGACY_WINDOWS @references /win32icon:$iconPath /out:$output $source $certificateSource $certificateDialog $compatibility $languageSource
+    /define:FDV_LEGACY_WINDOWS @references /win32icon:$iconPath /out:$output $source $certificateSource $certificateDialog $compatibility $languageSource $updateSource
   Copy-Item -LiteralPath (Join-Path $projectRoot 'compat/windows-legacy/launcher.exe.config') -Destination ($output + '.config')
 } else {
   & $compiler /nologo /target:winexe /platform:anycpu /optimize+ /codepage:65001 `
     /reference:System.dll /reference:System.Core.dll /reference:System.Drawing.dll `
-    /reference:System.Windows.Forms.dll /win32icon:$iconPath /out:$output $source $certificateSource $certificateDialog $languageSource
+    /reference:System.Windows.Forms.dll /win32icon:$iconPath /out:$output $source $certificateSource $certificateDialog $languageSource $updateSource
 }
 if ($LASTEXITCODE -ne 0) {
   throw "Launcher compilation failed with exit code $LASTEXITCODE."

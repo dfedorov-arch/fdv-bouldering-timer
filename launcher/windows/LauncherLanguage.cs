@@ -65,6 +65,13 @@ namespace FdvBoulderingTimerLauncher
         }
 
         private static readonly string[,] Messages = {
+            { "Open project website", "Открыть сайт проекта" },
+            { "Check for updates", "Проверить обновления" },
+            { "Checking for updates...", "Проверка обновлений…" },
+            { "Download new version", "Скачать новую версию" },
+            { "New version available: ", "Доступна новая версия: " },
+            { "You have the latest version", "У вас актуальная версия" },
+            { "Could not check for updates. Try again later.", "Не удалось проверить обновления. Повторите позже." },
             { "Yes", "Да" }, { "No", "Нет" },
             { "Network HTTP", "Сеть HTTP" }, { "Network HTTPS", "Сеть HTTPS" },
             { "Closing this window hides the launcher. The server keeps running. Use Stop and exit to stop it. Launch the app again to reopen the window.", "Закрытие скрывает лаунчер: сервер продолжает работать. Для остановки нажмите «Стоп и выход». Повторный запуск приложения откроет окно." },

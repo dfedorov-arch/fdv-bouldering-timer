@@ -90,6 +90,8 @@ if (uniqueBuilds.size !== 1) {
   "lib/launcher-language.js",
   "launcher/windows/HttpsCertificate.cs",
   "launcher/windows/LauncherLanguage.cs",
+  "launcher/windows/LauncherUpdates.cs",
+  "lib/launcher-updates.js",
   "launcher/windows/HttpsCertificateDialog.cs",
   "launcher/unix/HttpsCertificate.cs",
   "launcher/unix/HttpsCertificateDialog.cs",

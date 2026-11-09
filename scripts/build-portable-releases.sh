@@ -202,6 +202,7 @@ copy_common_files() {
   cp "$STANDALONE_HTML" "$target/fdv-bouldering-timer-standalone.html"
   cp -R "$ROOT_DIR/beeps" "$ROOT_DIR/fonts" "$ROOT_DIR/help-assets" "$target/"
   cp -R "$ROOT_DIR/lib" "$target/"
+  printf '%s\n' "$APP_VERSION" > "$target/release-version.txt"
 }
 
 extract_tar_node() {

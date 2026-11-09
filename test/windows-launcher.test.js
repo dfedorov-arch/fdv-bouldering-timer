@@ -43,7 +43,7 @@ test("native RU/EN launcher preserves state and sends authenticated language to 
   t.after(()=>fs.rmSync(directory,{recursive:true,force:true}));
   const compiler=path.join(process.env.WINDIR,"Microsoft.NET/Framework64/v4.0.30319/csc.exe");
   const sources=["launcher/windows/FdvBoulderingTimerLauncher.cs","launcher/windows/HttpsCertificate.cs",
-    "launcher/windows/HttpsCertificateDialog.cs","launcher/windows/LauncherLanguage.cs","test/helpers/windows-launcher-harness.cs"].map(file=>path.join(projectRoot,file));
+    "launcher/windows/HttpsCertificateDialog.cs","launcher/windows/LauncherLanguage.cs","launcher/windows/LauncherUpdates.cs","test/helpers/windows-launcher-harness.cs"].map(file=>path.join(projectRoot,file));
   const imagePrefix=path.join(projectRoot,"dist/windows-launcher-language");
   fs.mkdirSync(path.dirname(imagePrefix),{recursive:true});
   function compileAndRun(legacy){

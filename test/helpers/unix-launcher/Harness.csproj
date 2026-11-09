@@ -8,6 +8,7 @@
     <PackageReference Include="Avalonia.Desktop" Version="11.3.9" />
     <PackageReference Include="Avalonia.Themes.Fluent" Version="11.3.9" />
     <PackageReference Include="Avalonia.Headless" Version="11.3.9" />
+    <Compile Include="../../../launcher/windows/LauncherUpdates.cs" Link="LauncherUpdates.cs" />
     <Compile Include="../../../launcher/unix/*.cs" Link="%(Filename)%(Extension)" />
     <Compile Include="../../../launcher/windows/LauncherLanguage.cs" Link="LauncherLanguage.cs" />
   </ItemGroup>

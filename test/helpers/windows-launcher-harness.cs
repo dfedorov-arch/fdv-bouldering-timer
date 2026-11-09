@@ -24,6 +24,42 @@ internal static class WindowsLauncherHarness
     {
         try
         {
+            if (args[0] == "updates")
+            {
+                string updateRoot = args[1]; Directory.CreateDirectory(Path.Combine(updateRoot, "lib"));
+                File.WriteAllText(Path.Combine(updateRoot, "params.txt"), "portable_node_win=" + args[2]);
+                using (var form = new LauncherForm(updateRoot, false))
+                {
+                    form.StartPosition = FormStartPosition.Manual; form.Location = new Point(-10000, -10000);
+                    form.Show(); Application.DoEvents();
+                    var self = System.Diagnostics.Process.GetCurrentProcess();
+                    form.GetType().GetField("_serverProcess", BindingFlags.Instance | BindingFlags.NonPublic).SetValue(form, self);
+                    foreach (string result in new string[] { "available|v99.0.0", "current", "unavailable" })
+                    {
+                        File.WriteAllText(Path.Combine(Path.Combine(updateRoot, "lib"), "launcher-updates.js"), "setTimeout(()=>process.stdout.write('" + result + "'), 400);");
+                        Call(form, "CheckForUpdates");
+                        Check(!(bool)((Button)Field(form, "_updateButton")).Enabled, "Duplicate checks disabled");
+                        int pumps = 0; DateTime deadline = DateTime.UtcNow.AddSeconds(12);
+                        while ((bool)Field(form, "_updateBusy"))
+                        {
+                            if (DateTime.UtcNow > deadline) throw new Exception("Update worker timeout");
+                            Application.DoEvents(); System.Threading.Thread.Sleep(10); pumps++;
+                        }
+                        Check(pumps >= 10, "UI remained responsive during checker delay");
+                        Check((string)Field(form, "_updateResult") == result, "Checker result");
+                        Check(Object.ReferenceEquals(Field(form, "_serverProcess"), self), "Server process preserved");
+                        foreach (string timer in new string[] { "_startupTimer", "_healthTimer", "_restartTimer" })
+                            Check(!((System.Windows.Forms.Timer)Field(form, timer)).Enabled, "Server timer untouched");
+                        if (result.StartsWith("available|"))
+                        {
+                            LauncherLanguage.Russian = true; Call(form, "ApplyLanguage"); Render(form, args[3] + "-ru.png");
+                            LauncherLanguage.Russian = false; Call(form, "ApplyLanguage"); Render(form, args[3] + "-en.png");
+                            form.ClientSize = new Size(544, 471); Render(form, args[3] + "-min.png");
+                        }
+                    }
+                }
+                Console.WriteLine("Update worker is independent and UI responsive"); return 0;
+            }
             if (args[0] == "send-pin")
             {
                 LauncherForm.SendServerPin(Int32.Parse(args[1]), args[2], args[3]);

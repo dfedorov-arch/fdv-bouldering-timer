@@ -765,3 +765,9 @@ Node12/modern peers in both directions with restart, reverse commands and takeov
 Release Windows CI runs the mixed-runtime case for both x86 and x64. Local testing
 used the SHA256-verified official macOS x64 Node12 runtime; it is not a physical
 Windows7/8 validation.
+
+## Launcher-only release notification
+
+The desktop launchers share launcher/windows/LauncherUpdates.cs and spawn lib/launcher-updates.js with the configured Node runtime on a worker. The server never imports this module. No HTTP request to the timer, SSE event, command, audio hook, state write, server process control or schedule change is involved. A single automatic check occurs on the initial window open; a manual check is available thereafter, with overlapping checks disabled. Reopening a hidden window does not check again. Results update only the launcher button and notice, preserving RU/EN switching. Download opens a fixed GitHub Releases URL on explicit click. No installation is performed.
+
+The checker uses unauthenticated HTTPS to GitHub's latest stable release, bounds response size to 256 KiB, preserves TLS verification and limits redirects for the release metadata asset. A wall deadline ends the child in 8 seconds even during DNS/body stalls; the parent worker kills only that child after 10 seconds. Network errors never report an up-to-date result. No persistent check cache or background periodic polling. Stable package versions come from release-version.txt; source/CI v0.0 builds use update-info.json buildNumber to avoid downgrades. Metadata version must match the API tag. Legacy packages copy the same Node12-compatible module; no CLR TLS changes are needed.

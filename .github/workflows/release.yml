@@ -337,6 +337,14 @@ jobs:
         with: { name: android-apk, path: dist }
       - uses: actions/download-artifact@v4
         with: { pattern: "windows-legacy-*", path: dist, merge-multiple: true }
+      - name: Write stable update metadata
+        run: |
+          node - <<'JS'
+          const fs = require('fs');
+          const source = fs.readFileSync('serve-bouldering-timer.js', 'utf8');
+          const buildNumber = Number(source.match(/const BUILD_NUMBER = (\d+);/)[1]);
+          fs.writeFileSync('dist/update-info.json', JSON.stringify({version: process.env.FDV_RELEASE_TAG, buildNumber}) + '\n');
+          JS
       - name: Create checksums and release notes
         run: |
           cd dist

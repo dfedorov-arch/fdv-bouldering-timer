@@ -126,6 +126,11 @@ namespace FdvBoulderingTimerLauncher
         private readonly Button _languageButton = new Button();
         private readonly Button _pinButton = new Button();
         private readonly Label _addressTitle = new Label();
+        private readonly Button _projectButton = new Button();
+        private readonly Button _updateButton = new Button();
+        private readonly Label _updateNotice = new Label();
+        private string _updateResult = "";
+        private bool _updateBusy;
         private readonly Label _logTitle = new Label();
         private string _statusEnglish = "Preparing server...";
         private string _trayEnglish = "FDV Bouldering Timer";
@@ -163,7 +168,7 @@ namespace FdvBoulderingTimerLauncher
             ConfigureTray(startAutomatically);
             ApplyLanguage();
 
-            if (startAutomatically) Shown += delegate { StartServer(_openBrowserOnStart); };
+            if (startAutomatically) Shown += delegate { StartServer(_openBrowserOnStart); CheckForUpdates(); };
             FormClosing += OnFormClosing;
             if (startAutomatically) NetworkChange.NetworkAddressChanged += OnNetworkAddressChanged;
         }
@@ -173,8 +178,8 @@ namespace FdvBoulderingTimerLauncher
             Text = "FDV Bouldering Timer";
             Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath);
             StartPosition = FormStartPosition.CenterScreen;
-            MinimumSize = new Size(560, 510);
-            ClientSize = new Size(620, 540);
+            MinimumSize = new Size(836, 580);
+            ClientSize = new Size(820, 610);
             BackColor = Color.FromArgb(17, 23, 34);
             ForeColor = Color.FromArgb(244, 247, 251);
             Font = new Font("Segoe UI", 9F, FontStyle.Regular, GraphicsUnit.Point);
@@ -193,7 +198,7 @@ namespace FdvBoulderingTimerLauncher
             Controls.Add(_buildLabel);
 
             _languageButton.Name = "launcherLanguage";
-            _languageButton.Location = new Point(548, 22);
+            _languageButton.Location = new Point(748, 22);
             _languageButton.Size = new Size(46, 28);
             _languageButton.Anchor = AnchorStyles.Top | AnchorStyles.Right;
             _languageButton.Click += delegate { SwitchLanguage(); };
@@ -201,7 +206,7 @@ namespace FdvBoulderingTimerLauncher
             _status.Text = "Preparing server...";
             _status.AutoSize = false;
             _status.Location = new Point(24, 60);
-            _status.Size = new Size(560, 25);
+            _status.Size = new Size(760, 25);
             _status.ForeColor = Color.FromArgb(255, 200, 87);
 
             var addressTitle = _addressTitle;
@@ -211,7 +216,7 @@ namespace FdvBoulderingTimerLauncher
             addressTitle.Font = new Font(Font, FontStyle.Bold);
 
             _addresses.Location = new Point(24, 119);
-            _addresses.Size = new Size(570, 126);
+            _addresses.Size = new Size(770, 126);
             _addresses.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
             _addresses.BackColor = Color.FromArgb(16, 20, 27);
             _addresses.ForeColor = ForeColor;
@@ -222,24 +227,24 @@ namespace FdvBoulderingTimerLauncher
 
             _openButton.Text = "Open timer";
             _openButton.Location = new Point(24, 258);
-            _openButton.Size = new Size(110, 36);
+            _openButton.Size = new Size(120, 36);
             _openButton.Enabled = false;
             _openButton.Click += delegate { OpenSelectedAddress(); };
 
             _copyButton.Text = "Copy link";
-            _copyButton.Location = new Point(142, 258);
-            _copyButton.Size = new Size(125, 36);
+            _copyButton.Location = new Point(152, 258);
+            _copyButton.Size = new Size(145, 36);
             _copyButton.Enabled = false;
             _copyButton.Click += delegate { CopySelectedAddress(); };
 
             _restartButton.Text = "Restart server";
-            _restartButton.Location = new Point(275, 258);
-            _restartButton.Size = new Size(130, 36);
+            _restartButton.Location = new Point(458, 258);
+            _restartButton.Size = new Size(175, 36);
             _restartButton.Click += delegate { StartServer(false); };
 
             _stopButton.Text = "Stop and exit";
-            _stopButton.Location = new Point(413, 258);
-            _stopButton.Size = new Size(130, 36);
+            _stopButton.Location = new Point(641, 258);
+            _stopButton.Size = new Size(140, 36);
             _stopButton.Click += delegate { StopAndExit(); };
 
             _certificateButton.Text = "Create HTTPS certificate";
@@ -248,19 +253,30 @@ namespace FdvBoulderingTimerLauncher
             _certificateButton.Click += delegate { CreateHttpsCertificate(); };
 
             _pinButton.Name = "launcherPin";
-            _pinButton.Location = new Point(275, 304);
-            _pinButton.Size = new Size(180, 32);
+            _pinButton.Location = new Point(305, 258);
+            _pinButton.Size = new Size(145, 36);
             _pinButton.Click += delegate { EditControlPin(); };
             Controls.Add(_pinButton);
 
+            _updateButton.Name = "launcherUpdates";
+            _updateButton.Location = new Point(272, 304); _updateButton.Size = new Size(240, 32);
+            _updateButton.Click += delegate { if (_updateResult.StartsWith("available|")) OpenUrl(LauncherUpdates.ReleasePage); else CheckForUpdates(); };
+            _updateNotice.Location = new Point(24, 348); _updateNotice.Size = new Size(770, 22);
+            _updateNotice.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
+            _updateNotice.ForeColor = Color.FromArgb(255, 200, 87);
+            _projectButton.Name = "launcherProject";
+            _projectButton.Location = new Point(520, 304); _projectButton.Size = new Size(230, 32);
+            _projectButton.Click += delegate { OpenUrl("https://github.com/dfedorov-arch/fdv-bouldering-timer"); };
+            Controls.Add(_projectButton);
+            Controls.Add(_updateButton); Controls.Add(_updateNotice);
             var logTitle = _logTitle;
             logTitle.Text = "Server log";
             logTitle.AutoSize = true;
-            logTitle.Location = new Point(24, 352);
+            logTitle.Location = new Point(24, 380);
             logTitle.Font = new Font(Font, FontStyle.Bold);
 
-            _log.Location = new Point(24, 375);
-            _log.Size = new Size(570, 135);
+            _log.Location = new Point(24, 403);
+            _log.Size = new Size(770, 177);
             _log.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
             _log.BackColor = Color.FromArgb(16, 20, 27);
             _log.ForeColor = Color.FromArgb(190, 200, 214);
@@ -283,6 +299,8 @@ namespace FdvBoulderingTimerLauncher
             Controls.Add(logTitle);
             Controls.Add(_log);
 
+            Button[] orderedButtons = { _openButton, _copyButton, _pinButton, _restartButton, _stopButton, _certificateButton, _updateButton, _projectButton };
+            for (int i = 0; i < orderedButtons.Length; i++) orderedButtons[i].TabIndex = 10 + i;
             _startupTimer.Interval = 300;
             _startupTimer.Tick += CheckServerReady;
             _healthTimer.Interval = 1000;
@@ -290,6 +308,29 @@ namespace FdvBoulderingTimerLauncher
             _restartTimer.Tick += RestartTimerTick;
             _networkRefreshTimer.Interval = 750;
             _networkRefreshTimer.Tick += RefreshNetworkAddresses;
+        }
+
+        private void RefreshUpdateNotice()
+        {
+            bool available = _updateResult.StartsWith("available|");
+            _updateButton.Enabled = !_updateBusy;
+            _updateButton.Text = T(_updateBusy ? "Checking for updates..." : available ? "Download new version" : "Check for updates");
+            _updateNotice.Text = available ? T("New version available: ") + _updateResult.Substring(10) : T(_updateResult == "current" ? "You have the latest version" : _updateResult == "unavailable" ? "Could not check for updates. Try again later." : "");
+        }
+        private void CheckForUpdates()
+        {
+            if (_updateBusy || _allowClose) return;
+            _updateBusy = true; RefreshUpdateNotice();
+            string node = FindNodeExecutable();
+            ThreadPool.QueueUserWorkItem(delegate
+            {
+                string result = LauncherUpdates.Run(node, _baseDirectory);
+                try { if (!IsDisposed && IsHandleCreated) BeginInvoke((MethodInvoker)delegate
+                {
+                    if (IsDisposed || _allowClose) return;
+                    _updateBusy = false; _updateResult = result; RefreshUpdateNotice();
+                }); } catch (InvalidOperationException) { }
+            });
         }
 
         private void ConfigureTray(bool visible)
@@ -335,6 +376,8 @@ namespace FdvBoulderingTimerLauncher
             _stopButton.Text = T("Stop and exit");
             _certificateButton.Text = T("Create HTTPS certificate");
             _pinButton.Text = T("Control PIN");
+            _projectButton.Text = T("Open project website");
+            RefreshUpdateNotice();
             _status.Text = T(_statusEnglish);
             _tray.Text = T(_trayEnglish);
             foreach (ToolStripItem item in _tray.ContextMenuStrip.Items)

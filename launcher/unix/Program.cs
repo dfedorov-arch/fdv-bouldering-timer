@@ -22,6 +22,7 @@ using Avalonia.Media;
 using Avalonia.Styling;
 using Avalonia.Threading;
 using Avalonia.Themes.Fluent;
+using LauncherUpdates = FdvBoulderingTimerLauncher.LauncherUpdates;
 using LauncherLanguage = FdvBoulderingTimerLauncher.LauncherLanguage;
 
 namespace FdvBoulderingTimer.Launcher;
@@ -154,6 +155,11 @@ internal sealed class LauncherWindow : Window
     private Window? _pinDialog;
     private readonly Button _languageButton = new() { Name = "launcherLanguage" };
     private readonly TextBlock _addressTitle = new();
+    private readonly Button _projectButton = new() { Name = "launcherProject" };
+    private readonly Button _updateButton = new() { Name = "launcherUpdates" };
+    private readonly TextBlock _updateNotice = new() { TextWrapping = TextWrapping.Wrap, Foreground = Brush(255, 200, 87) };
+    private string _updateResult = "";
+    private bool _updateBusy;
     private readonly TextBlock _logTitle = new();
     private readonly TextBlock _hint = new() { TextWrapping = TextWrapping.Wrap };
     private readonly TrayIcon _tray = new();
@@ -207,10 +213,10 @@ internal sealed class LauncherWindow : Window
 
         Title = "FDV Bouldering Timer";
         SetLauncherIcon();
-        Width = 660;
-        Height = 585;
-        MinWidth = 560;
-        MinHeight = 515;
+        Width = 840;
+        Height = 660;
+        MinWidth = 820;
+        MinHeight = 610;
         Background = Brush(17, 23, 34);
         Foreground = Brush(244, 247, 251);
         FontFamily = new FontFamily("Arial");
@@ -226,7 +232,7 @@ internal sealed class LauncherWindow : Window
             if (_initialStartRequested) return;
             _initialStartRequested = true;
             if (initialStartOverride != null) initialStartOverride();
-            else if (startAutomatically) StartServer(_openBrowserAfterStart);
+            else if (startAutomatically) { StartServer(_openBrowserAfterStart); CheckForUpdates(); }
         };
         Closing += OnClosing;
         _startupTimer.Tick += CheckServerReady;
@@ -287,7 +293,7 @@ internal sealed class LauncherWindow : Window
     {
         var root = new Grid
         {
-            RowDefinitions = new RowDefinitions("Auto,Auto,Auto,Auto,Auto,*,Auto"),
+            RowDefinitions = new RowDefinitions("Auto,Auto,Auto,Auto,Auto,Auto,*,Auto"),
             Margin = new Thickness(24),
             RowSpacing = 14
         };
@@ -332,10 +338,12 @@ internal sealed class LauncherWindow : Window
         {
             Orientation = Orientation.Horizontal,
         };
-        ConfigureButton(_openButton, 96);
-        ConfigureButton(_copyButton, 88);
-        ConfigureButton(_restartButton, 120);
-        ConfigureButton(_stopButton, 112);
+        ConfigureButton(_openButton, 120);
+        ConfigureButton(_copyButton, 145);
+        ConfigureButton(_pinButton, 145);
+        _pinButton.Click += async (_, _) => await EditControlPin();
+        ConfigureButton(_restartButton, 175);
+        ConfigureButton(_stopButton, 140);
         foreach (var button in new[] { _openButton, _copyButton, _restartButton, _stopButton }) button.Margin = new Thickness(0, 0, 8, 6);
         _openButton.Click += (_, _) => OpenSelectedAddress();
         _copyButton.Click += async (_, _) => await CopySelectedAddress();
@@ -343,18 +351,23 @@ internal sealed class LauncherWindow : Window
         _stopButton.Click += (_, _) => StopAndExit();
         buttons.Children.Add(_openButton);
         buttons.Children.Add(_copyButton);
+        buttons.Children.Add(_pinButton);
         buttons.Children.Add(_restartButton);
         buttons.Children.Add(_stopButton);
         Grid.SetRow(buttons, 3);
         root.Children.Add(buttons);
 
-        ConfigureButton(_certificateButton, 210);
+        ConfigureButton(_certificateButton, 240);
         _certificateButton.HorizontalAlignment = HorizontalAlignment.Left;
         _certificateButton.Click += async (_, _) => await CreateHttpsCertificate();
         ConfigureButton(_pinButton, 160);
         _pinButton.Click += async (_, _) => await EditControlPin();
-        var settingsButtons = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 12 };
-        settingsButtons.Children.Add(_certificateButton); settingsButtons.Children.Add(_pinButton);
+        var settingsButtons = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
+        ConfigureButton(_updateButton, 240);
+        _updateButton.Click += (_, _) => { if (_updateResult.StartsWith("available|")) OpenUrl(LauncherUpdates.ReleasePage); else CheckForUpdates(); };
+        ConfigureButton(_projectButton, 230);
+        _projectButton.Click += (_, _) => OpenUrl("https://github.com/dfedorov-arch/fdv-bouldering-timer");
+        settingsButtons.Children.Add(_certificateButton); settingsButtons.Children.Add(_updateButton); settingsButtons.Children.Add(_projectButton);
         Grid.SetRow(settingsButtons, 4);
         root.Children.Add(settingsButtons);
 
@@ -374,11 +387,12 @@ internal sealed class LauncherWindow : Window
         _log.SetValue(ScrollViewer.VerticalScrollBarVisibilityProperty, ScrollBarVisibility.Auto);
         Grid.SetRow(_log, 1);
         logPanel.Children.Add(_log);
-        Grid.SetRow(logPanel, 5);
+        Grid.SetRow(_updateNotice, 5); root.Children.Add(_updateNotice);
+        Grid.SetRow(logPanel, 6);
         root.Children.Add(logPanel);
 
         _hint.Foreground = Brush(149, 161, 181);
-        Grid.SetRow(_hint, 6);
+        Grid.SetRow(_hint, 7);
         root.Children.Add(_hint);
 
         return root;
@@ -457,6 +471,23 @@ internal sealed class LauncherWindow : Window
 
     private void SetStatusText(string english) { _statusEnglish = english; _status.Text = T(english); _tray.ToolTipText = "FDV Bouldering Timer — " + T(english); }
 
+    private void RefreshUpdateNotice()
+    {
+        bool available = _updateResult.StartsWith("available|");
+        _updateButton.IsEnabled = !_updateBusy;
+        _updateButton.Content = T(_updateBusy ? "Checking for updates..." : available ? "Download new version" : "Check for updates");
+        _updateNotice.Text = available ? T("New version available: ") + _updateResult.Substring(10) : T(_updateResult == "current" ? "You have the latest version" : _updateResult == "unavailable" ? "Could not check for updates. Try again later." : "");
+    }
+    private async void CheckForUpdates()
+    {
+        if (_updateBusy || _allowClose) return;
+        _updateBusy = true; RefreshUpdateNotice();
+        string? node = FindNodeExecutable();
+        var result = await Task.Run(() => LauncherUpdates.Run(node ?? "", _baseDirectory));
+        if (_allowClose) return;
+        _updateBusy = false; _updateResult = result; RefreshUpdateNotice();
+    }
+
     private void ApplyLanguage()
     {
         _languageButton.Content = LauncherLanguage.Russian ? "EN" : "RU";
@@ -466,6 +497,8 @@ internal sealed class LauncherWindow : Window
         _restartButton.Content = T("Restart server"); _stopButton.Content = T("Stop and exit");
         _certificateButton.Content = T("Create HTTPS certificate");
         _pinButton.Content = T("Control PIN");
+        _projectButton.Content = T("Open project website");
+        RefreshUpdateNotice();
         _status.Text = T(_statusEnglish);
         _tray.ToolTipText = "FDV Bouldering Timer — " + T(_statusEnglish);
         _hint.Text = T("Closing this window hides the launcher. The server keeps running. Use Stop and exit to stop it. Launch the app again to reopen the window.");

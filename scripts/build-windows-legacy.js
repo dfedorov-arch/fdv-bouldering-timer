@@ -41,6 +41,7 @@ async function buildPackage({ version, arch, nodeRoot, launcher, output, standal
     fs.cpSync(path.join(root, name), path.join(destination, name), { recursive: true });
   }
   await buildServer(destination);
+  fs.writeFileSync(path.join(destination, "release-version.txt"), version + "\n");
   fs.copyFileSync(path.join(root, "compat/windows-legacy/start-timer-win.bat"), path.join(destination, "start-timer-win.bat"));
   fs.copyFileSync(path.join(root, "ReadMe-windows-legacy.txt"), path.join(destination, "ReadMe.txt"));
   fs.copyFileSync(launcher, path.join(destination, "fdv-bouldering-timer.exe"));
