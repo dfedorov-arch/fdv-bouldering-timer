@@ -202,3 +202,46 @@ test("unavailable native output keeps its disabled radios, explains failure and 
     await expect(page.locator("[data-audio-offset-value]")).toContainText("-300");
   });
 });
+
+
+test("competition hotkeys work while either audio route radio keeps focus", async ({page}) => {
+  await withServer(async server => {
+    await open(page, server);
+    await page.evaluate(() => revealControlsIfAllowed());
+    await toggleAudioPanel(page);
+    for (const route of ["browser", "server"]) {
+      const radio = page.locator('[data-server-audio-client="clock-test"][data-server-audio-route="' + route + '"]');
+      await radio.check();
+      await page.waitForFunction(enabled => nativeAudioOffer?.enabled === enabled, route === "server");
+      await expect(radio).toBeFocused();
+      await page.keyboard.press("z");
+      await expect.poll(async () => (await server.state()).running).toBe(true);
+      await page.waitForFunction(() => state.running && elapsedSeconds() > 0.1);
+      // Refocus the radio if the running-state render rebuilt the editor.
+      await radio.focus();
+      await page.keyboard.press("Control+q");
+      await expect.poll(async () => (await server.state()).running).toBe(false);
+      await radio.focus();
+      await page.keyboard.press("p");
+      await expect.poll(async () => (await server.state()).elapsedBeforePause).toBe(0);
+      await expect(radio).toBeChecked();
+    }
+    // Text entry and modal radio navigation must still suppress timer commands.
+    for (const kind of ["input", "textarea", "editable", "dialog"]) {
+      await page.evaluate(kind => {
+        const host = document.createElement(kind === "dialog" ? "dialog" : "div");
+        host.id = "hotkey-focus-regression";
+        const field = document.createElement(kind === "textarea" ? "textarea" : kind === "editable" ? "div" : "input");
+        if (kind === "editable") field.contentEditable = "true";
+        if (kind === "dialog") { field.type = "radio"; field.dataset.serverAudioRoute = "browser"; }
+        host.append(field); document.body.append(host);
+        if (kind === "dialog") host.showModal();
+        field.focus();
+      }, kind);
+      await page.keyboard.press("z");
+      await page.waitForTimeout(150);
+      expect((await server.state()).running).toBe(false);
+      await page.evaluate(() => document.getElementById("hotkey-focus-regression").remove());
+    }
+  });
+});

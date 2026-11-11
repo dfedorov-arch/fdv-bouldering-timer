@@ -3270,7 +3270,7 @@
       timeline: []
     };
 
-    const pageBuildNumber = 448;
+    const pageBuildNumber = 449;
     const projectUrl = "https://github.com/dfedorov-arch/fdv-bouldering-timer";
     const buildLinkConfirmDelayMs = 550;
     const offlineSnapshotKey = "fdvBoulderingTimerOfflineSnapshot";
@@ -3823,7 +3823,12 @@
     function observePerformanceAudioContext(reason = "created") {
       if (audioContext && audioSchedulerHealth.observedContext !== audioContext) {
         audioSchedulerHealth.observedContext = audioContext;
+        const observedContext = audioContext;
         audioContext.addEventListener("statechange", () => {
+          if (audioContext !== observedContext) return;
+          updateAudioReadiness(observedContext);
+          recordAudioUnlock("context-statechange");
+          if (audioUnlockRefreshAllowed) refreshStandaloneBrowserList();
           checkClockContinuity();
           checkAudioSchedulerHealth(true);
         });
@@ -4169,7 +4174,9 @@
           allowed: canPlaySound(),
           forcedByDiagnostics: performanceSoundForced,
           noSoundWarm,
-          unlocked: audioUnlocked,
+          unlocked: browserAudioPlaybackReady(),
+          playbackBackend: standaloneMode && iosAudioWorkaroundEnabled ? "html" : "web-audio",
+          unlock: { ...audioUnlockDiagnostics, events: audioUnlockEvents.slice() },
           contextState: audioContext?.state || "unavailable",
           schedulerHealth: {
             checks: audioSchedulerHealth.checks, recoveries: audioSchedulerHealth.recoveries,
@@ -4282,6 +4289,8 @@
     let activeHtmlAudio = [];
     let immediateGestureAudio = null;
     let immediateGestureAudioSource = "";
+    let immediateGestureAudioConfirmed = false;
+    let immediateGestureAudioAttempt = 0;
     const festivalAnnouncements = [
       { remaining: 60 * 60, kind: "festival60", ru: "Остался один час", en: "One hour remaining" },
       { remaining: 30 * 60, kind: "festival30", ru: "Осталось 30 минут", en: "30 minutes remaining" },
@@ -4384,6 +4393,10 @@
     els.startListToggle.checked = startListEditorOpen;
     let startupConfigApplied = false;
     let audioUnlocked = false;
+    let audioPrimedContext = null;
+    let audioUnlockRefreshAllowed = true;
+    const audioUnlockDiagnostics = { attempt: 0, result: "not-requested", errorName: "" };
+    const audioUnlockEvents = [];
     let audioUserOffsetMs = 0;
     let lastAudioTimingErrorMs = null;
     let lastAudioTimingAt = 0;
@@ -5386,49 +5399,110 @@
       }
     }
 
-    async function unlockAudio(refreshDiagnostics = true) {
-      const shouldPrime = !audioUnlocked;
-      audioUnlocked = true;
-      try {
-        audioContext ||= new (window.AudioContext || window.webkitAudioContext)();
-        observePerformanceAudioContext("unlock");
-        recordPerformanceAudioClock("unlock-request", { shouldPrime });
-        const unlockSource = audioContext.createBufferSource();
-        unlockSource.buffer = audioContext.createBuffer(1, 1, 22050);
-        unlockSource.connect(audioContext.destination);
-        unlockSource.start(0);
-        if (audioContext.state !== "running" && audioContext.state !== "closed") {
-          const resumeStartedAt = performance.now();
-          recordPerformanceAudioClock("resume-request", { reason: "unlock" });
-          try {
-            await audioContext.resume();
-            recordPerformanceAudioClock("resume-resolved", {
-              reason: "unlock",
-              resumeDurationMs: Number((performance.now() - resumeStartedAt).toFixed(3))
-            });
-          } catch (error) {
-            recordPerformanceAudioClock("resume-rejected", {
-              reason: "unlock",
-              resumeDurationMs: Number((performance.now() - resumeStartedAt).toFixed(3)),
-              errorName: error?.name || "Error"
-            });
-            throw error;
-          }
-        }
-        if (shouldPrime) {
-          const gain = audioContext.createGain();
-          const osc = audioContext.createOscillator();
-          gain.gain.setValueAtTime(0.0001, audioContext.currentTime);
-          osc.connect(gain).connect(audioContext.destination);
-          osc.start();
-          osc.stop(audioContext.currentTime + 0.03);
-        }
-        loadAudioBuffers()?.catch(() => {});
-        recordPerformanceAudioClock("unlock-complete", { shouldPrime });
-      } catch (error) {}
-      if (refreshDiagnostics) {
-        refreshStandaloneBrowserList();
+    function browserAudioPlaybackReady() {
+      return audioContext?.state === "running"
+        || (standaloneMode && iosAudioWorkaroundEnabled && immediateGestureAudioConfirmed);
+    }
+
+    function recordAudioUnlock(stage, details = {}) {
+      if (!performanceDiagnosticsEnabled) return;
+      const entry = { stage, ...details, atPerformanceMs: Number(performance.now().toFixed(3)),
+        contextState: audioContext?.state || "unavailable",
+        userActivationActive: navigator.userActivation?.isActive ?? null,
+        userActivationSeen: navigator.userActivation?.hasBeenActive ?? null };
+      audioUnlockEvents.push(entry);
+      if (audioUnlockEvents.length > 32) audioUnlockEvents.shift();
+      // perf=1 must reveal failed/pending resume attempts without forcing sound.
+      queuePerformanceConsoleRecord("FDV_AUDIO_UNLOCK", entry);
+    }
+
+    function updateAudioReadiness(context) {
+      if (context !== audioContext) return;
+      audioUnlocked = context.state === "running";
+      if (audioUnlocked) {
+        audioUnlockDiagnostics.result = "running";
+        audioUnlockDiagnostics.errorName = "";
+      } else if (audioUnlockDiagnostics.result === "running") {
+        audioUnlockDiagnostics.result = context.state;
       }
+    }
+
+    function primeRunningAudioContext(context) {
+      if (context !== audioContext || context.state !== "running" || audioPrimedContext === context) return;
+      try {
+        const gain = context.createGain();
+        const osc = context.createOscillator();
+        gain.gain.setValueAtTime(0.0001, context.currentTime);
+        osc.connect(gain).connect(context.destination);
+        osc.start(); osc.stop(context.currentTime + 0.03);
+        audioPrimedContext = context;
+      } catch (error) {
+        recordAudioUnlock("prime-rejected", { errorName: error?.name || "Error" });
+      }
+    }
+
+    async function unlockAudio(refreshDiagnostics = true, source = "request") {
+      audioUnlockRefreshAllowed = refreshDiagnostics;
+      const attempt = ++audioUnlockDiagnostics.attempt;
+      let context;
+      try {
+        if (!audioContext || audioContext.state === "closed") {
+          audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        }
+        context = audioContext;
+        observePerformanceAudioContext("unlock");
+        updateAudioReadiness(context);
+        if (context.state === "running") {
+          primeRunningAudioContext(context);
+          loadAudioBuffers()?.catch(() => {});
+          if (refreshDiagnostics && audioUnlockRefreshAllowed) refreshStandaloneBrowserList();
+          return;
+        }
+        audioUnlockDiagnostics.result = "pending";
+        audioUnlockDiagnostics.errorName = "";
+        recordAudioUnlock("resume-request", { attempt, source });
+        // Request resume synchronously in the gesture stack, BEFORE priming.
+        // A pending older request must never swallow a fresh trusted tap.
+        const resumed = context.resume();
+        try {
+          const unlockSource = context.createBufferSource();
+          unlockSource.buffer = context.createBuffer(1, 1, 22050);
+          unlockSource.connect(context.destination);
+          unlockSource.start(0);
+        } catch (error) {
+          recordAudioUnlock("silent-prime-rejected", { attempt, source, errorName: error?.name || "Error" });
+        }
+        // Decode independently of a resume promise which may never settle.
+        loadAudioBuffers()?.catch(() => {});
+        let timeout;
+        const settle = (result, errorName = "") => {
+          if (context !== audioContext) return;
+          updateAudioReadiness(context);
+          if (attempt === audioUnlockDiagnostics.attempt && !audioUnlocked) {
+            audioUnlockDiagnostics.result = result;
+            audioUnlockDiagnostics.errorName = errorName;
+          }
+          recordAudioUnlock(result, { attempt, source, errorName });
+          primeRunningAudioContext(context);
+          if (refreshDiagnostics && audioUnlockRefreshAllowed) refreshStandaloneBrowserList();
+        };
+        const completion = Promise.resolve(resumed).then(() => {
+          settle(context.state === "running" ? "resume-resolved" : "resume-not-running");
+        }, error => { settle("resume-rejected", error?.name || "Error"); });
+        try {
+          await Promise.race([completion, new Promise(resolve => {
+            timeout = window.setTimeout(() => { settle("resume-pending"); resolve(); }, 1500);
+          })]);
+        } finally { window.clearTimeout(timeout); }
+      } catch (error) {
+        audioUnlocked = audioContext?.state === "running";
+        if (attempt === audioUnlockDiagnostics.attempt && !audioUnlocked) {
+          audioUnlockDiagnostics.result = "resume-rejected";
+          audioUnlockDiagnostics.errorName = error?.name || "Error";
+        }
+        recordAudioUnlock("resume-rejected", { attempt, source, errorName: error?.name || "Error" });
+      }
+      if (refreshDiagnostics && audioUnlockRefreshAllowed) refreshStandaloneBrowserList();
     }
 
     async function loadAudioBuffers() {
@@ -5994,7 +6068,10 @@
         viewport: `${window.innerWidth}x${window.innerHeight}`,
         screen: `${window.screen.width}x${window.screen.height}`,
         dpr: window.devicePixelRatio || 1,
-        audioUnlocked,
+        audioUnlocked: browserAudioPlaybackReady(),
+        audioContextState: audioContext?.state || "unavailable",
+        audioUnlockState: audioUnlockDiagnostics.result,
+        audioUnlockError: audioUnlockDiagnostics.errorName,
         soundAllowed: browserSoundRequested(),
         serverAudioActive: Boolean(nativeAudioRoute?.suppressed()),
         audioBaseLatency: Number.isFinite(audioBaseLatency) ? audioBaseLatency * 1000 : "",
@@ -9578,14 +9655,22 @@
         const audioTimingTitleEn = audioTimingFresh
           ? `audio-clock error ${formatMs(audioTimingError)}; signal ${client.audioTimingKind || "n/a"}; sample age ${formatMs(audioTimingAge)}; green <100 ms, yellow 100–250 ms, red >250 ms`
           : "no fresh audio-clock error sample yet";
+        const audioReadyHintRu = client.audioContextState && !nativeAudioActive
+          ? client.audioUnlocked === true ? "; воспроизведение браузером запущено"
+            : "; воспроизведение браузером не запущено — коснитесь страницы на этом устройстве"
+          : "";
+        const audioReadyHintEn = client.audioContextState && !nativeAudioActive
+          ? client.audioUnlocked === true ? "; browser playback is running"
+            : "; browser playback has not started — tap the page on that device"
+          : "";
         const audioTitleRu = !audioAvailable
           ? audioUnavailableRu
           : nativeAudioActive ? `Звук воспроизводит сервер на этом компьютере; ${t("audioOffsetUser")}: ${formatMs(userAudioOffset)}`
-          : `Звук включён в настройках: ${yesNo(audioEnabled)}; разблокирован тапом: ${yesNo(client.audioUnlocked === true)}; ${t("audioOffsetUser")}: ${formatMs(userAudioOffset)}; ${audioTimingTitleRu}`;
+          : `Звук включён в настройках: ${yesNo(audioEnabled)}; запуск звука подтверждён: ${yesNo(client.audioUnlocked === true)}; ${t("audioOffsetUser")}: ${formatMs(userAudioOffset)}; ${audioTimingTitleRu}${audioReadyHintRu}`;
         const audioTitleEn = !audioAvailable
           ? audioUnavailableEn
           : nativeAudioActive ? `Sound is played by the server on this computer; ${t("audioOffsetUser")}: ${formatMs(userAudioOffset)}`
-          : `Sound enabled in settings: ${yesNo(audioEnabled)}; unlocked by tap: ${yesNo(client.audioUnlocked === true)}; ${t("audioOffsetUser")}: ${formatMs(userAudioOffset)}; ${audioTimingTitleEn}`;
+          : `Sound enabled in settings: ${yesNo(audioEnabled)}; audio start confirmed: ${yesNo(client.audioUnlocked === true)}; ${t("audioOffsetUser")}: ${formatMs(userAudioOffset)}; ${audioTimingTitleEn}${audioReadyHintEn}`;
         const audioAttrs = audioAvailable ? ` data-audio-client="${escapeHtml(client.id)}"` : "";
         const audioChipRu = diagChip("AUDIO", audioClasses, audioTitleRu, audioAttrs);
         const audioChipEn = diagChip("AUDIO", audioClasses, audioTitleEn, audioAttrs);
@@ -10003,8 +10088,17 @@
           }
         }
         if (!activeHtmlAudio.includes(immediateGestureAudio)) activeHtmlAudio.push(immediateGestureAudio);
-        immediateGestureAudio.play().catch(() => {
-          activeHtmlAudio = activeHtmlAudio.filter((item) => item !== immediateGestureAudio);
+        const gestureAudio = immediateGestureAudio;
+        const playAttempt = ++immediateGestureAudioAttempt;
+        gestureAudio.play().then(() => {
+          if (playAttempt !== immediateGestureAudioAttempt) return;
+          immediateGestureAudioConfirmed = true;
+          refreshStandaloneBrowserList();
+        }, () => {
+          if (playAttempt !== immediateGestureAudioAttempt) return;
+          immediateGestureAudioConfirmed = false;
+          activeHtmlAudio = activeHtmlAudio.filter((item) => item !== gestureAudio);
+          refreshStandaloneBrowserList();
         });
         return true;
       } catch (error) {
@@ -13350,11 +13444,19 @@
     els.progressTrack.addEventListener("pointermove", moveScrub);
     els.progressTrack.addEventListener("pointerup", stopScrub);
     els.progressTrack.addEventListener("pointercancel", stopScrub);
+    ["pointerup", "touchend"].forEach(eventName => {
+      document.addEventListener(eventName, event => {
+        if (eventName === "pointerup" && event.pointerType === "mouse") return;
+        unlockAudio(false, eventName);
+      }, { passive: true, capture: true });
+    });
     ["pointerdown", "touchstart", "click"].forEach((eventName) => {
       document.addEventListener(eventName, (event) => {
         if (event.target.closest(".action")) return;
         if (!event.target.closest(".exit-fullscreen-button")) revealExitFullscreenButton();
-        unlockAudio(eventName === "click");
+        if (eventName === "click" || (eventName === "pointerdown" && event.pointerType === "mouse")) {
+          unlockAudio(eventName === "click", eventName);
+        }
         if (pendingViewerFullscreen && isViewerClient && instancesFullscreenEnabled) {
           applyViewerFullscreenPreference(true);
         }
@@ -13362,10 +13464,15 @@
     });
 
     document.addEventListener("keydown", async (event) => {
-      unlockAudio();
+      unlockAudio(true, "keydown");
+      // Audio-route radios keep focus after switching, but are not text editors.
+      // Preserve native radio navigation and allow competition shortcuts here.
+      const audioRouteRadio = event.target instanceof Element &&
+        event.target.matches('input[type="radio"][data-server-audio-route]');
       // Typing and modal actions must never trigger competition hotkeys.
       if (event.defaultPrevented || event.isComposing || (event.target instanceof Element &&
-          (event.target.isContentEditable || event.target.closest("input, textarea, select, dialog[open]")))) return;
+          (event.target.isContentEditable || event.target.closest("textarea, select, dialog[open]") ||
+           (!audioRouteRadio && event.target.closest("input"))))) return;
       const key = event.key.toLowerCase();
       const isCtrl = event.ctrlKey || event.metaKey;
       const isPrimaryShortcut = isCtrl && (event.code === "KeyM" || key === "m" || key === "ь");

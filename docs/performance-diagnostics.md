@@ -284,3 +284,7 @@ Browser route diagnostics record server-audio-retry; the route snapshot exposes
 recoveryAttempt and recoveryExhausted. Transport retries have the same 1/3/10s
 limit and wait for release before retrying; they do not restart a healthy native
 process. Old prepare failures are fenced by the current route epoch.
+
+## Browser resume diagnosis (build 449)
+
+In perf=1, FDV_AUDIO_UNLOCK records expose resume requests, pending promises after a 1500ms observation bound, rejection/error names, resolution without a running context, and context state changes. Each request records the originating event and navigator.userActivation (or null where unavailable). A bounded 32-record copy is also included in snapshot.audio.unlock.events. A successful record describes the browser context, not physical sound. The iOS standalone HTML backend is identified separately in snapshot.audio.playbackBackend and readiness follows successful HTML playback. This mode does not enable or force sound and does not change timer anchors or cue deadlines.

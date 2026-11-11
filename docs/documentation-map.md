@@ -6,6 +6,8 @@ This file defines the documentation set and its source-of-truth boundaries. Prod
 
 ## User documentation
 
+Build449 confirms browser AUDIO readiness from the current playback backend and records resume outcomes in perf=1. See [review/browser-audio-unlock449.md](review/browser-audio-unlock449.md), architecture.md and performance-diagnostics.md for scope, compatibility and validation limits. The RU/EN guide explains that a recorded tap alone does not confirm playback.
+
 Build446 documents bounded native audio recovery, a disabled unavailable-route
 checkbox with RU/EN explanation, retry exhaustion, and future-only lease
 reacquisition. Architecture and performance docs specify retry/reset and

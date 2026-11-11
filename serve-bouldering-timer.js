@@ -31,7 +31,7 @@ const legacyRuntimeStatePath = runtimeStatePath;
 const beepsPath = path.join(root, "beeps");
 const fontsPath = path.join(root, "fonts");
 const offlineAudioPath = path.join(root, "lib", "offline-audio.js");
-const BUILD_NUMBER = 448;
+const BUILD_NUMBER = 449;
 const serverInstanceId = crypto.randomUUID();
 let serverAudio = null;
 const launcherLanguageToken = process.env.FDV_LAUNCHER_LANGUAGE_TOKEN || "";
@@ -1489,6 +1489,9 @@ function registerClient(req, source = {}) {
     dpr: optionalNumber(sourceValue(source, "dpr"), existing.dpr ?? null),
     clientBuild: optionalNumber(sourceValue(source, "clientBuild"), existing.clientBuild ?? null),
     audioUnlocked: optionalBool(sourceValue(source, "audioUnlocked"), existing.audioUnlocked ?? null),
+    audioContextState: String(sourceHas(source, "audioContextState") ? sourceValue(source, "audioContextState") || "" : existing.audioContextState || "").slice(0, 24),
+    audioUnlockState: String(sourceHas(source, "audioUnlockState") ? sourceValue(source, "audioUnlockState") || "" : existing.audioUnlockState || "").slice(0, 32),
+    audioUnlockError: String(sourceHas(source, "audioUnlockError") ? sourceValue(source, "audioUnlockError") || "" : existing.audioUnlockError || "").slice(0, 80),
     soundAllowed: optionalBool(sourceValue(source, "soundAllowed"), existing.soundAllowed ?? null),
     audioBaseLatency: optionalNumber(sourceValue(source, "audioBaseLatency"), existing.audioBaseLatency ?? null),
     audioOutputLatency: optionalNumber(sourceValue(source, "audioOutputLatency"), existing.audioOutputLatency ?? null),

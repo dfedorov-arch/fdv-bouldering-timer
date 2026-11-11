@@ -670,8 +670,8 @@ test("desktop audio calibration scrolls its editor into view", () => {
 });
 
 test("audio unlock does not replace a diagnostic button during pointerdown", () => {
-  assert.match(index, /async function unlockAudio\(refreshDiagnostics = true\)/);
-  assert.match(index, /unlockAudio\(eventName === "click"\);/);
+  assert.match(index, /async function unlockAudio\(refreshDiagnostics = true, source = "request"\)/);
+  assert.match(index, /unlockAudio\(eventName === "click", eventName\);/);
 });
 
 test("timer fitting avoids a resize feedback loop and repeated binary-search layouts", () => {
@@ -735,7 +735,7 @@ test("a discontinuous browser clock requires measured calibration without a wall
 });
 
 test("iOS audio falls back when its decoded-buffer context is not running", () => {
-  assert.match(index, /if \(audioContext\.state !== "running" && audioContext\.state !== "closed"\)/);
+  assert.match(index, /if \(!audioContext \|\| audioContext\.state === "closed"\)/);
   assert.match(index, /if \(!canPlaySound\(\) \|\| !audioContext \|\| audioContext\.state !== "running"\) return false;/);
   assert.doesNotMatch(index, /if \(audioUnlocked\) return;/);
 });
@@ -744,7 +744,7 @@ test("standalone iOS reuses gesture-authorized HTML audio for every manual start
   assert.match(index, /const iosAudioWorkaroundEnabled = \/iPad\|iPhone\|iPod\/i/);
   assert.match(index, /function playImmediateGestureAudio\(kind\)/);
   assert.match(index, /standaloneMode && iosAudioWorkaroundEnabled && playImmediateGestureAudio\("start"\)/);
-  assert.match(index, /unlockSource\.buffer = audioContext\.createBuffer\(1, 1, 22050\);/);
+  assert.match(index, /unlockSource\.buffer = context\.createBuffer\(1, 1, 22050\);/);
 });
 
 test("all standalone iOS signals keep the authorized media element and server scheduler", () => {
