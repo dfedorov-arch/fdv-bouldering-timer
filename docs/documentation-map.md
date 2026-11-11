@@ -1,5 +1,7 @@
 # Documentation map
 
+Public GitHub release descriptions follow the owner's editorial rules in [releases/README.md](releases/README.md): new functionality, changes to existing behavior, and general bug-fix wording with an optional area. Detailed investigations and validation evidence belong in technical documentation. The repository AGENTS.md points future release work to these rules.
+
 This file defines the documentation set and its source-of-truth boundaries. Product terminology in user-facing text is **start list / стартовый список** and **list / список**. Internal identifiers such as `startList*` and compatibility names such as `legacyProtocols` remain implementation details.
 
 ## User documentation
