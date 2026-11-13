@@ -32,7 +32,7 @@ Audio. After server output is activated, the server maintains playback independe
 Сборка 424: современные браузеры дополнительно прогревают звук за 10 секунд до первого сигнала и сохраняют запоздавший технический прогрев в актуальной фазе. Допуски основных сигналов не изменены. Экранный Legacy остаётся без звука.
 Сборка 423: современные браузеры сохраняют звук при переключении вкладок и проверяют задержки выполнения/звуковые часы. Это не обходит сон устройства или принудительную заморозку страницы. Экранный Legacy по-прежнему без звука; сборка 425 добавляет локальный серверный звук.
 Сборка 422: современные браузеры этого сервера поддерживают CTRL (Старт/Стоп/Пауза/Экран и горячие клавиши), отдельное отключение звуков последних 5 секунд перерыва и MINUTE за минуту до запланированного старта. В экранном Legacy CTRL недоступен и звук по-прежнему отсутствует. Оба сервера резервной пары должны быть одной сборки.
-Отдельная portable-сборка для Windows 7 SP1, Windows 8 и 8.1.
+Для Windows 7 SP1, Windows 8 и 8.1 доступны MSI и portable ZIP. MSI устанавливает программу и предлагает ярлыки; ZIP запускается из распакованной папки.
 Выбирайте x86 для 32-битной ОС, x64 для 64-битной. Распакуйте весь ZIP
 в отдельный каталог: не смешивайте файлы с обычной Windows-сборкой.
 
@@ -52,6 +52,7 @@ Audio. After server output is activated, the server maintains playback independe
    сервером, остановите тот сервер самостоятельно или измените порт в params.txt.
 4. Параметры, списки, звук, синхронизация, восстановление и резервный сервер — общие с обычной
    сборкой. Встроенный Node не заменяйте современным: он не запустится на Win7.
+   MSI устанавливает программу в Program Files\FDV Bouldering Timer Legacy; пользовательские данные — в %LOCALAPPDATA%\FDV Bouldering Timer. Удаление сохраняет эти данные; подробнее ReadMe-MSI.txt.
    Состояние portable-сервера сохраняется в runtime-state рядом с приложением;
    при запрете записи применяется общий пользовательский резервный каталог.
 5. Браузеры старых ОС тоже устарели. Сервер на Win7 может обслуживать современные
@@ -86,7 +87,7 @@ Build 425: modern browsers on the server computer automatically delegate sound, 
 Build 424: modern browsers add preparation 10 seconds before the first signal and retain late technical warmups in their current phase. Competition-signal lateness limits are unchanged. Legacy displays remain silent.
 Build 423: modern browsers keep sound active when switching tabs, with callback-delay and audio-clock checks. Device sleep and forced page freezing can still interrupt playback. Legacy displays remain silent; the server does not play sound.
 Build 422: modern browsers on this server support CTRL (Start/Stop/Pause/Screen and shortcuts), optional last-five-break-second mute and MINUTE before a scheduled start. Legacy display mode remains silent with CTRL unavailable. Both paired servers must use the same build.
-Separate portable package for Windows 7 SP1 / Windows 8 / Windows 8.1.
+MSI installers and portable ZIPs are available for Windows 7 SP1 / Windows 8 / Windows 8.1. MSI provides installation/shortcuts; ZIP runs from its extracted folder. Installed data lives in %LOCALAPPDATA%\FDV Bouldering Timer and is retained on uninstall; see ReadMe-MSI.txt.
 Use x86 for 32-bit Windows, x64 for 64-bit. Extract the full ZIP into a separate
 folder; do not mix it with the ordinary Windows package.
 

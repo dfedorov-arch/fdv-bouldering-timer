@@ -72,7 +72,7 @@ APK учитывает системную панель навигации и в�
 
 ### Windows 7 / 8 / 8.1
 
-Для этих ОС предусмотрены отдельные portable ZIP `windows7-8-x86` и `windows7-8-x64` в составе релиза; обычные Windows MSI/ZIP с современным Node.js для них не подходят. Распакуйте Legacy-архив целиком в отдельный короткий каталог, например `C:\FDVTimer`. Запускайте EXE вместе с его обязательным `.exe.config` либо `start-timer-win.bat` без .NET/PowerShell. Используются официальный Node.js 12.22.12 и адаптированная при сборке копия общего сервера, а не другая логика часов или звука. Старый браузер при необходимости использует отдельный экранный режим Legacy без звука; сервер может обслуживать современные экраны на других устройствах.
+Для этих ОС предусмотрены отдельные MSI и portable ZIP `windows7-8-x86` и `windows7-8-x64` в составе релиза; обычные Windows MSI/ZIP с современным Node.js для них не подходят. Распакуйте Legacy-архив целиком в отдельный короткий каталог, например `C:\FDVTimer`. Запускайте EXE вместе с его обязательным `.exe.config` либо `start-timer-win.bat` без .NET/PowerShell. Используются официальный Node.js 12.22.12 и адаптированная при сборке копия общего сервера, а не другая логика часов или звука. Старый браузер при необходимости использует отдельный экранный режим Legacy без звука; сервер может обслуживать современные экраны на других устройствах.
 
 **Только доверенная изолированная локальная сеть:** Node.js 12 и старые ОС больше не получают обновлений безопасности. Не публикуйте такой сервер в интернете; HTTPS не устраняет этот риск. Для публичного сервера используйте современную ОС/VDS. Подробности — [ReadMe Windows Legacy](ReadMe-windows-legacy.txt). Первую сборку необходимо проверить на реальной Win7/Win8 перед соревнованиями.
 
@@ -211,7 +211,7 @@ All devices must be on the same local network. See the [full guide](help.html?la
 
 ### Windows 7 / 8 / 8.1
 
-Use the separate `windows7-8-x86` or `windows7-8-x64` portable ZIP, not the ordinary Windows MSI/ZIP with modern Node.js. Extract everything into a separate short path such as `C:\FDVTimer`. Keep the mandatory `.exe.config` beside the GUI EXE, or use `start-timer-win.bat` without .NET/PowerShell. These packages use official Node.js 12.22.12 and a build-time adaptation of the same server, not separate clock/audio logic. Old-browser Legacy display mode remains a different feature and has no sound; modern devices can connect to a server running on an old OS.
+Choose the separate `windows7-8-x86` or `windows7-8-x64` MSI/portable ZIP. Ordinary modern Windows MSI/ZIPs use a different runtime. MSI installs the Legacy package with optional shortcuts and per-user data; ZIP runs from its extracted folder. Extract everything into a separate short path such as `C:\FDVTimer`. Keep the mandatory `.exe.config` beside the GUI EXE, or use `start-timer-win.bat` without .NET/PowerShell. These packages use official Node.js 12.22.12 and a build-time adaptation of the same server, not separate clock/audio logic. Old-browser Legacy display mode remains a different feature and has no sound; modern devices can connect to a server running on an old OS.
 
 **Trusted isolated LAN only:** Node12 and these OS versions are end-of-life. Do not expose the server to the Internet; HTTPS cannot fix that risk. Use a modern OS/VDS for public access. See [Windows Legacy notes](ReadMe-windows-legacy.txt). Physical Win7/Win8 testing is required before competition use.
 

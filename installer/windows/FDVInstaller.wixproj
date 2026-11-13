@@ -1,11 +1,33 @@
 <Project Sdk="WixToolset.Sdk/4.0.6">
   <PropertyGroup>
     <OutputType>Package</OutputType>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <LegacyPackage Condition="'$(LegacyPackage)' == ''">false</LegacyPackage>
     <OutputName>fdv-bouldering-timer-windows-x64</OutputName>
+    <InstallerName>FDV Bouldering Timer</InstallerName>
+    <InstallerFolder>FDV Bouldering Timer</InstallerFolder>
+    <InstallerRegistryKey>Software\FDV\Bouldering Timer</InstallerRegistryKey>
+    <InstallerUpgradeCode>B72ED423-6973-467C-8AB5-7F85D90CF8D9</InstallerUpgradeCode>
+    <InstallerProgramFiles>ProgramFiles64Folder</InstallerProgramFiles>
+    <InstallerCodepage>65001</InstallerCodepage>
     <Cultures>ru-RU</Cultures>
-    <DefineConstants>PayloadDir=$(PayloadDir);Version=$(Version)</DefineConstants>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(LegacyPackage)' == 'true'">
+    <OutputName>fdv-bouldering-timer-windows7-8-$(Platform)</OutputName>
+    <InstallerName>FDV Bouldering Timer (Windows 7-8 $(Platform))</InstallerName>
+    <InstallerCodepage>1251</InstallerCodepage>
+    <InstallerFolder>FDV Bouldering Timer Legacy</InstallerFolder>
+    <InstallerRegistryKey>Software\FDV\Bouldering Timer Legacy\$(Platform)</InstallerRegistryKey>
+    <InstallerUpgradeCode Condition="'$(Platform)' == 'x64'">31EFCB29-AD9A-4E08-9B01-F20A68727C19</InstallerUpgradeCode>
+    <InstallerUpgradeCode Condition="'$(Platform)' == 'x86'">CDF4D4AB-5521-427C-B10B-92F10BF6B90D</InstallerUpgradeCode>
+    <InstallerProgramFiles Condition="'$(Platform)' == 'x86'">ProgramFilesFolder</InstallerProgramFiles>
+  </PropertyGroup>
+  <PropertyGroup>
+    <DefineConstants>PayloadDir=$(PayloadDir);Version=$(Version);LegacyPackage=$(LegacyPackage);InstallerName=$(InstallerName);InstallerFolder=$(InstallerFolder);InstallerRegistryKey=$(InstallerRegistryKey);InstallerUpgradeCode=$(InstallerUpgradeCode);InstallerProgramFiles=$(InstallerProgramFiles);InstallerCodepage=$(InstallerCodepage)</DefineConstants>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="Product.wxs" />
+    <Compile Include="InstallDirNoLicense.wxs" />
     <PackageReference Include="WixToolset.Heat" Version="4.0.6" />
     <PackageReference Include="WixToolset.UI.wixext" Version="4.0.6" />
     <HarvestDirectory Include="$(PayloadDir)">
@@ -13,6 +35,8 @@
       <DirectoryRefId>INSTALLFOLDER</DirectoryRefId>
       <PreprocessorVariable>var.PayloadDir</PreprocessorVariable>
       <SuppressRootDirectory>true</SuppressRootDirectory>
+      <SuppressCom>true</SuppressCom>
+      <SuppressRegistry>true</SuppressRegistry>
     </HarvestDirectory>
     <BindPath Include="$(PayloadDir)" />
   </ItemGroup>

@@ -106,10 +106,18 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           $package = "dist\fdv-bouldering-timer-$env:FDV_RELEASE_TAG-windows7-8-${{ matrix.arch }}"
           Compress-Archive -LiteralPath $package -DestinationPath ($package + '.zip')
+      - name: Build and verify Windows 7/8 MSI
+        shell: powershell
+        run: |
+          $version = $env:FDV_RELEASE_TAG.TrimStart('v')
+          scripts/build-windows-msi.ps1 -PayloadDirectory "dist/fdv-bouldering-timer-$env:FDV_RELEASE_TAG-windows7-8-${{ matrix.arch }}" -OutputDirectory dist -Version $version -Architecture '${{ matrix.arch }}' -Legacy
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - uses: actions/upload-artifact@v4
         with:
           name: windows-legacy-${{ matrix.arch }}
-          path: dist/*-windows7-8-*.zip
+          path: |
+            dist/*-windows7-8-*.zip
+            dist/*-windows7-8-*.msi
           if-no-files-found: error
 
   unix-launchers:
@@ -174,13 +182,13 @@ jobs:
           chmod +x scripts/build-portable-releases.sh
           scripts/build-portable-releases.sh "$FDV_RELEASE_TAG" --target=windows-x64
           unzip -q "dist/fdv-bouldering-timer-${FDV_RELEASE_TAG}-windows-x64.zip" -d installer-payload
-      - name: Build MSI
+      - name: Build and verify MSI
         shell: powershell
         run: |
           $version = $env:FDV_RELEASE_TAG.TrimStart('v')
           $payload = Join-Path $env:GITHUB_WORKSPACE "installer-payload\fdv-bouldering-timer-$env:FDV_RELEASE_TAG-windows-x64"
-          dotnet build installer\windows\FDVInstaller.wixproj -p:PayloadDir=$payload -p:Version=$version -p:Platform=x64 -o msi-output
-          Move-Item (Get-ChildItem msi-output -Filter '*.msi' | Select-Object -First 1).FullName "dist\fdv-bouldering-timer-$env:FDV_RELEASE_TAG-windows-x64.msi"
+          scripts/build-windows-msi.ps1 -PayloadDirectory $payload -OutputDirectory dist -Version $version -Architecture x64
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - uses: actions/upload-artifact@v4
         with: { name: windows-msi, path: dist/*.msi, if-no-files-found: error }
 

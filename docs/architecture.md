@@ -545,6 +545,14 @@ The macOS PKG installs its payload at `/Applications/FDV Bouldering Timer`. Its 
 
 ## Generated outputs and release gates
 
+Windows MSI uses the shared parameterized WiX4 project. Modern x64 retains its
+existing product/upgrade family; Windows7/8 x86 and x64 use compatible portable
+payloads, CLR2/CLR4 configuration, separate upgrade identities and Legacy folder
+names. Each build checks MSI tables, administrative extraction, complete payload
+hashes and an isolated extracted-server startup before publishing. The release
+output contains only installers; temporary extraction/profile data stays outside
+it. See [Windows MSI packaging](../installer/windows/README.md).
+
 Do not edit generated `dist/` packages or `lib/offline-audio.js` manually. Before release:
 
 ```bash
