@@ -5,6 +5,10 @@ changes since 2.3.2 are in [releases/v3.0.0.md](releases/v3.0.0.md).
 [review/release300.md](review/release300.md) records source/CI/browser checks,
 published assets and verified Latest/checksum metadata.
 
+The Windows7/8 MSI follow-up is recorded in
+[review/windows-legacy-msi300.md](review/windows-legacy-msi300.md), with shared
+build/verification instructions in [installer/windows/README.md](../installer/windows/README.md).
+
 Public GitHub release descriptions follow the owner's editorial rules in [releases/README.md](releases/README.md): new functionality, changes to existing behavior, and general bug-fix wording with an optional area. Detailed investigations and validation evidence belong in technical documentation. The repository AGENTS.md points future release work to these rules.
 
 This file defines the documentation set and its source-of-truth boundaries. Product terminology in user-facing text is **start list / стартовый список** and **list / список**. Internal identifiers such as `startList*` and compatibility names such as `legacyProtocols` remain implementation details.

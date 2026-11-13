@@ -1,5 +1,9 @@
 # Stable release 3.0.0 — 13 November 2026
 
+Follow-up: [Windows7/8 MSI installers](windows-legacy-msi300.md) were subsequently
+added to this same release. It now has18 assets; the original14 payloads and
+tag are retained. The counts below record the initial publication.
+
 Published [v3.0.0](https://github.com/dfedorov-arch/fdv-bouldering-timer/releases/tag/v3.0.0)
 as stable Latest. Timer build remains 454. Russian and English notes describe
 new functionality relative to 2.3.2 and follow the owner's release-note rules.
