@@ -94,7 +94,7 @@ test("Secondary address typing never triggers timer hotkeys and full names are l
     expect(controls.filter(type => ["reset", "start", "pause", "primary"].includes(type))).toEqual([]);
     await pair(page,backup);
     await expect(page.locator("#secondaryServerButton")).toHaveText("SEC");
-    await expect(page.locator("#secondaryServerButton")).toHaveAttribute("title", `Secondary server: ${backup.baseUrl}`);
+    await expect(page.locator("#secondaryServerButton")).toHaveAttribute("title", `Secondary server: ${backup.baseUrl}. Primary: available; Secondary: available.`);
     const badge = page.locator('[data-secondary-client="operator"]');
     await expect(badge).toHaveText("SEC");
     await expect(badge).toHaveAttribute("title", /Secondary server/);

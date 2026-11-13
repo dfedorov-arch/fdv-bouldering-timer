@@ -292,12 +292,16 @@ test("calendar changes preserve a running screen's clock, timers and already sch
       await page.goto(server.baseUrl + "/?perf=3", { waitUntil:"domcontentloaded" });
       await page.waitForFunction(() => !clockCalibrationPending && state.timerClockVersion === 1);
       await page.waitForFunction(() => !syncRequestInFlight);
+      // Confirm autoplay permission before testing retention of a real audio node.
+      await page.mouse.click(8, 8);
+      await page.waitForFunction(() => audioContext?.state === "running");
       await page.evaluate(async () => {
         for (let i = 0; i < 6; i += 1) await syncFromServer({skipBurst:true});
         await unlockAudio(false);
         await loadAudioBuffers();
         // A real Web Audio node far enough ahead to survive the assertions.
-        scheduleBufferedSignalAt(getCurrentSegment(elapsedSeconds()), serverNow()+30000, "minute", false, true);
+        scheduleBufferedSignalAt(getCurrentSegment(elapsedSeconds()), serverNow()+30000, "minute", false, true, null,
+          { signalKey: "calendar-retained-node:" + state.audioRunId });
         window.clockTest = {
           nodes: scheduledAudioNodes.slice(), clears:0,
           generation: audioScheduleGeneration, startedAt: state.serverStartedAt,
