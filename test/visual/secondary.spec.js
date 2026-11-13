@@ -128,7 +128,7 @@ test("Secondary disconnect reports its active browsers in both languages and pre
       await page.evaluate(async () => {
         await unlockAudio(false); await loadAudioBuffers();
         const previous = new Set(scheduledAudioNodes);
-        scheduleBufferedSignalAt(getCurrentSegment(elapsedSeconds()),serverNow()+40000,"minute",false,true);
+        scheduleBufferedSignalAt(getCurrentSegment(elapsedSeconds()),serverNow()+40000,"minute",false,true,null,{signalKey:"disconnect-probe:"+(window.secondaryProbeSequence=(window.secondaryProbeSequence||0)+1)});
         window.secondaryRemoveAudio = {nodes:scheduledAudioNodes.filter(node=>!previous.has(node)),generation:audioScheduleGeneration,context:audioContext};
       });
       expect(await page.evaluate(()=>window.secondaryRemoveAudio.nodes.length)).toBeGreaterThan(0);
@@ -258,7 +258,8 @@ test("SEC pairs without disturbing audio, moves one screen, merges diagnostics a
     await page.locator("#secondaryServerClose").click();
     await badge.click();
     await viewer.page.waitForFunction(()=>secondaryConnection.info().onSecondary);
-    await expect(badge).not.toHaveClass(/inactive|neutral/);
+    await expect(badge).toHaveClass(/good/);
+    await expect(badge).toHaveAttribute("data-secondary-destination","primary");
     expect(viewer.page.url()).toContain(primary.baseUrl);
     await expect.poll(async()=>(await primary.state()).clients.find(client=>client.id==="screen")?.delivery?.status).toBe("applied");
     await primary.action({clientId:"operator",type:"legacyMode",targetClientId:"screen",enabled:true});
@@ -295,7 +296,7 @@ test("SEC pairs without disturbing audio, moves one screen, merges diagnostics a
     await page.locator('[data-secondary-client="screen"]').click();
     await viewer.page.waitForFunction(()=>secondaryConnection.info().onSecondary && !clockCalibrationPending);
     expect(await viewer.page.evaluate(()=>secondaryConnection.info().active)).toBe(primary.baseUrl);
-    await expect(badge).not.toHaveClass(/inactive|neutral/);
+    await expect(badge).toHaveClass(/good/);
     // Transfer the whole group a second time to the already-known old process.
     await page.locator('[data-secondary-client="operator"]').click();
     await page.waitForFunction(url=>secondaryConnection.info().active === url && !clockCalibrationPending,primary.baseUrl);
@@ -335,7 +336,7 @@ test("SEC diagnostics stay in one contained row with LEG at every control width"
       }));
       expect(rows.length).toBeGreaterThanOrEqual(3);
       for (const row of rows) {
-        expect(row.chips.length).toBe(9);
+        expect(row.chips.length).toBe(10);
         expect(row.label,JSON.stringify(size)).toBe("LEG");
         for (const chip of row.chips) {
           expect(Math.abs(chip.top-row.chips[0].top),JSON.stringify(size)).toBeLessThan(1);
@@ -372,27 +373,78 @@ test("primary browser on a following SEC returns the group to the current primar
   });
 });
 
-test("SEC automatically takes over after 20 seconds, preserves the run and does not fail back on primary restart", async ({browser}) => {
+test("SEC cuts over in 2 seconds, clears its yellow warning at 20 seconds and retains authority after late recovery", async ({browser}) => {
   await withServers(async ({primary,backup,contexts}) => {
     const {page,errors} = await open(browser,primary,"operator",contexts);
+    await expect(page.locator("#secondaryServerButton")).toHaveAttribute("data-health","missing");
     await pair(page,backup);
+    await expect(page.locator("#secondaryServerButton")).toHaveAttribute("data-health","good");
     const before=await page.evaluate(()=>({elapsed:elapsedSeconds(),at:performance.now(),clientId}));
     await primary.stop();
     await page.waitForFunction(()=>secondaryConnection.info().onSecondary && !clockCalibrationPending,null,{timeout:30000});
     const after=await page.evaluate(()=>({elapsed:elapsedSeconds(),at:performance.now(),clientId}));
-    expect(after.at-before.at).toBeGreaterThanOrEqual(19000);
+    expect(after.at-before.at).toBeGreaterThanOrEqual(1500);
+    expect(after.at-before.at).toBeLessThan(6500);
+    await expect(page.locator("#serverConnectionWarning")).toHaveAttribute("data-state","secondary");
+    await expect(page.locator("#serverConnectionWarningText")).toContainText("Переключились на резервный");
+    await expect(page.locator("#enterStandaloneBtn")).toBeHidden();
+    await expect(page.locator("#secondaryServerButton")).toHaveAttribute("data-health","down");
+    await page.screenshot({path:path.join(__dirname,"../../dist/sec454-yellow.png")});
     expect(after.clientId).toBe(before.clientId);
     expect(Math.abs(after.elapsed-before.elapsed-(after.at-before.at)/1000)).toBeLessThan(0.25);
     await expect.poll(async ()=>(await backup.state()).sec.switchAll,{timeout:6000}).toBe(true);
     await page.locator("#pauseBtn").click();
     await expect.poll(async ()=>(await backup.state()).running).toBe(false);
     const paused=(await backup.state()).elapsed;
+    await expect(page.locator("#serverConnectionWarning")).toBeHidden({timeout:22000});
     await primary.restart();
     await expect.poll(async ()=>{try {const s=await primary.state();return s.sec.epoch === 1 && s.sec.role === "secondary" && s.sec.ready;}catch(_){return false;}},{timeout:6000}).toBe(true);
     await page.waitForTimeout(1000);
     expect(await page.evaluate(()=>secondaryConnection.info().active)).toBe(backup.baseUrl);
     expect(await page.evaluate(()=>secondaryConnection.info().config.secondaryUrl)).toBe(primary.baseUrl);
     expect((await backup.state()).elapsed).toBe(paused);
+    await expect(page.locator("#secondaryServerButton")).toHaveAttribute("data-health","good");
     expect(errors).toEqual([]);
   });
+});
+
+test("SEC returns modern and Legacy displays after early recovery and keeps reserve commands",async({browser})=>{
+  await withServers(async({primary,backup,contexts})=>{
+    const {page,errors}=await open(browser,primary,"operator",contexts);
+    const legacy=await open(browser,primary,"legacy-auto",contexts,true);
+    await pair(page,backup);
+    await legacy.page.waitForFunction(()=>window.FDVSecondaryConnection.info().available);
+    await page.evaluate(()=>window.secAudioBefore=audioContext);
+    await primary.stop();
+    await page.waitForFunction(()=>secondaryConnection.info().onSecondary && !clockCalibrationPending,null,{timeout:6500});
+    await legacy.page.waitForFunction(()=>window.FDVSecondaryConnection.info().onSecondary,null,{timeout:6500});
+    await expect(page.locator("#serverConnectionWarning")).toHaveAttribute("data-state","secondary");
+    await page.locator("#pauseBtn").click();
+    await expect.poll(async()=>(await backup.state()).running).toBe(false);
+    const paused=(await backup.state()).elapsed;
+    await primary.restart();
+    await page.waitForFunction(url=>secondaryConnection.info().active===url && !clockCalibrationPending,primary.baseUrl,{timeout:8000});
+    await legacy.page.waitForFunction(url=>window.FDVSecondaryConnection.info().active===url,primary.baseUrl,{timeout:8000});
+    await expect(page.locator("#serverConnectionWarning")).toBeHidden();
+    await expect(page.locator("#secondaryServerButton")).toHaveAttribute("data-health","good");
+    expect((await primary.state()).elapsed).toBe(paused);
+    expect((await primary.state()).sec.epoch).toBe(0);
+    expect(await page.evaluate(()=>audioContext===window.secAudioBefore)).toBe(true);
+    expect(errors).toEqual([]);expect(legacy.errors).toEqual([]);
+  });
+});
+
+
+test("SEC setup text brightens on hover like PIN and pair health changes only its border",async({browser})=>{
+ await withServers(async({primary,backup,contexts})=>{
+  const {page}=await open(browser,primary,"operator",contexts);
+  const sec=page.locator("#secondaryServerButton"),pin=page.locator("#primaryPinButton");
+  await page.locator("#secondaryServerButton, #primaryPinButton").evaluateAll(buttons=>buttons.forEach(button=>button.style.transition="none"));
+  await page.locator("h1").hover();const color=await sec.evaluate(el=>getComputedStyle(el).color);
+  await sec.hover();const bright=await sec.evaluate(el=>getComputedStyle(el).color);expect(bright).not.toBe(color);
+  await pin.hover();expect(await pin.evaluate(el=>getComputedStyle(el).color)).toBe(bright);
+  await pair(page,backup);await page.locator("h1").hover();expect(await sec.evaluate(el=>getComputedStyle(el).color)).toBe(color);
+  await backup.stop();await expect(sec).toHaveAttribute("data-health","down");expect(await sec.evaluate(el=>getComputedStyle(el).color)).toBe(color);
+  await expect(page.locator('[data-secondary-client="operator"]')).toHaveClass(/neutral/);
+ });
 });

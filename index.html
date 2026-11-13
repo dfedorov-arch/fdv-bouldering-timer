@@ -830,6 +830,14 @@
       border-color: var(--green);
       color: var(--text);
     }
+    #secondaryServerButton { color: var(--muted); }
+    #secondaryServerButton:not(:disabled):hover,
+    #secondaryServerButton:not(:disabled):focus-visible { color: var(--text); }
+    #secondaryServerButton[data-health="missing"] { border-color: #ffc857; }
+    #secondaryServerButton[data-health="down"] { border-color: #f05a59; }
+    #secondaryServerButton[data-health="good"] { border-color: var(--green); }
+    .server-connection-warning[data-state="secondary"] { border-color: #ffc857; background: #352c16; }
+    .server-connection-warning[data-state="secondary"] strong { color: #ffc857; }
 
     .primary-pin-button:disabled {
       opacity: .5;
@@ -1994,7 +2002,7 @@
     .time-separator {
       flex: 0 0 auto;
       text-align: center;
-      transform: translateY(-.04em);
+      transform: scaleY(var(--timer-separator-scale, 1)) translateY(-.04em);
     }
 
     .server-clock-display {
@@ -2635,27 +2643,27 @@
       white-space: nowrap;
     }
 
-    .sound-options-row { justify-content: flex-start; gap: 4px; container: sound-options / inline-size; }
-    .main-sound-option, .other-sound-option { align-items: center; gap: 10px; min-width: 0; }
-    .main-sound-option { display: flex; flex: 0 1 auto; }
-    .main-sound-option > span { min-width: 0; white-space: nowrap; }
-    body:not(.primary-active) .main-sound-option { flex: 1; justify-content: space-between; }
-    .other-sound-option { flex: 1 0 95px; justify-content: space-between; }
-    .other-sound-option > span { white-space: nowrap; }
-    body.primary-active .other-sound-option { display: flex; }
-    .sound-options-row input { flex: 0 0 35px; }
-    body.primary-active .sound-options-row #soundToggle { flex-basis: 20px; width: 20px; }
-    .sound-primary-full { display: none; }
-    @container sound-options (min-width: 300px) {
-      .sound-primary-full { display: inline; }
-      .sound-primary-short { display: none; }
+    .section-options input[type="checkbox"] { flex: 0 0 20px; width: 20px; height: 20px; min-height: 20px; margin: 0; }
+    .sound-options-row, .signal-options-row {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      column-gap: 16px;
+      row-gap: 0;
+      min-height: 32px;
     }
-    @container sound-options (max-width: 310px) {
-      .other-sound-option { gap: 0; }
+    .sound-options-row > label, .signal-options-row > label {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 20px;
+      align-items: center;
+      gap: 8px;
+      min-width: 0;
+      min-height: 32px;
+      line-height: 1.2;
     }
-    .signal-options-row { display: flex; flex-wrap: wrap; column-gap: 10px; }
-    .signal-options-row > .switch-row { flex: 1 1 auto; gap: 8px; }
-    .signal-options-row input { flex: 0 0 35px; }
+    .sound-options-row > label > span, .signal-options-row > label > span { min-width: 0; }
+    body.primary-active .sound-options-row > .other-sound-option { display: grid; }
+    body:not(.primary-active) .other-sound-option { display: none; }
+    body:not(.primary-active) .main-sound-option { grid-column: 1 / -1; }
     body.viewer-mode.limited-control:not(.fullscreen) .app {
       min-height: 0;
       height: 100vh;
@@ -3110,8 +3118,8 @@
           <input id="festivalAnnouncementsToggle" type="checkbox" checked>
         </label>
         <div class="switch-row sound-options-row">
-          <label class="main-sound-option"><span id="soundLabel">Звук в основном браузере</span><input id="soundToggle" type="checkbox" checked></label>
-          <label class="other-sound-option primary-option"><span id="instancesSoundLabel" title="Звук в других браузерах">, в других</span><input id="instancesSoundToggle" type="checkbox"></label>
+          <label class="main-sound-option"><span id="soundLabel">Звук: основной</span><input id="soundToggle" type="checkbox" checked></label>
+          <label class="other-sound-option primary-option"><span id="instancesSoundLabel" title="Звук в других браузерах">Звук: остальные</span><input id="instancesSoundToggle" type="checkbox" aria-label="Звук в других браузерах"></label>
         </div>
         <div class="signal-options-row">
           <label class="switch-row"><span id="flashLabel">Мигание</span><input id="flashToggle" type="checkbox" checked></label>
@@ -3223,8 +3231,10 @@
   <script src="lib/start-list-route-editor.js"></script>
   <script src="lib/client-action-transport.js"></script>
   <script src="lib/client-delivery.js"></script>
+  <script src="lib/timer-stretch.js"></script>
   <script src="lib/client-server-audio.js"></script>
   <script src="lib/speaker-keep-awake.js"></script>
+  <script src="lib/final-start-prewarm.js"></script>
   <script src="lib/client-secondary-server.js"></script>
   <script>
     const presets = {
@@ -3259,6 +3269,7 @@
       showBrowserNumbers: false,
       browserDisplayNumber: 0,
       showServerTime: false,
+      timerVerticalStretch: readTimerVerticalStretchPreference(),
       serverTimezoneOffsetMinutes: new Date().getTimezoneOffset(),
       clockDiagnostics: null,
       startLists: [null],
@@ -3270,7 +3281,7 @@
       timeline: []
     };
 
-    const pageBuildNumber = 449;
+    const pageBuildNumber = 454;
     const projectUrl = "https://github.com/dfedorov-arch/fdv-bouldering-timer";
     const buildLinkConfirmDelayMs = 550;
     const offlineSnapshotKey = "fdvBoulderingTimerOfflineSnapshot";
@@ -4083,6 +4094,7 @@
     }
 
     function performanceAudioTarget(signalKey) {
+      if (audioEventTargets.has(signalKey)) return audioEventTargets.get(signalKey);
       const normalizedSignalKey = String(signalKey || "");
       if (!normalizedSignalKey) return null;
       const parts = normalizedSignalKey.split(":");
@@ -4132,7 +4144,8 @@
       }]));
       const signalDetails = (keys) => [...keys].slice(-100).map((key) => {
         const parts = String(key).split(":");
-        const targetServerTimeMs = Number(parts.pop());
+        const targetServerTimeMs = performanceAudioTarget(key);
+        parts.pop();
         return Number.isFinite(targetServerTimeMs) ? {
           id: parts.join(":"),
           key,
@@ -4302,6 +4315,8 @@
     let buffersLoading = null;
     let audioLoadGeneration = 0;
     let audioScheduleGeneration = 0;
+    let handledManualStart = null;
+    const finalStartPrewarmPlanner = window.FDVFinalStartPrewarm?.create();
     let breakWarningMuteGeneration = 0;
     let lastSegmentIndex = -1;
     let signalTimers = [];
@@ -4311,6 +4326,7 @@
     let scheduledFinalSignalKey = "";
     let scheduledSignalKeys = new Set();
     let playedSignalKeys = new Set();
+    const audioEventTargets = new Map();
     let speechVoice = null;
     let serverTimeOffset = 0;
     let serverPerfOffset = Date.now() - performance.now();
@@ -4418,6 +4434,7 @@
     let signalsInvalidatedWhileHidden = false;
     let pageAudioSuspended = false;
     let nativeAudioOffer = null;
+    let nativeAudioOfferRevision = 0;
     let nativeAudioRoute = null;
     const audioSchedulerHealth = {
       sample: null, needsReschedule: false, resumePending: false, nextResumeAt: 0,
@@ -4601,6 +4618,7 @@
     const syntheticWarningDurationMs = 220;
     const seekEndGuardSeconds = 0.9;
     const manualStartWatchdogDelayMs = 250;
+    const manualStartRecoveryGraceMs = 3000;
     const audioTestCooldownMs = 1000;
     const audioOffsetMinMs = -750;
     const audioOffsetMaxMs = 250;
@@ -4672,6 +4690,19 @@
     }
 
     function updateConnectionWarning() {
+      const secondaryWarning = window.FDVSecondaryConnection?.info().warning;
+      if (!standaloneMode && secondaryWarning) {
+        els.serverConnectionWarning.hidden = false;
+        els.serverConnectionWarning.dataset.state = "secondary";
+        els.serverConnectionWarningTitle.textContent = language === "ru" ? "Основной сервер недоступен" : "Primary server unavailable";
+        els.serverConnectionWarningText.textContent = secondaryWarning === "secondary"
+          ? (language === "ru" ? "Переключились на резервный сервер. Ожидаем восстановления основного сервера." : "Connected to the Secondary server. Waiting for the primary server to recover.")
+          : (language === "ru" ? "Переходим на резервный сервер." : "Switching to the Secondary server.");
+        els.enterStandaloneBtn.hidden = true;
+        els.returnToServerBtn.hidden = true;
+        updateInstallButton();
+        return;
+      }
       if (clockCalibrationPending) {
         const initialCalibration = !standaloneMode && (!lastMeasuredClockServerInstanceId
           || lastMeasuredClockServerInstanceId !== lastServerInstanceId);
@@ -4843,7 +4874,9 @@
       const recentPhaseScheduled = options.includeRecentPhaseSignal
         ? scheduleRecentPhaseSignalAfterResume(segment)
         : false;
-      if (isBeforeScheduledStart()
+      if (isInitialManualStart(segment)) {
+        scheduleInitialManualStartSignal(segment);
+      } else if (isBeforeScheduledStart()
         && (!state.activeSettings.oneShot || state.manualStartDisplayHold)) {
         scheduleBufferedSignalAt(segment, state.serverStartedAt, "start", true);
       }
@@ -4867,11 +4900,12 @@
 
     function scheduleRecentPhaseSignalAfterResume(segment) {
       if (pageAudioSuspended || clockCalibrationPending || !state.running || state.countdownOnly || !segment) return false;
+      if (isInitialManualStart(segment)) return scheduleInitialManualStartSignal(segment);
       const targetServerTime = Number(serverTimeForElapsed(segment.start));
       const lateGraceMs = recentPhaseSignalGraceMs(segment);
       if (!Number.isFinite(targetServerTime) || !shouldScheduleServerSignal(targetServerTime, lateGraceMs)) return false;
       const phaseKey = `${segment.cycle}:${segment.type}`;
-      const signalKey = `rotationBoundary:${phaseKey}:${Math.round(targetServerTime)}`;
+      const signalKey = `rotationBoundary:${phaseKey}:${audioEventRunId()}`;
       if (lastPhaseSignalKey === phaseKey || playedSignalKeys.has(signalKey)) return false;
       scheduleBufferedSignalAt(segment, targetServerTime, segment.type === "break" ? "end" : "start", true, true, null, {
         signalKey,
@@ -4963,6 +4997,7 @@
           showBrowserNumbers: state.showBrowserNumbers,
           browserDisplayNumber: state.browserDisplayNumber,
           showServerTime: state.showServerTime,
+          timerVerticalStretch: state.timerVerticalStretch,
           serverTimezoneOffsetMinutes: state.serverTimezoneOffsetMinutes,
           startListParallel: state.startListParallel,
           startListEnabled: state.startListEnabled,
@@ -5063,6 +5098,7 @@
             showBrowserNumbers: state.showBrowserNumbers,
             browserDisplayNumber: state.browserDisplayNumber,
             showServerTime: state.showServerTime,
+          timerVerticalStretch: state.timerVerticalStretch,
             serverTimezoneOffsetMinutes: state.serverTimezoneOffsetMinutes,
             startLists: state.startLists,
             startListParallel: state.startListParallel,
@@ -5157,6 +5193,7 @@
           showBrowserNumbers: Boolean(snapshot.state.showBrowserNumbers),
           browserDisplayNumber: Math.max(0, Math.round(Number(snapshot.state.browserDisplayNumber) || 0)),
           showServerTime: Boolean(snapshot.state.showServerTime),
+          timerVerticalStretch: readTimerVerticalStretchPreference(),
           serverTimezoneOffsetMinutes: Number(snapshot.state.serverTimezoneOffsetMinutes || 0),
           startLists: restoredStartLists,
           startListParallel: Boolean(snapshot.state.startListParallel)
@@ -5265,6 +5302,23 @@
       refreshStandaloneBrowserList();
     }
 
+    function readTimerVerticalStretchPreference() {
+      const saved = safeStorageGet("sessionStorage", "fdvTimerVerticalStretch");
+      return saved === "1" || (saved !== "0" && Boolean(window.FDV_OFFLINE_BUNDLE?.config?.timerVerticalStretchDefault));
+    }
+
+    function applyTimerVerticalStretch(enabled) {
+      const preference = enabled ? "1" : "0";
+      if (safeStorageGet("sessionStorage", "fdvTimerVerticalStretch") !== preference) safeStorageSet("sessionStorage", "fdvTimerVerticalStretch", preference);
+      if (state.timerVerticalStretch === enabled) return;
+      state.timerVerticalStretch = enabled;
+      scheduleFitTimer();
+    }
+
+    function timerStretchMaxPercent() {
+      return window.FDVTimerStretch?.percent?.(lastStartupConfig?.timerVerticalStretchMaxPercent) ?? 200;
+    }
+
     function fitTimerText() {
       performanceCount("timerFitRuns");
       const performanceStartedAt = performanceStart();
@@ -5273,6 +5327,11 @@
       const wrap = els.time.closest(".timer-wrap");
       if (!wrap) return;
 
+      els.time.style.transform = "";
+      els.time.style.removeProperty("--timer-separator-scale");
+      els.time.style.marginTop = "";
+      els.time.style.marginBottom = "";
+      const stretch = state.timerVerticalStretch && timerStretchMaxPercent() > 100 && Boolean(window.FDVTimerStretch?.property(els.time.style));
       const rect = wrap.getBoundingClientRect();
       if (rect.width < 1 || rect.height < 1) return;
       lastTimerFitContainerWidth = rect.width;
@@ -5286,8 +5345,15 @@
       const serverClockMargin = state.showServerTime && !els.serverClockDisplay.hidden
         ? parseFloat(window.getComputedStyle(els.serverClockDisplay).marginTop) || 0
         : 0;
-      const maxHeight = Math.max(60,
+      let maxHeight = Math.max(60,
         rect.height * (isLargeScreenMode ? 0.98 : 0.96) - serverClockRect.height - serverClockMargin);
+      let stretchTop = rect.top + rect.height * 0.02;
+      let stretchBottom = rect.bottom - rect.height * 0.02;
+      const clockIsStatic = state.showServerTime && window.getComputedStyle(els.serverClockDisplay).position === "static";
+      if (stretch && state.showServerTime && !clockIsStatic && serverClockRect.height > 0) {
+        stretchBottom = Math.min(stretchBottom, serverClockRect.top - 8);
+        maxHeight = Math.max(48, Math.min(maxHeight, stretchBottom - stretchTop));
+      }
       const currentSize = Math.max(48, parseFloat(window.getComputedStyle(els.time).fontSize) || 220);
       const timeRect = els.time.getBoundingClientRect();
       if (timeRect.width < 1 || timeRect.height < 1) return;
@@ -5303,6 +5369,20 @@
         const correction = Math.min(maxWidth / fittedRect.width, maxHeight / fittedRect.height);
         targetSize = Math.max(48, Math.floor(targetSize * correction) - 1);
         els.time.style.setProperty("--timer-font-size", `${targetSize}px`);
+      }
+      if (stretch) {
+        const base = els.time.getBoundingClientRect();
+        const available = clockIsStatic ? maxHeight : Math.min(maxHeight, stretchBottom - stretchTop);
+        const scaleY = window.FDVTimerStretch.scale(base.height, available, timerStretchMaxPercent());
+        const extra = base.height * (scaleY - 1);
+        if (clockIsStatic) {
+          els.time.style.marginTop = (extra / 2) + "px";
+          els.time.style.marginBottom = (extra / 2) + "px";
+        }
+        const shift = clockIsStatic || !state.showServerTime ? 0 : (stretchTop + stretchBottom - base.top - base.bottom) / 2;
+        // Cancel the parent's vertical stretch for the separate colon only.
+        els.time.style.setProperty("--timer-separator-scale", String(1 / scaleY));
+        els.time.style.transform = "translateY(" + shift + "px) scaleY(" + scaleY + ")";
       }
       } finally {
         performanceEnd("fitTimerText", performanceStartedAt);
@@ -5336,7 +5416,7 @@
     let lastSecondaryUiKey = "";
     const secondaryConnection = window.FDVSecondaryServer.create(window, {
       disabled: isLocalStandalonePage(), clientId: () => clientId, secret: () => browserSession.secret(),
-      changed: () => updateSecondaryUi(),
+      changed: () => { updateSecondaryUi(); updateConnectionWarning(); },
       rolesChanged: next => {
         if (next.secondaryInstanceId) retiredServerInstanceIds.delete(next.secondaryInstanceId);
       },
@@ -6044,6 +6124,7 @@
         deliveryBlocked: clockCalibrationPending ? "clock" : resumeSnapPending ? "resume" : isScrubbing ? "editing"
           : isViewerClient && instancesFullscreenEnabled && !document.fullscreenElement ? "fullscreen" : deliveryReport.deliveryBlocked,
         secondaryAvailable: window.FDVSecondaryConnection?.info().available || false,
+        primaryServerAvailable: window.FDVSecondaryConnection?.info().primaryAvailable !== false,
         secondaryClockError: window.FDVSecondaryConnection?.info().onSecondary
           ? Number(window.FDVSecondaryConnection.info().config?.clockErrorMs || 0) : 0,
         clientBuild: pageBuildNumber,
@@ -6068,6 +6149,7 @@
         viewport: `${window.innerWidth}x${window.innerHeight}`,
         screen: `${window.screen.width}x${window.screen.height}`,
         dpr: window.devicePixelRatio || 1,
+        timerVerticalStretchSupported: Boolean(window.FDVTimerStretch?.property(els.time.style)),
         audioUnlocked: browserAudioPlaybackReady(),
         audioContextState: audioContext?.state || "unavailable",
         audioUnlockState: audioUnlockDiagnostics.result,
@@ -6309,9 +6391,7 @@
 
     function updateSoundLabel(primary) {
       const full = t(primary ? "primarySound" : "sound");
-      els.soundLabel.innerHTML = primary
-        ? `<span class="sound-primary-full">${escapeHtml(full)}</span><span class="sound-primary-short">${language === "ru" ? "Звук в основном" : "Sound in primary"}</span>`
-        : escapeHtml(full);
+      els.soundLabel.textContent = primary ? (language === "ru" ? "Звук: основной" : "Sound: primary") : full;
       els.soundLabel.closest("label").title = full;
       els.soundToggle.setAttribute("aria-label", full);
     }
@@ -6366,8 +6446,10 @@
       els.primaryPinInput.setAttribute("aria-label", t("primaryPinTitle"));
       els.primaryPinClear.textContent = t("clear");
       updateSoundLabel(state.primaryClientId === clientId);
-      els.instancesSoundLabel.textContent = language === "ru" ? ", в других" : ", in others";
+      els.instancesSoundLabel.textContent = language === "ru" ? "Звук: остальные" : "Sound: others";
       els.instancesSoundLabel.title = t("otherSound");
+      els.instancesSoundToggle.setAttribute("aria-label", t("otherSound"));
+      els.instancesSoundLabel.closest("label").title = t("otherSound");
       els.speakerKeepAwakeLabel.textContent = language === "ru" ? "Не давать заснуть колонке" : "Keep speaker awake";
       els.speakerKeepAwakeRow.title = language === "ru"
         ? "Периодические тихие сигналы помогают BT-колонке не заснуть во время долгой тишины, ожидания старта и пауз. Эффект зависит от колонки. Уровень и частота сигналов меняются в params.txt."
@@ -6480,7 +6562,9 @@
 
     function applyStartupConfig(config) {
       if (!config || typeof config !== "object") return;
+      const previousStretchPercent = timerStretchMaxPercent();
       lastStartupConfig = { ...config };
+      if (previousStretchPercent !== timerStretchMaxPercent()) scheduleFitTimer();
       applyTimerAppearance(config);
       const nextBuildNumber = Number(config.buildNumber);
       if (maybeReloadForNewerServerBuild(nextBuildNumber)) return;
@@ -6863,6 +6947,7 @@
       }
       applyStartupConfig(remote.config);
       nativeAudioOffer = remote.serverAudio || null;
+      nativeAudioOfferRevision++;
       updateServerTiming(remote, options.timing, {
         forceClockCorrection: Boolean(options.forceClockCorrection),
         resetClockSamples: Boolean(options.resetClockSamples),
@@ -6877,6 +6962,7 @@
       state.manualStartLeadMs = Number(remote.manualStartLeadMs || 0);
       state.manualStartDisplayHold = Boolean(remote.manualStartDisplayHold);
       state.serverStartedAt = Number(remote.startedAt || 0);
+      state.audioRunId = typeof remote.audioRunId === "string" ? remote.audioRunId : "";
       state.serverStartedAtWall = Number(remote.startedAtWall ?? remote.startedAt ?? 0);
       state.serverWallOffset = remote.timerClockNormalized ? remote.wallNow - remote.now : 0;
       state.elapsedBeforePause = Number(remote.elapsedBeforePause || 0);
@@ -6950,6 +7036,7 @@
       state.showBrowserNumbers = Boolean(remote.showBrowserNumbers);
       state.browserDisplayNumber = Math.max(0, Math.round(Number(remote.browserDisplayNumber) || 0));
       state.showServerTime = Boolean(remote.showServerTime);
+      applyTimerVerticalStretch(Boolean(remote.timerVerticalStretch));
       state.serverTimezoneOffsetMinutes = Number.isFinite(Number(remote.serverTimezoneOffsetMinutes))
         ? Number(remote.serverTimezoneOffsetMinutes)
         : new Date().getTimezoneOffset();
@@ -7018,7 +7105,9 @@
             : false;
           // A manual Final start has the same shared audio lead as Classic.
           // Its preliminary scheduled countdown must still remain silent here.
-          if (!pageAudioSuspended && waitingForStart
+          if (isInitialManualStart(segment)) {
+            scheduleInitialManualStartSignal(segment);
+          } else if (!pageAudioSuspended && waitingForStart
             && (!state.activeSettings.oneShot || state.manualStartDisplayHold)) {
             scheduleBufferedSignalAt(segment, state.serverStartedAt, "start", true);
           }
@@ -7059,6 +7148,7 @@
       if (reconcileServerStateIdentity(remote).stale) return;
       window.FDVStateDelivery?.receive(remote);
       nativeAudioOffer = remote.serverAudio || null;
+      nativeAudioOfferRevision++;
       const nextActiveSettings = remote.activeSettings || state.activeSettings;
       const settingsChanged = JSON.stringify(nextActiveSettings || {}) !== JSON.stringify(state.activeSettings || {});
       state.running = Boolean(remote.running);
@@ -7068,6 +7158,7 @@
       state.manualStartLeadMs = Number(remote.manualStartLeadMs || 0);
       state.manualStartDisplayHold = Boolean(remote.manualStartDisplayHold);
       state.serverStartedAt = Number(remote.startedAt || 0);
+      state.audioRunId = typeof remote.audioRunId === "string" ? remote.audioRunId : "";
       state.serverStartedAtWall = Number(remote.startedAtWall ?? remote.startedAt ?? 0);
       state.serverWallOffset = remote.timerClockNormalized ? remote.wallNow - remote.now : 0;
       state.elapsedBeforePause = Number(remote.elapsedBeforePause || 0);
@@ -7093,6 +7184,7 @@
       state.showBrowserNumbers = Boolean(remote.showBrowserNumbers);
       state.browserDisplayNumber = Math.max(0, Math.round(Number(remote.browserDisplayNumber) || 0));
       state.showServerTime = Boolean(remote.showServerTime);
+      applyTimerVerticalStretch(Boolean(remote.timerVerticalStretch));
       state.serverTimezoneOffsetMinutes = Number.isFinite(Number(remote.serverTimezoneOffsetMinutes))
         ? Number(remote.serverTimezoneOffsetMinutes)
         : new Date().getTimezoneOffset();
@@ -7951,6 +8043,7 @@
         role: t("standaloneTitle"),
         startListVisible: Boolean(state.startListVisible),
         showServerTime: Boolean(state.showServerTime),
+        timerVerticalStretch: Boolean(state.timerVerticalStretch),
         age: Date.now() - standaloneClientFirstSeen,
         audioUserOffset: audioUserOffsetMs
       }]);
@@ -7964,7 +8057,7 @@
 
     function diagChip(label, status, title, attributes = "") {
       const className = `diag-chip${status && status !== "good" ? ` ${status}` : ""}`;
-      const interactive = /\sdata-(?:audio-client|legacy-mode-client|server-time-client)=/.test(attributes)
+      const interactive = /\sdata-(?:audio-client|legacy-mode-client|server-time-client|timer-stretch-client)=/.test(attributes)
         || /\sdata-(?:start-list-client|secondary-client|control-client)=/.test(attributes);
       const tagName = interactive ? "button" : "span";
       const type = interactive ? ' type="button"' : "";
@@ -9383,8 +9476,8 @@
           + (language === "ru" ? " Используется браузерный канал; настройка и подстройка звука сохранены." : " The browser audio route is used; your preference and sound offset are preserved.");
       }
       return language === "ru"
-        ? "Выберите канал звука: сервер или браузер. В скрытой или спящей вкладке браузерные сигналы могут пропадать. Подстройка звука сохраняется. Выбор запоминается для этого браузера."
-        : "Choose the audio route: server or browser. Browser signals may be missed in a hidden or sleeping tab. The sound offset is preserved. This choice is remembered for this browser.";
+        ? "Выберите канал звука: сервер или браузер. Сервер продолжает воспроизведение при сворачивании, заморозке, закрытии вкладки и потере связи с браузером. При сбое серверного звука браузер сразу возвращает воспроизведение себе; возможно краткое дублирование. После восстановления серверный канал возвращается, если он выбран вами. В скрытой или спящей вкладке браузерные сигналы могут пропадать. Подстройка звука сохраняется. Выбор запоминается для этого браузера."
+        : "Choose the audio route: server or browser. Server playback continues when the tab is hidden, frozen, closed or disconnected. On a server-audio failure, browser playback returns immediately; brief overlap is possible. The recovered server route returns if it is your saved choice. Browser signals may be missed in a hidden or sleeping tab. The sound offset is preserved. This choice is remembered for this browser.";
     }
 
     function deliveryStatusLabel(status, blocked = "") {
@@ -9404,6 +9497,27 @@
         : "Confirms that this display applied the current state. An audio-command receipt confirms processing, not audible output.");
     }
 
+    function timerStretchChip(client) {
+      const percent = timerStretchMaxPercent();
+      const supported = client?.timerVerticalStretchSupported === true && percent > 100;
+      const enabled = client?.timerVerticalStretch === true;
+      const description = language === "ru"
+        ? supported ? "Растягивать цифры по высоте до " + percent + "%: " + (enabled ? "включено" : "выключено") + ". Только для этого экрана."
+          : percent <= 100 ? "Растяжение цифр по высоте отключено параметром (100% или меньше)."
+            : "Растяжение цифр по высоте недоступно в этом браузере."
+        : supported ? "Stretch digits vertically up to " + percent + "%: " + (enabled ? "on" : "off") + ". This screen only."
+          : percent <= 100 ? "Vertical digit stretching is disabled by the parameter (100% or less)."
+            : "Vertical digit stretching is unavailable in this browser.";
+      const title = description + (language === "ru"
+        ? " Текущий предел: " + percent + "%. Изменить: timer_vertical_stretch_max_percent в params.txt; затем перезапустить сервер."
+        : " Current limit: " + percent + "%. Change timer_vertical_stretch_max_percent in params.txt, then restart the server.");
+      const attrs = ' data-timer-stretch-status="' + escapeHtml(client.id) + '" data-timer-stretch-state="' + (client?.timerVerticalStretchSupported === true) + ":" + enabled + ":" + percent + '"'
+        + ' data-timer-stretch-language="' + language + '"'
+        + (supported ? ' data-timer-stretch-client="' + escapeHtml(client.id) + '" data-timer-stretch-enabled="' + (enabled ? "1" : "0") + '" aria-pressed="' + enabled + '"' : ' aria-disabled="true"')
+        + ' aria-label="' + escapeHtml(title) + '"';
+      return diagChip("↓↑", supported ? (enabled ? "good clickable" : "inactive clickable") : "neutral", title, attrs);
+    }
+
     function renderBrowserList(clients) {
       if (!els.browserList) return;
       lastKnownClients = clients;
@@ -9416,6 +9530,10 @@
         && clients.some((client) => client.id === editingAudioClientId);
       if (preserveAudioEditor) {
         // Keep the unsaved slider value and focus while reflecting route changes.
+        for (const chip of els.browserList.querySelectorAll("[data-timer-stretch-status]")) {
+          const target = clients.find(client => client.id === chip.dataset.timerStretchStatus);
+          if (target && (chip.dataset.timerStretchLanguage !== language || chip.dataset.timerStretchState !== (target.timerVerticalStretchSupported === true) + ":" + (target.timerVerticalStretch === true) + ":" + timerStretchMaxPercent())) chip.outerHTML = timerStretchChip(target);
+        }
         const editedClient = clients.find((client) => client.id === editingAudioClientId);
         updateNativeAudioEditor(editedClient);
         for (const dot of els.browserList.querySelectorAll("[data-delivery-client]")) {
@@ -9727,7 +9845,7 @@
         const ruLegacyChips = [
           legacyChip, controlChip,
           diagChip("AUDIO", "neutral", legacyNeutralTitle),
-          serverTimeChip,
+          serverTimeChip, timerStretchChip(client),
           diagChip("NET", clientConnected ? "good" : "bad", `Соединение: ${clientConnected ? "онлайн" : "нет связи"}`),
           legacySyncChipRu,
           diagChip("SSE", "neutral", legacyNeutralTitle),
@@ -9736,14 +9854,14 @@
         const enLegacyChips = [
           legacyChip, controlChip,
           diagChip("AUDIO", "neutral", legacyNeutralTitle),
-          serverTimeChip,
+          serverTimeChip, timerStretchChip(client),
           diagChip("NET", clientConnected ? "good" : "bad", `Connection: ${clientConnected ? "online" : "offline"}`),
           legacySyncChipEn,
           diagChip("SSE", "neutral", legacyNeutralTitle),
           diagChip("TAB", tabStatus, legacyTabTitleEn)
         ];
-        const ruModernChips = [legacyChip, controlChip, audioChipRu, serverTimeChip, netChipRu, syncChipRu, sseChipRu, tabChipRu];
-        const enModernChips = [legacyChip, controlChip, audioChipEn, serverTimeChip, netChipEn, syncChipEn, sseChipEn, tabChipEn];
+        const ruModernChips = [legacyChip, controlChip, audioChipRu, serverTimeChip, timerStretchChip(client), netChipRu, syncChipRu, sseChipRu, tabChipRu];
+        const enModernChips = [legacyChip, controlChip, audioChipEn, serverTimeChip, timerStretchChip(client), netChipEn, syncChipEn, sseChipEn, tabChipEn];
         const chips = isLegacyViewer
           ? (language === "ru" ? ruLegacyChips : enLegacyChips)
           : (language === "ru" ? ruModernChips : enModernChips);
@@ -9953,6 +10071,10 @@
       nativeAudioRoute?.update({
         wanted: !standaloneMode && browserSoundRequested(),
         available: !standaloneMode && Boolean(nativeAudioOffer?.available && nativeAudioOffer?.local && nativeAudioOffer.enabled !== false),
+        serverPreferred: nativeAudioOffer?.enabled !== false,
+        primarySoundEnabled: !standaloneMode && nativeAudioOffer?.autonomous && nativeAudioOffer?.local && isPrimaryClient ? primarySoundEnabled : null,
+        outputActive: nativeAudioOffer?.autonomous ? Boolean(nativeAudioOffer.active) : null,
+        outputRevision: nativeAudioOfferRevision,
         instance: lastServerInstanceId,
         recoveryEpoch: nativeAudioOffer?.recovery?.epoch || 0,
         endpoint: new URL(window.FDVSecondaryConnection?.url("/api/server-audio") || "/api/server-audio",window.location.href).href,
@@ -9975,9 +10097,17 @@
           } finally { clearTimeout(timeout); }
         },
         connect: (token,instance,sourceEndpoint) => new window.EventSource(`${sourceEndpoint || endpoint()}/events?${new URLSearchParams({clientId,token})}`),
-        stopLocal: () => { clearSignalTimers(false,true); lastSegmentIndex=-1; },
-        beforeResume: () => syncFromServer({forceApply:true,skipBurst:true,rescheduleSignals:false}),
-        resumeLocal: () => { rescheduleStandaloneSignals({forceStopAudio:true,futureOnly:true}); },
+        stopLocal: () => { clearSignalTimers(false,false); lastSegmentIndex=-1; },
+        refreshState: () => syncFromServer({forceApply:true,skipBurst:true,rescheduleSignals:false}),
+        resumeLocal: ({recoverRecent=false} = {}) => {
+          unlockAudio(false,"native-fallback");
+          wakeAudioOutput("prewarm");
+          // Deliberate route changes keep future-only playback. On failure,
+          // recent cues may recover within their existing lateness limits.
+          if (!recoverRecent && isInitialManualStart(getCurrentSegment(elapsedSeconds()))
+            && serverNow() >= audioServerTime(state.serverStartedAt)) noteManualStartHandled(state.serverStartedAt);
+          rescheduleStandaloneSignals({forceStopAudio:true,futureOnly:!recoverRecent,includeRecentPhaseSignal:recoverRecent});
+        },
         record: (stage,details) => recordPerformanceAudioClock(stage,details),
         beacon: (body,sourceEndpoint) => navigator.sendBeacon?.(sourceEndpoint || endpoint(),new Blob([JSON.stringify({clientId,...body})],{type:"application/json"}))
       });
@@ -10173,6 +10303,7 @@
         if (signalKey) markSignalPlayed(signalKey);
         onStarted?.();
       };
+      item.markStarted = markStarted;
       item.playedTimer = window.setTimeout(markStarted, Math.max(0, (start - audioContext.currentTime) * 1000));
       source.start(start);
       source.stop(stop);
@@ -10385,7 +10516,8 @@
         osc.start(start);
         osc.stop(start + duration + 0.02);
         if (scheduled) {
-          item.playedTimer = window.setTimeout(markStarted, Math.max(0, (start - audioContext.currentTime) * 1000));
+          item.markStarted = markStarted;
+      item.playedTimer = window.setTimeout(markStarted, Math.max(0, (start - audioContext.currentTime) * 1000));
         } else if (index === 0) {
           markStarted();
         }
@@ -10606,6 +10738,20 @@
       return beep(kind);
     }
 
+    function finalStartPrewarmEligible() {
+      return Boolean(state.activeSettings?.oneShot
+        && ((state.running && state.countdownOnly) || (!state.running && state.waitingForManualStart)));
+    }
+
+    function tickFinalStartPrewarm() {
+      const pulse = finalStartPrewarmPlanner?.tick({
+        eligible: finalStartPrewarmEligible(), countdown: state.countdownOnly,
+        startedAt: state.serverStartedAt, epoch: lastServerInstanceId
+      }, serverNow(), !pageAudioSuspended && !clockCalibrationPending && canPlaySound());
+      if (pulse) wakeAudioOutput("prewarm", () => finalStartPrewarmPlanner.isCurrent(pulse.token)
+        && finalStartPrewarmEligible() && !pageAudioSuspended && !clockCalibrationPending);
+    }
+
     function wakeAudioOutput(kind = "prewarm", isCurrent = null) {
       if (!canPlaySound() || (isCurrent && !isCurrent())) return;
       try {
@@ -10661,7 +10807,75 @@
     }
 
     function manualStartSignalKey(targetServerTime) {
-      return `1:rotation:start:${Math.round(audioServerTime(targetServerTime))}`;
+      return `1:rotation:start:${audioEventRunId(targetServerTime)}`;
+    }
+
+    function audioEventRunId(target = state.serverStartedAt) {
+      return !standaloneMode && state.audioRunId ? state.audioRunId : `${lastServerInstanceId}:${Math.round(target)}`;
+    }
+
+    function isInitialManualStart(segment) {
+      return !standaloneMode && state.running && !state.countdownOnly
+        && state.manualStartLeadMs > 0 && state.manualStartDisplayHold
+        && segment?.cycle === 1 && segment.type === "rotation" && segment.start === 0;
+    }
+
+    function manualStartRunCurrent(targetServerTime) {
+      return state.running && !state.countdownOnly && state.manualStartDisplayHold
+        && Math.abs(state.serverStartedAt - targetServerTime) < 10;
+    }
+
+    function manualStartWasHandled(targetServerTime) {
+      return handledManualStart?.eventId === manualStartSignalKey(targetServerTime);
+    }
+
+    function noteManualStartHandled(targetServerTime) {
+      handledManualStart = {eventId:manualStartSignalKey(targetServerTime)};
+    }
+
+    function manualStartSoundReady(targetServerTime) {
+      return manualStartRunCurrent(targetServerTime) && !clockCalibrationPending
+        && canPlaySound() && audioContext?.state === "running"
+        && serverNow() - audioServerTime(targetServerTime) <= manualStartRecoveryGraceMs;
+    }
+
+    function playManualStartSound(targetServerTime) {
+      if (!manualStartSoundReady(targetServerTime)) return false;
+      // HTML media may finish loading after the deadline. Keep this cue on
+      // the running audio clock, using synthesis if its decoded file is absent.
+      return playBuffer("start") || beepSynthetic("start");
+    }
+
+    function expireManualStartSignal(targetServerTime) {
+      if (manualStartWasHandled(targetServerTime)) return;
+      const signalKey = manualStartSignalKey(targetServerTime);
+      if (!markSignalPlayed(signalKey)) return;
+      noteManualStartHandled(targetServerTime);
+      const target = audioServerTime(targetServerTime), now = serverNow();
+      recordPerformanceAudioSchedule({stage: "suppressed", kind: "start", signalKey,
+        targetServerTimeMs: target, canonicalTargetServerTimeMs: targetServerTime,
+        actualServerTimeMs: now, latenessMs: now - target,
+        suppressionReason: "manual-start-past-target"});
+    }
+
+    function scheduleInitialManualStartSignal(segment) {
+      if (!isInitialManualStart(segment)) return false;
+      const target = state.serverStartedAt;
+      if (manualStartWasHandled(target)) return false;
+      if (playedSignalKeys.has(manualStartSignalKey(target))) return false;
+      if (serverNow() - audioServerTime(target) > manualStartRecoveryGraceMs) {
+        expireManualStartSignal(target);
+        return false;
+      }
+      // A suspended context must not consume the key or create a late HTML cue.
+      // Existing health/route recovery retries this same run and key on readiness.
+      if (!manualStartSoundReady(target)) return false;
+      scheduleBufferedSignalAt(segment, target, "start", true, true, () => playManualStartSound(target), {
+        signalKey: manualStartSignalKey(target), initialManualStart: true,
+        lateGraceMs: manualStartRecoveryGraceMs,
+        onPlay: () => { noteManualStartHandled(target); lastPhaseSignalKey = "1:rotation"; }
+      });
+      return true;
     }
 
     function scheduleManualStartWatchdog(targetServerTime) {
@@ -10670,34 +10884,26 @@
       const signalKey = manualStartSignalKey(targetServerTime);
       const soundTargetServerTime = audioServerTime(targetServerTime);
       const suppressLateWatchdog = () => {
-        if (clockCalibrationPending) return;
-        if (playedSignalKeys.has(signalKey)) return;
-        markSignalPlayed(signalKey);
-        const suppressedAtServerTime = serverNow();
-        recordPerformanceAudioSchedule({
-          stage: "suppressed",
-          kind: "start",
-          signalKey,
-          targetServerTimeMs: Number(soundTargetServerTime.toFixed(3)),
-          canonicalTargetServerTimeMs: Number(targetServerTime.toFixed(3)),
-          audioUserOffsetMs: Number((soundTargetServerTime - targetServerTime).toFixed(3)),
-          actualServerTimeMs: Number(suppressedAtServerTime.toFixed(3)),
-          latenessMs: Number((suppressedAtServerTime - soundTargetServerTime).toFixed(3)),
-          suppressionReason: "manual-start-past-target"
-        });
+        if (!clockCalibrationPending && manualStartRunCurrent(targetServerTime)) expireManualStartSignal(targetServerTime);
       };
       scheduleServerTimeoutAt(soundTargetServerTime + manualStartWatchdogDelayMs, () => {
         if (clockCalibrationPending || scheduleGeneration !== audioScheduleGeneration) return;
         if (playedSignalKeys.has(signalKey)) return;
-        if (serverNow() - soundTargetServerTime > signalLateGraceMs.start) {
+        if (scheduledAudioNodes.some(item => item.signalKey === signalKey && !item.cancelled)) return;
+        if (manualStartWasHandled(targetServerTime)) return;
+        if (!manualStartRunCurrent(targetServerTime)) return;
+        if (serverNow() - soundTargetServerTime > manualStartRecoveryGraceMs) {
           suppressLateWatchdog();
           return;
         }
-        markSignalPlayed(signalKey);
-        beep("start");
-        flash();
+        if (!manualStartSoundReady(targetServerTime)) return;
+        if (playManualStartSound(targetServerTime)) {
+          markSignalPlayed(signalKey);
+          noteManualStartHandled(targetServerTime);
+          flash();
+        }
       }, {
-        lateGraceMs: Math.max(0, signalLateGraceMs.start - manualStartWatchdogDelayMs),
+        lateGraceMs: Math.max(0, manualStartRecoveryGraceMs - manualStartWatchdogDelayMs),
         preserveOnTransition: true,
         onStale: suppressLateWatchdog
       });
@@ -10860,7 +11066,10 @@
       const nextSignalTargetServerTime = Number.isFinite(Number(options.nextSignalTargetServerTime))
         ? audioServerTime(Number(options.nextSignalTargetServerTime))
         : null;
-      const signalKey = options.signalKey || `${segment.cycle}:${segment.type}:${kind}:${Math.round(soundTargetServerTime)}`;
+      const warningSlot = kind === "warn" ? `:${Math.round(segment.end - (targetServerTime - state.serverStartedAt) / 1000)}` : "";
+      const signalKey = options.signalKey || `${segment.cycle}:${segment.type}:${kind}${warningSlot}:${audioEventRunId()}`;
+      audioEventTargets.set(signalKey, soundTargetServerTime);
+      if (audioEventTargets.size > 1024) audioEventTargets.delete(audioEventTargets.keys().next().value);
       const lateGraceMs = options.lateGraceMs ?? lateGraceForSignal(kind, options.category || "");
       const preserveOnTransition = Boolean(options.preserveOnTransition);
       const allowAfterSegment = Boolean(options.allowAfterSegment);
@@ -10911,6 +11120,17 @@
       const cancelFallback = scheduleServerTimeoutAt(soundTargetServerTime, () => {
         if (scheduleGeneration !== audioScheduleGeneration) return;
         if (scheduledByBuffer) return;
+        if (nativeAudioRoute?.suppressed()) {
+          // Native ownership is not proof that this cue was heard. Keep its
+          // key available for bounded recovery if that route fails shortly.
+          scheduledSignalKeys.delete(signalKey);
+          recordSuppressedSignal("native-route-active",serverNow());
+          return;
+        }
+        if (options.initialManualStart && !manualStartSoundReady(targetServerTime)) {
+          scheduledSignalKeys.delete(signalKey);
+          return;
+        }
         if (mutedBreakWarning()) { suppressSignal("break-warnings-muted"); return; }
         const fallbackServerTime = serverNow();
         const warningSuppressionReason = warningFallbackSuppressionReason(
@@ -10923,7 +11143,7 @@
           suppressSignal(warningSuppressionReason, fallbackServerTime);
           return;
         }
-        if (!markSignalPlayed(signalKey)) return;
+        if (playedSignalKeys.has(signalKey)) return;
         const playbackServerTime = serverNow();
         const soundAllowed = canPlaySound();
         let playbackAccepted = false;
@@ -10933,9 +11153,10 @@
         const playbackSuppressionReason = fallbackPlaybackSuppressionReason(soundAllowed, playbackAccepted);
         if (playbackSuppressionReason) {
           recordSuppressedSignal(playbackSuppressionReason, playbackServerTime);
-          options.onPlay?.();
+          scheduledSignalKeys.delete(signalKey);
           return;
         }
+        markSignalPlayed(signalKey);
         recordPerformanceAudioSchedule({
           stage: "fallback",
           kind,
@@ -10965,7 +11186,10 @@
       }
 
       const tryScheduleBuffer = () => {
+        if (scheduledByBuffer || playedSignalKeys.has(signalKey)
+          || scheduledAudioNodes.some(item => item.signalKey === signalKey && !item.cancelled)) return false;
         if (mutedBreakWarning()) return false;
+        if (options.initialManualStart && !manualStartSoundReady(targetServerTime)) return false;
         if (scheduleGeneration !== audioScheduleGeneration) {
           bufferLastFailure = "schedule-invalidated";
           updatePerformancePendingAudioPlan(signalKey, { bufferLastFailure });
@@ -11078,7 +11302,7 @@
       const soundKind = transitionSoundKind(segment, finalTransition);
       if (lastPhaseSignalKey === phaseKey || scheduledPhaseSignalKeys.has(phaseKey)) return;
       scheduledPhaseSignalKeys.add(phaseKey);
-      const signalKey = `rotationBoundary:${phaseKey}:${Math.round(targetServerTime)}`;
+      const signalKey = `rotationBoundary:${phaseKey}:${audioEventRunId()}`;
       const onPlay = () => {
         lastPhaseSignalKey = phaseKey;
         scheduledPhaseSignalKeys.delete(phaseKey);
@@ -11118,6 +11342,7 @@
       scheduledAudioNodes = scheduledAudioNodes.filter((item) => {
         const node = item.node || item;
         const start = Number(item.start ?? 0);
+        if (!item.cancelled && item.signalKey && start <= now && audioContext?.state === "running") item.markStarted?.();
         if (!forceStopAudio && preserveBufferedAudio) {
           if (item.signalKey) retainedSignalKeys.add(item.signalKey);
           return true;
@@ -11204,11 +11429,12 @@
       const phaseElapsedSeconds = duration - remaining;
       if (includePhase
         && Date.now() >= suppressPhaseSignalsUntil
+        && !isInitialManualStart(segment)
         && phaseElapsedSeconds >= 0
         && phaseElapsedSeconds * 1000 <= signalLateGraceMs.start
         && lastPhaseSignalKey !== phaseSignalKey
         && !scheduledPhaseSignalKeys.has(phaseSignalKey)) {
-        lastPhaseSignalKey = phaseSignalKey;
+        if (!nativeAudioRoute?.suppressed()) lastPhaseSignalKey = phaseSignalKey;
         signal(segment.type === "break" ? "end" : "start");
       }
 
@@ -11262,7 +11488,7 @@
       if (prewarmTarget > serverNow()) scheduleSignalAt(segment, prewarmTarget, "prewarm", false);
       if (target - 800 > serverNow()) scheduleSignalAt(segment, target - 800, "warm", false);
       scheduleBufferedSignalAt(segment, target, "minute", true, shouldTryBufferImmediately(target), null, {
-        signalKey: `pendingStart:minute:${Math.round(state.serverStartedAtWall || state.serverStartedAt)}`,
+        signalKey: `pendingStart:minute:${audioEventRunId()}`,
         allowAfterSegment: true
       });
     }
@@ -11624,6 +11850,7 @@
       }
       deliveryRendered = true;
       finalizeStandaloneState();
+      tickFinalStartPrewarm();
       const timeline = state.timeline.length ? state.timeline : buildTimeline();
       const canonicalElapsed = elapsedSeconds();
       const canonicalSegment = getCurrentSegment(canonicalElapsed);
@@ -11898,7 +12125,12 @@
         }
         return;
       }
-      if (!clockInterrupted && !audioSchedulerHealth.needsReschedule && callbackDelayMs < audioHealthGapMs) return;
+      if (!clockInterrupted && !audioSchedulerHealth.needsReschedule && callbackDelayMs < audioHealthGapMs) {
+        // Readiness may return before the health tick ever saw the suspension.
+        // Recover the pending start even when a queue rebuild is unnecessary.
+        scheduleInitialManualStartSignal(getCurrentSegment(elapsedSeconds()));
+        return;
+      }
       const resetAudioClock = clockInterrupted || audioSchedulerHealth.needsReschedule;
       const reason = resetAudioClock
         ? "audio-clock-recovery" : "audio-scheduler-gap";
@@ -12170,10 +12402,12 @@
 
     async function startTimer() {
       if (!timerControlsAvailable() || state.running) return;
+      finalStartPrewarmPlanner?.stop();
       const delegatedControl = isLimitedController;
       requestScreenWakeLock();
       unlockAudio();
       if (audioContext?.state === "suspended") audioContext.resume();
+      wakeAudioOutput("prewarm");
       if (standaloneMode) {
         startStandaloneTimer();
         return;
@@ -12400,16 +12634,20 @@
     function updateSecondaryUi(force = false) {
       if (!window.FDVSecondaryConnection) return;
       const info = secondaryConnection.info();
-      const key = JSON.stringify([info.config?.session, info.config?.epoch, info.available, info.onSecondary, isPrimaryClient, standaloneMode, language]);
+      const key = JSON.stringify([info.config?.session, info.config?.epoch, info.available, info.primaryAvailable, info.onSecondary, isPrimaryClient, standaloneMode, language]);
       const changed = key !== lastSecondaryUiKey;
       if (!changed && !force) return;
       lastSecondaryUiKey = key;
       const button = document.getElementById("secondaryServerButton");
       button.hidden = !isPrimaryClient || standaloneMode || isLocalStandalonePage();
-      button.classList.toggle("is-set", Boolean(info.config && info.available));
+      button.classList.toggle("is-set", Boolean(info.config && info.available && info.primaryAvailable));
+      button.dataset.health = !info.config ? "missing" : info.available && info.primaryAvailable ? "good" : "down";
       button.title = language === "ru"
         ? info.config ? `Резервный сервер: ${info.config.secondaryUrl}` : "Настроить резервный сервер"
         : info.config ? `Secondary server: ${info.config.secondaryUrl}` : "Configure Secondary server";
+      if (info.config) button.title += language === "ru"
+        ? `. Основной: ${info.primaryAvailable ? "доступен" : "недоступен"}; резервный: ${info.available ? "доступен" : "недоступен"}.`
+        : `. Primary: ${info.primaryAvailable ? "available" : "unavailable"}; Secondary: ${info.available ? "available" : "unavailable"}.`;
       document.getElementById("secondaryServerRemove").hidden = !info.config || info.onSecondary;
       if (changed && typeof lastKnownClients !== "undefined") renderBrowserList(lastKnownClients);
     }
@@ -12421,8 +12659,8 @@
       document.getElementById("secondaryServerTitle").textContent = language === "ru" ? "Резервный сервер" : "Secondary server";
       document.getElementById("secondaryServerAddressLabel").textContent = language === "ru" ? "Адрес сервера" : "Server address";
       document.getElementById("secondaryServerHint").textContent = language === "ru"
-        ? "Нужен пустой сервер той же сборки с одинаковыми папками beeps и fonts. Для HTTPS нужен доверенный сертификат. После 20 секунд без связи экраны переходят на резервный сервер автоматически."
-        : "Use an empty server of the same build with identical beeps and fonts folders. HTTPS requires a trusted certificate. Displays switch to the Secondary server after 20 seconds without contact.";
+        ? "Нужен пустой сервер той же сборки с одинаковыми папками beeps и fonts. Для HTTPS нужен доверенный сертификат. Переход на резервный — через 2 секунды без связи. Если основной вернётся в течение 20 секунд, экраны вернутся на него; после этого резервный сохраняет управление."
+        : "Use an empty server of the same build with identical beeps and fonts folders. HTTPS requires a trusted certificate. Failover takes 2 seconds. The primary can regain control within 20 seconds; after that, the Secondary server retains control.";
       document.getElementById("secondaryServerConnect").textContent = language === "ru" ? "Подключить" : "Connect";
       document.getElementById("secondaryServerRemove").textContent = language === "ru" ? "Отключить резервный сервер" : "Disconnect Secondary server";
       document.getElementById("secondaryServerClose").textContent = language === "ru" ? "Закрыть" : "Close";
@@ -12929,6 +13167,18 @@
         return;
       }
 
+      const stretchButton = event.target.closest("[data-timer-stretch-client]");
+      if (stretchButton) {
+        const targetClientId = stretchButton.dataset.timerStretchClient;
+        const enabled = stretchButton.dataset.timerStretchEnabled !== "1";
+        if (standaloneMode) {
+          if (targetClientId !== clientId) return;
+          applyTimerVerticalStretch(enabled);
+          refreshStandaloneBrowserList();
+          saveOfflineSnapshot();
+        } else sendServerAction("clientTimerStretch", { targetClientId, enabled });
+        return;
+      }
       const serverTimeButton = event.target.closest("[data-server-time-client]");
       if (serverTimeButton) {
         const targetClientId = serverTimeButton.dataset.serverTimeClient;

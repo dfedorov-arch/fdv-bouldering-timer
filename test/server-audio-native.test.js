@@ -5,6 +5,13 @@ const {spawnSync}=require("node:child_process");
 const {NativeAudio,syntheticWave}=require("../lib/server-audio-native");
 const delay=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 
+test("native prewarm is an 80ms quiet tone rather than the ordinary minute signal",()=>{
+ const wav=syntheticWave("prewarm"),frames=(wav.length-44)/2;
+ assert.equal(frames/44100,.08);
+ let peak=0;for(let i=44;i<wav.length;i+=2)peak=Math.max(peak,Math.abs(wav.readInt16LE(i)));
+ assert.ok(peak>0&&peak<=132);
+});
+
 test("Unix native backend requires a packaged helper for the exact OS and architecture",t=>{
   const root=fs.mkdtempSync(path.join(os.tmpdir(),"fdv-native-platform-"));
   t.after(()=>fs.rmSync(root,{recursive:true,force:true}));

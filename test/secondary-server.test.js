@@ -26,6 +26,51 @@ async function until(predicate) {
   assert.fail("SEC state did not converge");
 }
 
+test("launcher peer metadata follows standby loss, recovery and removal without changing the timer",{timeout:20000},async t=>{
+  const primary=await fixture(t,null,{liveClocks:true}),backup=await fixture(t,null,{liveClocks:true});
+  await primary.action({type:"primary",primaryClientId:"clock-test"});await primary.start();
+  assert.equal((await sec(primary,"configure",{address:backup.baseUrl})).status,200);
+  async function health(server,query=""){
+    const response=await fetch(server.baseUrl+"/api/state"+query);
+    return {role:response.headers.get("x-fdv-secondary-role"),peer:response.headers.get("x-fdv-secondary-peer"),available:response.headers.get("x-fdv-secondary-available"),state:await response.json()};
+  }
+  await until(async()=>(await health(primary)).available==="true"&&(await health(backup)).available==="true");
+  await until(()=>backup.snapshot().secondary?.pair);
+  const before=(await health(primary)).state;
+  await backup.stop();
+  await until(async()=>(await health(primary)).available==="false");
+  const lost=await health(primary);
+  assert.equal(lost.role,"primary");assert.equal(lost.peer,backup.baseUrl);
+  assert.equal(lost.state.version,before.version);assert.equal(lost.state.timerClock.startedAt,before.timerClock.startedAt);
+  assert.equal((await health(primary,"?legacy=1")).available,"false");
+  await backup.restart();await until(async()=>(await health(primary)).available==="true");
+  assert.equal((await health(primary)).peer,backup.baseUrl);
+  assert.equal((await sec(primary,"remove")).status,200);
+  const removed=await health(primary);
+  assert.equal(removed.role,"");assert.equal(removed.peer,"");assert.equal(removed.available,"");
+});
+
+test("autonomous native output stays local and is not activated on a paired standby",{timeout:20000},async t=>{
+  const primary=await fixture(t,null,{liveClocks:true,nativeAudioStub:true});
+  const backup=await fixture(t,null,{liveClocks:true,nativeAudioStub:true});
+  await primary.action({type:"primary",primaryClientId:"clock-test"});
+  await primary.start();const initial=await primary.state();
+  const response=await fetch(primary.baseUrl+"/api/server-audio",{method:"POST",headers:{"content-type":"application/json"},
+    body:JSON.stringify({clientId:"clock-test",serverInstanceId:initial.serverInstanceId,op:"prepare",wanted:true})});
+  const offer=await response.json();assert.ok(offer.token);
+  const stream=await fetch(primary.baseUrl+"/api/server-audio/events?"+new URLSearchParams({clientId:"clock-test",token:offer.token}));
+  await stream.body.cancel();
+  await until(async()=>(await primary.state()).serverAudio.ownerClientId==="clock-test");
+  assert.equal((await sec(primary,"configure",{address:backup.baseUrl})).status,200);
+  await until(()=>backup.snapshot().secondary?.pair);
+  assert.ok(primary.snapshot().serverAudioSelection.selection.outputs.some(output=>output.id==="clock-test"));
+  assert.deepEqual(backup.snapshot().serverAudioSelection.selection.outputs,[]);
+  assert.equal((await backup.state()).serverAudio.ownerClientId,"");
+  await primary.action({type:"serverAudioMode",targetClientId:"clock-test",enabled:false});
+  await until(async()=>(await primary.state()).serverAudio.ownerClientId==="");
+  await until(()=>backup.snapshot().serverAudioDisabledClients.includes("clock-test"));
+});
+
 async function actionThroughStandby(server, body) {
   const response = await fetch(server.baseUrl + "/api/action", {
     method: "POST", headers: { "content-type": "application/json" },
@@ -39,6 +84,97 @@ test("SEC addresses reject credentials and non-server URL paths", () => {
   assert.equal(serverAddress("http://example.test:8008"), "http://example.test:8008");
   for (const address of ["file:///tmp/timer", "http://user:secret@example.test/", "http://host/api/action", "http://host/?a=1"]) {
     assert.throws(() => serverAddress(address));
+  }
+});
+
+test("automatic SEC takeover at 2 seconds returns within 20 seconds with reserve commands and sessions intact", {timeout:20000}, async t=>{
+  const primary=await fixture(t,"linux"),backup=await fixture(t,"linux");
+  await primary.action({type:"primary",primaryClientId:"clock-test"});
+  await primary.start({elapsedBeforePause:10});
+  await sec(primary,"configure",{address:backup.baseUrl});
+  const initial=await backup.state();
+  assert.ok(initial.audioRunId);
+  assert.equal(initial.audioRunId,(await primary.state()).audioRunId);
+  const before=await sec(backup,"takeover",{automatic:true,session:initial.sec.session},{headers:{Origin:primary.baseUrl}});
+  assert.equal(before.status,409,"a healthy source cannot be replaced automatically");
+  await primary.stop();backup.frame(2100);
+  const takeover=await sec(backup,"takeover",{automatic:true,session:initial.sec.session},{headers:{Origin:primary.baseUrl}});
+  assert.equal(takeover.status,200,JSON.stringify(takeover.body));
+  assert.equal(takeover.body.sec.automaticFailover,true);
+  await backup.action({type:"pause",commandId:"during-short-outage"});
+  await backup.action({type:"seek",elapsed:42});
+  await backup.credentials("new-during-outage");
+  backup.frame(6000);primary.frame(6000);await primary.restart();
+  const returned=await until(async()=>{try {const s=await primary.state();return s.sec.role==="primary" && !s.sec.switchAll && !s.sec.automaticFailover && s.sec.returnSequence===1 && s;}catch(_){return false;}});
+  assert.equal(returned.elapsed,42);assert.equal(returned.running,false);
+  assert.equal(returned.audioRunId,initial.audioRunId);
+  assert.equal(returned.sec.epoch,0,"brief outages do not swap roles");
+  await until(async()=>{const s=await backup.state();return s.sec.role==="secondary" && !s.sec.switchAll && s.elapsed===42;});
+  const duplicate=await actionThroughStandby(primary,{type:"pause",commandId:"during-short-outage"});
+  assert.equal(duplicate.commandDuplicate,true);
+  const response=await fetch(primary.baseUrl+"/api/state");
+  assert.equal(response.headers.get("x-fdv-secondary-role"),"primary");
+  assert.equal(response.headers.get("x-fdv-secondary-peer"),backup.baseUrl);
+  assert.equal((await fetch(backup.baseUrl+"/api/state")).headers.get("x-fdv-secondary-role"),"secondary");
+});
+
+test("automatic SEC takeover keeps authority after 20 seconds and rejoins the former primary as standby",{timeout:20000},async t=>{
+  const primary=await fixture(t,"linux"),backup=await fixture(t,"linux");
+  await primary.action({type:"primary",primaryClientId:"clock-test"});
+  await primary.start({elapsedBeforePause:10});await sec(primary,"configure",{address:backup.baseUrl});
+  const session=(await backup.state()).sec.session;
+  await primary.stop();backup.frame(2100);
+  assert.equal((await sec(backup,"takeover",{automatic:true,session},{headers:{Origin:primary.baseUrl}})).status,200);
+  await backup.action({type:"pause"});await backup.action({type:"seek",elapsed:47});
+  backup.frame(21000);primary.frame(21000);await primary.restart();
+  const returned=await until(async()=>{try {const s=await primary.state();return s.sec.epoch===1 && s.sec.role==="secondary" && s.sec.ready && s;}catch(_){return false;}});
+  assert.equal(returned.elapsed,47);assert.equal(returned.sec.primaryUrl,backup.baseUrl);
+  assert.equal((await backup.state()).sec.role,"primary");
+  assert.equal((await fetch(backup.baseUrl+"/api/state")).headers.get("x-fdv-secondary-role"),"primary");
+});
+
+test("early recovery retries a changed reserve snapshot and a lost commit acknowledgement without losing commands",{timeout:20000},async t=>{
+  const primary=await fixture(t,"linux"),backup=await fixture(t,"linux");
+  let changed=0,dropped=0;
+  const proxy=http.createServer(async(req,res)=>{
+    if(req.url==="/api/sec/recover-primary" && changed===0){
+      changed++;await backup.action({type:"pause"});await backup.action({type:"seek",elapsed:55});
+    }
+    const upstream=http.request(new URL(req.url,backup.baseUrl),{method:req.method,headers:req.headers},response=>{
+      if(req.url==="/api/sec/recover-primary" && response.statusCode===200 && dropped===0){
+        dropped++;response.resume();response.on("end",()=>res.destroy());
+      }else{res.writeHead(response.statusCode,response.headers);response.pipe(res);}
+    });
+    upstream.on("error",()=>res.destroy());res.on("close",()=>upstream.destroy());req.pipe(upstream);
+  });
+  await new Promise(resolve=>proxy.listen(0,"127.0.0.1",resolve));
+  t.after(()=>new Promise(resolve=>{proxy.closeAllConnections();proxy.close(resolve);}));
+  const secondaryUrl=`http://127.0.0.1:${proxy.address().port}`;
+  await primary.action({type:"primary",primaryClientId:"clock-test"});await primary.start({elapsedBeforePause:10});
+  await sec(primary,"configure",{address:secondaryUrl});await primary.stop();backup.frame(2100);
+  assert.equal((await sec(backup,"takeover",{automatic:true,session:(await backup.state()).sec.session},{headers:{Origin:primary.baseUrl}})).status,200);
+  backup.frame(6000);primary.frame(6000);await primary.restart();
+  const returned=await until(async()=>{try{const s=await primary.state();return !s.sec.switchAll && s.sec.returnSequence===1 && s;}catch(_){return false;}});
+  assert.equal(returned.elapsed,55);assert.equal(returned.running,false);
+  assert.equal(changed,1);assert.equal(dropped,1);assert.equal(returned.sec.epoch,0);
+  assert.equal((await backup.state()).sec.returnSequence,1);
+});
+
+test("two brief automatic outages keep a running countdown anchor and increment return sequences",{timeout:20000},async t=>{
+  const primary=await fixture(t,"linux"),backup=await fixture(t,"linux");
+  await primary.action({type:"primary",primaryClientId:"clock-test"});
+  await primary.start({elapsedBeforePause:10,settings:{rotationSeconds:600,breakSeconds:15,oneShot:false}});
+  await sec(primary,"configure",{address:backup.baseUrl});
+  const initial=await backup.state(),anchor=initial.timerClock.startedAt;
+  for(const [takeoverAt,returnAt,sequence] of [[2100,6000,1],[9000,12000,2]]){
+    await primary.stop();backup.frame(takeoverAt);
+    assert.equal((await sec(backup,"takeover",{automatic:true,session:initial.sec.session},{headers:{Origin:primary.baseUrl}})).status,200);
+    backup.frame(returnAt);primary.frame(returnAt);await primary.restart();
+    const returned=await until(async()=>{try{const s=await primary.state();return !s.sec.switchAll && s.sec.returnSequence===sequence && s;}catch(_){return false;}});
+    assert.equal(returned.running,true);assert.equal(returned.timerClock.startedAt,anchor);
+    assert.ok(Math.abs(returned.elapsed-(await backup.state()).elapsed)<.05);
+    assert.equal(returned.sec.epoch,0);
+    await until(async()=>(await backup.state()).sec.sourceConnected);
   }
 });
 

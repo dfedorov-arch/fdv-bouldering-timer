@@ -56,6 +56,7 @@ test("Unix headless UI, real language endpoint and per-user single-instance rest
   const token=crypto.randomBytes(32).toString("hex"),server=await fixture(t,null,{launcherToken:token});
   await server.action({type:"primary",primaryClientId:"clock-test"});await server.start();server.frame(9000);
   const before=await server.state(),port=new URL(server.baseUrl).port;
+  assert.match(await run(["peer-status",path.join(directory,"peer-status")]),/Peer status RU\/EN/);
   assert.match(await run(["ui",path.join(directory,"ui"),port,token]),/RU\/EN.*hide\/reopen.*OK/);
   for(const language of ["ru","en"])for(const width of ["normal","min"]){
     const image=path.join(directory,`launcher-${language}-${width}.png`);

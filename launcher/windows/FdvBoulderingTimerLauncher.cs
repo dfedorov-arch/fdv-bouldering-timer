@@ -118,20 +118,22 @@ namespace FdvBoulderingTimerLauncher
         private readonly Label _status = new Label();
         private readonly Label _buildLabel = new Label();
         private readonly TextBox _log = new TextBox();
-        private readonly Button _openButton = new Button();
-        private readonly Button _copyButton = new Button();
-        private readonly Button _restartButton = new Button();
-        private readonly Button _stopButton = new Button();
-        private readonly Button _certificateButton = new Button();
-        private readonly Button _languageButton = new Button();
-        private readonly Button _pinButton = new Button();
+        private readonly Button _openButton = new LauncherButton();
+        private readonly Button _copyButton = new LauncherButton();
+        private readonly Button _restartButton = new LauncherButton();
+        private readonly Button _stopButton = new LauncherButton();
+        private readonly Button _certificateButton = new LauncherButton();
+        private readonly Button _languageButton = new LauncherButton();
+        private readonly Button _pinButton = new LauncherButton();
         private readonly Label _addressTitle = new Label();
-        private readonly Button _projectButton = new Button();
-        private readonly Button _updateButton = new Button();
+        private readonly Button _projectButton = new LauncherButton();
+        private readonly Button _updateButton = new LauncherButton();
         private readonly Label _updateNotice = new Label();
         private string _updateResult = "";
         private bool _updateBusy;
         private readonly Label _logTitle = new Label();
+        private readonly Label _hint = new Label();
+        private bool _adjustingLayout;
         private string _statusEnglish = "Preparing server...";
         private string _trayEnglish = "FDV Bouldering Timer";
         private readonly NotifyIcon _tray = new NotifyIcon();
@@ -175,108 +177,114 @@ namespace FdvBoulderingTimerLauncher
 
         private void InitializeWindow()
         {
+            SuspendLayout();
+            LauncherTheme.Apply(this);
             Text = "FDV Bouldering Timer";
             Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath);
             StartPosition = FormStartPosition.CenterScreen;
-            MinimumSize = new Size(836, 580);
-            ClientSize = new Size(820, 610);
+            MinimumSize = SizeFromClientSize(new Size(900, 610));
+            ClientSize = new Size(920, 660);
             BackColor = Color.FromArgb(17, 23, 34);
             ForeColor = Color.FromArgb(244, 247, 251);
-            Font = new Font("Segoe UI", 9F, FontStyle.Regular, GraphicsUnit.Point);
+
 
             var header = new Label();
             header.Text = "FDV Bouldering Timer";
             header.Font = new Font(Font.FontFamily, 18F, FontStyle.Bold);
             header.AutoSize = true;
-            header.Location = new Point(22, 18);
+            header.Location = new Point(24, 24);
             _buildLabel.Name = "serverBuildNumber";
             _buildLabel.AutoSize = true;
             _buildLabel.Font = new Font(Font.FontFamily, 12F, FontStyle.Regular);
             _buildLabel.ForeColor = Color.FromArgb(160, 174, 192);
             _buildLabel.Location = new Point(header.Right + 14, 25);
-            header.SizeChanged += delegate { _buildLabel.Left = header.Right + 14; };
             Controls.Add(_buildLabel);
 
             _languageButton.Name = "launcherLanguage";
-            _languageButton.Location = new Point(748, 22);
-            _languageButton.Size = new Size(46, 28);
+            _languageButton.Location = new Point(850, 24);
+            _languageButton.Size = new Size(46, 32);
             _languageButton.Anchor = AnchorStyles.Top | AnchorStyles.Right;
             _languageButton.Click += delegate { SwitchLanguage(); };
 
             _status.Text = "Preparing server...";
             _status.AutoSize = false;
-            _status.Location = new Point(24, 60);
-            _status.Size = new Size(760, 25);
+            _status.Location = new Point(24, 70);
+            _status.Size = new Size(872, 22);
+            _status.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
+            _status.AutoEllipsis = true;
             _status.ForeColor = Color.FromArgb(255, 200, 87);
 
             var addressTitle = _addressTitle;
             addressTitle.Text = "Timer addresses";
             addressTitle.AutoSize = true;
-            addressTitle.Location = new Point(24, 96);
+            addressTitle.Location = new Point(24, 102);
             addressTitle.Font = new Font(Font, FontStyle.Bold);
 
-            _addresses.Location = new Point(24, 119);
-            _addresses.Size = new Size(770, 126);
+            _addresses.Location = new Point(24, 126);
+            _addresses.Size = new Size(872, 130);
             _addresses.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
             _addresses.BackColor = Color.FromArgb(16, 20, 27);
             _addresses.ForeColor = ForeColor;
-            _addresses.BorderStyle = BorderStyle.FixedSingle;
+            _addresses.BorderStyle = BorderStyle.None;
+            _addresses.DrawMode = DrawMode.OwnerDrawFixed;
+            _addresses.ItemHeight = 30;
+            _addresses.DrawItem += DrawAddress;
             _addresses.IntegralHeight = false;
             _addresses.DoubleClick += delegate { OpenSelectedAddress(); };
             _addresses.SelectedIndexChanged += delegate { _copyButton.Enabled = _addresses.SelectedItem != null; };
 
             _openButton.Text = "Open timer";
-            _openButton.Location = new Point(24, 258);
-            _openButton.Size = new Size(120, 36);
+            _openButton.Location = new Point(24, 270);
+            _openButton.Size = new Size(150, 32);
             _openButton.Enabled = false;
             _openButton.Click += delegate { OpenSelectedAddress(); };
 
             _copyButton.Text = "Copy link";
-            _copyButton.Location = new Point(152, 258);
-            _copyButton.Size = new Size(145, 36);
+            _copyButton.Location = new Point(182, 270);
+            _copyButton.Size = new Size(170, 32);
             _copyButton.Enabled = false;
             _copyButton.Click += delegate { CopySelectedAddress(); };
 
             _restartButton.Text = "Restart server";
-            _restartButton.Location = new Point(458, 258);
-            _restartButton.Size = new Size(175, 36);
+            _restartButton.Location = new Point(528, 270);
+            _restartButton.Size = new Size(177, 32);
             _restartButton.Click += delegate { StartServer(false); };
 
             _stopButton.Text = "Stop and exit";
-            _stopButton.Location = new Point(641, 258);
-            _stopButton.Size = new Size(140, 36);
+            _stopButton.Location = new Point(713, 270);
+            _stopButton.Size = new Size(140, 32);
             _stopButton.Click += delegate { StopAndExit(); };
 
             _certificateButton.Text = "Create HTTPS certificate";
-            _certificateButton.Location = new Point(24, 304);
+            _certificateButton.Location = new Point(24, 322);
             _certificateButton.Size = new Size(240, 32);
             _certificateButton.Click += delegate { CreateHttpsCertificate(); };
 
             _pinButton.Name = "launcherPin";
-            _pinButton.Location = new Point(305, 258);
-            _pinButton.Size = new Size(145, 36);
+            _pinButton.Location = new Point(360, 270);
+            _pinButton.Size = new Size(160, 32);
             _pinButton.Click += delegate { EditControlPin(); };
             Controls.Add(_pinButton);
 
             _updateButton.Name = "launcherUpdates";
-            _updateButton.Location = new Point(272, 304); _updateButton.Size = new Size(240, 32);
+            _updateButton.Location = new Point(272, 322); _updateButton.Size = new Size(240, 32);
             _updateButton.Click += delegate { if (_updateResult.StartsWith("available|")) OpenUrl(LauncherUpdates.ReleasePage); else CheckForUpdates(); };
-            _updateNotice.Location = new Point(24, 348); _updateNotice.Size = new Size(770, 22);
+            _updateNotice.Location = new Point(24, 368); _updateNotice.Size = new Size(872, 22);
             _updateNotice.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
             _updateNotice.ForeColor = Color.FromArgb(255, 200, 87);
             _projectButton.Name = "launcherProject";
-            _projectButton.Location = new Point(520, 304); _projectButton.Size = new Size(230, 32);
+            _projectButton.Location = new Point(520, 322); _projectButton.Size = new Size(230, 32);
             _projectButton.Click += delegate { OpenUrl("https://github.com/dfedorov-arch/fdv-bouldering-timer"); };
             Controls.Add(_projectButton);
             Controls.Add(_updateButton); Controls.Add(_updateNotice);
             var logTitle = _logTitle;
             logTitle.Text = "Server log";
             logTitle.AutoSize = true;
-            logTitle.Location = new Point(24, 380);
+            logTitle.Location = new Point(24, 400);
             logTitle.Font = new Font(Font, FontStyle.Bold);
 
-            _log.Location = new Point(24, 403);
-            _log.Size = new Size(770, 177);
+            _log.Location = new Point(24, 424);
+            _log.Size = new Size(872, 166);
             _log.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
             _log.BackColor = Color.FromArgb(16, 20, 27);
             _log.ForeColor = Color.FromArgb(190, 200, 214);
@@ -284,7 +292,13 @@ namespace FdvBoulderingTimerLauncher
             _log.Multiline = true;
             _log.ReadOnly = true;
             _log.ScrollBars = ScrollBars.Vertical;
-            _log.Font = new Font("Consolas", 8.5F);
+            _log.Font = new Font("Consolas", 9F);
+
+            _hint.Location = new Point(24, 606);
+            _hint.Size = new Size(872, 40);
+            _hint.ForeColor = Color.FromArgb(149, 161, 181);
+            _hint.Anchor = AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
+            Controls.Add(_hint);
 
             Controls.Add(header);
             Controls.Add(_languageButton);
@@ -308,6 +322,48 @@ namespace FdvBoulderingTimerLauncher
             _restartTimer.Tick += RestartTimerTick;
             _networkRefreshTimer.Interval = 750;
             _networkRefreshTimer.Tick += RefreshNetworkAddresses;
+            Layout += delegate { AlignNativeControls(header); };
+            ResumeLayout(true);
+            AlignNativeControls(header);
+        }
+
+        private void AlignNativeControls(Label header)
+        {
+            if (_adjustingLayout) return;
+            _adjustingLayout = true;
+            try
+            {
+                using (var graphics = CreateGraphics())
+                {
+                    float scale = graphics.DpiX / 96F;
+                    _buildLabel.Left = header.Right + (int)Math.Round(14 * scale);
+                    _buildLabel.Top = header.Top + (header.Height - _buildLabel.Height) / 2;
+                    _status.Height = (int)Math.Round(22 * scale);
+                    _updateNotice.Height = (int)Math.Round(22 * scale);
+                    _hint.Height = (int)Math.Round(40 * scale);
+                    // The native owner-drawn ListBox also scales ItemHeight,
+                    // which can enlarge its height a second time on CLR2/4.
+                    _addresses.ItemHeight = (int)Math.Round(30 * scale);
+                    _addresses.Bounds = new Rectangle((int)Math.Round(24 * scale), (int)Math.Round(126 * scale),
+                        ClientSize.Width - (int)Math.Round(48 * scale), (int)Math.Round(130 * scale));
+                }
+            }
+            finally { _adjustingLayout = false; }
+        }
+
+        private void DrawAddress(object sender, DrawItemEventArgs args)
+        {
+            if (args.Index < 0) return;
+            bool selected = (args.State & DrawItemState.Selected) != 0;
+            using (var fill = new SolidBrush(selected ? Color.FromArgb(7, 84, 132) : _addresses.BackColor))
+                args.Graphics.FillRectangle(fill, args.Bounds);
+            if (args.Bounds.Bottom > _addresses.ClientSize.Height) return;
+            int padding = (int)Math.Ceiling(12 * args.Graphics.DpiX / 96F);
+            var bounds = new Rectangle(args.Bounds.Left + padding, args.Bounds.Top, Math.Max(0, args.Bounds.Width - padding * 2), args.Bounds.Height);
+            TextRenderer.DrawText(args.Graphics, _addresses.Items[args.Index].ToString(), _addresses.Font, bounds,
+                _addresses.Enabled ? _addresses.ForeColor : LauncherButton.DisabledText,
+                TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.SingleLine | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix);
+            args.DrawFocusRectangle();
         }
 
         private void RefreshUpdateNotice()
@@ -359,7 +415,24 @@ namespace FdvBoulderingTimerLauncher
         }
 
         private void SetStatusText(string english)
-        { _statusEnglish = english; _status.Text = T(english); }
+        {
+            _statusEnglish = english; _status.Text = StatusText(english);
+            if (english == "Server is running") _status.ForeColor = LauncherLanguage.PeerUnavailable(_serverRole, _serverPeer, _serverPeerAvailability)
+                ? Color.FromArgb(255, 200, 87) : Color.FromArgb(87, 211, 140);
+        }
+
+        private string _serverRole = "", _serverPeer = "";
+        private string _serverPeerAvailability = "";
+        private string StatusText(string english)
+        { return english == "Server is running" ? LauncherLanguage.RunningStatus(_serverRole, _serverPeer, _serverPeerAvailability) : T(english); }
+
+        private void AdoptServerRole(string[] role)
+        {
+            _serverRole = role != null && role.Length > 0 ? role[0] : "";
+            _serverPeer = role != null && role.Length > 1 ? role[1] : "";
+            _serverPeerAvailability = role != null && role.Length > 2 ? role[2] : "";
+            if (_ready) SetStatusText("Server is running");
+        }
 
         private void SetTrayText(string english)
         { _trayEnglish = english; _tray.Text = T(english); }
@@ -370,6 +443,7 @@ namespace FdvBoulderingTimerLauncher
             _languageButton.AccessibleName = LauncherLanguage.Russian ? "Switch to English" : "Переключить на русский";
             _addressTitle.Text = T("Timer addresses");
             _logTitle.Text = T("Server log");
+            _hint.Text = T("Closing this window hides the launcher. The server keeps running. Use Stop and exit to stop it. Launch the app again to reopen the window.");
             _openButton.Text = T("Open timer");
             _copyButton.Text = T("Copy link");
             _restartButton.Text = T("Restart server");
@@ -378,7 +452,7 @@ namespace FdvBoulderingTimerLauncher
             _pinButton.Text = T("Control PIN");
             _projectButton.Text = T("Open project website");
             RefreshUpdateNotice();
-            _status.Text = T(_statusEnglish);
+            _status.Text = StatusText(_statusEnglish);
             _tray.Text = T(_trayEnglish);
             foreach (ToolStripItem item in _tray.ContextMenuStrip.Items)
                 if (item.Tag is string) item.Text = T((string)item.Tag);
@@ -438,41 +512,58 @@ namespace FdvBoulderingTimerLauncher
             if (!_ready || String.IsNullOrEmpty(_launcherLanguageToken))
             { MessageBox.Show(this, T("Server is not ready."), T("Control PIN")); return; }
             _pinButton.Enabled = false;
-            using (var dialog = new Form())
-            {
-                dialog.Text = T("Control PIN"); dialog.ClientSize = new Size(360, 210);
-                dialog.StartPosition = FormStartPosition.CenterParent; dialog.FormBorderStyle = FormBorderStyle.FixedDialog;
-                dialog.MaximizeBox = false; dialog.MinimizeBox = false;
-                var label = new Label { Text = T("Enter a new four-digit PIN. Browsers must confirm the new PIN before controlling the timer."),
-                    Location = new Point(16, 16), Size = new Size(328, 55) };
-                var input = new TextBox { Name = "controlPin", UseSystemPasswordChar = true, MaxLength = 4,
-                    Location = new Point(16, 80), Width = 328 };
-                var status = new Label { Location = new Point(16, 110), Size = new Size(328, 35) };
-                var save = new Button { Text = T("Save PIN"), Location = new Point(16, 155), Size = new Size(100, 32) };
-                var clear = new Button { Text = T("Remove PIN"), Location = new Point(125, 155), Size = new Size(105, 32) };
-                var cancel = new Button { Text = T("Close"), Location = new Point(239, 155), Size = new Size(105, 32), DialogResult = DialogResult.Cancel };
-                Action<string> submit = delegate(string pin)
-                {
-                    if (pin.Length != 0 && !Regex.IsMatch(pin, "^[0-9]{4}$")) { status.Text = T("Enter four digits."); return; }
-                    save.Enabled = clear.Enabled = false;
-                    int port = _settings.HttpPort; string token = _launcherLanguageToken;
-                    ThreadPool.QueueUserWorkItem(delegate
-                    {
-                        Exception failure = null;
-                        try { SendServerPin(port, token, pin); } catch (Exception error) { failure = error; }
-                        try { dialog.BeginInvoke(new MethodInvoker(delegate {
-                            if (failure == null) dialog.Close();
-                            else { status.Text = T("Could not change the control PIN."); save.Enabled = clear.Enabled = true; }
-                        })); } catch (InvalidOperationException) { }
-                    });
-                };
-                save.Click += delegate { if (input.Text.Length == 0) { status.Text = T("Enter four digits."); return; } submit(input.Text); };
-                clear.Click += delegate { submit(""); };
-                dialog.Controls.AddRange(new Control[] { label, input, status, save, clear, cancel });
-                dialog.AcceptButton = save; dialog.CancelButton = cancel;
-                dialog.ShowDialog(this);
-            }
+            using (var dialog = CreateControlPinDialog()) dialog.ShowDialog(this);
             _pinButton.Enabled = true;
+        }
+
+        private Form CreateControlPinDialog()
+        {
+            var dialog = new Form();
+            dialog.SuspendLayout();
+            LauncherTheme.Apply(dialog);
+            dialog.Text = T("Control PIN"); dialog.ClientSize = new Size(440, 246);
+            dialog.StartPosition = FormStartPosition.CenterParent; dialog.FormBorderStyle = FormBorderStyle.FixedDialog;
+            dialog.MaximizeBox = false; dialog.MinimizeBox = false;
+            var label = new Label { Text = T("Enter a new four-digit PIN. Browsers must confirm the new PIN before controlling the timer."),
+                Dock = DockStyle.Fill };
+            var input = new TextBox { Name = "controlPin", UseSystemPasswordChar = true, MaxLength = 4, BorderStyle = BorderStyle.FixedSingle, BackColor = Color.FromArgb(16, 20, 27), ForeColor = ForeColor,
+                Dock = DockStyle.Top };
+            var status = new Label { Dock = DockStyle.Fill };
+            var save = new LauncherButton { Text = T("Save PIN"), Size = new Size(140, 32) };
+            var clear = new LauncherButton { Text = T("Remove PIN"), Size = new Size(140, 32) };
+            var cancel = new LauncherButton { Text = T("Close"), Size = new Size(112, 32), DialogResult = DialogResult.Cancel };
+            Action<string> submit = delegate(string pin)
+            {
+                if (pin.Length != 0 && !Regex.IsMatch(pin, "^[0-9]{4}$")) { status.Text = T("Enter four digits."); return; }
+                save.Enabled = clear.Enabled = false;
+                int port = _settings.HttpPort; string token = _launcherLanguageToken;
+                ThreadPool.QueueUserWorkItem(delegate
+                {
+                    Exception failure = null;
+                    try { SendServerPin(port, token, pin); } catch (Exception error) { failure = error; }
+                    try { dialog.BeginInvoke(new MethodInvoker(delegate {
+                        if (failure == null) dialog.Close();
+                        else { status.Text = T("Could not change the control PIN."); save.Enabled = clear.Enabled = true; }
+                    })); } catch (InvalidOperationException) { }
+                });
+            };
+            save.Click += delegate { if (input.Text.Length == 0) { status.Text = T("Enter four digits."); return; } submit(input.Text); };
+            clear.Click += delegate { submit(""); };
+            var layout = new TableLayoutPanel { Dock = DockStyle.Fill, Padding = new Padding(16), ColumnCount = 1, RowCount = 4 };
+            layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+            foreach (float height in new float[] { 30, 16, 30, 24 }) layout.RowStyles.Add(new RowStyle(SizeType.Percent, height));
+            label.Dock = DockStyle.Fill; label.Margin = Padding.Empty;
+            input.Dock = DockStyle.Top; input.Margin = Padding.Empty;
+            status.Dock = DockStyle.Fill; status.Margin = Padding.Empty;
+            var actions = new FlowLayoutPanel { Dock = DockStyle.Fill, Margin = Padding.Empty, WrapContents = false };
+            save.Margin = clear.Margin = new Padding(0, 0, 8, 0); cancel.Margin = Padding.Empty;
+            actions.Controls.AddRange(new Control[] { save, clear, cancel });
+            layout.Controls.Add(label, 0, 0); layout.Controls.Add(input, 0, 1);
+            layout.Controls.Add(status, 0, 2); layout.Controls.Add(actions, 0, 3);
+            dialog.Controls.Add(layout);
+            dialog.AcceptButton = save; dialog.CancelButton = cancel;
+            dialog.ResumeLayout(true);
+            return dialog;
         }
 
         internal static void SendServerPin(int port, string token, string pin)
@@ -731,7 +822,6 @@ namespace FdvBoulderingTimerLauncher
                 _healthFailures = 0;
                 _openButton.Enabled = true;
                 SetStatusText("Server is running");
-                _status.ForeColor = Color.FromArgb(87, 211, 140);
                 SetTrayText("FDV Bouldering Timer - running");
                 AppendLog("Server is ready.");
                 AppendLog("Keep this computer connected to power and disable sleep while the timer is running.");
@@ -772,6 +862,8 @@ namespace FdvBoulderingTimerLauncher
                 {
                     if (response.StatusCode == HttpStatusCode.OK)
                     {
+                        AdoptServerRole(new string[] { response.Headers["X-FDV-Secondary-Role"], response.Headers["X-FDV-Secondary-Peer"],
+                            response.Headers["X-FDV-Secondary-Available"] });
                         string[] state = new string[] { response.Headers["X-FDV-Language"],
                             response.Headers["X-FDV-Server-Instance"], response.Headers["X-FDV-State-Version"] };
                         _serverLanguageAvailable = LauncherLanguage.ValidServerLanguage(state);

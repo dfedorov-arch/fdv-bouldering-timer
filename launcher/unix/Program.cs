@@ -213,9 +213,9 @@ internal sealed class LauncherWindow : Window
 
         Title = "FDV Bouldering Timer";
         SetLauncherIcon();
-        Width = 840;
+        Width = 920;
         Height = 660;
-        MinWidth = 820;
+        MinWidth = 900;
         MinHeight = 610;
         Background = Brush(17, 23, 34);
         Foreground = Brush(244, 247, 251);
@@ -318,6 +318,7 @@ internal sealed class LauncherWindow : Window
         root.Children.Add(heading);
 
         _status.Text = "Preparing server...";
+        _status.TextWrapping = TextWrapping.Wrap;
         _status.Foreground = Brush(255, 200, 87);
         Grid.SetRow(_status, 1);
         root.Children.Add(_status);
@@ -340,11 +341,11 @@ internal sealed class LauncherWindow : Window
         };
         ConfigureButton(_openButton, 120);
         ConfigureButton(_copyButton, 145);
-        ConfigureButton(_pinButton, 145);
+        ConfigureButton(_pinButton, 160);
         _pinButton.Click += async (_, _) => await EditControlPin();
         ConfigureButton(_restartButton, 175);
         ConfigureButton(_stopButton, 140);
-        foreach (var button in new[] { _openButton, _copyButton, _restartButton, _stopButton }) button.Margin = new Thickness(0, 0, 8, 6);
+        foreach (var button in new[] { _openButton, _copyButton, _pinButton, _restartButton, _stopButton }) button.Margin = new Thickness(0, 0, 8, 6);
         _openButton.Click += (_, _) => OpenSelectedAddress();
         _copyButton.Click += async (_, _) => await CopySelectedAddress();
         _restartButton.Click += (_, _) => StartServer(false);
@@ -360,8 +361,6 @@ internal sealed class LauncherWindow : Window
         ConfigureButton(_certificateButton, 240);
         _certificateButton.HorizontalAlignment = HorizontalAlignment.Left;
         _certificateButton.Click += async (_, _) => await CreateHttpsCertificate();
-        ConfigureButton(_pinButton, 160);
-        _pinButton.Click += async (_, _) => await EditControlPin();
         var settingsButtons = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
         ConfigureButton(_updateButton, 240);
         _updateButton.Click += (_, _) => { if (_updateResult.StartsWith("available|")) OpenUrl(LauncherUpdates.ReleasePage); else CheckForUpdates(); };
@@ -469,7 +468,21 @@ internal sealed class LauncherWindow : Window
 
     private static string T(string english) => LauncherLanguage.Text(english);
 
-    private void SetStatusText(string english) { _statusEnglish = english; _status.Text = T(english); _tray.ToolTipText = "FDV Bouldering Timer — " + T(english); }
+    private string _serverRole = "", _serverPeer = "";
+    private string _serverPeerAvailability = "";
+    private string StatusText(string english) => english == "Server is running" ? LauncherLanguage.RunningStatus(_serverRole, _serverPeer, _serverPeerAvailability) : T(english);
+    private void SetStatusText(string english) {
+        _statusEnglish = english; _status.Text = StatusText(english); _tray.ToolTipText = "FDV Bouldering Timer — " + StatusText(english);
+        if (english == "Server is running") _status.Foreground = LauncherLanguage.PeerUnavailable(_serverRole, _serverPeer, _serverPeerAvailability)
+            ? Brush(255, 200, 87) : Brush(87, 211, 140);
+    }
+    private void AdoptServerRole(string[]? role)
+    {
+        _serverRole = role != null && role.Length > 0 ? role[0] : "";
+        _serverPeer = role != null && role.Length > 1 ? role[1] : "";
+        _serverPeerAvailability = role != null && role.Length > 2 ? role[2] : "";
+        if (_ready) SetStatusText("Server is running");
+    }
 
     private void RefreshUpdateNotice()
     {
@@ -499,8 +512,8 @@ internal sealed class LauncherWindow : Window
         _pinButton.Content = T("Control PIN");
         _projectButton.Content = T("Open project website");
         RefreshUpdateNotice();
-        _status.Text = T(_statusEnglish);
-        _tray.ToolTipText = "FDV Bouldering Timer — " + T(_statusEnglish);
+        _status.Text = StatusText(_statusEnglish);
+        _tray.ToolTipText = "FDV Bouldering Timer — " + StatusText(_statusEnglish);
         _hint.Text = T("Closing this window hides the launcher. The server keeps running. Use Stop and exit to stop it. Launch the app again to reopen the window.");
         foreach (var item in _trayItems) item.Item.Header = T(item.English);
         PopulateAddresses(); // Keep the selected URL, health probes and running child intact.
@@ -804,13 +817,15 @@ internal sealed class LauncherWindow : Window
             _startupAttempts++;
             string build = "";
             string[]? languageState = null;
+            string[]? roleState = null;
             var intentRevision = _languageIntentRevision;
             var reachable = await CanReach(
                 "http://127.0.0.1:" + _settings.HttpPort + "/api/state",
-                _probeCancellation.Token, value => build = value, value => languageState = value);
+                _probeCancellation.Token, value => build = value, value => languageState = value, value => roleState = value);
             if (generation != _probeGeneration || _allowClose) return;
             if (reachable)
             {
+                AdoptServerRole(roleState);
                 _buildLabel.Text = build.Length > 0 ? "(" + build + ")" : "";
                 Title = "FDV Bouldering Timer" + (build.Length > 0 ? " (" + build + ")" : "");
                 _startupTimer.Stop();
@@ -819,7 +834,6 @@ internal sealed class LauncherWindow : Window
                 _healthFailures = 0;
                 _openButton.IsEnabled = true;
                 SetStatusText("Server is running");
-                _status.Foreground = Brush(87, 211, 140);
                 AppendLog("Server is ready.");
                 AppendLog("Keep this computer connected to power and disable sleep while the timer is running.");
                 _healthTimer.Start();
@@ -853,7 +867,7 @@ internal sealed class LauncherWindow : Window
         }
     }
 
-    private async Task<bool> CanReach(string url, CancellationToken cancellationToken, Action<string>? readBuild = null, Action<string[]>? readLanguage = null)
+    private async Task<bool> CanReach(string url, CancellationToken cancellationToken, Action<string>? readBuild = null, Action<string[]>? readLanguage = null, Action<string[]>? readRole = null)
     {
         try
         {
@@ -868,6 +882,11 @@ internal sealed class LauncherWindow : Window
             {
                 string Header(string name) => response.Headers.TryGetValues(name, out var values) ? values.FirstOrDefault() ?? "" : "";
                 readLanguage(new[] { Header("X-FDV-Language"), Header("X-FDV-Server-Instance"), Header("X-FDV-State-Version") });
+            }
+            if (response.StatusCode == HttpStatusCode.OK && readRole != null)
+            {
+                string Header(string name) => response.Headers.TryGetValues(name, out var values) ? values.FirstOrDefault() ?? "" : "";
+                readRole(new[] { Header("X-FDV-Secondary-Role"), Header("X-FDV-Secondary-Peer"), Header("X-FDV-Secondary-Available") });
             }
             if (response.StatusCode == HttpStatusCode.OK && readBuild != null)
             {
@@ -899,13 +918,15 @@ internal sealed class LauncherWindow : Window
         try
         {
             string[]? languageState = null;
+            string[]? roleState = null;
             var intentRevision = _languageIntentRevision;
             var reachable = await CanReach(
                 "http://127.0.0.1:" + _settings.HttpPort + "/api/state",
-                _probeCancellation.Token, readLanguage: value => languageState = value);
+                _probeCancellation.Token, readLanguage: value => languageState = value, readRole: value => roleState = value);
             if (generation != _probeGeneration || _allowClose || !_ready) return;
             if (reachable)
             {
+                AdoptServerRole(roleState);
                 AdoptServerLanguage(languageState, intentRevision);
                 _healthFailures = 0;
                 return;

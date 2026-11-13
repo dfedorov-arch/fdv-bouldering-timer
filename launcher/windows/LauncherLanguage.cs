@@ -7,6 +7,29 @@ namespace FdvBoulderingTimerLauncher
     internal static class LauncherLanguage
     {
         internal static bool Russian = true;
+        internal static string RunningStatus(string role, string peer)
+        { return RunningStatus(role, peer, "true"); }
+
+        internal static bool PeerUnavailable(string role, string peer, string availability)
+        {
+            return (role == "primary" || role == "secondary") && !String.IsNullOrEmpty(peer)
+                && String.Equals(availability, "false", StringComparison.OrdinalIgnoreCase);
+        }
+
+        internal static string RunningStatus(string role, string peer, string availability)
+        {
+            string text = Text("Server is running");
+            if (String.IsNullOrEmpty(peer)) return text;
+            if (PeerUnavailable(role, peer, availability)) return text + (Russian
+                ? (role == "primary" ? ", резервный сервер «" : ", основной сервер «") + peer + "» недоступен"
+                : (role == "primary" ? ", standby server " : ", primary server ") + peer + " is unavailable");
+            if (role == "secondary") return text + (Russian
+                ? ", используется как резервный для сервера " : ", acting as standby for ") + peer;
+            if (role == "primary") return text + (Russian
+                ? (String.Equals(availability, "true", StringComparison.OrdinalIgnoreCase) ? ", подключён резервный сервер " : ", настроен резервный сервер ")
+                : (String.Equals(availability, "true", StringComparison.OrdinalIgnoreCase) ? ", connected standby server: " : ", configured standby server: ")) + peer;
+            return text;
+        }
         // Keep this parser compatible with CLR 2.0 (Windows 7/8 packages).
         internal static bool ValidServerLanguage(string[] state)
         {

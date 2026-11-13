@@ -1,5 +1,6 @@
 "use strict";
 const {test,expect}=require("@playwright/test");
+const currentBuild=Number(require("node:fs").readFileSync(require("node:path").resolve(__dirname,"../../serve-bouldering-timer.js"),"utf8").match(/const BUILD_NUMBER = (\d+);/)[1]);
 const {fixture}=require("../helpers/controlled-clock-server");
 async function run(browser, fn, {touch=false,ios=false}={}) {
   const cleanups=[];
@@ -122,7 +123,7 @@ for (const android of [false,true]) test("standalone "+(android?"Android":"HTML"
   await page.waitForFunction(()=>standaloneMode);
   await page.locator("h1").tap();
   await page.waitForFunction(()=>clientDiagnostics().audioUnlocked);
-  expect(await page.evaluate(()=>({build:pageBuildNumber,backend:FDVPerformanceDiagnostics.snapshot().audio.playbackBackend,ready:clientDiagnostics().audioUnlocked}))).toEqual({build:449,backend:"web-audio",ready:true});
+  expect(await page.evaluate(()=>({build:pageBuildNumber,backend:FDVPerformanceDiagnostics.snapshot().audio.playbackBackend,ready:clientDiagnostics().audioUnlocked}))).toEqual({build:currentBuild,backend:"web-audio",ready:true});
   expect(errors).toEqual([]);
  } finally {await context.close();}
 });

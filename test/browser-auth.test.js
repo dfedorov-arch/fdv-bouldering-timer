@@ -157,6 +157,14 @@ test('migration never grants old primary or CTRL identity to the first browser n
   const s=await fixture(t,'darwin');
   await s.action({type:'primary',primaryClientId:'clock-test'});
   await s.action({type:'primaryPin',pin:'1234'});
+  // Wait for the debounced snapshot before simulating an abrupt process stop.
+  const deadline=Date.now()+6000;
+  while(true){
+    try { if(s.snapshot().timerState.primaryPinHash) break; }
+    catch(error){ if(error.code!=='ENOENT') throw error; }
+    assert.ok(Date.now()<deadline,'PIN snapshot must be persisted before migration');
+    await new Promise(resolve=>setTimeout(resolve,25));
+  }
   await s.stop();
   const snapshot=s.snapshot();
   delete snapshot.timerState.browserSessions;

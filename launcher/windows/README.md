@@ -1,5 +1,10 @@
 # Windows launcher
 
+Build454 visual follow-up matches the Unix launcher palette and Arial typography. Main actions and PIN/certificate dialogs use LauncherTheme.cs: flat rounded buttons, explicit hover/pressed/focus/disabled rendering, aligned 32px action rows and matching spacing. launcher.manifest enables system DPI awareness; forms use AutoScaleMode.Dpi, including the CLR2 build. Native title bars and scrollbars retain OS styling. See [validation](../../docs/review/windows-launcher-theme454.md).
+
+Current build454 controls: first row **Open timer, Copy link, Control PIN, Restart server, Stop and exit**; second row **Create HTTPS certificate, Check updates, Open project website**. Update checks run separately from the timer and report GitHub releases without installing automatically. The status line includes the primary/standby role and peer URL from existing health-response metadata. If the configured standby becomes unreachable, the status turns yellow and reports its address as unavailable; connection text returns when contact recovers. Removing the pairing clears the peer text. Missing availability metadata from an older server is shown as configured, without claiming connectivity. See [peer-status validation](../../docs/review/launcher-peer-status454.md). Russian and English use the same layout. Linux and macOS share the Avalonia implementation; the five Unix action buttons have equal vertical alignment and 8px gaps at default/minimum width (920/900). Screenshots use passive render harnesses, without starting a timer or probing the operator's servers.
+
+
 Build442 shares its caption/certificate dictionary with the macOS/Linux builds.
 All GUI launchers hide on ordinary Close and keep the server running. Repeating
 the Windows launch sends a registered show-only window message to the existing

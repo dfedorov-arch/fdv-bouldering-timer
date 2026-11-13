@@ -239,6 +239,7 @@ test("actual runtime controllers do not fall back to local mutations after a ret
     const context = vm.createContext({
       state: currentState, controlsAvailable: () => true, timerControlsAvailable: () => true, isLimitedController: false,
       requestScreenWakeLock() {}, unlockAudio() {},
+      finalStartPrewarmPlanner: { reset() {}, stop() {} }, requestManualStartAudioWake() {}, wakeAudioOutput() {},
       isBeforeScheduledStart: () => scheduled,
       shouldUseManualStartAudioLead: () => true,
       activeSettingsFromDraft: () => ({rotationSeconds: 60}), activeSettings: () => currentState.activeSettings,

@@ -15,6 +15,7 @@ const { createTimerTransitions } = require("./lib/timer-transitions");
 const clientDelivery = require("./lib/client-delivery");
 const startListDomain = require("./lib/start-list");
 const { markerColors } = require("./lib/start-list-display");
+const timerStretch = require("./lib/timer-stretch");
 const { runtimeStateStoragePlan, prepareRuntimeStateStorage } = require("./lib/runtime-state-storage");
 const { httpsCertificatePaths } = require("./lib/https-certificate-storage");
 const { launcherLanguageAllowed, validLauncherLanguage } = require("./lib/launcher-language");
@@ -31,7 +32,7 @@ const legacyRuntimeStatePath = runtimeStatePath;
 const beepsPath = path.join(root, "beeps");
 const fontsPath = path.join(root, "fonts");
 const offlineAudioPath = path.join(root, "lib", "offline-audio.js");
-const BUILD_NUMBER = 449;
+const BUILD_NUMBER = 454;
 const serverInstanceId = crypto.randomUUID();
 let serverAudio = null;
 const launcherLanguageToken = process.env.FDV_LAUNCHER_LANGUAGE_TOKEN || "";
@@ -355,6 +356,8 @@ const config = {
   timerFontFile: initialTimerFontFile,
   timerFontUrl: fontFileUrl(initialTimerFontFile),
   timerFont: textParam(params, "timer_font", defaultConfig.timerFont),
+  timerVerticalStretchMaxPercent: timerStretch.percent(params.timer_vertical_stretch_max_percent),
+  timerVerticalStretchDefault: boolParam(params, "timer_vertical_stretch", false),
   countdownTextColor: textParam(params, "countdown_text_color", defaultConfig.countdownTextColor),
   countdownBackgroundColor: textParam(params, "countdown_background_color", defaultConfig.countdownBackgroundColor),
   rotationTextColor: textParam(params, "rotation_text_color", defaultConfig.rotationTextColor),
@@ -414,6 +417,7 @@ const types = {
 };
 
 const timerState = {
+  audioRunId: "",
   running: false,
   completed: false,
   countdownOnly: false,
@@ -466,6 +470,8 @@ const timerState = {
   browserOrder: [],
   browserPinnedClientIds: [],
   serverTimeDisplayClientIds: [],
+  timerVerticalStretchClientIds: [],
+  timerVerticalStretchDisabledClientIds: [],
   showBrowserNumbers: false,
   startListFinalCycle: 0,
   version: 1
@@ -474,6 +480,7 @@ const timerState = {
 const clients = new Map();
 const clientAudioOffsets = new Map();
 const serverAudioDisabledClients = new Set();
+let restoredServerAudioSelection = null;
 const manualLegacyClients = new Set();
 const oldBrowserClients = new Set();
 const legacyRedirectPending = new Set();
@@ -977,6 +984,7 @@ function snapshotPayload() {
     },
     audioOffsets: [...clientAudioOffsets.entries()],
     serverAudioDisabledClients: [...serverAudioDisabledClients],
+    serverAudioSelection: {host:os.hostname(),platform:process.platform,selection:serverAudio?.savedSelection() || restoredServerAudioSelection},
     manualLegacyClients: [...manualLegacyClients],
     secondary: secondaryServer?.configured ? { ...secondaryServer.snapshot(), startedAt: replicaStartedAt } : null,
     clockDiagnostics: publicClockDiagnostics()
@@ -1016,6 +1024,7 @@ function scheduleSnapshotWrite(immediate = false) {
 
 function assignTimerState(source = {}) {
   for (const key of [
+    "audioRunId",
     "running",
     "completed",
     "countdownOnly",
@@ -1054,6 +1063,8 @@ function assignTimerState(source = {}) {
     "browserOrder",
     "browserPinnedClientIds",
     "serverTimeDisplayClientIds",
+    "timerVerticalStretchClientIds",
+    "timerVerticalStretchDisabledClientIds",
     "showBrowserNumbers",
     "startListFinalCycle",
     "version"
@@ -1081,6 +1092,7 @@ function restoreTimerSnapshot() {
 
     restoreClockDiagnostics(snapshot.clockDiagnostics);
     assignTimerState(snapshot.timerState);
+    if (timerState.running && !timerState.audioRunId) timerState.audioRunId = crypto.randomUUID();
     timerState.primaryPinValue = "";
     timerState.activeSettings = normalizeActiveSettings(timerState.activeSettings, {
       rotationSeconds: config.classicRotationMinutes * 60,
@@ -1101,6 +1113,8 @@ function restoreTimerSnapshot() {
     timerState.startListLayoutOverrides = sanitizeStartListLayoutOverrides(timerState.startListLayoutOverrides);
     timerState.browserPinnedClientIds = sanitizeBrowserClientIds(timerState.browserPinnedClientIds);
     timerState.serverTimeDisplayClientIds = sanitizeBrowserClientIds(timerState.serverTimeDisplayClientIds);
+    timerState.timerVerticalStretchClientIds = sanitizeBrowserClientIds(timerState.timerVerticalStretchClientIds);
+    timerState.timerVerticalStretchDisabledClientIds = sanitizeBrowserClientIds(timerState.timerVerticalStretchDisabledClientIds);
     timerState.limitedControlClientIds = sanitizeBrowserClientIds(timerState.limitedControlClientIds);
     timerState.muteBreakWarnings = Boolean(timerState.muteBreakWarnings);
     timerState.speakerKeepAwake = timerState.speakerKeepAwake !== false;
@@ -1113,6 +1127,8 @@ function restoreTimerSnapshot() {
     timerState.showBrowserNumbers = Boolean(timerState.showBrowserNumbers);
     timerState.startListFinalCycle = Math.max(0, Math.round(numberOrDefault(timerState.startListFinalCycle, 0)));
     clientAudioOffsets.clear();
+    restoredServerAudioSelection = snapshot.serverAudioSelection?.host === os.hostname()
+      && snapshot.serverAudioSelection?.platform === process.platform ? snapshot.serverAudioSelection.selection : null;
     serverAudioDisabledClients.clear();
     for (const id of Array.isArray(snapshot.serverAudioDisabledClients) ? snapshot.serverAudioDisabledClients : []) {
       if (typeof id === "string" && id) serverAudioDisabledClients.add(id);
@@ -1460,6 +1476,7 @@ function registerClient(req, source = {}) {
     connectionAddress: connectionAddress || existing.connectionAddress || "",
     connectionOrigin: `${req.socket.encrypted ? "https" : "http"}://${req.headers.host || "localhost"}`,
     secondaryAvailable: optionalBool(sourceValue(source, "secondaryAvailable"), existing.secondaryAvailable ?? false),
+    primaryServerAvailable: optionalBool(sourceValue(source, "primaryServerAvailable"), existing.primaryServerAvailable ?? true),
     secondaryClockError: optionalNumber(sourceValue(source, "secondaryClockError"), existing.secondaryClockError ?? null),
     viaSecondary: Boolean(req.fdvSecondaryForward),
     computerKey: computerKeyForAddress(req.socket.remoteAddress || ""),
@@ -1488,6 +1505,8 @@ function registerClient(req, source = {}) {
     screen: sourceValue(source, "screen") || existing.screen || "",
     dpr: optionalNumber(sourceValue(source, "dpr"), existing.dpr ?? null),
     clientBuild: optionalNumber(sourceValue(source, "clientBuild"), existing.clientBuild ?? null),
+    timerVerticalStretchSupported: sourceHas(source, "clientBuild") && !sourceHas(source, "timerVerticalStretchSupported")
+      ? false : optionalBool(sourceValue(source, "timerVerticalStretchSupported"), existing.timerVerticalStretchSupported ?? false),
     audioUnlocked: optionalBool(sourceValue(source, "audioUnlocked"), existing.audioUnlocked ?? null),
     audioContextState: String(sourceHas(source, "audioContextState") ? sourceValue(source, "audioContextState") || "" : existing.audioContextState || "").slice(0, 24),
     audioUnlockState: String(sourceHas(source, "audioUnlockState") ? sourceValue(source, "audioUnlockState") || "" : existing.audioUnlockState || "").slice(0, 32),
@@ -1596,6 +1615,7 @@ function publicClients(orderedClients = orderedClientValues(), localOnly = false
       startListVisible: startListVisibleForClient(client.id),
       startListParallel: startListParallelForClient(client.id),
       showServerTime: sanitizeBrowserClientIds(timerState.serverTimeDisplayClientIds).includes(client.id),
+      timerVerticalStretch: timerVerticalStretchEnabled(client.id),
       limitedControl: limitedControlAllowed(client.id),
       role: client.legacyViewer ? "screen" : timerState.primaryClientId ? (timerState.primaryClientId === client.id ? "primary" : "screen") : "",
       age: now - (client.lastReportAt ?? client.lastSeen),
@@ -1663,6 +1683,13 @@ function sanitizeStartLists(value) {
   } finally {
     performanceEnd("sanitizeStartLists", performanceStartedAt);
   }
+}
+
+function timerVerticalStretchEnabled(clientId) {
+  if (sanitizeBrowserClientIds(timerState.timerVerticalStretchClientIds).includes(clientId)) return true;
+  const client = clients.get(clientId) || secondaryServer?.peerClient(clientId);
+  return Boolean(config.timerVerticalStretchDefault && client?.timerVerticalStretchSupported === true
+    && !sanitizeBrowserClientIds(timerState.timerVerticalStretchDisabledClientIds).includes(clientId));
 }
 
 function hasStartLists(value) {
@@ -1883,6 +1910,8 @@ function publicState(options = {}) {
     browserOrder: _browserOrder,
     browserPinnedClientIds: _browserPinnedClientIds,
     serverTimeDisplayClientIds: _serverTimeDisplayClientIds,
+    timerVerticalStretchClientIds: _timerVerticalStretchClientIds,
+    timerVerticalStretchDisabledClientIds: _timerVerticalStretchDisabledClientIds,
     limitedControlClientIds: _limitedControlClientIds,
     startLists,
     ...publicTimerState
@@ -1921,6 +1950,8 @@ function publicState(options = {}) {
     browserDisplayNumber: ownDisplayIndex >= 0 ? ownDisplayIndex + 1 : 0,
     showServerTime: Boolean(clientId
       && sanitizeBrowserClientIds(timerState.serverTimeDisplayClientIds).includes(clientId)),
+    timerVerticalStretch: Boolean(clientId
+      && timerVerticalStretchEnabled(clientId)),
     serverTimezoneOffsetMinutes: new Date(sentAt).getTimezoneOffset(),
     manualLegacy: ownManualLegacy,
     limitedControl: limitedControlAllowed(clientId),
@@ -2134,7 +2165,8 @@ function handleRequest(req, res) {
       if(!authenticatedBrowser(req,id) || !client || client.computerKey!=="server-host" || body.serverInstanceId!==serverInstanceId){sendJson(res,409,{available:false,serverInstanceId});return;}
       let result;
       if(body.op==="prepare")result=await serverAudio.prepare(id,{wanted:body.wanted===true,forced:body.forced===true});
-      else if(body.op==="release")result=await serverAudio.release(id,String(body.token||""));
+      else if(body.op==="release")result=await serverAudio.release(id,String(body.token||""),{detach:body.detach===true});
+      else if(body.op==="sound")result=serverAudio.sound(id,body.enabled);
       else if(body.op==="status")result=serverAudio.status(id);
       else{sendJson(res,400,{available:false});return;}
       sendJson(res,200,{...result,serverInstanceId});
@@ -2308,6 +2340,14 @@ function handleRequest(req, res) {
     res.setHeader("X-FDV-Language", responseState.language);
     res.setHeader("X-FDV-State-Version", String(responseState.version));
     res.setHeader("X-FDV-Server-Instance", serverInstanceId);
+    const secStatus = responseState.sec;
+    const reserveActive = secStatus?.switchAll;
+    const localIsPrimary = secStatus && (secStatus.role === "primary") !== Boolean(reserveActive);
+    res.setHeader("X-FDV-Secondary-Role", !secStatus ? "" : localIsPrimary ? "primary" : "secondary");
+    res.setHeader("X-FDV-Secondary-Available", !secStatus ? "" : String(Boolean(secStatus.sourceConnected)));
+    res.setHeader("X-FDV-Secondary-Peer", !secStatus ? "" : localIsPrimary
+      ? reserveActive ? secStatus.primaryUrl : secStatus.secondaryUrl
+      : reserveActive ? secStatus.secondaryUrl : secStatus.primaryUrl);
     sendJson(res, 200, responseState);
     if (clientId) legacyRedirectPending.delete(clientId);
     return;
@@ -2488,6 +2528,7 @@ function handleRequest(req, res) {
       });
       if (timerAction.changed) {
         assignTimerState(timerAction.state);
+        if (timerAction.effects.clock === "set") timerState.audioRunId = crypto.randomUUID();
         if (clearIncidentsForNewRound) clearStartListIncidents();
         if (advanceCompletedFinalList) timerState.startListFinalCycle += 1;
         if (timerAction.effects.clock === "set") setTimerStartedAt(timerAction.state.startedAt);
@@ -2583,6 +2624,23 @@ function handleRequest(req, res) {
         if (timerState.showBrowserNumbers !== enabled) {
           timerState.showBrowserNumbers = enabled;
           timerState.version += 1;
+        }
+      }
+
+      if (type === "clientTimerStretch") {
+        const targetClientId = String(body.targetClientId || "");
+        const target = clients.get(targetClientId) || publicClients().find(client => client.id === targetClientId);
+        if (target && (!body.enabled || (target.timerVerticalStretchSupported === true && config.timerVerticalStretchMaxPercent > 100))) {
+          const ids = new Set(sanitizeBrowserClientIds(timerState.timerVerticalStretchClientIds));
+          const disabledIds = new Set(sanitizeBrowserClientIds(timerState.timerVerticalStretchDisabledClientIds));
+          const enabled = Boolean(body.enabled);
+          if (ids.has(targetClientId) !== enabled || disabledIds.has(targetClientId) === enabled) {
+            if (enabled) ids.add(targetClientId); else ids.delete(targetClientId);
+            if (enabled) disabledIds.delete(targetClientId); else disabledIds.add(targetClientId);
+            timerState.timerVerticalStretchClientIds = [...ids].slice(0, 100);
+            timerState.timerVerticalStretchDisabledClientIds = [...disabledIds].slice(0, 100);
+            timerState.version += 1;
+          }
         }
       }
 
@@ -2982,16 +3040,6 @@ secondaryServer = createSecondaryServer({
   })
 });
 
-serverAudio = createServerAudio({
-  player: new NativeAudio(root),
-  context: () => {repairTimerClockContinuity();return ({state:timerState,clients,legacyClients:manualLegacyClients,oldClients:oldBrowserClients,offsets:clientAudioOffsets,serverAudioDisabledClients,profiles:soundProfiles,keepAwakeConfig:config,
-    sampledAt:performance.now(),now:timerClockNow(),startedAt:timerState.running && timerStartedAtMono
-      ? secondaryServer?.clock.ready ? replicaStartedAt : timerClockOrigin+timerStartedAtMono+timerClockSleepOffset : 0,
-    instanceId:serverInstanceId,rate:secondaryServer?.clock.ready ? secondaryServer.clock.rate : 1,
-    fenced:Boolean(secondaryServer?.fenced || secondaryServer?.rejoining || secondaryServer?.receivingBaseline)});},
-  notify: () => broadcastState()
-});
-
 let runtimeStorage = runtimeStateStoragePlan(root);
 try {
   runtimeStorage = prepareRuntimeStateStorage(runtimeStorage);
@@ -3002,6 +3050,19 @@ runtimeStateDir = runtimeStorage.directory;
 runtimeStatePath = path.join(runtimeStateDir, "timer-state.json");
 console.log(`Timer state directory: ${runtimeStateDir}${runtimeStorage.usedFallback ? " (application directory is not writable)" : ""}`);
 const restoredFromSnapshot = restoreTimerSnapshot();
+serverAudio = createServerAudio({
+  player: new NativeAudio(root),
+  restore: restoredServerAudioSelection,
+  selectionChanged: () => scheduleSnapshotWrite(),
+  context: () => {repairTimerClockContinuity();return ({state:timerState,clients,legacyClients:manualLegacyClients,oldClients:oldBrowserClients,offsets:clientAudioOffsets,serverAudioDisabledClients,profiles:soundProfiles,keepAwakeConfig:config,
+    sampledAt:performance.now(),now:timerClockNow(),startedAt:timerState.running && timerStartedAtMono
+      ? secondaryServer?.clock.ready ? replicaStartedAt : timerClockOrigin+timerStartedAtMono+timerClockSleepOffset : 0,
+    instanceId:serverInstanceId,rate:secondaryServer?.clock.ready ? secondaryServer.clock.rate : 1,
+    fenced:Boolean(secondaryServer?.fenced || secondaryServer?.rejoining || secondaryServer?.receivingBaseline)});},
+  notify: () => broadcastState()
+});
+
+
 if (restoredFromSnapshot) {
   finalizeScheduledCountdown();
   finalizeOneShot();

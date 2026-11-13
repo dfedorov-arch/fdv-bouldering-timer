@@ -46,6 +46,14 @@ sound_profile=FSR_2026
 timer_font_file=Roboto-Variable.ttf
 timer_font=Arial, sans-serif
 
+# Enable stretching by default for new screens; per-screen choices override it.
+timer_vertical_stretch=false
+
+# Maximum vertical digit size relative to proportional fitting (percent).
+# 100 or less disables stretching and makes the per-screen badge gray.
+# Restart the server after changing this value.
+timer_vertical_stretch_max_percent=200
+
 countdown_text_color=#f4f7fb
 countdown_background_color=#28630f
 

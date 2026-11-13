@@ -19,6 +19,75 @@ internal static class WindowsLauncherHarness
         { form.DrawToBitmap(bitmap, new Rectangle(0, 0, form.Width, form.Height)); bitmap.Save(path); }
     }
 
+    private static void CheckLayout(Form form)
+    {
+        float scale; using (var graphics = form.CreateGraphics()) scale = graphics.DpiX / 96F;
+        var names = new string[] { "_openButton", "_copyButton", "_pinButton", "_restartButton", "_stopButton", "_certificateButton", "_updateButton", "_projectButton" };
+        Button previous = null;
+        for (int index = 0; index < names.Length; index++)
+        {
+            var button = (Button)Field(form, names[index]);
+            Check(button is LauncherButton, "Every action uses the shared renderer: " + names[index]);
+            Check(button.Right <= form.ClientSize.Width && button.Bottom <= form.ClientSize.Height, "Action fits: " + names[index]);
+            Check(TextRenderer.MeasureText(button.Text, button.Font).Width + 16 * scale <= button.Width, "Caption fits: " + button.Text);
+            if (previous != null && index != 5)
+            {
+                Check(button.Top == previous.Top && button.Height == previous.Height, "Button rows align");
+                Check(Math.Abs(button.Left - previous.Right - 8 * scale) <= 2, "Button gaps match");
+            }
+            previous = button;
+        }
+        var first = (Button)Field(form, "_openButton");
+        Check(((ListBox)Field(form, "_addresses")).Bottom + 8 * scale <= first.Top, "Address list cannot cover PIN or other actions");
+        Check(((TextBox)Field(form, "_log")).Bottom + 8 * scale <= ((Label)Field(form, "_hint")).Top, "Log and footer cannot overlap");
+        Check(((Label)Field(form, "_hint")).Bottom <= form.ClientSize.Height, "Footer fits at current DPI");
+        Check(((Label)Field(form, "_updateNotice")).Bottom <= ((Label)Field(form, "_logTitle")).Top, "Update notice cannot cover the log title");
+        Check(form.Font.Name == "Arial", "Shared launcher typeface");
+    }
+
+    private static void RenderButtonStates(string prefix)
+    {
+        using (var button = new LauncherButton())
+        {
+            button.Text = "Проверка"; button.Font = new Font("Arial", 10.5F);
+            foreach (int dpi in new int[] { 96, 120, 144 })
+            {
+                float scale = dpi / 96F; button.Size = new Size((int)(180 * scale), (int)(32 * scale));
+                foreach (string state in new string[] { "normal", "hover", "pressed", "disabled" })
+                {
+                    button.Enabled = state != "disabled";
+                    if (state == "hover") Call(button, "OnMouseEnter", EventArgs.Empty);
+                    if (state == "pressed") Call(button, "OnMouseDown", new MouseEventArgs(MouseButtons.Left, 1, 10, 10, 0));
+                    using (var bitmap = new Bitmap(button.Width, button.Height))
+                    {
+                        bitmap.SetResolution(dpi, dpi);
+                        using (var graphics = Graphics.FromImage(bitmap))
+                            Call(button, "OnPaint", new PaintEventArgs(graphics, button.ClientRectangle));
+                        Color expected = state == "normal" ? Color.FromArgb(31, 42, 58) : state == "hover" ? Color.FromArgb(45, 61, 81)
+                            : state == "pressed" ? Color.FromArgb(38, 53, 72) : Color.FromArgb(25, 33, 45);
+                        Check(bitmap.GetPixel((int)(10 * scale), (int)(8 * scale)).ToArgb() == expected.ToArgb(), "Distinct " + state + " palette at " + dpi + " DPI");
+                        bitmap.Save(prefix + "-button-" + dpi + "-" + state + ".png");
+                    }
+                }
+            }
+        }
+    }
+
+    private static void RenderPin(Form owner, string path)
+    {
+        var method = owner.GetType().GetMethod("CreateControlPinDialog", BindingFlags.Instance | BindingFlags.NonPublic);
+        using (var dialog = (Form)method.Invoke(owner, new object[0]))
+        {
+            dialog.StartPosition = FormStartPosition.Manual; dialog.Location = new Point(-10000, -10000); dialog.Opacity = 0;
+            dialog.Show(); Application.DoEvents();
+            Check(dialog.Controls.Find("controlPin", true).Length == 1, "PIN editor exists");
+            Render(dialog, path);
+            foreach (Control control in dialog.Controls)
+                Check(control.Right <= dialog.ClientSize.Width && control.Bottom <= dialog.ClientSize.Height, "PIN control fits: " + control.Text + " " + control.Bounds + " in " + dialog.ClientSize);
+            dialog.Close();
+        }
+    }
+
     [STAThread]
     private static int Main(string[] args)
     {
@@ -138,21 +207,22 @@ internal static class WindowsLauncherHarness
                 var log = (TextBox)Field(form, "_log");
                 var build = (Label)Field(form, "_buildLabel");
                 Check(build.Text == "", "No invented build before server readiness");
-                Call(form, "UpdateBuildNumber", "{\"config\":{\"buildNumber\":430}}");
+                Call(form, "UpdateBuildNumber", "{\"config\":{\"buildNumber\":454}}");
                 Application.DoEvents();
-                Check(build.Text == "(430)" && form.Text.EndsWith("   (430)"), "Build from server response");
+                Check(build.Text == "(454)" && form.Text.EndsWith("   (454)"), "Build from server response");
                 var originalSize = form.Size;
                 form.Size = form.MinimumSize; Application.DoEvents();
+                CheckLayout(form);
                 Check(build.Left > 300 && build.Right + 10 < button.Left, "Build fits beside title at minimum width");
                 Render(form, args[1] + "-build-minimum.png");
                 form.Size = originalSize; Application.DoEvents();
-                Call(form, "UpdateBuildNumber", "{\"config\":{\"buildNumber\":431}}");
-                Check(build.Text == "(431)", "Restart may change server build");
+                Call(form, "UpdateBuildNumber", "{\"config\":{\"buildNumber\":456}}");
+                Check(build.Text == "(456)", "Restart may change server build");
                 Call(form, "UpdateBuildNumber", "");
                 Check(build.Text == "" && form.Text == "FDV Bouldering Timer", "Clear stale build on restart");
-                Call(form, "UpdateBuildNumber", "{\"buildNumber\":430.5}");
+                Call(form, "UpdateBuildNumber", "{\"buildNumber\":454.5}");
                 Check(build.Text == "", "Reject malformed build");
-                Call(form, "UpdateBuildNumber", "{\"config\":{\"buildNumber\":430}}");
+                Call(form, "UpdateBuildNumber", "{\"config\":{\"buildNumber\":454}}");
                 string url = ((TimerAddress)addresses.SelectedItem).Url;
                 Call(form, "SetStatusText", "Server is running");
                 Call(form, "SetTrayText", "FDV Bouldering Timer - running");
@@ -168,10 +238,11 @@ internal static class WindowsLauncherHarness
                     Check(TextRenderer.MeasureText(action.Text, action.Font).Width + 6 <= action.Width, "Button text must fit: " + action.Text);
                 }
                 Render(form, args[1] + "-ru.png");
+                CheckLayout(form);
                 button.PerformClick(); Application.DoEvents();
                 Check(!LauncherLanguage.Russian && button.Text == "RU", "Actual language-button click");
                 Check(status.Text == "Server is running", "Live status translated without restart");
-                Check(build.Text == "(430)", "Build survives language switch");
+                Check(build.Text == "(454)", "Build survives language switch");
                 Check(tray.Text == "FDV Bouldering Timer - running", "Live tray status translated");
                 Check(tray.ContextMenuStrip.Items[0].Text == "Show launcher", "English tray");
                 Check(((TimerAddress)addresses.SelectedItem).Url == url, "Selected address preserved");
@@ -180,6 +251,7 @@ internal static class WindowsLauncherHarness
                 Check(File.ReadAllText(preference).Trim() == "en", "Button persists language in isolated fixture");
                 using (var dialog = new HttpsCertificateDialog(root)) Check(dialog.Text == "HTTPS certificate", "Certificate uses chosen language, not OS");
                 Render(form, args[1] + "-en.png");
+                CheckLayout(form);
                 form.GetType().GetField("_ready", BindingFlags.Instance | BindingFlags.NonPublic).SetValue(form, true);
                 ((Button)Field(form, "_openButton")).Enabled = true;
                 button.PerformClick();
@@ -203,11 +275,52 @@ internal static class WindowsLauncherHarness
                     "Adoption saves preference without an echo command");
                 Call(form, "AdoptServerLanguage", new string[] { "ru", Guid.NewGuid().ToString(), "0" }, intent);
                 Check(LauncherLanguage.Russian, "Restarted server language is authoritative at a lower version");
+                form.GetType().GetField("_serverRole", BindingFlags.Instance | BindingFlags.NonPublic).SetValue(form, "primary");
+                form.GetType().GetField("_serverPeer", BindingFlags.Instance | BindingFlags.NonPublic).SetValue(form, "http://192.168.1.222:8008");
+                form.GetType().GetField("_serverPeerAvailability", BindingFlags.Instance | BindingFlags.NonPublic).SetValue(form, "true");
+                Call(form, "SetStatusText", "Server is running");
+                Check(status.Text.Contains("подключён резервный сервер http://192.168.1.222:8008"), "Primary role and peer address");
+                status.ForeColor = Color.FromArgb(87, 211, 140);
+                Render(form, args[1] + "-secondary-primary-ru.png");
+                Call(form, "AdoptServerRole", (object)new string[] { "primary", "http://192.168.1.222:8008", "false" });
+                Check(status.Text.Contains("резервный сервер «http://192.168.1.222:8008» недоступен"), "Unreachable reserve in Russian");
+                Check(status.ForeColor == Color.FromArgb(255, 200, 87), "Peer failure warns without reporting local server failure");
+                Render(form, args[1] + "-secondary-unavailable-ru.png");
+                LauncherLanguage.Russian = false; Call(form, "ApplyLanguage");
+                Check(status.Text.Contains("standby server http://192.168.1.222:8008 is unavailable"), "Unreachable reserve in English");
+                Call(form, "AdoptServerRole", (object)new string[] { "primary", "http://192.168.1.222:8008", "true" });
+                Check(status.ForeColor == Color.FromArgb(87, 211, 140), "Peer recovery restores healthy color");
+                Check(status.Text.Contains("connected standby server: http://192.168.1.222:8008"), "Role survives language change");
+                form.GetType().GetField("_serverRole", BindingFlags.Instance | BindingFlags.NonPublic).SetValue(form, "secondary");
+                Call(form, "SetStatusText", "Server is running");
+                Check(status.Text.Contains("acting as standby for http://192.168.1.222:8008"), "Reserve role in English");
+                Call(form, "AdoptServerRole", (object)new string[] { "secondary", "http://192.168.1.222:8008", "false" });
+                Check(status.Text.Contains("primary server http://192.168.1.222:8008 is unavailable"), "Missing primary is identified by role");
+                Call(form, "AdoptServerRole", (object)new string[] { "secondary", "http://192.168.1.222:8008", "true" });
+                LauncherLanguage.Russian = true; Call(form, "ApplyLanguage");
+                Check(status.Text.Contains("используется как резервный для сервера http://192.168.1.222:8008"), "Reserve role in Russian");
+                Render(form, args[1] + "-secondary-reserve-ru.png");
+                Call(form, "AdoptServerRole", (object)new string[] { "primary", "http://192.168.1.222:8008" });
+                Check(status.Text.Contains("настроен резервный сервер"), "Old metadata does not claim confirmed connectivity");
+                Call(form, "AdoptServerRole", (object)new string[] { "", "", "" });
+                Check(status.Text == "Сервер работает" && status.ForeColor == Color.FromArgb(87, 211, 140), "Removing the pair clears peer status");
                 foreach (string timer in new string[] { "_startupTimer", "_healthTimer", "_restartTimer", "_networkRefreshTimer" })
                     Check(!((System.Windows.Forms.Timer)Field(form, timer)).Enabled, "Language must not start timers: " + timer);
                 Check(Field(form, "_serverProcess") == null, "Language must not spawn a server");
                 Check(File.ReadAllText(paramsPath) == "language=en\nhttp_port=12345\n", "Do not change server/browser configuration");
+                RenderPin(form, args[1] + "-pin-ru.png");
+                LauncherLanguage.Russian = false; Call(form, "ApplyLanguage");
+                RenderPin(form, args[1] + "-pin-en.png");
+                LauncherLanguage.Russian = true; Call(form, "ApplyLanguage");
+                form.GetType().GetField("_serverRole", BindingFlags.Instance | BindingFlags.NonPublic).SetValue(form, "");
+                Call(form, "SetStatusText", "Server is running");
+                log.Text = LauncherLanguage.Text("Server is ready.");
+                Render(form, args[1] + "-preview-ru.png");
+                LauncherLanguage.Russian = false; Call(form, "ApplyLanguage");
+                Render(form, args[1] + "-preview-en.png");
+                LauncherLanguage.Russian = true; Call(form, "ApplyLanguage");
             }
+            RenderButtonStates(args[1]);
             LauncherLanguage.Russian = false; LauncherLanguage.Load(preference);
             Check(LauncherLanguage.Russian, "Language survives a new load");
             string blocked = Path.Combine(root, "blocked"); File.WriteAllText(blocked, "file");

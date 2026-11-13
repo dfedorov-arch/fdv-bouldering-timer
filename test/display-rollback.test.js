@@ -58,7 +58,8 @@ function harness(settings = { rotationSeconds: 60, breakSeconds: 0, oneShot: fal
     scheduleSegmentSignals: (segment, remaining, duration, includePhase) => {
       audio.push({ cycle: segment.cycle, type: segment.type, remaining, duration, includePhase });
     },
-    scheduleFinalWarnings: noop, els: elements
+    scheduleFinalWarnings: noop, els: elements, tickFinalStartPrewarm: noop,
+    isInitialManualStart: () => false, nativeAudioRoute: null
   });
   vm.runInContext(`
     const displayRollbackThresholdMs = 100;

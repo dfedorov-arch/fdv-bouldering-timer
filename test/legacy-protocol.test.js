@@ -190,7 +190,7 @@ test("Legacy fits timer text only when its width class or viewport changes", () 
   assert.match(legacy, /var timerFitCanvas = null;[\s\S]*?var timerFitContextResolved = false;/);
   assert.match(legacy, /function timerFitMeasureContext\(\) \{[\s\S]*?if \(timerFitContextResolved\) return timerFitContext;[\s\S]*?document\.createElement\("canvas"\)/);
   assert.match(legacy, /function rememberFitText\(value\) \{[\s\S]*?if \(next === storedFitText\) return false;[\s\S]*?return true;/);
-  assert.match(legacy, /fitTextChanged = rememberFitText\(label\);[\s\S]*?timeEl\.innerHTML = label;[\s\S]*?if \(fitTextChanged\) fitTimerText\(\);/);
+  assert.match(legacy, /fitTextChanged = rememberFitText\(label\);[\s\S]*?timeDigitsEl\.innerHTML = label;[\s\S]*?if \(fitTextChanged\) fitTimerText\(\);/);
   assert.match(legacy, /if \(fitKey === lastFitKey\) \{\s*performanceCount\("timerFitSkips"\);\s*return;/);
   assert.match(legacy, /function invalidateTimerFit\(\) \{\s*lastFitKey = "";\s*\}/);
   assert.match(legacy, /ff\.load\(\)\.then\(function \(\) \{ invalidateTimerFit\(\); fitTimerText\(\); \}\)/);

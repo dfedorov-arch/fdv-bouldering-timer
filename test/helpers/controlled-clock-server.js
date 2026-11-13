@@ -23,7 +23,7 @@ async function freePort() {
   return port;
 }
 
-async function fixture(t, platform, { liveClocks = false, legacyRuntime = process.env.FDV_TEST_SERVER_NODE12 || null, listenHost = "127.0.0.1", launcherToken = "", nativeAudioStub = false, nativeAudioDisabled = true, integerWallClock = false, nativeAudioCoordinatorSource = null, requestTimeoutMs = 1000 } = {}) {
+async function fixture(t, platform, { liveClocks = false, legacyRuntime = process.env.FDV_TEST_SERVER_NODE12 || null, listenHost = "127.0.0.1", launcherToken = "", nativeAudioStub = false, nativeAudioDisabled = true, integerWallClock = false, nativeAudioCoordinatorSource = null, requestTimeoutMs = 1000, startupParams = {} } = {}) {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), "fdv-clock-continuity-"));
   const profile = path.join(directory, "isolated-profile");
   fs.mkdirSync(profile);
@@ -52,6 +52,7 @@ async function fixture(t, platform, { liveClocks = false, legacyRuntime = proces
   for (const name of ["lib", "fonts", "beeps"]) {
     fs.cpSync(path.join(root, name), path.join(directory, name), { recursive: true });
   }
+  fs.appendFileSync(path.join(directory, "params.txt"), "\n" + Object.entries(startupParams).map(([key, value]) => key + "=" + value).join("\n") + "\n");
   // Optional comparison source affects only this disposable test server.
   if(nativeAudioCoordinatorSource)fs.copyFileSync(nativeAudioCoordinatorSource,path.join(directory,"lib/server-audio.js"));
   // Browser-audio regression tests must not silently switch to a real Windows
@@ -119,8 +120,14 @@ async function fixture(t, platform, { liveClocks = false, legacyRuntime = proces
       fail(){this.supported=false;this.stop();if(this.onFailure)this.onFailure("stub-failure");}
     };
     require(${JSON.stringify(path.join(directory,"lib/server-audio-native.js"))}).NativeAudio = class extends NativeAudioStub {constructor(){super();global.fdvFixtureAudio=this;}};` : ""}
-    ${nativeAudioStub ? `const http=require("http"),emit=http.Server.prototype.emit;
+    ${nativeAudioStub ? `const http=require("http"),emit=http.Server.prototype.emit,observers=new Set();
     http.Server.prototype.emit=function(name,req,res){
+      if(name==="request" && req.url.startsWith("/api/server-audio/events")){
+        observers.add(res);res.once("close",()=>observers.delete(res));
+      }
+      if(name==="request" && req.url==="/__fixture_audio_disconnect_observers"){
+        for(const observer of observers)observer.end();res.end("ok");return true;
+      }
       if(name==="request" && req.url==="/__fixture_audio_failure"){
         global.fdvFixtureAudio.fail();res.end("ok");return true;
       }

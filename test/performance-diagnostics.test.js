@@ -14,10 +14,10 @@ function inlineScripts(html) {
   return Array.from(html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g), (match) => match[1]);
 }
 
-function inlineFunction(html, name) {
+function inlineFunction(html, name, bindings = {}) {
   const match = html.match(new RegExp(`function ${name}\\([^)]*\\) \\{[\\s\\S]*?\\n    \\}`));
   assert.ok(match, `${name} must exist`);
-  return new Function(`return (${match[0]})`)();
+  return new Function(...Object.keys(bindings), `return (${match[0]})`)(...Object.values(bindings));
 }
 
 test("modern inline scripts remain syntactically valid", () => {
@@ -215,7 +215,8 @@ test("critical audio lateness is bounded by signal meaning", () => {
   assert.match(index, /prewarm:\s*Infinity,[\s\S]*?warm:\s*Infinity/);
   assert.match(index, /if \(kind === "warm" \|\| kind === "prewarm"\) return signalLateGraceMs\[kind\]/);
   assert.match(index, /Number\(remote\.elapsed \|\| 0\) \* 1000 <= signalLateGraceMs\.start/g);
-  assert.match(index, /lateGraceMs:\s*Math\.max\(0, signalLateGraceMs\.start - manualStartWatchdogDelayMs\)/);
+  assert.match(index, /const manualStartRecoveryGraceMs = 3000;/);
+  assert.match(index, /lateGraceMs:\s*Math\.max\(0, manualStartRecoveryGraceMs - manualStartWatchdogDelayMs\)/);
   assert.match(index, /phaseElapsedSeconds >= 0[\s\S]*?phaseElapsedSeconds \* 1000 <= signalLateGraceMs\.start/);
 });
 
@@ -242,17 +243,18 @@ test("audio fallback diagnostics distinguish accepted playback from a terminal s
   assert.equal(suppressionReason(true, false), "playback-rejected");
 
   const scheduler = index.match(/function scheduleBufferedSignalAt\([^]*?\n    function nextPhaseSignalKey/)?.[0] || "";
-  assert.match(scheduler, /if \(!markSignalPlayed\(signalKey\)\) return;[\s\S]*?const playbackServerTime = serverNow\(\);[\s\S]*?let playbackAccepted = false;[\s\S]*?playbackAccepted = fallback \? fallback\(\) !== false : beep\(kind\);/);
-  assert.match(scheduler, /if \(playbackSuppressionReason\) \{[\s\S]*?recordSuppressedSignal\(playbackSuppressionReason, playbackServerTime\);[\s\S]*?options\.onPlay\?\.\(\);[\s\S]*?return;/);
+  assert.match(scheduler, /if \(playedSignalKeys\.has\(signalKey\)\) return;[\s\S]*?const playbackServerTime = serverNow\(\);[\s\S]*?let playbackAccepted = false;[\s\S]*?playbackAccepted = fallback \? fallback\(\) !== false : beep\(kind\);/);
+  assert.match(scheduler, /if \(playbackSuppressionReason\) \{\s*recordSuppressedSignal\(playbackSuppressionReason, playbackServerTime\);\s*scheduledSignalKeys\.delete\(signalKey\);\s*return;\s*\}\s*markSignalPlayed\(signalKey\);/);
   assert.match(scheduler, /if \(playbackSuppressionReason\)[\s\S]*?stage:\s*"fallback"/);
   assert.doesNotMatch(scheduler, /stage:\s*"fallback"[\s\S]*?(?:if \(fallback\) fallback\(\)|else beep\(kind\))/);
 });
 
 test("audio diagnostics ignore scheduler work without a logical signal target", () => {
-  const performanceAudioTarget = inlineFunction(index, "performanceAudioTarget");
+  const performanceAudioTarget = inlineFunction(index, "performanceAudioTarget", { audioEventTargets: new Map([["1:rotation:start:opaque-run-id", 123456]]) });
   assert.equal(performanceAudioTarget(""), null);
   assert.equal(performanceAudioTarget(null), null);
   assert.equal(performanceAudioTarget("rotationBoundary:7:break:1785492977368"), 1785492977368);
+  assert.equal(performanceAudioTarget("1:rotation:start:opaque-run-id"), 123456);
 });
 
 test("Legacy diagnostics remain explicitly enabled and ES5-compatible", () => {

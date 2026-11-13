@@ -205,7 +205,7 @@ test("speaker keep-awake uses a separate quiet node and yields to work without r
   try{
    await page.evaluate(async()=>{revealControlsIfAllowed();await unlockAudio(false);await loadAudioBuffers();});
    await expect(page.locator("#speakerKeepAwakeToggle")).toBeChecked();
-   await expect(page.locator("#instancesSoundLabel")).toHaveText(", в других");
+   await expect(page.locator("#instancesSoundLabel")).toHaveText("Звук: остальные");
    await expect(page.locator("#instancesSoundLabel")).toHaveAttribute("title","Звук в других браузерах");
    await expect(page.locator("#speakerKeepAwakeRow")).toHaveAttribute("title",/BT-колонке.*params.txt/);
    const result=await page.evaluate(()=>{
@@ -238,7 +238,7 @@ test("speaker keep-awake uses a separate quiet node and yields to work without r
  });
 });
 
-test("sound row aligns without a primary and uses one-line compact labels with a primary",async({browser})=>{
+test("sound row aligns without a primary and uses two equal columns with a primary",async({browser})=>{
  await runFixture(async server=>{
   const {page,context,errors}=await open(browser,server,"clock-test");
   try{
@@ -266,17 +266,23 @@ test("sound row aligns without a primary and uses one-line compact labels with a
     await server.action({type:"language",language:lang});
     const full=lang==="ru"?"Звук в основном браузере":"Sound in primary browser";
     await expect(page.locator(".main-sound-option")).toHaveAttribute("title",full);
+    await expect(page.locator("#soundToggle")).toHaveAttribute("aria-label",full);
+    await expect(page.locator("#soundLabel")).toHaveText(lang==="ru"?"Звук: основной":"Sound: primary");
+    await expect(page.locator("#instancesSoundLabel")).toHaveText(lang==="ru"?"Звук: остальные":"Sound: others");
     for(const width of [240,280,300,340,400]){
      await setPanelWidth(width);
      const geometry=await page.evaluate(()=>{
       const label=document.getElementById("soundLabel"),input=document.getElementById("soundToggle"),row=document.querySelector(".sound-options-row");
       const a=label.getBoundingClientRect(),b=input.getBoundingClientRect(),c=row.getBoundingClientRect(),other=document.getElementById("instancesSoundToggle").getBoundingClientRect();
-      return {gap:b.left-a.right,labelHeight:a.height,line:parseFloat(getComputedStyle(label).lineHeight),bottom:b.bottom,right:other.right,rowRight:c.right,
-       full:getComputedStyle(label.querySelector(".sound-primary-full")).display!=="none"};
+      const flash=document.getElementById("flashToggle").getBoundingClientRect(),breakSound=document.getElementById("muteBreakWarningsToggle").getBoundingClientRect();
+      const ownCell=label.closest("label").getBoundingClientRect(),otherCell=document.querySelector(".other-sound-option").getBoundingClientRect();
+      return {gap:b.left-a.right,labelHeight:a.height,right:other.right,rowRight:c.right,cellWidthDifference:Math.abs(ownCell.width-otherCell.width),leftColumn:Math.abs(b.right-flash.right),rightColumn:Math.abs(other.right-breakSound.right)};
      });
-     expect(geometry.gap).toBeGreaterThanOrEqual(9.5);
-     expect(geometry.full).toBe(width>=300);
-     expect(geometry.labelHeight).toBeLessThan(24);
+     expect(geometry.gap).toBeGreaterThanOrEqual(7.5);
+     expect(geometry.cellWidthDifference).toBeLessThan(.5);
+     expect(geometry.leftColumn).toBeLessThan(.5);
+     expect(geometry.rightColumn).toBeLessThan(.5);
+     expect(geometry.labelHeight).toBeLessThan(33);
      expect(geometry.right).toBeLessThanOrEqual(geometry.rowRight+.5);
      if(lang==="ru")await page.locator(".section-options").screenshot({path:path.resolve(__dirname,`../../help-assets/sound-row-${width}.png`)});
     }
@@ -286,7 +292,7 @@ test("sound row aligns without a primary and uses one-line compact labels with a
  });
 });
 
-test("full sound caption appears in the natural wide desktop panel and compacts at medium/narrow breakpoints",async({browser})=>{
+test("independent sound captions stay compact and aligned at desktop and mobile sizes",async({browser})=>{
  await runFixture(async server=>{
   await server.action({type:"primary",primaryClientId:"clock-test"});
   const {page,context,errors}=await open(browser,server,"clock-test");
@@ -295,16 +301,18 @@ test("full sound caption appears in the natural wide desktop panel and compacts 
    for(const lang of ["ru","en"]){
     await server.action({type:"language",language:lang});
     await expect(page.locator("html")).toHaveAttribute("lang",lang);
-    for(const [width,height,full]of [[1920,1080,true],[1600,900,true],[1280,900,false],[1024,900,false],[1920,800,false],[1920,680,false]]){
+    for(const [width,height]of [[1920,1080],[1600,900],[1280,900],[1024,900],[1920,800],[1920,680],[393,852],[320,852]]){
      await page.setViewportSize({width,height});
      const geometry=await page.evaluate(()=>{
-      const a=document.querySelector(".sound-primary-full"),b=document.querySelector(".sound-primary-short"),label=document.getElementById("soundLabel").getBoundingClientRect(),own=document.getElementById("soundToggle").getBoundingClientRect(),other=document.getElementById("instancesSoundToggle").getBoundingClientRect(),row=document.querySelector(".sound-options-row").getBoundingClientRect();
-      return {full:getComputedStyle(a).display!=="none",short:getComputedStyle(b).display!=="none",gap:own.left-label.right,labelHeight:label.height,right:other.right,rowRight:row.right,rowWidth:row.width};
+      const label=document.getElementById("soundLabel").getBoundingClientRect(),own=document.getElementById("soundToggle").getBoundingClientRect(),other=document.getElementById("instancesSoundToggle").getBoundingClientRect(),row=document.querySelector(".sound-options-row").getBoundingClientRect(),flash=document.getElementById("flashToggle").getBoundingClientRect(),breakSound=document.getElementById("muteBreakWarningsToggle").getBoundingClientRect();
+      return {gap:own.left-label.right,labelHeight:label.height,right:other.right,rowRight:row.right,rowHeight:row.height,leftColumn:Math.abs(own.right-flash.right),rightColumn:Math.abs(other.right-breakSound.right),viewportOverflow:document.documentElement.scrollWidth>innerWidth};
      });
-     expect(geometry.full,JSON.stringify({width,height,lang,geometry})).toBe(full);
-     expect(geometry.short).toBe(!full);
-     expect(geometry.gap).toBeGreaterThanOrEqual(9.5);
-     expect(geometry.labelHeight).toBeLessThan(24);
+     expect(geometry.leftColumn,JSON.stringify({width,height,lang,geometry})).toBeLessThan(.5);
+     expect(geometry.rightColumn).toBeLessThan(.5);
+     expect(geometry.gap).toBeGreaterThanOrEqual(7.5);
+     expect(geometry.labelHeight).toBeLessThan(33);
+     expect(geometry.rowHeight).toBeLessThanOrEqual(33);
+     expect(geometry.viewportOverflow).toBe(false);
      expect(geometry.right).toBeLessThanOrEqual(geometry.rowRight+.5);
      if(width===1920 && height===1080)await page.locator(".section-options").screenshot({path:path.resolve(__dirname,`../../help-assets/sound-row-wide-${lang}.png`)});
     }

@@ -71,12 +71,12 @@ test("a directly opened reserve alias is identified and still promotes after ups
   assert.equal(h.calls.filter(call=>call.method === "POST").length,1);
 });
 
-test("reserve probes do not extend primary health, and failover waits for 20 seconds", async()=>{
+test("reserve probes do not extend primary health, and failover starts at 2 seconds", async()=>{
   const h=browser();h.configure();h.controller.contact();
-  h.at(19999);h.controller.check();
+  h.at(1999);h.controller.check();
   assert.equal(h.switches,0);
   assert.equal(h.calls.filter(call=>call.method==="POST").length,0);
-  h.at(20000);h.controller.check();
+  h.at(2000);h.controller.check();
   assert.equal(h.switches,1);
   assert.equal(h.controller.info().onSecondary,true);
   assert.equal((await h.controller.fetch("/api/state")).url,"http://backup:8008/api/state");
@@ -96,8 +96,48 @@ test("a browser can join a still-following reserve, then promote it if its sourc
   assert.equal(h.switches,1);
 });
 
+test("automatic cutover warns only during the original 20-second window and confirms real contact",()=>{
+  const h=browser();h.configure();h.controller.contact();
+  h.at(2000);h.controller.check();
+  assert.equal(h.controller.info().warning,"switching");
+  assert.equal(h.controller.info().primaryAvailable,false);
+  h.controller.contact();
+  assert.equal(h.controller.info().warning,"secondary");
+  h.at(19999);h.controller.check();
+  assert.equal(h.controller.info().warning,"secondary","reserve contact must not extend the recovery window");
+  h.at(20000);h.controller.check();
+  assert.equal(h.controller.info().warning,"");
+  assert.equal(h.controller.info().onSecondary,true);
+});
+
+test("a confirmed early recovery returns automatic clients without undoing later manual reserve visits",()=>{
+  const h=browser();h.configure();h.controller.contact();h.at(2000);h.controller.check();h.controller.contact();
+  h.set({sourceConnected:true,switchAll:false,returnSequence:1});h.at(6000);h.controller.check();
+  assert.equal(h.controller.info().active,"http://primary:8008");
+  assert.equal(h.controller.info().warning,"");
+  assert.equal(h.controller.info().primaryAvailable,true);
+  h.controller.switchToSecondary();h.controller.check();
+  assert.equal(h.controller.info().onSecondary,true);
+});
+
+test("loss of both servers retains the offline path rather than a reserve warning",()=>{
+  const h=browser();h.configure();h.controller.contact();h.reachable(false);h.at(2000);h.controller.check();
+  assert.equal(h.controller.info().available,false);
+  assert.equal(h.controller.info().primaryAvailable,false);
+  assert.equal(h.controller.info().warning,"");
+  assert.equal(h.switches,0);
+});
+
+test("an automatic reserve visit survives reload and still follows the confirmed early return",()=>{
+  const h=browser();h.configure();h.controller.contact();h.at(2000);h.controller.check();
+  const reloaded=create(h.env,{clientId:()=>"display"});
+  assert.equal(reloaded.info().onSecondary,true);
+  reloaded.observe({sec:{...h.controller.info().config,switchAll:false,automaticFailover:false,sourceConnected:true,returnSequence:1}});
+  assert.equal(reloaded.info().onSecondary,false);
+});
+
 test("manual group cutover is immediate while ordinary primary contact postpones automatic failover",()=>{
-  const h=browser();h.configure();h.at(19000);h.controller.contact();h.at(21000);h.controller.check();
+  const h=browser();h.configure();h.at(19000);h.controller.contact();h.at(20999);h.controller.check();
   assert.equal(h.switches,0);
   h.controller.observe({sec:{protocol:1,session:"session",primaryUrl:"http://primary:8008",secondaryUrl:"http://backup:8008",switchAll:true}});
   assert.equal(h.switches,1);

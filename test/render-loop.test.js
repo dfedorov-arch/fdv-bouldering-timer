@@ -661,7 +661,7 @@ test("server synchronization preserves a held progress scrub preview", () => {
 });
 
 test("desktop audio calibration scrolls its editor into view", () => {
-  assert.match(index, /const interactive = \/\\sdata-\(\?:audio-client\|legacy-mode-client\|server-time-client\)=\//);
+  assert.match(index, /const interactive = \/\\sdata-\(\?:audio-client\|legacy-mode-client\|server-time-client\|timer-stretch-client\)=\//);
   assert.match(index, /const tagName = interactive \? "button" : "span";/);
   assert.match(index, /toggleNow - lastAudioChipToggleAt < 300/);
   assert.match(index, /function revealAudioOffsetEditor\(\)/);
@@ -871,7 +871,7 @@ test("diagnostics use consistent inactive colors and omit unavailable Legacy Wak
   assert.match(index, /const audioStatus = !audioAvailable[\s\S]*?\? "neutral"[\s\S]*?!audioEnabled[\s\S]*?\? "inactive"[\s\S]*?audioOk[\s\S]*?\? audioTimingStatus[\s\S]*?: "bad"/);
   assert.match(index, /const legacyTabTitleRu = `Видимость вкладки:[^`]*`/);
   assert.doesNotMatch(index, /const legacyTabTitleRu = `[^`]*Wake Lock/);
-  assert.match(index, /const ruModernChips = \[legacyChip, controlChip, audioChipRu, serverTimeChip, netChipRu, syncChipRu, sseChipRu, tabChipRu\]/);
+  assert.match(index, /const ruModernChips = \[legacyChip, controlChip, audioChipRu, serverTimeChip, timerStretchChip\(client\), netChipRu, syncChipRu, sseChipRu, tabChipRu\]/);
   assert.match(index, /data-server-time-client=/);
   assert.match(index, /sendServerAction\("clientServerTime", \{ targetClientId, enabled \}\);/);
   assert.match(index, /id="serverClockDisplay" class="server-clock-display"/);

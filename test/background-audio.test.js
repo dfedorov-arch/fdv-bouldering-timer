@@ -24,6 +24,8 @@ function harness() {
     pageAudioSuspended: false, clockCalibrationPending: false, standaloneMode: false, iosAudioWorkaroundEnabled: false,
     state: { running: true }, scheduledAudioNodes: [], lastSegmentIndex: "1:rotation",
     canPlaySound: () => true,
+    // Manual-start recovery is exercised separately; this fixture tests clock health.
+    scheduleInitialManualStartSignal() {}, getCurrentSegment: () => null, elapsedSeconds: () => 0,
     clearSignalTimers: (...args) => { effects.clears.push(args); context.scheduledAudioNodes = []; },
     rescheduleStandaloneSignals: options => effects.schedules.push(options),
     queueClientRecoverySync: options => effects.sync.push(options),

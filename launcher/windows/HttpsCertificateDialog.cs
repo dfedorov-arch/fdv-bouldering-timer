@@ -19,44 +19,17 @@ namespace FdvBoulderingTimerLauncher
         internal bool RestartRequested;
         internal string GeneratedDirectory;
 
-        // Native disabled-button text follows the Windows theme, which can be
-        // nearly black on our dark dialog. Keep actual Enabled semantics, but
-        // render that state with an explicit contrasting palette (also on CLR2).
-        private sealed class CertificateButton : Button
-        {
-            internal static readonly Color DisabledText = Color.FromArgb(170, 181, 196);
-
-            internal CertificateButton()
-            {
-                FlatStyle = FlatStyle.Flat;
-                UseVisualStyleBackColor = false;
-                BackColor = Color.FromArgb(35, 43, 55);
-                ForeColor = Color.FromArgb(244, 247, 251);
-                FlatAppearance.BorderColor = Color.FromArgb(111, 126, 147);
-                FlatAppearance.MouseOverBackColor = Color.FromArgb(48, 61, 77);
-                FlatAppearance.MouseDownBackColor = Color.FromArgb(57, 74, 93);
-            }
-
-            protected override void OnPaint(PaintEventArgs args)
-            {
-                if (Enabled) { base.OnPaint(args); return; }
-                args.Graphics.Clear(Color.FromArgb(29, 35, 44));
-                using (var border = new Pen(Color.FromArgb(75, 87, 104)))
-                    args.Graphics.DrawRectangle(border, 0, 0, Width - 1, Height - 1);
-                TextRenderer.DrawText(args.Graphics, Text, Font, ClientRectangle, DisabledText,
-                    TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.SingleLine);
-            }
-        }
+        private sealed class CertificateButton : LauncherButton { }
 
         internal HttpsCertificateDialog(string root)
         {
+            SuspendLayout();
+            LauncherTheme.Apply(this);
             _root = root;
             Text = LauncherLanguage.Text("HTTPS certificate");
             StartPosition = FormStartPosition.CenterParent;
             MinimumSize = new Size(580, 560); ClientSize = new Size(680, 650);
-            AutoScaleMode = AutoScaleMode.Font;
-            Font = new Font("Segoe UI", 9F);
-            BackColor = Color.FromArgb(23, 27, 34); ForeColor = Color.FromArgb(244, 247, 251);
+            BackColor = Color.FromArgb(17, 23, 34); ForeColor = Color.FromArgb(244, 247, 251);
             MaximizeBox = false; MinimizeBox = false; ShowInTaskbar = false;
             var layout = new TableLayoutPanel();
             layout.Dock = DockStyle.Fill; layout.Padding = new Padding(16); layout.ColumnCount = 1; layout.RowCount = 6;
@@ -68,6 +41,7 @@ namespace FdvBoulderingTimerLauncher
             layout.Controls.Add(Label(LauncherLanguage.Text("Server IP addresses and DNS names, one per line.\nRemove unused entries and add the addresses your devices use.")), 0, 0);
             _names.Name = "certificateNames"; _names.Dock = DockStyle.Fill; _names.Multiline = true;
             _names.ScrollBars = ScrollBars.Vertical; _names.AcceptsReturn = true;
+            _names.BorderStyle = BorderStyle.FixedSingle;
             _names.BackColor = Color.FromArgb(16, 20, 27); _names.ForeColor = ForeColor;
             _names.Text = String.Join(Environment.NewLine, HttpsCertificate.DefaultNames());
             layout.Controls.Add(_names, 0, 1);
@@ -89,6 +63,7 @@ namespace FdvBoulderingTimerLauncher
             actions.Controls.Add(_create); actions.Controls.Add(_folder); actions.Controls.Add(_close);
             layout.Controls.Add(actions, 0, 5);
             FormClosing += delegate(object sender, FormClosingEventArgs args) { if (_busy) args.Cancel = true; };
+            ResumeLayout(true);
         }
 
         private static Label Label(string text)

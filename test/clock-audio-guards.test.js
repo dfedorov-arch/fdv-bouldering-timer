@@ -18,7 +18,10 @@ function audioHarness(pending = false) {
   const timers = [], played = new Set(), sounds = [];
   const context = vm.createContext({
     clockCalibrationPending: pending, audioScheduleGeneration: 0, pageAudioSuspended: false,
-    document: { hidden: false }, state: { running: true }, signalsInvalidatedWhileHidden: false,
+    document: { hidden: false }, state: { running: true, serverStartedAt:100000, manualStartDisplayHold:true }, signalsInvalidatedWhileHidden: false,
+    standaloneMode:false, lastServerInstanceId:"server-a", handledManualStart:null, scheduledAudioNodes:[],
+    manualStartRecoveryGraceMs:3000, audioContext:{state:"running"}, playBuffer:()=>false,
+    beepSynthetic:kind=>{sounds.push(kind);return true;},
     playedSignalKeys: played, scheduledFinalSignalKey: "", manualStartWatchdogDelayMs: 250,
     canPlaySound: () => true, audioServerTime: value => value, serverNow: () => 100250,
     signalLateGraceMs: { start: 1500 }, performanceDiagnosticsLevel: 0,
@@ -28,7 +31,9 @@ function audioHarness(pending = false) {
     scheduleBufferedSignalAt: () => { throw new Error("Pending clock must not schedule a warning"); },
     elapsedSeconds: () => 55, serverTimeForElapsed: value => value * 1000
   });
-  vm.runInContext(["manualStartSignalKey", "scheduleManualStartWatchdog", "scheduleFinalWarnings"]
+  vm.runInContext(["audioEventRunId", "manualStartSignalKey", "manualStartRunCurrent", "manualStartWasHandled",
+    "noteManualStartHandled", "manualStartSoundReady", "playManualStartSound", "expireManualStartSignal",
+    "scheduleManualStartWatchdog", "scheduleFinalWarnings"]
     .map(source).join("\n"), context);
   return { context, timers, played, sounds };
 }

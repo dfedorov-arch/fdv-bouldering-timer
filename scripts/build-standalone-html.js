@@ -62,8 +62,10 @@ function build() {
   const offlineAudio = embedTimerFont(read("lib/offline-audio.js"));
   const clientActionTransport = read("lib/client-action-transport.js");
   const clientServerAudio = read("lib/client-server-audio.js");
+  html = html.replace('<script src="lib/timer-stretch.js"></script>', () => scriptTag(read("lib/timer-stretch.js")));
   html = html.replace('<script src="lib/client-delivery.js"></script>', () => scriptTag(read("lib/client-delivery.js")));
   html = html.replace('<script src="lib/speaker-keep-awake.js"></script>', () => scriptTag(read("lib/speaker-keep-awake.js")));
+  html = html.replace('<script src="lib/final-start-prewarm.js"></script>', () => scriptTag(read("lib/final-start-prewarm.js")));
   const clientSecondaryServer = read("lib/client-secondary-server.js");
   const startListDisplay = read("lib/start-list-display.js");
   const startList = read("lib/start-list.js");

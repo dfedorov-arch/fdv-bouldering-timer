@@ -1,5 +1,8 @@
 # macOS and Linux launcher
 
+Current build454 controls: first row **Open timer, Copy link, Control PIN, Restart server, Stop and exit**; second row **Create HTTPS certificate, Check updates, Open project website**. Update checks run separately from the timer and report GitHub releases without installing automatically. The status line includes the primary/standby role and peer URL from existing health-response metadata. If the configured standby becomes unreachable, the status turns yellow and reports its address as unavailable; connection text returns when contact recovers. Removing the pairing clears the peer text. Missing availability metadata from an older server is shown as configured, without claiming connectivity. See [peer-status validation](../../docs/review/launcher-peer-status454.md). Russian and English use the same layout. Linux and macOS share the Avalonia implementation; the five Unix action buttons have equal vertical alignment and 8px gaps at default/minimum width (920/900). Screenshots use passive render harnesses, without starting a timer or probing the operator's servers.
+
+
 To publish a tested macOS prerelease without changing main/Latest, manually run
 the Release workflow on develop with publish_macos_preview=true and a numeric
 preview_installer_version (currently 2.3.3). It waits for the full platform test/

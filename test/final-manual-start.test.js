@@ -14,13 +14,17 @@ function source(name) {
 }
 
 function harness({ oneShot = true, manual = true, hidden = false, pending = false,
-  countdownOnly = false, running = true, future = true } = {}) {
+  countdownOnly = false, running = true, future = true, lateMs = 1000 } = {}) {
   const plans = [];
   const segment = { cycle: 1, type: "rotation", start: 0, end: 240 };
   const context = vm.createContext({
     document: { hidden }, pageAudioSuspended: hidden, clockCalibrationPending: pending,
-    state: { running, countdownOnly, serverStartedAt: future ? 100600 : 99000,
-      manualStartDisplayHold: manual, activeSettings: { oneShot } },
+    state: { running, countdownOnly, serverStartedAt: future ? 100600 : 100000 - lateMs,
+      manualStartDisplayHold: manual, manualStartLeadMs: manual ? 600 : 0, activeSettings: { oneShot } },
+    standaloneMode: false, lastServerInstanceId: "server-a", activeSettings: () => ({ oneShot }),
+    handledManualStart: null, playedSignalKeys: new Set(), manualStartRecoveryGraceMs: 3000,
+    audioContext: { state: "running" }, canPlaySound: () => !hidden, audioServerTime: value => value,
+    markSignalPlayed() { return true; }, recordPerformanceAudioSchedule() {},
     serverNow: () => 100000, performance: { now: () => 100000 },
     elapsedSeconds: () => future ? 0 : 1, getCurrentSegment: () => segment,
     isBeforeScheduledStart: () => future, clearSignalTimers() {}, clearStoppedTimerSignals() {},
@@ -39,7 +43,9 @@ function harness({ oneShot = true, manual = true, hidden = false, pending = fals
       const audioOffsetChanged = false, festivalAnnouncementsChanged = false, breakWarningsChanged = false;
       ${apply.slice(begin, end)}
     }
-    ${source("rescheduleStandaloneSignals")}
+    ${["audioEventRunId", "manualStartSignalKey", "isInitialManualStart", "manualStartRunCurrent",
+      "manualStartWasHandled", "noteManualStartHandled", "manualStartSoundReady", "expireManualStartSignal",
+      "scheduleInitialManualStartSignal", "rescheduleStandaloneSignals"].map(source).join("\n")}
   `, context);
   return { context, plans };
 }
@@ -56,8 +62,13 @@ for (const mode of ["apply", "restore"]) {
     const h = harness({ oneShot:false, manual:false }); run(h);
     assert.equal(h.plans.length, 1);
   });
+  test(`${mode}: manual start recovers within three seconds`, () => {
+    const h = harness({ future:false, lateMs:2600 }); run(h);
+    assert.equal(h.plans.length, 1);
+    assert.equal(h.plans[0].kind, "start");
+  });
   for (const options of [{ manual:false }, { countdownOnly:true }, { running:false },
-    { hidden:true }, { pending:true }, { future:false }]) {
+    { hidden:true }, { pending:true }, { future:false, lateMs:3001 }]) {
     test(`${mode}: Final does not synthesize a manual start for ${JSON.stringify(options)}`, () => {
       const h = harness(options); run(h);
       assert.equal(h.plans.length, 0);

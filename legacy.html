@@ -512,6 +512,8 @@
       width: 100%;
     }
 
+    #timeDigits { display: inline-block; }
+
     #time {
       display: table-cell;
       width: 100%;
@@ -625,19 +627,20 @@
     <div id="cycleBadge"></div>
     <div id="wrap">
       <div id="timerContent">
-        <div id="time">--:--</div>
+        <div id="time"><span id="timeDigits">--:--</span></div>
       </div>
       <div id="serverClock"><span id="serverClockText">00:00:00</span></div>
     </div>
   </div>
   <div id="protocolPane"><div id="protocolLayout"></div></div>
 
-  <script src="lib/start-list-display.js?v=449"></script>
-  <script src="lib/client-secondary-server.js?v=448"></script>
+  <script src="lib/start-list-display.js?v=454"></script>
+  <script src="lib/client-secondary-server.js?v=454"></script>
   <script src="lib/client-delivery.js?v=448"></script>
+  <script src="lib/timer-stretch.js?v=454"></script>
   <script>
     (function () {
-      var legacyBuildNumber = 449;
+      var legacyBuildNumber = 454;
       var state = null;
       var serverOffset = 0;
       var lastContact = 0;
@@ -932,7 +935,7 @@
             scheduledNodes: []
           },
           display: {
-            label: timeEl ? String(timeEl.innerHTML || "") : "",
+            label: timeEl ? String(timeDigitsEl.innerHTML || "") : "",
             visibilityState: document.visibilityState || (document.hidden ? "hidden" : "visible"),
             boundaryEvents: performanceDisplayBoundaryEvents.slice(0)
           },
@@ -959,7 +962,7 @@
       } catch (error) {}
       var clientId = queryValue("clientId") || storedClientId || ("legacy-" + String(new Date().getTime()) + "-" + String(Math.random()).slice(2));
       var secondaryRequestGeneration = 0;
-      var secondaryConnection = window.FDVSecondaryServer.create(window, {
+      var secondaryConnection = window.FDVSecondaryConnection = window.FDVSecondaryServer.create(window, {
         clientId: function () { return clientId; }, secret: function () { return browserSession ? browserSession.secret() : ""; },
         switched: function () {
           secondaryRequestGeneration += 1;
@@ -984,6 +987,10 @@
       }
       var wrapEl = document.getElementById("wrap");
       var timeEl = document.getElementById("time");
+      var timeDigitsEl = document.getElementById("timeDigits");
+      var timerStretchProperty = window.FDVTimerStretch ? window.FDVTimerStretch.property(timeDigitsEl.style) : "";
+      var timerStretchWasEnabled = false;
+      var timerStretchPreviousPercent = 200;
       var cycleBadgeEl = document.getElementById("cycleBadge");
       var serverClockEl = document.getElementById("serverClock");
       var serverClockTextEl = document.getElementById("serverClockText");
@@ -1330,6 +1337,25 @@
         lastFitKey = "";
       }
 
+      function timerStretchMaxPercent() {
+        return window.FDVTimerStretch && window.FDVTimerStretch.percent ? window.FDVTimerStretch.percent(state && state.config && state.config.timerVerticalStretchMaxPercent) : 200;
+      }
+
+      function applyTimerDigitStretch() {
+        if (!timerStretchProperty || !timeDigitsEl.getBoundingClientRect) return;
+        timeDigitsEl.style[timerStretchProperty] = "";
+        if (!state || !state.timerVerticalStretch || timerStretchMaxPercent() <= 100) return;
+        var wrap = wrapEl.getBoundingClientRect();
+        var top = wrap.top + (wrap.bottom - wrap.top) * 0.02;
+        var bottom = wrap.bottom - (wrap.bottom - wrap.top) * 0.02;
+        if (state.showServerTime && serverClockEl) bottom = Math.min(bottom, serverClockEl.getBoundingClientRect().top - 8);
+        var base = timeDigitsEl.getBoundingClientRect();
+        var height = base.bottom - base.top;
+        var scale = window.FDVTimerStretch.scale(height, bottom - top, timerStretchMaxPercent());
+        var shift = (top + bottom - base.top - base.bottom) / 2;
+        timeDigitsEl.style[timerStretchProperty] = "translateY(" + shift + "px) scaleY(" + scale + ")";
+      }
+
       function fitTimerText() {
         var performanceStartedAt = performanceStart();
         performanceCount("timerFitCalls");
@@ -1341,22 +1367,28 @@
         var maxW = w * 0.985;
         var clockHeight = state && state.showServerTime && serverClockEl ? serverClockEl.offsetHeight + 10 : 0;
         var maxH = Math.max(48, h * 0.96 - (protocolIsVisible() ? clockHeight : 0));
+        if (state && state.timerVerticalStretch && timerStretchMaxPercent() > 100 && timerStretchProperty && state.showServerTime) {
+          var wrapBounds = wrapEl.getBoundingClientRect();
+          maxH = Math.max(48, Math.min(maxH, serverClockEl.getBoundingClientRect().top - 8 - wrapBounds.top - h * 0.02));
+        }
         var low = 48;
         var high = Math.min(1800, Math.max(220, w, h * 1.45));
         var i, mid, testW, testH;
         var ctx;
-        var text = fitSampleText(timeEl.textContent || timeEl.innerHTML);
+        var text = fitSampleText(timeDigitsEl.textContent || timeDigitsEl.innerText || timeDigitsEl.innerHTML);
         var fw = timeEl.currentStyle ? timeEl.currentStyle.fontWeight : (window.getComputedStyle ? getComputedStyle(timeEl).fontWeight : "900");
         var ff = timeEl.currentStyle ? timeEl.currentStyle.fontFamily : (window.getComputedStyle ? getComputedStyle(timeEl).fontFamily : "Arial, sans-serif");
-        var fitKey = w + "x" + h + "|" + text + "|" + fw + "|" + ff + "|" + (clockHeight ? "clock" : "plain");
+        var fitKey = w + "x" + h + "|" + text + "|" + fw + "|" + ff + "|" + (clockHeight ? "clock" : "plain") + "|stretch:" + Boolean(state && state.timerVerticalStretch) + ":" + timerStretchMaxPercent();
         if (fitKey === lastFitKey) {
           performanceCount("timerFitSkips");
           return;
         }
         lastFitKey = fitKey;
+        if (timerStretchProperty) timeDigitsEl.style[timerStretchProperty] = "";
         ctx = timerFitMeasureContext();
         if (!ctx) {
           timeEl.style.fontSize = Math.floor(Math.min(maxH, maxW / Math.max(1, text.length * 0.62))) + "px";
+          applyTimerDigitStretch();
           return;
         }
         for (i = 0; i < 13; i += 1) {
@@ -1371,6 +1403,7 @@
           }
         }
         timeEl.style.fontSize = Math.floor(low) + "px";
+        applyTimerDigitStretch();
         performanceCount("timerFitSearches");
         } finally {
           performanceEnd("fitTimerText", performanceStartedAt);
@@ -2584,6 +2617,14 @@
           if (timeEl.style.webkitTransform) timeEl.style.webkitTransform = "";
           if (timeEl.style.transform) timeEl.style.transform = "";
         }
+        var stretchEnabled = Boolean(state && state.timerVerticalStretch);
+        var stretchPercent = timerStretchMaxPercent();
+        if (timerStretchWasEnabled !== stretchEnabled || timerStretchPreviousPercent !== stretchPercent) {
+          timerStretchWasEnabled = stretchEnabled;
+          timerStretchPreviousPercent = stretchPercent;
+          invalidateTimerFit();
+          fitTimerText();
+        }
         if (serverClockVisible !== showServerClock) {
           serverClockVisible = showServerClock;
           invalidateTimerFit();
@@ -2600,9 +2641,9 @@
         document.body.style.backgroundColor = "#161b22";
         timeEl.style.color = countdownPhase ? timerColors.countdownText : breakColors ? timerColors.breakText : view.warning ? timerColors.warningText : timerColors.rotationText;
         var label = formatTime(view.seconds);
-        if (timeEl.innerHTML !== label) {
+        if (timeDigitsEl.innerHTML !== label) {
           fitTextChanged = rememberFitText(label);
-          timeEl.innerHTML = label;
+          timeDigitsEl.innerHTML = label;
           performanceCount("timerLabelChanges");
           if (fitTextChanged) fitTimerText();
         }
@@ -2658,7 +2699,7 @@
           scheduleRender(render());
           return;
         }
-        beforeLabel = String(timeEl.innerHTML || "");
+        beforeLabel = String(timeDigitsEl.innerHTML || "");
         renderStartedAt = legacyPerformanceNow();
         view = render();
         renderCompletedAt = legacyPerformanceNow();
@@ -2673,7 +2714,7 @@
             commitLatenessMs: roundBoundaryMetric(renderCompletedServerTime - targetServerTime),
             renderDurationMs: roundBoundaryMetric(renderCompletedAt - renderStartedAt),
             beforeLabel: beforeLabel,
-            afterLabel: String(timeEl.innerHTML || ""),
+            afterLabel: String(timeDigitsEl.innerHTML || ""),
             phase: view && view.phase ? String(view.phase) : "",
             cycle: currentTimerCycle(),
             visibilityState: document.visibilityState || (document.hidden ? "hidden" : "visible"),
@@ -2758,7 +2799,8 @@
           + "&dpr=" + encodeURIComponent(String(window.devicePixelRatio || 1))
           + "&renderDelay=" + encodeURIComponent(lastRenderDelayMs === null ? "" : String(lastRenderDelayMs))
           + "&renderDelayAge=" + encodeURIComponent(lastRenderDelayAt ? String(Math.max(0, new Date().getTime() - lastRenderDelayAt)) : "")
-          + "&clientBuild=" + encodeURIComponent(String(legacyBuildNumber));
+          + "&clientBuild=" + encodeURIComponent(String(legacyBuildNumber))
+          + "&timerVerticalStretchSupported=" + Boolean(timerStretchProperty && timeDigitsEl.getBoundingClientRect);
         var receipt = stateDelivery.report();
         url += "&deliveryBlocked=" + (fullscreenWanted() && !fullscreenElement() ? "fullscreen" : "")
           + "&deliveryProtocol=1&deliveryReceived=" + encodeURIComponent(receipt.deliveryReceived)
@@ -2769,6 +2811,7 @@
         activeRequest = xhr;
         activeRequestStartedAt = new Date().getTime();
         url += "&secondaryAvailable=" + (secondaryConnection.info().available ? "1" : "0");
+        url += "&primaryServerAvailable=" + (secondaryConnection.info().primaryAvailable ? "1" : "0");
         xhr.open("GET", secondaryConnection.url(url), true);
         xhr.setRequestHeader("x-fdv-client-secret", browserSession.secret());
         try {

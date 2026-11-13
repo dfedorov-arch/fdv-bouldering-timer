@@ -48,9 +48,9 @@ test("Windows launcher checker stays responsive and preserves server process/tim
   const executable = path.join(dir, "harness.exe");
   const sources = ["launcher/windows/FdvBoulderingTimerLauncher.cs", "launcher/windows/HttpsCertificate.cs",
     "launcher/windows/HttpsCertificateDialog.cs", "launcher/windows/LauncherLanguage.cs",
-    "launcher/windows/LauncherUpdates.cs", "test/helpers/windows-launcher-harness.cs"];
+    "launcher/windows/LauncherUpdates.cs","launcher/windows/LauncherTheme.cs", "test/helpers/windows-launcher-harness.cs"];
   const compiler = path.join(process.env.WINDIR, "Microsoft.NET/Framework64/v4.0.30319/csc.exe");
-  const compiled = spawnSync(compiler, ["/nologo", "/codepage:65001", "/target:exe", "/main:WindowsLauncherHarness",
+  const compiled = spawnSync(compiler, ["/win32manifest:"+path.join(root,"launcher/windows/launcher.manifest"),"/nologo", "/codepage:65001", "/target:exe", "/main:WindowsLauncherHarness",
     "/reference:System.Drawing.dll", "/reference:System.Windows.Forms.dll", "/out:" + executable, ...sources.map(f=>path.join(root,f))], {encoding:"utf8"});
   assert.equal(compiled.status, 0, compiled.stdout + compiled.stderr);
   await new Promise((resolve,reject) => {

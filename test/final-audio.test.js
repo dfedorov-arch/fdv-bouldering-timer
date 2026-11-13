@@ -33,6 +33,9 @@ function harness({ offset = 0, buffered = false, initialElapsed = 234, oneShot =
       activeSettings: { rotationSeconds: 240, breakSeconds: 0, oneShot } },
     serverNow: () => now, activeSettings: () => context.state.activeSettings, t: key => key,
     standaloneMode: false, iosAudioWorkaroundEnabled: false,
+    lastServerInstanceId: "server-a", audioEventTargets: new Map(), nativeAudioRoute: null,
+    tickFinalStartPrewarm: noop, finalStartPrewarmPlanner: { reset: noop },
+    requestManualStartAudioWake: noop,
     audioSchedulerHealth: { needsReschedule: false },
     audioUserOffsetMs: offset, audioScheduleAheadSeconds: 2.8, audioPrewarmSeconds: 2,
     audioPrewarmBeforeBufferSeconds: 1, audioEarlyPrewarmSeconds: 10, serverTimerLookaheadSeconds: 1.25,
@@ -74,7 +77,7 @@ function harness({ offset = 0, buffered = false, initialElapsed = 234, oneShot =
     let clockCalibrationPending = false, pageAudioSuspended = false;
     let signalTimers = [], transitionSignalTimers = [], scheduledAudioNodes = [];
     let scheduledSignalKeys = new Set(), playedSignalKeys = new Set(), scheduledPhaseSignalKeys = new Set();
-    ${["elapsedSeconds", "getCurrentSegment", "serverTimeForElapsed", "delayUntilServerTime", "isServerSignalCurrent",
+    ${["audioEventRunId", "isInitialManualStart", "scheduleInitialManualStartSignal", "elapsedSeconds", "getCurrentSegment", "serverTimeForElapsed", "delayUntilServerTime", "isServerSignalCurrent",
       "shouldScheduleServerSignal", "lateGraceForSignal", "markSignalPlayed", "audioServerTime", "shouldTryBufferImmediately",
       "warningPlaybackDurationMs", "warningFallbackSuppressionReason", "fallbackPlaybackSuppressionReason",
       "scheduleSegmentTimeoutAt", "scheduleServerTimeoutAt", "scheduleBufferedSignalAt", "nextPhaseSignalKey",
@@ -434,7 +437,7 @@ test("ordinary Classic/ Festival boundary keys and stop policy are unchanged", (
   h.plan(); h.advance(106100);
   assert.equal(h.sounds.filter(s => s.kind === "start").length, 1);
   assert.equal(h.events.find(e => e.stage === "plan" && e.kind === "start").signalKey,
-    "rotationBoundary:2:rotation:106000");
+    "rotationBoundary:2:rotation:server-a:-134000");
   const generation = h.get("audioScheduleGeneration");
   h.stop(false);
   assert.equal(h.get("audioScheduleGeneration"), generation);
@@ -502,6 +505,7 @@ test("pending-start minute waits for calibration and never replays stale, cancel
 
 test("scheduled-start warning is not replayed after a clock-coordinate or audio-offset correction", () => {
   const h = harness({buffered:true});
+  h.context.state.audioRunId = "scheduled-start-run";
   h.context.state.serverStartedAt = 165000;
   h.context.state.serverStartedAtWall = 1791460800000;
   h.context.schedulePendingStartMinute(); h.advance(105100);

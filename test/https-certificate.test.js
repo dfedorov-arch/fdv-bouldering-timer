@@ -61,8 +61,8 @@ test("native certificate UI requires replacement and restart consent and never m
   assert.match(dialog,/MessageBoxDefaultButton\.Button2/);
   assert.match(dialog,/RestartRequested = true/);
   assert.match(dialog,/ThreadPool\.QueueUserWorkItem/);
-  assert.match(dialog,/protected override void OnPaint/);
-  assert.match(dialog,/TextRenderer\.DrawText[\s\S]*DisabledText/);
+  assert.match(read("launcher/windows/LauncherTheme.cs"),/protected override void OnPaint/);
+  assert.match(read("launcher/windows/LauncherTheme.cs"),/TextRenderer\.DrawText[\s\S]*DisabledText/);
   assert.match(launcher,/if \(dialog\.RestartRequested\) StartServer\(false\)/);
   assert.doesNotMatch(source+dialog,/New-SelfSignedCertificate|Get-NetIPAddress|openssl|X509Store\(|CertAddCertificateContextToStore|certutil/i);
   assert.match(read("serve-bouldering-timer.js"),/!certificatePaths\.managed && fs\.existsSync\(keyPath\)/);
@@ -74,11 +74,11 @@ test("Windows CryptoAPI generates usable SAN certificates with backups, private 
   if(process.platform !== "win32" || process.env.FDV_TEST_WINDOWS_CERTIFICATES !== "1")
     return t.skip("Opt in with FDV_TEST_WINDOWS_CERTIFICATES=1 on Windows; generates only temporary user keys/certificates");
   const directory=fs.mkdtempSync(path.join(os.tmpdir(),"fdv-cert-test-"));
-  t.after(()=>fs.rmSync(directory,{recursive:true,force:true}));
+  t.after(()=>fs.promises.rm(directory,{recursive:true,force:true,maxRetries:10,retryDelay:100}));
   const executable=path.join(directory,"certificate-harness.exe");
   const compiler=path.join(process.env.WINDIR,"Microsoft.NET","Framework64","v4.0.30319","csc.exe");
-  const compilerArgs=["/nologo","/codepage:65001","/target:exe","/reference:System.Drawing.dll","/reference:System.Windows.Forms.dll",
-    "/out:"+executable,path.join(root,"launcher/windows/HttpsCertificate.cs"),path.join(root,"launcher/windows/HttpsCertificateDialog.cs"),path.join(root,"launcher/windows/LauncherLanguage.cs"),
+  const compilerArgs=["/win32manifest:"+path.join(root,"launcher/windows/launcher.manifest"),"/nologo","/codepage:65001","/target:exe","/reference:System.Drawing.dll","/reference:System.Windows.Forms.dll",
+    "/out:"+executable,path.join(root,"launcher/windows/LauncherTheme.cs"),path.join(root,"launcher/windows/HttpsCertificate.cs"),path.join(root,"launcher/windows/HttpsCertificateDialog.cs"),path.join(root,"launcher/windows/LauncherLanguage.cs"),
     path.join(root,"test/helpers/https-certificate-harness.cs")];
   const compiled=spawnSync(compiler,compilerArgs,{encoding:"utf8"});
   assert.equal(compiled.status,0,compiled.stdout+compiled.stderr);
@@ -201,7 +201,7 @@ test("Windows CryptoAPI generates usable SAN certificates with backups, private 
     const legacy=path.join(directory,"certificate-harness-legacy.exe");
     const legacyArgs=["/nologo","/noconfig","/nostdlib+","/codepage:65001","/platform:x86","/target:exe","/out:"+legacy,
       ...["mscorlib.dll","System.dll","System.Drawing.dll","System.Windows.Forms.dll"].map(file=>"/reference:"+path.join(references,file)),
-      path.join(root,"launcher/windows/HttpsCertificate.cs"),path.join(root,"launcher/windows/HttpsCertificateDialog.cs"),path.join(root,"launcher/windows/LauncherLanguage.cs"),path.join(root,"test/helpers/https-certificate-harness.cs")];
+      path.join(root,"launcher/windows/LauncherTheme.cs"),path.join(root,"launcher/windows/HttpsCertificate.cs"),path.join(root,"launcher/windows/HttpsCertificateDialog.cs"),path.join(root,"launcher/windows/LauncherLanguage.cs"),path.join(root,"test/helpers/https-certificate-harness.cs")];
     const legacyBuild=spawnSync(compiler,legacyArgs,{encoding:"utf8"});assert.equal(legacyBuild.status,0,legacyBuild.stdout+legacyBuild.stderr);
     fs.copyFileSync(path.join(root,"compat/windows-legacy/launcher.exe.config"),legacy+".config");
     const legacyDirectory=run(["generate",path.join(directory,"legacy"),names,"create"],0,legacy);

@@ -48,6 +48,46 @@ internal static class UnixLauncherHarness
                 LauncherLanguageCommand.SendAsync(client, int.Parse(args[1]), args[2], args[3], CancellationToken.None).GetAwaiter().GetResult();
                 return 0;
             }
+            if (args[0] == "peer-status")
+            {
+                Directory.CreateDirectory(args[1]);
+                AppBuilder.Configure<LauncherApp>().UseHeadless(new AvaloniaHeadlessPlatformOptions()).SetupWithoutStarting();
+                var starts = 0;
+                var form = new LauncherWindow(args[1], false, () => starts++);
+                form.Show(); Dispatcher.UIThread.RunJobs();
+                try
+                {
+                    Set(form, "_ready", true);
+                    var generation = Field(form, "_probeGeneration");
+                    var status = (TextBlock)Field(form, "_status")!;
+                    const string peer = "http://192.168.1.10:8008";
+                    foreach (var russian in new[] { true, false })
+                    {
+                        LauncherLanguage.Russian = russian;
+                        Call(form, "AdoptServerRole", (object)new[] { "primary", peer, "true" });
+                        Check(status.Text!.Contains(russian ? "подключён резервный сервер" : "connected standby server"), "Healthy peer text");
+                        Call(form, "AdoptServerRole", (object)new[] { "primary", peer, "false" });
+                        Check(status.Text!.Contains(russian ? "резервный сервер «" + peer + "» недоступен" : "standby server " + peer + " is unavailable"), "Missing standby text and URL");
+                        Check(((Avalonia.Media.ISolidColorBrush)status.Foreground!).Color == Avalonia.Media.Color.FromRgb(255, 200, 87), "Missing peer warning color");
+                        Check(((TrayIcon)Field(form, "_tray")!).ToolTipText!.Contains(status.Text), "Tray reports same peer state");
+                        Call(form, "AdoptServerRole", (object)new[] { "primary", peer, "true" });
+                        Check(!status.Text!.Contains(russian ? "недоступен" : "unavailable"), "Recovery removes warning");
+                        Check(((Avalonia.Media.ISolidColorBrush)status.Foreground!).Color == Avalonia.Media.Color.FromRgb(87, 211, 140), "Recovery restores healthy color");
+                        Call(form, "AdoptServerRole", (object)new[] { "secondary", peer, "false" });
+                        Check(status.Text!.Contains(russian ? "основной сервер «" + peer + "» недоступен" : "primary server " + peer + " is unavailable"), "Standby reports unavailable primary");
+                        Call(form, "AdoptServerRole", (object)new[] { "primary", peer });
+                        Check(status.Text!.Contains(russian ? "настроен резервный сервер" : "configured standby server"), "Older server metadata does not claim connectivity");
+                        Call(form, "AdoptServerRole", (object)Array.Empty<string>());
+                        Check(status.Text == LauncherLanguage.Text("Server is running"), "Removing pairing clears peer text");
+                    }
+                    Check(starts == 1 && (bool)Field(form, "_ready")! && Equals(generation, Field(form, "_probeGeneration")), "Status updates preserve startup/readiness/probe generation");
+                    Check(Field(form, "_serverProcess") == null && !((DispatcherTimer)Field(form, "_healthTimer")!).IsEnabled
+                        && !((DispatcherTimer)Field(form, "_restartTimer")!).IsEnabled, "Status updates do not start processes or timers");
+                    Console.WriteLine("Peer status RU/EN: connected, unavailable, recovered, old metadata, unpaired; launcher lifecycle unchanged.");
+                }
+                finally { form.PrepareExit(); form.Close(); }
+                return 0;
+            }
             if (args[0] == "render")
             {
                 Directory.CreateDirectory(args[1]); LauncherLanguage.Russian = args[3] == "ru";
@@ -57,7 +97,7 @@ internal static class UnixLauncherHarness
                 form.Show();
                 try
                 {
-                    ((TextBlock)Field(form, "_buildLabel")!).Text = "(443)";
+                    ((TextBlock)Field(form, "_buildLabel")!).Text = "(454)";
                     Call(form, "SetStatusText", "Server is running");
                     ((TextBlock)Field(form, "_status")!).Foreground = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.FromRgb(87, 211, 140));
                     ((Button)Field(form, "_openButton")!).IsEnabled = true;
@@ -66,6 +106,28 @@ internal static class UnixLauncherHarness
                     addresses.Items.Add(new TimerAddress { Label = LauncherLanguage.Text("Local HTTP"), Url = "http://127.0.0.1:8008/" });
                     addresses.Items.Add(new TimerAddress { Label = "Wi-Fi HTTP", Url = "http://192.168.1.10:8008/" }); addresses.SelectedIndex = 0;
                     Dispatcher.UIThread.RunJobs();
+                    var actions = new[] { "_openButton", "_copyButton", "_pinButton", "_restartButton", "_stopButton" }
+                        .Select(name => (Button)Field(form, name)!).ToArray();
+                    for (var index = 0; index < actions.Length; index++)
+                    {
+                        Check(Math.Abs(actions[index].Bounds.Y - actions[0].Bounds.Y) < 0.1,
+                            "All timer actions must stay aligned in the first row: " + actions[index].Content);
+                        Check(Math.Abs(actions[index].Bounds.Height - actions[0].Bounds.Height) < 0.1,
+                            "Timer action heights must match: " + actions[index].Content);
+                        if (index > 0) Check(Math.Abs(actions[index].Bounds.X - actions[index - 1].Bounds.Right - 8) < 0.1,
+                            "Timer action spacing must be consistent: " + actions[index].Content);
+                    }
+                    var settings = new[] { "_certificateButton", "_updateButton", "_projectButton" }
+                        .Select(name => (Button)Field(form, name)!).ToArray();
+                    for (var index = 1; index < settings.Length; index++)
+                    {
+                        Check(Math.Abs(settings[index].Bounds.Y - settings[0].Bounds.Y) < 0.1
+                            && Math.Abs(settings[index].Bounds.Height - settings[0].Bounds.Height) < 0.1,
+                            "Settings buttons must align");
+                        Check(Math.Abs(settings[index].Bounds.X - settings[index - 1].Bounds.Right - 8) < 0.1,
+                            "Settings button spacing must be consistent");
+                    }
+                    Console.WriteLine("Aligned action/settings rows: " + args[3] + (args.Length > 4 ? " minimum" : " default"));
                     using var frame = form.CaptureRenderedFrame() ?? throw new Exception("No rendered frame"); frame.Save(args[2]);
                     foreach (var name in new[] { "_languageButton", "_openButton", "_copyButton", "_restartButton", "_stopButton", "_certificateButton", "_pinButton", "_hint" })
                     {
@@ -130,7 +192,7 @@ internal static class UnixLauncherHarness
                 LauncherLanguage.Russian = false;
                 string[]? observed = null;
                 var probe = (Task<bool>)Call(window, "CanReach", "http://127.0.0.1:" + args[2] + "/api/state",
-                    CancellationToken.None, null!, (Action<string[]>)(value => observed = value))!;
+                    CancellationToken.None, null!, (Action<string[]>)(value => observed = value), null!)!;
                 Pump(() => probe.IsCompleted);
                 Check(probe.GetAwaiter().GetResult() && LauncherLanguage.ValidServerLanguage(observed!), "Actual health metadata");
                 var intent = (long)Field(window, "_languageIntentRevision")!;

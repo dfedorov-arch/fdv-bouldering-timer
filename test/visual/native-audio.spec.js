@@ -1,7 +1,7 @@
 "use strict";
 const {test,expect}=require("@playwright/test");
 const path=require("node:path");
-const {fixture}=require("../helpers/controlled-clock-server");
+const {fixture,clockOrigin}=require("../helpers/controlled-clock-server");
 async function withServer(run,options={}){
   const cleanup=[];
   try{const server=await fixture({after:fn=>cleanup.push(fn)},"darwin",{liveClocks:true,nativeAudioStub:true,legacyRuntime:null,...options});await run(server);}
@@ -28,7 +28,6 @@ test("local native route retains the browser offset, stops with its radio select
     await expect(page.locator("[data-native-audio-label]")).toHaveText("Звук через:");
     await expect(page.locator("[data-audio-offset-value]")).toContainText("-300");
     await expect(page.locator('[data-delivery-client="clock-test"]')).toHaveAttribute("data-delivery-status","applied");
-    await page.locator(".browser-item.primary-browser").screenshot({path:path.resolve(__dirname,"../../help-assets/server-audio.png")});
     await toggleAudioPanel(page);
     await expect(page.locator("[data-native-audio-label]")).toHaveCount(0);
     await server.action({type:"language",language:"en"});
@@ -37,9 +36,19 @@ test("local native route retains the browser offset, stops with its radio select
     await expect(page.locator("[data-native-audio-label]")).toHaveText("Sound via:");
     await expect(page.locator('[data-delivery-client="clock-test"]')).toHaveAttribute("data-delivery-status","applied");
     await page.locator(".browser-item.primary-browser").screenshot({path:path.resolve(__dirname,"../../help-assets/server-audio-en.png")});
+    await page.locator(".audio-offset-editor").screenshot({path:path.resolve(__dirname,"../../help-assets/audio-offset-en.png")});
+    await page.locator(".audio-test-controls").screenshot({path:path.resolve(__dirname,"../../help-assets/audio-test-en.png")});
+    await page.locator(".sound-profile-field").screenshot({path:path.resolve(__dirname,"../../help-assets/sound-profile-en.png")});
     await toggleAudioPanel(page);
     await expect(page.locator("[data-native-audio-label]")).toHaveCount(0);
     await server.action({type:"language",language:"ru"});
+    await expect(page.locator("html")).toHaveAttribute("lang","ru");
+    await toggleAudioPanel(page);
+    await page.locator(".browser-item.primary-browser").screenshot({path:path.resolve(__dirname,"../../help-assets/server-audio.png")});
+    await page.locator(".audio-offset-editor").screenshot({path:path.resolve(__dirname,"../../help-assets/audio-offset.png")});
+    await page.locator(".audio-test-controls").screenshot({path:path.resolve(__dirname,"../../help-assets/audio-test.png")});
+    await page.locator(".sound-profile-field").screenshot({path:path.resolve(__dirname,"../../help-assets/sound-profile.png")});
+    await toggleAudioPanel(page);
     await server.start({settings:{rotationSeconds:60,breakSeconds:15,oneShot:false},elapsedBeforePause:54});
     await expect.poll(()=>server.nativeEvents().filter(e=>e.stage==="plan").at(-1)?.cues.some(c=>c.kind==="warn")).toBe(true);
     const remote=await server.state(),anchor=remote.timerClock.startedAt;
@@ -69,6 +78,72 @@ test("frozen browser delegates two full rotations to the server and remote Stop 
     await new Promise(resolve=>setTimeout(resolve,1500));
     expect(server.nativeEvents().filter(e=>e.stage==="played").length).toBe(count);
     await cdp.send("Page.setWebLifecycleState",{state:"active"});
+  });
+});
+
+test("closed owner browser expires from diagnostics while native output keeps five rotations and obeys remote Stop",async({browser})=>{
+  test.setTimeout(65000);
+  await withServer(async server=>{
+    const context=await browser.newContext();
+    try{
+      const page=await context.newPage();await open(page,server);
+      await server.start({settings:{rotationSeconds:6,breakSeconds:3,oneShot:false}});
+      await context.close();
+      await expect.poll(async()=>!(await server.state()).clients.some(c=>c.id==="clock-test"),{timeout:38000}).toBe(true);
+      await expect.poll(()=>server.nativeEvents().filter(e=>e.stage==="played"&&e.key.startsWith("5:rotation:warn")).length,{timeout:20000}).toBe(5);
+      const played=server.nativeEvents().filter(e=>e.stage==="played"&&e.kind!=="keep-awake");
+      expect(new Set(played.map(e=>e.key)).size).toBe(played.length);
+      await server.action({type:"reset"});
+      await expect.poll(()=>server.nativeEvents().filter(e=>e.stage==="plan").at(-1)?.cues.length).toBe(0);
+      const count=server.nativeEvents().filter(e=>e.stage==="played").length;
+      await new Promise(resolve=>setTimeout(resolve,1500));
+      expect(server.nativeEvents().filter(e=>e.stage==="played").length).toBe(count);
+    }finally{await context.close();}
+  });
+});
+
+test("native output recovers and restores after server restart without reopening its closed browser",async({browser})=>{
+  test.setTimeout(45000);
+  await withServer(async server=>{
+    const context=await browser.newContext();
+    try{
+      const page=await context.newPage();await open(page,server);
+      await server.start({settings:{rotationSeconds:6,breakSeconds:3,oneShot:false}});
+      await context.close();
+      await expect.poll(()=>server.snapshot().serverAudioSelection?.selection?.outputs?.some(value=>value.id==="clock-test")).toBe(true);
+      await fetch(server.baseUrl+"/__fixture_audio_failure");
+      await expect.poll(async()=>(await server.state()).serverAudio.available).toBe(false);
+      let from=server.nativeEvents().length;
+      await fetch(server.baseUrl+"/__fixture_audio_recovered");
+      await expect.poll(()=>server.nativeEvents().slice(from).some(e=>e.stage==="plan"&&e.cues.length>0)).toBe(true);
+      from=server.nativeEvents().length;
+      await server.stop();
+      // This fixture starts its simulated wall clock at zero on each launch.
+      // Advance it across the restart, as a real computer clock would advance.
+      server.frame(server.snapshot().savedAtWall-clockOrigin+1000);
+      await server.restart();
+      await expect.poll(async()=>(await server.state()).serverAudio.ownerClientId).toBe("clock-test");
+      await expect.poll(()=>server.nativeEvents().slice(from).some(e=>e.stage==="plan"&&e.cues.length>0)).toBe(true);
+      expect((await server.state()).clients).toHaveLength(0);
+      await server.action({type:"reset"});
+    }finally{await context.close();}
+  });
+});
+
+test("failed observer transport does not stop native output or leave duplicate browser playback after HTTP confirmation",async({page})=>{
+  test.setTimeout(45000);
+  await withServer(async server=>{
+    await open(page,server);
+    await page.evaluate(async()=>{await unlockAudio(false);await loadAudioBuffers();});
+    await server.start({settings:{rotationSeconds:6,breakSeconds:3,oneShot:false}});
+    await page.route("**/api/server-audio/events?**",route=>route.abort());
+    await fetch(server.baseUrl+"/__fixture_audio_disconnect_observers");
+    await expect.poll(()=>page.evaluate(()=>nativeAudioRoute.snapshot().recoveryExhausted),{timeout:25000}).toBe(true);
+    await expect.poll(()=>page.evaluate(()=>({suppressed:nativeAudioRoute.suppressed(),local:canPlaySound()})))
+      .toEqual({suppressed:true,local:false});
+    expect((await server.state()).serverAudio.ownerClientId).toBe("clock-test");
+    expect(server.nativeEvents().filter(e=>e.stage==="played"&&e.kind==="warn").length).toBeGreaterThan(5);
+    await server.action({type:"reset"});
   });
 });
 
@@ -112,7 +187,86 @@ test("native output radios return sound to the browser, survives reload and pres
     await expect.poll(()=>page.evaluate(()=>lastKnownClients.find(c=>c.id===clientId)?.serverAudioActive)).toBe(false);
   });
 });
-test("closing the owner page revokes native playback; proxy and foreign-origin claims are rejected",async({page,request})=>{
+test("returning to browser audio after a native manual start does not replay its elapsed cue",async({page})=>{
+  await withServer(async server=>{
+    await open(page,server);
+    await page.evaluate(async()=>{
+      await unlockAudio(false);await loadAudioBuffers();window.nativeReturnStarts=0;
+      for(const name of ["playBuffer","beepSynthetic"]){const original=window[name];window[name]=function(kind,...args){const result=original(kind,...args);if(kind==="start"&&result)nativeReturnStarts++;return result;};}
+      await startTimer();
+    });
+    await expect.poll(()=>server.nativeEvents().filter(e=>e.stage==="played"&&e.kind==="start").length).toBe(1);
+    await server.action({type:"serverAudioMode",targetClientId:"clock-test",enabled:false});
+    await page.waitForFunction(()=>!nativeAudioRoute.suppressed()&&canPlaySound());
+    await page.waitForTimeout(400);
+    expect(await page.evaluate(()=>nativeReturnStarts)).toBe(0);
+  });
+});
+
+test("native failure restores the start cue while release and state refresh hang, then respects the saved route",async({page})=>{
+  await withServer(async server=>{
+    await open(page,server);
+    await page.evaluate(async()=>{
+      await unlockAudio(false);await loadAudioBuffers();window.fallbackStarts=0;
+      const original=markSignalPlayed;
+      markSignalPlayed=function(key){const accepted=original(key);if(accepted&&key.includes(":rotation:start:"))fallbackStarts++;return accepted;};
+    });
+    const held=[];let hold=true;
+    await page.route("**/api/server-audio",async route=>{
+      if(hold&&route.request().postDataJSON()?.op==="release"){held.push(route);return;}
+      await route.continue();
+    });
+    await page.route("**/api/state?**",async route=>{if(hold){held.push(route);return;}await route.continue();});
+    try{
+      await page.request.get(server.baseUrl+"/__fixture_audio_failure");
+      await page.waitForFunction(()=>!nativeAudioRoute.suppressed()&&canPlaySound(),null,{timeout:1500});
+      expect(held.length).toBeGreaterThan(0);
+      await page.evaluate(()=>startTimer());
+      await expect.poll(()=>page.evaluate(()=>fallbackStarts),{timeout:2500}).toBe(1);
+      expect((await server.state()).running).toBe(true);
+    }finally{hold=false;for(const route of held)await route.continue().catch(()=>{});}
+    await page.request.get(server.baseUrl+"/__fixture_audio_recovered");
+    await page.waitForFunction(()=>nativeAudioRoute.suppressed()&&nativeAudioRoute.snapshot().active);
+    await server.action({type:"serverAudioMode",targetClientId:"clock-test",enabled:false});
+    await page.waitForFunction(()=>!nativeAudioRoute.suppressed()&&nativeAudioOffer.enabled===false);
+    await page.request.get(server.baseUrl+"/__fixture_audio_failure");
+    await page.request.get(server.baseUrl+"/__fixture_audio_recovered");
+    await page.waitForTimeout(400);
+    expect(await page.evaluate(()=>({muted:nativeAudioRoute.suppressed(),enabled:nativeAudioOffer.enabled}))).toEqual({muted:false,enabled:false});
+  });
+});
+
+test("automatic fallback recovers a recent minute cue that native ownership had suppressed locally",async({page})=>{
+  await withServer(async server=>{
+    await open(page,server);
+    await page.evaluate(async()=>{
+      await unlockAudio(false);await loadAudioBuffers();window.fallbackMinutes=0;
+      for(const name of ["playBuffer","beepSynthetic"]){const original=window[name];window[name]=function(kind,...args){const result=original(kind,...args);if(kind==="minute"&&result)fallbackMinutes++;return result;};}
+    });
+    await server.start({settings:{rotationSeconds:65,breakSeconds:0,oneShot:false},elapsedBeforePause:4.9});
+    await expect.poll(()=>server.nativeEvents().filter(e=>e.stage==="played"&&e.kind==="minute").length).toBe(1);
+    await page.request.get(server.baseUrl+"/__fixture_audio_failure");
+    await expect.poll(()=>page.evaluate(()=>fallbackMinutes),{timeout:1500}).toBe(1);
+  });
+});
+
+test("automatic fallback never replays a manual start beyond its three-second window",async({page})=>{
+  await withServer(async server=>{
+    await open(page,server);
+    await page.evaluate(async()=>{
+      await unlockAudio(false);await loadAudioBuffers();window.expiredFallbackStarts=0;
+      for(const name of ["playBuffer","beepSynthetic"]){const original=window[name];window[name]=function(kind,...args){const result=original(kind,...args);if(kind==="start"&&result)expiredFallbackStarts++;return result;};}
+      await startTimer();
+    });
+    await page.waitForTimeout(4000);
+    await page.request.get(server.baseUrl+"/__fixture_audio_failure");
+    await page.waitForFunction(()=>!nativeAudioRoute.suppressed()&&canPlaySound());
+    await page.waitForTimeout(400);
+    expect(await page.evaluate(()=>expiredFallbackStarts)).toBe(0);
+  });
+});
+
+test("closing the owner page preserves native playback; proxy and foreign-origin claims are rejected",async({page,request})=>{
   await withServer(async server=>{
     await open(page,server);
     const remote=await server.state();
@@ -121,10 +275,7 @@ test("closing the owner page revokes native playback; proxy and foreign-origin c
       expect(result.status()).toBe(403);
     }
     await page.close();
-    await expect.poll(async()=>{
-      const response=await request.post(server.baseUrl+"/api/server-audio",{data:{clientId:"clock-test",serverInstanceId:remote.serverInstanceId,op:"status"}});
-      return (await response.json()).active;
-    }).toBe(false);
+    await expect.poll(async()=>(await server.state()).serverAudio.ownerClientId).toBe("clock-test");
   });
 });
 

@@ -43,13 +43,13 @@ test("native RU/EN launcher preserves state and sends authenticated language to 
   t.after(()=>fs.rmSync(directory,{recursive:true,force:true}));
   const compiler=path.join(process.env.WINDIR,"Microsoft.NET/Framework64/v4.0.30319/csc.exe");
   const sources=["launcher/windows/FdvBoulderingTimerLauncher.cs","launcher/windows/HttpsCertificate.cs",
-    "launcher/windows/HttpsCertificateDialog.cs","launcher/windows/LauncherLanguage.cs","launcher/windows/LauncherUpdates.cs","test/helpers/windows-launcher-harness.cs"].map(file=>path.join(projectRoot,file));
+    "launcher/windows/HttpsCertificateDialog.cs","launcher/windows/LauncherLanguage.cs","launcher/windows/LauncherUpdates.cs","launcher/windows/LauncherTheme.cs","test/helpers/windows-launcher-harness.cs"].map(file=>path.join(projectRoot,file));
   const imagePrefix=path.join(projectRoot,"dist/windows-launcher-language");
   fs.mkdirSync(path.dirname(imagePrefix),{recursive:true});
   function compileAndRun(legacy){
     const executable=path.join(directory,legacy?"legacy.exe":"modern.exe");
     const references=process.env.FDV_NET20_REFERENCES;
-    const args=["/nologo","/codepage:65001","/target:exe","/main:WindowsLauncherHarness","/out:"+executable];
+    const args=["/win32manifest:"+path.join(projectRoot,"launcher/windows/launcher.manifest"),"/nologo","/codepage:65001","/target:exe","/main:WindowsLauncherHarness","/out:"+executable];
     if(legacy){
       args.push("/noconfig","/nostdlib+","/platform:x86","/define:FDV_LEGACY_WINDOWS",
         ...["mscorlib.dll","System.dll","System.Drawing.dll","System.Windows.Forms.dll"].map(file=>"/reference:"+path.join(references,file)));

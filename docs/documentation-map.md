@@ -6,6 +6,22 @@ This file defines the documentation set and its source-of-truth boundaries. Prod
 
 ## User documentation
 
+The Windows build454 visual follow-up shares Unix-style fonts, button geometry and colors across its main/PIN/certificate windows, preserving the CLR2 build. Current RU/EN Windows screenshots are refreshed. [review/windows-launcher-theme454.md](review/windows-launcher-theme454.md) records passive native and DPI rendering checks.
+
+The build454 follow-up makes activated server audio independent of browser connections, including page closure and registry expiry. Current guide/tooltips/quick starts explain local restart restoration and explicit mute/route/authority controls. [review/autonomous-server-audio454.md](review/autonomous-server-audio454.md) records the regression scenarios. Earlier lease-lifetime descriptions below are historical.
+
+The current development guide and screenshots describe **build454**. Startup defaults are `timer_vertical_stretch=false` and `timer_vertical_stretch_max_percent=200`; per-display choices override the default. SEC setup-border health is separate from browser-card route colors. Cutover begins at 2 seconds, with a 20-second automatic return window. Launcher controls, role information, immediate browser audio fallback and bounded start recovery are documented in both languages and all platform quick starts. Screenshot sources and validation are recorded in [review/documentation454.md](review/documentation454.md). Older build entries below are historical change notes, not current defaults.
+
+Build453 prioritizes browser playback on a detected native failure without awaiting release/state refresh, accepting overlapping audio. RU/EN guide, tooltips and quick references explain the saved preference and automatic recovery. [review/audio-fallback453.md](review/audio-fallback453.md) records the held-request and recent-cue tests.
+
+Build452 extends Final prewarm to countdown end and readiness, repeating every 10 seconds until manual Start. RU/EN references and guide explain the scope, route and mute controls. [review/final-start-prewarm452.md](review/final-start-prewarm452.md) records validation.
+
+Build451 adds immediate local Start prewarm and bounded browser recovery of a fresh manual start cue (at most 3 seconds late). The RU/EN guide and quick references describe the behavior; [review/manual-start-audio451.md](review/manual-start-audio451.md) contains reproduction and validation details. Timer transitions and command-delivery behavior are unchanged.
+
+Build450 also aligns paired sound/signal settings in two equal columns, using independent RU/EN captions and common checkbox slots. Wide and narrow screenshots and the guide are refreshed; [review/settings-grid450.md](review/settings-grid450.md) records validation. Command delivery behavior is unchanged.
+
+Build450 adds the per-screen ↓↑ vertical timer-stretch badge (default off), including supported Legacy engines. params.txt timer_vertical_stretch_max_percent sets the shared limit (initially 150%; now 200% in build454); values ≤100 disable stretching globally and gray out the badge. The tooltip shows the configured percentage and how to change it. The RU/EN guide, timer-stretch-ru/en.png captures and architecture document capability colors, persistence, independent tabs, clock/list clearance and the shared cap. Verification and limits: [review/timer-stretch450.md](review/timer-stretch450.md).
+
 Build449 confirms browser AUDIO readiness from the current playback backend and records resume outcomes in perf=1. See [review/browser-audio-unlock449.md](review/browser-audio-unlock449.md), architecture.md and performance-diagnostics.md for scope, compatibility and validation limits. The RU/EN guide explains that a recorded tap alone does not confirm playback.
 
 Build446 documents bounded native audio recovery, a disabled unavailable-route
@@ -40,9 +56,7 @@ next to its executable, and preflight rejects missing/empty icon assets. See
 launcher/unix/README.md and architecture.md for the Dock/menu-bar distinction
 and raw `dotnet publish` limitations.
 
-Current development handoff: [CHAT_HANDOFF.md](CHAT_HANDOFF.md). It records
-the checked Git/worktree state, build443 language synchronization, validation
-limits, local test launch and preview/release boundaries for a new chat.
+Current development handoff: [CHAT_HANDOFF.md](CHAT_HANDOFF.md). It records the local develop/build454 worktree, uncommitted changes, test launch and packaging boundaries. Earlier CI/build details are explicitly historical.
 
 Build443 makes desktop language synchronization bidirectional using metadata
 headers on existing server health responses, with no additional polls. The
@@ -120,6 +134,7 @@ Build 418 adds HTTP loopback-to-route advertisement, reverse identity checking a
 | `ReadMe.txt` | Portable-package users | Plain-text quick start in Russian and English |
 | `help.html` | Operators | Complete bilingual guide for setup, competition operation, displays, lists, diagnostics, and troubleshooting |
 | `ReadMe-windows.txt` | Windows package users | Platform launcher and first-run notes |
+| `ReadMe-windows-legacy.txt` | Windows 7/8 users | Legacy runtime, launcher and isolated-LAN notes |
 | `ReadMe-macos.txt` | macOS package users | App launch, Gatekeeper/quarantine, and fallback notes |
 | `ReadMe-linux.txt` | Linux package users | Launcher, desktop integration, executable permissions, and fallback notes |
 | `runtime/*/README.txt` | Custom package builders | Optional portable Node.js placement |
@@ -136,7 +151,7 @@ Current application screenshots belong in `help-assets/`. A screenshot that show
 
 Build 416 uses LEG on all diagnostic cards and keeps the main badges on one row, apart from LIST and ordering buttons. Secondary server switching supports an explicit manual return to the current primary; persisted one-shot destination commands must not interfere with subsequent failover. Both guide languages and quick starts describe this distinction. The two-server screenshot is recaptured with LEG; browser tests measure containment at eight viewport sizes from 320 to 1920 pixels and verify modern/Legacy return plus group return without authority promotion.
 
-`help-assets/secondary-server.png` is captured from the real two-server Secondary server setup dialog by `secondary.spec.js`. Current documentation describes setup, per-browser/group transfer, the 20-second threshold, merged diagnostics, automatic former-primary return as standby (not failback), bidirectional reachability/TLS trust, asynchronous replication and partition limitations. It covers authority epochs, changed operators and repeated takeovers. `lib/client-secondary-server.js` must load in Modern/Legacy, be cached by `sw.js`, and be embedded but disabled in standalone/Android HTML; release-input checks enforce these dependencies. Private pairing metadata and the role-reversal handshake are described in `docs/architecture.md`.
+`help-assets/secondary-server.png` is captured from the real two-server Secondary server setup dialog by `secondary.spec.js`. Current documentation describes setup, per-browser/group transfer, the 2-second cutover threshold, 20-second automatic return window, merged diagnostics and former-primary return as standby after that window, bidirectional reachability/TLS trust, asynchronous replication and partition limitations. It covers authority epochs, changed operators and repeated takeovers. `lib/client-secondary-server.js` must load in Modern/Legacy, be cached by `sw.js`, and be embedded but disabled in standalone/Android HTML; release-input checks enforce these dependencies. Private pairing metadata and the role-reversal handshake are described in `docs/architecture.md`.
 
 `help-assets/initial-clock-sync.png` shows build 413 waiting for its first measured server clock while SSE has already supplied a running timer. The isolated `clock.spec.js` test captures the real page and verifies no scheduled/consumed sounds before calibration and recovery afterwards. Both guide languages describe the independent modern timer coordinate, preserved calendar-based starts/recovery, and unchanged Legacy compatibility API.
 
@@ -204,7 +219,7 @@ When behavior or visible terminology changes:
 2. Update `README.md`, `ReadMe.txt`, and the relevant `help.html` sections.
 3. Update architecture, diagnostics, visual-test, or platform documentation when their contracts change.
 4. Replace affected screenshots and verify their references and alternative text.
-5. Update `PROJECT-CONTEXT.md` and the current application build where cached product assets changed.
+5. Update the current handoff and document changed defaults; change the application build only when requested for that delivery. Documentation-only edits do not require a new build number.
 6. Run link/asset checks, `npm test`, and the relevant visual tests.
 7. Regenerate `lib/offline-audio.js` and run `scripts/verify-release-inputs.js` when the application build changes.
 
