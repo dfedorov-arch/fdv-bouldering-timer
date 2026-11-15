@@ -52,7 +52,7 @@ function harness({ offset = 0, buffered = false, initialElapsed = 234, oneShot =
     recordPerformanceAudioSchedule: event => events.push(event),
     updatePerformancePendingAudioPlan: noop, recordPerformanceAudioClock: noop,
     finalizeClearedPerformanceAudioPlans: noop, finalizeClearedPerformancePrewarmPlans: noop,
-    recordCancelledAudioNode: noop, stopActiveHtmlAudio: noop,
+    recordCancelledAudioNode: noop, stopActiveHtmlAudio: noop, cancelInvalidDiagnosticAudio: noop,
     beep: (kind, delay = 0, scheduled = false, signalKey = "", preserve = false, onStarted = null) => {
       if (!scheduled) { sounds.push({ kind, at: now }); return true; }
       if (!buffered) return false;

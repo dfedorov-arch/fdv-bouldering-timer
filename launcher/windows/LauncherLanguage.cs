@@ -88,6 +88,7 @@ namespace FdvBoulderingTimerLauncher
         }
 
         private static readonly string[,] Messages = {
+            { "Settings", "Настройки" },
             { "Open project website", "Открыть сайт проекта" },
             { "Check for updates", "Проверить обновления" },
             { "Checking for updates...", "Проверка обновлений…" },

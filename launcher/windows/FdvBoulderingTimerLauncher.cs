@@ -123,6 +123,8 @@ namespace FdvBoulderingTimerLauncher
         private readonly Button _restartButton = new LauncherButton();
         private readonly Button _stopButton = new LauncherButton();
         private readonly Button _certificateButton = new LauncherButton();
+        private readonly Button _settingsButton = new LauncherGearButton();
+        private readonly ToolTip _settingsTip = new ToolTip();
         private readonly Button _languageButton = new LauncherButton();
         private readonly Button _pinButton = new LauncherButton();
         private readonly Label _addressTitle = new Label();
@@ -201,10 +203,16 @@ namespace FdvBoulderingTimerLauncher
             Controls.Add(_buildLabel);
 
             _languageButton.Name = "launcherLanguage";
-            _languageButton.Location = new Point(850, 24);
+            _languageButton.Location = new Point(802, 24);
             _languageButton.Size = new Size(46, 32);
             _languageButton.Anchor = AnchorStyles.Top | AnchorStyles.Right;
             _languageButton.Click += delegate { SwitchLanguage(); };
+            _settingsButton.Name = "launcherSettings";
+            _settingsButton.Location = new Point(856, 24); _settingsButton.Size = new Size(40, 32);
+            _settingsButton.Anchor = AnchorStyles.Top | AnchorStyles.Right;
+            _settingsButton.TabIndex = 1;
+            _settingsButton.Click += delegate { EditParameters(); };
+            Controls.Add(_settingsButton);
 
             _status.Text = "Preparing server...";
             _status.AutoSize = false;
@@ -439,6 +447,8 @@ namespace FdvBoulderingTimerLauncher
 
         private void ApplyLanguage()
         {
+            _settingsTip.SetToolTip(_settingsButton, T("Settings"));
+            _settingsButton.AccessibleName = T("Settings");
             _languageButton.Text = LauncherLanguage.Russian ? "EN" : "RU";
             _languageButton.AccessibleName = LauncherLanguage.Russian ? "Switch to English" : "Переключить на русский";
             _addressTitle.Text = T("Timer addresses");
@@ -457,6 +467,19 @@ namespace FdvBoulderingTimerLauncher
             foreach (ToolStripItem item in _tray.ContextMenuStrip.Items)
                 if (item.Tag is string) item.Text = T((string)item.Tag);
             PopulateAddresses(); // Preserve the selected URL; do not touch the server.
+        }
+
+        private void EditParameters()
+        {
+            try
+            {
+                using (var dialog = new ParametersDialog(_baseDirectory))
+                {
+                    dialog.ShowDialog(this);
+                    if (dialog.RestartRequested) StartServer(false);
+                }
+            }
+            catch (Exception error) { MessageBox.Show(this, error.Message, T("Settings"), MessageBoxButtons.OK, MessageBoxIcon.Error); }
         }
 
         private void SwitchLanguage()

@@ -53,6 +53,7 @@ test("Unix headless UI, real language endpoint and per-user single-instance rest
       catch(failure){reject(failure);}
     });
   });}
+  assert.match(await run(["settings",path.join(directory,"settings")]),/Settings RU\/EN.*OK/);
   const token=crypto.randomBytes(32).toString("hex"),server=await fixture(t,null,{launcherToken:token});
   await server.action({type:"primary",primaryClientId:"clock-test"});await server.start();server.frame(9000);
   const before=await server.state(),port=new URL(server.baseUrl).port;
@@ -62,6 +63,12 @@ test("Unix headless UI, real language endpoint and per-user single-instance rest
     const image=path.join(directory,`launcher-${language}-${width}.png`);
     await run(["render",path.join(directory,"render"),image,language,...(width==="min"?["min"]:[])]);
     assert.ok(fs.statSync(image).size>2000,"Rendered control frame must contain content");
+  }
+  fs.copyFileSync(path.join(root,"params.txt"),path.join(directory,"render","params.txt"));
+  for(const language of ["ru","en"]){
+    const image=path.join(directory,`settings-${language}.png`);
+    await run(["render-settings",path.join(directory,"render"),image,language]);
+    assert.ok(fs.statSync(image).size>2000,"Settings dialog renders all shipped parameters");
   }
   const after=await server.state();assert.equal(after.language,"ru");
   assert.equal(after.version,before.version+2,"Only two explicit button choices change state; health adoption must not POST back");

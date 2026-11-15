@@ -742,7 +742,7 @@ test("iOS audio falls back when its decoded-buffer context is not running", () =
 
 test("standalone iOS reuses gesture-authorized HTML audio for every manual start", () => {
   assert.match(index, /const iosAudioWorkaroundEnabled = \/iPad\|iPhone\|iPod\/i/);
-  assert.match(index, /function playImmediateGestureAudio\(kind\)/);
+  assert.match(index, /function playImmediateGestureAudio\(kind, playbackScope = null\)/);
   assert.match(index, /standaloneMode && iosAudioWorkaroundEnabled && playImmediateGestureAudio\("start"\)/);
   assert.match(index, /unlockSource\.buffer = context\.createBuffer\(1, 1, 22050\);/);
 });
@@ -751,7 +751,7 @@ test("all standalone iOS signals keep the authorized media element and server sc
   assert.match(index, /immediateGestureAudio\.src = source;\s*immediateGestureAudioSource = source;/);
   assert.match(index, /standaloneMode && iosAudioWorkaroundEnabled && audioKinds\.includes\(kind\) && delaySeconds === 0/);
   assert.match(index, /if \(standaloneMode && iosAudioWorkaroundEnabled\) \{\s*bufferLastFailure = "ios-html-audio";\s*updatePerformancePendingAudioPlan\(signalKey, \{ bufferLastFailure \}\);\s*return false;\s*\}[\s\S]*?if \(scheduledByBuffer\)/);
-  assert.match(index, /scheduleServerTimeoutAt\(targetServerTime, \(\) => \{[\s\S]*?scheduleGeneration === audioScheduleGeneration[\s\S]*?beep\(kind\)/);
+  assert.match(index, /scheduleServerTimeoutAt\(targetServerTime, \(\) => play\(\), \{[\s\S]*?timerList: scope\.timers/);
 });
 
 test("a short mobile sleep cannot leave rendering permanently frozen", () => {

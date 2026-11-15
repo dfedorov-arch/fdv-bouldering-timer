@@ -48,6 +48,54 @@ internal static class UnixLauncherHarness
                 LauncherLanguageCommand.SendAsync(client, int.Parse(args[1]), args[2], args[3], CancellationToken.None).GetAwaiter().GetResult();
                 return 0;
             }
+            if (args[0] == "settings")
+            {
+                Directory.CreateDirectory(args[1]);
+                AppBuilder.Configure<LauncherApp>().UseHeadless(new AvaloniaHeadlessPlatformOptions()).SetupWithoutStarting();
+                var path = Path.Combine(args[1], "params.txt");
+                var sample = "# comment\r\nhttp_port =8008\r\nsound=true\r\nlanguage=ru\r\ncustom_key=untouched=1\r\nhttp_port=8008\r\n";
+                File.WriteAllText(path, sample, new UTF8Encoding(true));
+                foreach (var russian in new[] { true, false })
+                {
+                    LauncherLanguage.Russian = russian;
+                    var starts = 0;
+                    var owner = new LauncherWindow(args[1], false, () => starts++);
+                    owner.Show(); Dispatcher.UIThread.RunJobs();
+                    var task = (Task)Call(owner, "EditParameters")!; Dispatcher.UIThread.RunJobs();
+                    var dialog = (ParametersDialog)Field(owner, "_settingsDialog")!;
+                    var input = dialog.GetVisualDescendants().OfType<TextBox>().Single(x => x.Name == "param_http_port");
+                    var beforeInvalid = File.ReadAllText(path);
+                    input.Text = "not-a-port";
+                    dialog.GetVisualDescendants().OfType<Button>().Single(x => x.Name == "saveParameters").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                    Check(File.ReadAllText(path) == beforeInvalid, "Invalid value must not write file");
+                    input.Text = russian ? "18088" : "18089";
+                    dialog.GetVisualDescendants().OfType<Button>().Single(x => x.Name == "saveParameters").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                    Check(File.ReadAllText(path).Contains("http_port =" + input.Text + "\r\n"), "File saved before asking for restart");
+                    Check(File.ReadAllText(path).Contains("custom_key=untouched=1\r\n"), "Unknown keys and CRLF preserved");
+                    Check(File.ReadAllBytes(path)[0] == 239, "UTF8 BOM preserved");
+                    Check(!dialog.RestartRequested && starts == 1, "Saving must not restart");
+                    Check(dialog.GetVisualDescendants().OfType<TextBlock>().Any(x => x.Text == FdvBoulderingTimerLauncher.LauncherParameters.SavedMessage), "Restart question shown");
+                    dialog.GetVisualDescendants().OfType<Button>().Single(x => x.Name == "restartNo").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                    Pump(() => task.IsCompleted);
+                    Check(!dialog.RestartRequested && starts == 1, "No does not start server");
+                    var beforeCancel = File.ReadAllBytes(path);
+                    var cancel = new ParametersDialog(args[1]); cancel.Show(owner); cancel.Close();
+                    Check(File.ReadAllBytes(path).SequenceEqual(beforeCancel), "Cancel must preserve exact file bytes");
+                    var yes = new ParametersDialog(args[1]); yes.Show(owner); Dispatcher.UIThread.RunJobs();
+                    yes.GetVisualDescendants().OfType<Button>().Single(x => x.Name == "saveParameters").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                    yes.GetVisualDescendants().OfType<Button>().Single(x => x.Name == "restartYes").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                    Check(yes.RestartRequested, "Yes requests existing launcher restart");
+                    owner.PrepareExit(); owner.Close();
+                }
+                var model = FdvBoulderingTimerLauncher.LauncherParameters.Load(args[1]);
+                model.Entries.Single(x => x.Key == "http_port").Value = "18090";
+                File.AppendAllText(path, "# external edit\r\n");
+                bool conflict = false;
+                try { model.Save(); } catch (IOException) { conflict = true; }
+                Check(conflict && File.ReadAllText(path).EndsWith("# external edit\r\n"), "External changes must not be overwritten");
+                Console.WriteLine("Settings RU/EN, validation, preservation, save, Yes/No, cancel and external-edit conflict OK");
+                return 0;
+            }
             if (args[0] == "peer-status")
             {
                 Directory.CreateDirectory(args[1]);
@@ -88,7 +136,7 @@ internal static class UnixLauncherHarness
                 finally { form.PrepareExit(); form.Close(); }
                 return 0;
             }
-            if (args[0] == "render")
+            if (args[0] == "render" || args[0] == "render-settings")
             {
                 Directory.CreateDirectory(args[1]); LauncherLanguage.Russian = args[3] == "ru";
                 AppBuilder.Configure<LauncherApp>().UseHeadless(new AvaloniaHeadlessPlatformOptions { UseHeadlessDrawing = false }).UseSkia().SetupWithoutStarting();
@@ -128,8 +176,13 @@ internal static class UnixLauncherHarness
                             "Settings button spacing must be consistent");
                     }
                     Console.WriteLine("Aligned action/settings rows: " + args[3] + (args.Length > 4 ? " minimum" : " default"));
-                    using var frame = form.CaptureRenderedFrame() ?? throw new Exception("No rendered frame"); frame.Save(args[2]);
-                    foreach (var name in new[] { "_languageButton", "_openButton", "_copyButton", "_restartButton", "_stopButton", "_certificateButton", "_pinButton", "_hint" })
+                    ParametersDialog? settingsPreview = null;
+                    if (args[0] == "render-settings")
+                    {
+                        settingsPreview = new ParametersDialog(args[1]); settingsPreview.Show(form); Dispatcher.UIThread.RunJobs();
+                    }
+                    using var frame = (settingsPreview ?? (Window)form).CaptureRenderedFrame() ?? throw new Exception("No rendered frame"); frame.Save(args[2]); settingsPreview?.Close();
+                    foreach (var name in new[] { "_settingsButton", "_languageButton", "_openButton", "_copyButton", "_restartButton", "_stopButton", "_certificateButton", "_pinButton", "_hint" })
                     {
                         var control = (Control)Field(form, name)!; var point = control.TranslatePoint(new Point(0, 0), form)!.Value;
                         Check(point.X >= 0 && point.Y >= 0 && point.X + control.Bounds.Width <= form.ClientSize.Width + 1 && point.Y + control.Bounds.Height <= form.ClientSize.Height + 1,

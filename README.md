@@ -1,5 +1,19 @@
 # FDV Bouldering Timer
 
+## В разработке / In development (`develop`)
+
+В настольных лаунчерах Windows (включая Win7/Win8), macOS и Linux справа от переключателя языка добавлена кнопка-шестерёнка с подсказкой «Настройки». Она открывает редактор параметров `params.txt`. «Сохранить» записывает файл и предлагает перезапустить сервер сейчас или оставить его работающим. Сервер по-прежнему читает эти параметры при запуске. Редактор проверяет ввод и сохраняет комментарии и неизвестные параметры; внешнее изменение файла защищено от перезаписи.
+
+Исправлена случайная отмена тестовых звуков: обычные ответы HTTP и обновления SSE больше не удаляют ожидающие тестовые сигналы. Тесты имеют отдельное расписание ресурсов с явной отменой при запуске таймера, отключении звука, смене профиля или потере права на воспроизведение. Сохраняются интервал между нажатиями 1 секунда и общее время начала теста через 1,8 секунды с учётом звуковой поправки. При смене основного браузера плашка AUDIO обновляется и с открытым редактором поправки.
+
+Эти изменения находятся в исходниках `develop`; опубликованные установщики 3.0.0 их пока не содержат. Автоматические проверки пройдены; слуховая проверка исправленной версии в пользовательских Chrome/Safari ещё предстоит. Подробности и ограничения — в [контексте проекта](docs/CHAT_HANDOFF.md) и [отчёте о звуке](docs/review/safari-sleep-audio454.md).
+
+Desktop launchers for Windows (including Win7/Win8), macOS and Linux add a gear button to the right of the language switch. Its Settings tooltip opens an editor for `params.txt`. Save writes the file and offers to restart the server now or keep it running; startup remains the point when the server reads these parameters. Validation, comments, unknown parameters and protection against overwriting external edits are retained.
+
+Audio tests now own their scheduled resources, preventing ordinary HTTP replies and SSE state updates from cancelling pending previews. Timer start, muting, profile changes and loss of playback permission still cancel tests explicitly. The 1-second click cooldown, shared 1.8-second test lead and audio correction remain. Primary-browser changes also refresh the AUDIO badge while its correction editor is open.
+
+These changes are in `develop` source and are not included in the published 3.0.0 installers yet. Automated checks pass; listening tests of the corrected version in the user's Chrome/Safari remain pending. See the [project handoff](docs/CHAT_HANDOFF.md) and [audio investigation](docs/review/safari-sleep-audio454.md).
+
 ## Текущая версия / Current version
 
 Версия 3.0.0 · сборка таймера 454. [Новое по сравнению с 2.3.2](docs/releases/v3.0.0.md).

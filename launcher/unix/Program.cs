@@ -153,6 +153,8 @@ internal sealed class LauncherWindow : Window
     private readonly Button _certificateButton = new() { Content = "Create HTTPS certificate" };
     private readonly Button _pinButton = new() { Name = "launcherPin" };
     private Window? _pinDialog;
+    private readonly Button _settingsButton = new() { Name = "launcherSettings" };
+    private ParametersDialog? _settingsDialog;
     private readonly Button _languageButton = new() { Name = "launcherLanguage" };
     private readonly TextBlock _addressTitle = new();
     private readonly Button _projectButton = new() { Name = "launcherProject" };
@@ -298,7 +300,7 @@ internal sealed class LauncherWindow : Window
             RowSpacing = 14
         };
 
-        var heading = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto") };
+        var heading = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto,Auto") };
         var title = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 14 };
         title.Children.Add(new TextBlock
         {
@@ -315,6 +317,11 @@ internal sealed class LauncherWindow : Window
         _languageButton.Click += (_, _) => SwitchLanguage();
         Grid.SetColumn(_languageButton, 1);
         heading.Children.Add(_languageButton);
+        ConfigureButton(_settingsButton, 40);
+        _settingsButton.Margin = new Thickness(8, 0, 0, 0);
+        _settingsButton.Content = new PathIcon { Width = 20, Height = 20, Data = Geometry.Parse("M 8,1 L 12,1 13,4 15,5 18,4 20,8 18,10 18,12 20,14 18,18 15,17 13,18 12,21 8,21 7,18 5,17 2,18 0,14 2,12 2,10 0,8 2,4 5,5 7,4 Z M 10,7 A 4,4 0 1 0 10,15 A 4,4 0 1 0 10,7 Z") };
+        _settingsButton.Click += async (_, _) => await EditParameters();
+        Grid.SetColumn(_settingsButton, 2); heading.Children.Add(_settingsButton);
         root.Children.Add(heading);
 
         _status.Text = "Preparing server...";
@@ -466,6 +473,27 @@ internal sealed class LauncherWindow : Window
         try { await dialog.ShowDialog(this); } finally { _pinDialog = null; _pinButton.IsEnabled = true; }
     }
 
+    private async Task EditParameters()
+    {
+        if (_settingsDialog != null) { _settingsDialog.Activate(); return; }
+        try
+        {
+            var dialog = new ParametersDialog(_baseDirectory);
+            _settingsDialog = dialog; _settingsButton.IsEnabled = false;
+            await dialog.ShowDialog(this);
+            if (dialog.RestartRequested && !_allowClose) StartServer(false);
+        }
+        catch (Exception error)
+        {
+            var message = new Window { Title = T("Settings"), Width = 520, Height = 220, WindowStartupLocation = WindowStartupLocation.CenterOwner };
+            var panel = new StackPanel { Margin = new Thickness(20), Spacing = 16 };
+            panel.Children.Add(new TextBlock { Text = error.Message, TextWrapping = TextWrapping.Wrap });
+            var close = new Button { Content = T("Close") }; close.Click += (_, _) => message.Close(); panel.Children.Add(close);
+            message.Content = panel; await message.ShowDialog(this);
+        }
+        finally { _settingsDialog = null; _settingsButton.IsEnabled = true; }
+    }
+
     private static string T(string english) => LauncherLanguage.Text(english);
 
     private string _serverRole = "", _serverPeer = "";
@@ -503,6 +531,8 @@ internal sealed class LauncherWindow : Window
 
     private void ApplyLanguage()
     {
+        ToolTip.SetTip(_settingsButton, T("Settings"));
+        Avalonia.Automation.AutomationProperties.SetName(_settingsButton, T("Settings"));
         _languageButton.Content = LauncherLanguage.Russian ? "EN" : "RU";
         Avalonia.Automation.AutomationProperties.SetName(_languageButton, LauncherLanguage.Russian ? "Switch to English" : "Переключить на русский");
         _addressTitle.Text = T("Timer addresses"); _logTitle.Text = T("Server log");
@@ -541,7 +571,7 @@ internal sealed class LauncherWindow : Window
         // generation. Never adopt a reply spanning a local language command.
         if (!LauncherLanguage.ValidServerLanguage(state!) || _allowClose ||
             intentRevision != _languageIntentRevision || _languageSyncBusy ||
-            _pendingServerLanguage != null || _certificateDialog != null || _pinDialog != null) return;
+            _pendingServerLanguage != null || _certificateDialog != null || _pinDialog != null || _settingsDialog != null) return;
         var russian = state![0] == "ru";
         if (LauncherLanguage.Russian == russian) return;
         LauncherLanguage.Russian = russian;
@@ -573,7 +603,7 @@ internal sealed class LauncherWindow : Window
     {
         if (_allowClose) return;
         // Keep an operator dialog reachable instead of minimizing its owner.
-        if (_certificateDialog != null) { ShowLauncher(); return; }
+        if (_certificateDialog != null || _settingsDialog != null) { ShowLauncher(); return; }
         if (IsVisible && WindowState != WindowState.Minimized)
             WindowState = WindowState.Minimized;
         else
@@ -587,6 +617,7 @@ internal sealed class LauncherWindow : Window
         if (WindowState == WindowState.Minimized) WindowState = WindowState.Normal;
         Activate();
         _certificateDialog?.Activate();
+        _settingsDialog?.Activate();
     }
 
     private void ConfigureTray()
@@ -1242,6 +1273,7 @@ internal sealed class LauncherWindow : Window
         if (args.CloseReason is WindowCloseReason.ApplicationShutdown or WindowCloseReason.OSShutdown) { PrepareExit(); return; }
         args.Cancel = true;
         if (_certificateDialog != null) { _certificateDialog.Activate(); return; }
+        if (_settingsDialog != null) { _settingsDialog.Activate(); return; }
         Hide(); // Same as Windows: only explicit Exit/OS shutdown stops the child.
     }
 

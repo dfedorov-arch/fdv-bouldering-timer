@@ -68,6 +68,27 @@ namespace FdvBoulderingTimerLauncher
         }
     }
 
+    internal sealed class LauncherGearButton : LauncherButton
+    {
+        protected override void OnPaint(PaintEventArgs args)
+        {
+            base.OnPaint(args);
+            float radius = 10F * args.Graphics.DpiX / 96F;
+            var points = new PointF[32];
+            for (int i = 0; i < points.Length; i++)
+            {
+                double angle = i * Math.PI / 16;
+                float r = (i % 4 == 0 || i % 4 == 3) ? radius : radius * 0.76F;
+                points[i] = new PointF(Width / 2F + r * (float)Math.Cos(angle), Height / 2F + r * (float)Math.Sin(angle));
+            }
+            using (var pen = new Pen(Enabled ? ForeColor : DisabledText, Math.Max(1.4F, radius / 7)))
+            {
+                args.Graphics.DrawPolygon(pen, points);
+                args.Graphics.DrawEllipse(pen, Width / 2F - radius * 0.33F, Height / 2F - radius * 0.33F, radius * 0.66F, radius * 0.66F);
+            }
+        }
+    }
+
     internal static class LauncherTheme
     {
         internal static void Apply(Form form)

@@ -3838,6 +3838,9 @@
         audioContext.addEventListener("statechange", () => {
           if (audioContext !== observedContext) return;
           updateAudioReadiness(observedContext);
+          if (observedContext.state !== "running" && diagnosticAudioScope?.nodes.length) {
+            cancelDiagnosticAudio("audio-context-interrupted");
+          }
           recordAudioUnlock("context-statechange");
           if (audioUnlockRefreshAllowed) refreshStandaloneBrowserList();
           checkClockContinuity();
@@ -4201,6 +4204,8 @@
           clock: performanceAudioClockSample(),
           scheduledSignals: signalDetails(scheduledSignalKeys),
           playedSignals: signalDetails(playedSignalKeys),
+          tests: { nodes: diagnosticAudioScope?.nodes.length || 0,
+            timers: diagnosticAudioScope?.timers.length || 0, html: diagnosticAudioScope?.htmlAudio.length || 0 },
           scheduledNodes: scheduledAudioNodes.slice(-100).map((item) => ({
             signalKey: item.signalKey || "",
             started: Boolean(item.started),
@@ -4304,6 +4309,7 @@
     let immediateGestureAudioSource = "";
     let immediateGestureAudioConfirmed = false;
     let immediateGestureAudioAttempt = 0;
+    let immediateGestureAudioTestScope = null;
     const festivalAnnouncements = [
       { remaining: 60 * 60, kind: "festival60", ru: "Остался один час", en: "One hour remaining" },
       { remaining: 30 * 60, kind: "festival30", ru: "Осталось 30 минут", en: "30 minutes remaining" },
@@ -4322,6 +4328,9 @@
     let signalTimers = [];
     let transitionSignalTimers = [];
     let scheduledAudioNodes = [];
+    // Preview sounds outlive ordinary stopped-state/HTTP acknowledgements.
+    // They have their own resources and explicit cancellation policy.
+    let diagnosticAudioScope = null;
     let performanceAudioKeepalive = null;
     let scheduledFinalSignalKey = "";
     let scheduledSignalKeys = new Set();
@@ -6632,6 +6641,7 @@
       audioSources = nextAudioSources;
       audioBuffers = { start: null, end: null, minute: null, warn: null, festival60: null, festival30: null, festival10: null, festival5: null };
       audioLoadGeneration += 1;
+      cancelDiagnosticAudio("sound-profile-changed");
       buffersLoading = null;
       if (audioContext) loadAudioBuffers();
     }
@@ -9527,7 +9537,8 @@
       const activeAudioSlider = els.browserList.querySelector("[data-audio-offset-slider]");
       const preserveAudioEditor = editingAudioClientId
         && activeAudioSlider?.dataset.audioOffsetSlider === editingAudioClientId
-        && clients.some((client) => client.id === editingAudioClientId);
+        && clients.some((client) => client.id === editingAudioClientId)
+        && els.browserList.dataset.primaryClientId === (state.primaryClientId || "");
       if (preserveAudioEditor) {
         // Keep the unsaved slider value and focus while reflecting route changes.
         for (const chip of els.browserList.querySelectorAll("[data-timer-stretch-status]")) {
@@ -9544,6 +9555,9 @@
         }
         return;
       }
+      // A primary-role change must refresh card order and AUDIO availability,
+      // even with an open editor. Its unsaved offset remains in pendingAudioOffset.
+      els.browserList.dataset.primaryClientId = state.primaryClientId || "";
       if (!clients.length) {
         els.browserList.innerHTML = `<div class="browser-item">${t("noData")}</div>`;
         return;
@@ -10171,7 +10185,7 @@
       return audioSources[kind] || "";
     }
 
-    function playHtmlAudio(kind) {
+    function playHtmlAudio(kind, playbackScope = null) {
       noteSpeakerOutput(serverNow(), serverNow() + 10000);
       const source = soundSource(kind);
       if (!source || !canPlaySound()) return false;
@@ -10180,14 +10194,18 @@
         const audio = new Audio(window.FDVSecondaryConnection?.url(source) || source);
         audio.preload = "auto";
         if (kind === "warn") audio.volume = 0.82;
-        activeHtmlAudio.push(audio);
-        audio.addEventListener("ended", () => {
-          activeHtmlAudio = activeHtmlAudio.filter((item) => item !== audio);
-        }, { once: true });
+        const forget = () => {
+          if (playbackScope) playbackScope.htmlAudio = playbackScope.htmlAudio.filter(item => item !== audio);
+          else activeHtmlAudio = activeHtmlAudio.filter(item => item !== audio);
+        };
+        if (playbackScope) playbackScope.htmlAudio.push(audio);
+        else activeHtmlAudio.push(audio);
+        audio.addEventListener("ended", forget, { once: true });
         audio.play().catch(() => {
-          activeHtmlAudio = activeHtmlAudio.filter((item) => item !== audio);
-          if (scheduleGeneration !== audioScheduleGeneration) return;
-          beepSynthetic(kind);
+          forget();
+          if (playbackScope ? !diagnosticAudioScopeIsCurrent(playbackScope)
+            : scheduleGeneration !== audioScheduleGeneration) return;
+          beepSynthetic(kind, 0, false, "", false, null, null, playbackScope);
         });
         return true;
       } catch (error) {
@@ -10195,7 +10213,7 @@
       }
     }
 
-    function playImmediateGestureAudio(kind) {
+    function playImmediateGestureAudio(kind, playbackScope = null) {
       noteSpeakerOutput(serverNow(), serverNow() + 10000);
       const source = soundSource(kind);
       if (!source || !canPlaySound()) return false;
@@ -10206,6 +10224,10 @@
           immediateGestureAudioSource = source;
           const gestureAudio = immediateGestureAudio;
           gestureAudio.addEventListener("ended", () => {
+            if (immediateGestureAudioTestScope) {
+              immediateGestureAudioTestScope.htmlAudio = immediateGestureAudioTestScope.htmlAudio.filter(item => item !== gestureAudio);
+              immediateGestureAudioTestScope = null;
+            }
             activeHtmlAudio = activeHtmlAudio.filter((item) => item !== gestureAudio);
           });
         } else {
@@ -10217,7 +10239,13 @@
             immediateGestureAudio.load();
           }
         }
-        if (!activeHtmlAudio.includes(immediateGestureAudio)) activeHtmlAudio.push(immediateGestureAudio);
+        if (immediateGestureAudioTestScope) {
+          immediateGestureAudioTestScope.htmlAudio = immediateGestureAudioTestScope.htmlAudio.filter(item => item !== immediateGestureAudio);
+        }
+        activeHtmlAudio = activeHtmlAudio.filter(item => item !== immediateGestureAudio);
+        immediateGestureAudioTestScope = playbackScope;
+        if (playbackScope) playbackScope.htmlAudio.push(immediateGestureAudio);
+        else activeHtmlAudio.push(immediateGestureAudio);
         const gestureAudio = immediateGestureAudio;
         const playAttempt = ++immediateGestureAudioAttempt;
         gestureAudio.play().then(() => {
@@ -10227,6 +10255,7 @@
         }, () => {
           if (playAttempt !== immediateGestureAudioAttempt) return;
           immediateGestureAudioConfirmed = false;
+          if (playbackScope) playbackScope.htmlAudio = playbackScope.htmlAudio.filter(item => item !== gestureAudio);
           activeHtmlAudio = activeHtmlAudio.filter((item) => item !== gestureAudio);
           refreshStandaloneBrowserList();
         });
@@ -10236,7 +10265,7 @@
       }
     }
 
-    function playBuffer(kind, delaySeconds = 0, preserveOnTransition = false, signalKey = "", onStarted = null, performanceTargetDetails = null) {
+    function playBuffer(kind, delaySeconds = 0, preserveOnTransition = false, signalKey = "", onStarted = null, performanceTargetDetails = null, playbackScope = null) {
       if (!canPlaySound() || !audioContext || audioContext.state !== "running") return false;
       const buffer = soundBuffer(kind);
       if (!buffer) return false;
@@ -10307,13 +10336,15 @@
       item.playedTimer = window.setTimeout(markStarted, Math.max(0, (start - audioContext.currentTime) * 1000));
       source.start(start);
       source.stop(stop);
-      scheduledAudioNodes.push(item);
+      if (playbackScope) playbackScope.nodes.push(item);
+      else scheduledAudioNodes.push(item);
       source.onended = () => {
         // The audio thread may finish before a throttled JS start marker runs.
         // Preserve deduplication when that timer is removed by onended.
         if (!item.cancelled && audioContext.currentTime >= stop) markStarted();
         if (item.playedTimer) window.clearTimeout(item.playedTimer);
-        scheduledAudioNodes = scheduledAudioNodes.filter((entry) => entry.node !== source);
+        if (playbackScope) playbackScope.nodes = playbackScope.nodes.filter((entry) => entry.node !== source);
+        else scheduledAudioNodes = scheduledAudioNodes.filter((entry) => entry.node !== source);
         if (signalKey && !scheduledAudioNodes.some((entry) => entry.signalKey === signalKey)) {
           scheduledSignalKeys.delete(signalKey);
         }
@@ -10354,30 +10385,78 @@
     }
     window.setInterval(tickSpeakerKeepAwake, 1000);
 
-    function scheduleDiagnosticSound(kind, targetServerTime) {
-      if (clockCalibrationPending) return;
-      const scheduleGeneration = audioScheduleGeneration;
-      if (standaloneMode && iosAudioWorkaroundEnabled && audioKinds.includes(kind)) {
-        scheduleServerTimeoutAt(targetServerTime, () => {
-          if (scheduleGeneration === audioScheduleGeneration) beep(kind);
-        }, {
-          lateGraceMs: lateGraceForSignal(kind)
-        });
-        return;
+    function diagnosticAudioAllowed() {
+      return !pageAudioSuspended && !clockCalibrationPending && canPlaySound()
+        && (!state.running || isBeforeScheduledStart());
+    }
+
+    function diagnosticAudioScopeIsCurrent(scope) {
+      return Boolean(scope && scope === diagnosticAudioScope && !scope.cancelled
+        && scope.serverInstanceId === lastServerInstanceId
+        && scope.audioLoadGeneration === audioLoadGeneration
+        && scope.audioRunId === state.audioRunId && scope.startedAt === state.serverStartedAt
+        && diagnosticAudioAllowed());
+    }
+
+    function cancelDiagnosticAudio(reason) {
+      const scope = diagnosticAudioScope;
+      if (!scope) return;
+      diagnosticAudioScope = null;
+      scope.cancelled = true;
+      scope.timers.forEach(timer => window.clearTimeout(timer));
+      scope.timers.length = 0;
+      scope.nodes.forEach(item => {
+        item.cancelled = true;
+        if (item.playedTimer) window.clearTimeout(item.playedTimer);
+        try { item.node.stop(0); } catch (error) {}
+      });
+      scope.nodes.length = 0;
+      scope.htmlAudio.forEach(audio => {
+        try { audio.pause(); audio.currentTime = 0; } catch (error) {}
+      });
+      scope.htmlAudio.length = 0;
+      if (immediateGestureAudioTestScope === scope) {
+        immediateGestureAudioTestScope = null;
+        immediateGestureAudioAttempt += 1;
       }
-      const delaySeconds = Math.max(0, (targetServerTime - serverNow()) / 1000);
-      if (audioContext?.state === "running" && beep(kind, delaySeconds, true)) return;
-      scheduleServerTimeoutAt(targetServerTime, () => {
-        if (scheduleGeneration === audioScheduleGeneration) beep(kind);
-      }, {
-        lateGraceMs: lateGraceForSignal(kind)
+      recordPerformanceAudioClock("audio-tests-cancelled", { reason });
+    }
+
+    function cancelInvalidDiagnosticAudio() {
+      if (diagnosticAudioScope && !diagnosticAudioScopeIsCurrent(diagnosticAudioScope)) {
+        cancelDiagnosticAudio("playback-policy-changed");
+      }
+    }
+
+    function currentDiagnosticAudioScope() {
+      cancelInvalidDiagnosticAudio();
+      if (!diagnosticAudioAllowed()) return null;
+      diagnosticAudioScope ||= { cancelled: false, nodes: [], timers: [], htmlAudio: [],
+        serverInstanceId: lastServerInstanceId, audioLoadGeneration,
+        audioRunId: state.audioRunId, startedAt: state.serverStartedAt };
+      return diagnosticAudioScope;
+    }
+
+    function scheduleDiagnosticSound(kind, targetServerTime, scope) {
+      if (!diagnosticAudioScopeIsCurrent(scope)) return;
+      const play = (delaySeconds = 0, scheduled = false) => {
+        if (!diagnosticAudioScopeIsCurrent(scope)) return false;
+        return beep(kind, delaySeconds, scheduled, "", false, null, null, scope);
+      };
+      if (!(standaloneMode && iosAudioWorkaroundEnabled && audioKinds.includes(kind))) {
+        const delaySeconds = Math.max(0, (targetServerTime - serverNow()) / 1000);
+        if (audioContext?.state === "running" && play(delaySeconds, true)) return;
+      }
+      scheduleServerTimeoutAt(targetServerTime, () => play(), {
+        lateGraceMs: lateGraceForSignal(kind), timerList: scope.timers
       });
     }
 
     async function handleAudioTest(command) {
       if (clockCalibrationPending || (command?.serverInstanceId
         && command.serverInstanceId !== lastServerInstanceId)) return;
-      const scheduleGeneration = audioScheduleGeneration;
+      const scope = currentDiagnosticAudioScope();
+      if (!scope) return;
       const testId = String(command?.id || "");
       if (!testId || testId === lastAudioTestId) return;
       const everywhere = Boolean(command.everywhere);
@@ -10394,7 +10473,7 @@
         await loadAudioBuffers();
       } catch (error) {}
 
-      if (scheduleGeneration !== audioScheduleGeneration || clockCalibrationPending) return;
+      if (!diagnosticAudioScopeIsCurrent(scope)) return "expired";
       if ((command.deliveryExpiresAt && serverNow() > command.deliveryExpiresAt)
         || (command.deliveryStateKey && command.deliveryStateKey !== window.FDVStateDelivery?.receivedKey())) return "expired";
 
@@ -10403,26 +10482,26 @@
       if (!Number.isFinite(baseServerTime)) return;
       const kind = ["start", "end", "minute", "warn"].includes(command.kind) ? command.kind : "start";
       const offsets = kind === "warn" ? [0, 1000, 2000, 3000, 4000] : [0];
-      offsets.forEach((offset) => scheduleDiagnosticSound(kind, baseServerTime + offset));
+      offsets.forEach((offset) => scheduleDiagnosticSound(kind, baseServerTime + offset, scope));
     }
 
-    function beep(kind, delaySeconds = 0, scheduled = false, signalKey = "", preserveOnTransition = false, onStarted = null, performanceTargetDetails = null) {
+    function beep(kind, delaySeconds = 0, scheduled = false, signalKey = "", preserveOnTransition = false, onStarted = null, performanceTargetDetails = null, playbackScope = null) {
       if (!canPlaySound()) return false;
       if (standaloneMode && iosAudioWorkaroundEnabled && audioKinds.includes(kind) && delaySeconds === 0) {
-        const played = playImmediateGestureAudio(kind);
+        const played = playImmediateGestureAudio(kind, playbackScope);
         if (played && signalKey) markSignalPlayed(signalKey);
         if (played) onStarted?.();
         return played;
       }
-      if (audioKinds.includes(kind) && playBuffer(kind, delaySeconds, preserveOnTransition, signalKey, onStarted, performanceTargetDetails)) {
+      if (audioKinds.includes(kind) && playBuffer(kind, delaySeconds, preserveOnTransition, signalKey, onStarted, performanceTargetDetails, playbackScope)) {
         return true;
       }
-      if (delaySeconds === 0 && audioKinds.includes(kind) && playHtmlAudio(kind)) {
+      if (delaySeconds === 0 && audioKinds.includes(kind) && playHtmlAudio(kind, playbackScope)) {
         if (signalKey) markSignalPlayed(signalKey);
         onStarted?.();
         return true;
       }
-      return beepSynthetic(kind, delaySeconds, scheduled, signalKey, preserveOnTransition, onStarted, performanceTargetDetails);
+      return beepSynthetic(kind, delaySeconds, scheduled, signalKey, preserveOnTransition, onStarted, performanceTargetDetails, playbackScope);
     }
 
     function stopActiveHtmlAudio() {
@@ -10436,7 +10515,7 @@
       activeHtmlAudio = [];
     }
 
-    function beepSynthetic(kind, delaySeconds = 0, scheduled = false, signalKey = "", preserveOnTransition = false, onStarted = null, performanceTargetDetails = null) {
+    function beepSynthetic(kind, delaySeconds = 0, scheduled = false, signalKey = "", preserveOnTransition = false, onStarted = null, performanceTargetDetails = null, playbackScope = null) {
       if (kind !== "warm" && kind !== "prewarm") noteSpeakerOutput(serverNow() + delaySeconds * 1000, serverNow() + delaySeconds * 1000 + 2000);
       if (!canPlaySound()) return false;
       audioContext ||= new (window.AudioContext || window.webkitAudioContext)();
@@ -10521,11 +10600,13 @@
         } else if (index === 0) {
           markStarted();
         }
-        scheduledAudioNodes.push(item);
+        if (playbackScope) playbackScope.nodes.push(item);
+        else scheduledAudioNodes.push(item);
         osc.onended = () => {
           if (!item.cancelled && audioContext.currentTime >= start + duration + 0.02) markStarted();
           if (item.playedTimer) window.clearTimeout(item.playedTimer);
-          scheduledAudioNodes = scheduledAudioNodes.filter((entry) => entry.node !== osc);
+          if (playbackScope) playbackScope.nodes = playbackScope.nodes.filter((entry) => entry.node !== osc);
+          else scheduledAudioNodes = scheduledAudioNodes.filter((entry) => entry.node !== osc);
           if (itemSignalKey && !scheduledAudioNodes.some((entry) => entry.signalKey === itemSignalKey)) {
             scheduledSignalKeys.delete(itemSignalKey);
           }
@@ -11318,6 +11399,7 @@
     }
 
     function clearSignalTimers(preserveTransition = false, forceStopAudio = false, preserveBufferedAudio = false) {
+      cancelInvalidDiagnosticAudio();
       stopSpeakerKeepAwake();
       if (forceStopAudio) {
         audioScheduleGeneration += 1;
@@ -11573,7 +11655,8 @@
       const onStale = typeof options === "object" && typeof options.onStale === "function"
         ? options.onStale
         : null;
-      const timerList = preserveOnTransition ? transitionSignalTimers : signalTimers;
+      const timerList = (typeof options === "object" && options.timerList)
+        || (preserveOnTransition ? transitionSignalTimers : signalTimers);
       const forgetTimer = () => {
         if (!activeTimer) return;
         const index = timerList.indexOf(activeTimer);
@@ -12196,6 +12279,7 @@
     }
 
     function syncAudioTestButtons() {
+      cancelInvalidDiagnosticAudio();
       const reason = audioTestDisabledReason();
       if (reason === audioTestButtonsDisabledReason) return;
       audioTestButtonsDisabledReason = reason;
@@ -12402,6 +12486,7 @@
 
     async function startTimer() {
       if (!timerControlsAvailable() || state.running) return;
+      cancelDiagnosticAudio("timer-start");
       finalStartPrewarmPlanner?.stop();
       const delegatedControl = isLimitedController;
       requestScreenWakeLock();
@@ -12562,6 +12647,7 @@
 
     async function hardReset(shouldSignal = true) {
       if (!timerControlsAvailable()) return;
+      cancelDiagnosticAudio("timer-reset");
       const delegatedControl = isLimitedController;
       if (isBeforeScheduledStart()) {
         await toggleScheduledCountdown();
@@ -13229,9 +13315,11 @@
         if (standaloneMode) {
           if (targetClientId !== clientId) return;
           const kind = testButton.dataset.audioTestKind;
+          const scope = currentDiagnosticAudioScope();
+          if (!scope) return;
           const baseTime = serverNow() + 1800 + pendingAudioOffset;
           const offsets = kind === "warn" ? [0, 1000, 2000, 3000, 4000] : [0];
-          offsets.forEach((offset) => scheduleDiagnosticSound(kind, baseTime + offset));
+          offsets.forEach((offset) => scheduleDiagnosticSound(kind, baseTime + offset, scope));
           return;
         }
         sendServerAction("audioTest", {

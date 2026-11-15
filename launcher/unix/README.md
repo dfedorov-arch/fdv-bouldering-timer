@@ -127,3 +127,14 @@ artifact. See `native-audio/unix/README.md` for output and speech prerequisites.
 Проверка выполняется отдельным процессом Node.js: общий предел ожидания сети 8 секунд, внешний предел процесса 10 секунд. Ошибка сети, отсутствие интернета или метаданных дают сообщение о невозможности проверки, а не «актуальная версия». Сервер не опрашивается и не перезапускается, настройки и расписание не меняются; повторное открытие скрытого окна проверку не запускает. Доступ к GitHub нужен только для проверки, таймер работает без него.
 
 Установленные релизы сравниваются по release-version.txt. Сборки из исходников и CI v0.0.* сравниваются по номеру сборки через update-info.json в стабильном релизе; более старый стабильный релиз не предлагается. Релизы без этих метаданных для таких сборок дают «не удалось проверить». Новый файл метаданных публикуется существующим release workflow, без отдельного сервиса обновлений. Предварительные релизы не предлагаются.
+
+## Startup settings editor
+
+The gear button to the right of the language switch opens Settings (RU/EN tooltip).
+The scrollable dialog edits all entries currently present in the application’s
+`params.txt`; comments, unknown keys, UTF-8 BOM and line endings are preserved.
+Cancel leaves the file unchanged. Save validates changed values, replaces the file
+atomically and asks whether to restart the server. Yes uses the existing launcher
+restart; No keeps the current process running. There are no live parameter commands.
+If the file was edited externally, reopen Settings before saving; write/permission
+errors remain visible in the dialog. Missing files are reported, not generated.

@@ -451,3 +451,265 @@ test("launcher PIN gates controls, stays out of screen mode, and requires curren
     for(const fn of cleanup.reverse())await fn();
   }
 });
+
+
+test("primary handover refreshes AUDIO cards while retaining an open offset draft",async({browser})=>{
+  await runFixture(async server=>{
+    await server.action({type:"primary",primaryClientId:"clock-test"});
+    const first=await open(browser,server,"clock-test");
+    const second=await open(browser,server,"audio-handover");
+    try {
+      const page=first.page;
+      await page.waitForFunction(()=>lastKnownClients.some(client=>client.id==="audio-handover"));
+      await page.locator('[data-audio-client="clock-test"]').click();
+      await page.locator('[data-audio-offset-slider]').evaluate(slider=>{
+        slider.value="125";slider.dispatchEvent(new Event("input",{bubbles:true}));
+      });
+      const source=page.locator('.browser-item').filter({has:page.locator('[data-delivery-client="clock-test"]')});
+      const target=page.locator('.browser-item').filter({has:page.locator('[data-delivery-client="audio-handover"]')});
+      const targetAudio=target.locator('.diag-chip').filter({hasText:/^AUDIO$/});
+      await expect(targetAudio).toHaveClass(/neutral/);
+      await expect(targetAudio).toHaveAttribute("title",/основной браузер/);
+      await server.action({type:"primary",primaryClientId:"audio-handover"});
+      await expect(second.page.locator('#primaryToggle')).toBeChecked();
+      await expect(target).toHaveClass(/primary-browser/);
+      await expect(source).not.toHaveClass(/primary-browser/);
+      await expect(targetAudio).toHaveAttribute("data-audio-client","audio-handover");
+      await expect(targetAudio).not.toHaveClass(/neutral/);
+      await expect(targetAudio).not.toHaveAttribute("title",/основной браузер/);
+      await expect(page.locator('[data-audio-offset-slider="clock-test"]')).toHaveValue("125");
+      await expect.poll(()=>second.page.evaluate(()=>browserSoundRequested() && canPlaySound())).toBe(true);
+      await server.action({type:"primary",primaryClientId:"clock-test"});
+      await expect(source).toHaveClass(/primary-browser/);
+      await expect(target).not.toHaveClass(/primary-browser/);
+      await expect(targetAudio).toHaveClass(/neutral/);
+      await expect(targetAudio).not.toHaveAttribute("data-audio-client");
+      await expect(page.locator('[data-audio-offset-slider="clock-test"]')).toHaveValue("125");
+      expect([...first.errors,...second.errors]).toEqual([]);
+    } finally {await first.context.close();await second.context.close();}
+  });
+});
+
+
+async function prepareAudioTestProbe(page) {
+  await page.evaluate(async()=>{
+    await unlockAudio(false);await loadAudioBuffers();
+    window.audioTestProbe=[];
+    const start=AudioBufferSourceNode.prototype.start,stop=AudioBufferSourceNode.prototype.stop;
+    AudioBufferSourceNode.prototype.start=function(...args){
+      if(this.buffer?.duration>.05){
+        const record={start:args[0],duration:this.buffer.duration,cancelled:false};
+        this.testProbe=record;audioTestProbe.push(record);
+        this.addEventListener("ended",()=>{record.endedAt=this.context.currentTime;});
+      }
+      return start.apply(this,args);
+    };
+    AudioBufferSourceNode.prototype.stop=function(...args){
+      if(this.testProbe&&args[0]===0)this.testProbe.cancelled=true;
+      return stop.apply(this,args);
+    };
+  });
+  await page.locator('[data-audio-client="clock-test"]').click();
+}
+
+for(const order of ["event-first","response-first"])test("audio test survives its HTTP response and repeated stopped state: "+order,async({browser})=>{
+  await runFixture(async server=>{
+    await server.action({type:"primary",primaryClientId:"clock-test"});
+    const {page,context,errors}=await open(browser,server,"clock-test");
+    try {
+      await prepareAudioTestProbe(page);
+      if(order==="event-first")await page.route("**/api/action",async route=>{
+        const response=await route.fetch();
+        if(route.request().postDataJSON().type==="audioTest")await page.waitForFunction(()=>audioTestProbe.length===1);
+        await route.fulfill({response});
+      });
+      else await page.evaluate(()=>{
+        const apply=FDVApplyDeliveryEvent;
+        window.FDVApplyDeliveryEvent=(name,command)=>{
+          if(name==="audio-test")setTimeout(()=>apply(name,command),500);
+          else apply(name,command);
+        };
+      });
+      const response=page.waitForResponse(r=>r.url().endsWith("/api/action")&&r.request().postDataJSON()?.type==="audioTest");
+      await page.locator('[data-audio-test-kind="start"]').click();await response;
+      await page.waitForFunction(()=>audioTestProbe.length===1);
+      await page.evaluate(async()=>{await syncFromServer({forceApply:true});await syncFromServer({forceApply:true});});
+      expect(await page.evaluate(()=>scheduledAudioNodes.length)).toBe(0);
+      await expect.poll(()=>page.evaluate(()=>audioTestProbe[0].endedAt||0)).toBeGreaterThan(0);
+      const record=await page.evaluate(()=>audioTestProbe[0]);
+      expect(record.cancelled).toBe(false);
+      expect(record.endedAt).toBeGreaterThanOrEqual(record.start+record.duration-.04);
+      expect(await page.evaluate(()=>diagnosticAudioScope.nodes.length)).toBe(0);
+      expect(errors).toEqual([]);
+    }finally{await context.close();}
+  });
+});
+
+test("successive accepted audio tests retain every cue including all five warnings",async({browser})=>{
+  await runFixture(async server=>{
+    await server.action({type:"primary",primaryClientId:"clock-test"});
+    const {page,context,errors}=await open(browser,server,"clock-test");
+    try{
+      await prepareAudioTestProbe(page);
+      for(const kind of ["start","end","minute","warn"]){
+        await page.locator('[data-audio-test-kind="'+kind+'"]').click();
+        await page.waitForTimeout(1100);
+      }
+      await expect.poll(()=>page.evaluate(()=>audioTestProbe.filter(n=>n.endedAt!==undefined).length),{timeout:9000}).toBe(8);
+      const records=await page.evaluate(()=>audioTestProbe);
+      expect(records).toHaveLength(8);
+      for(const record of records){expect(record.cancelled).toBe(false);expect(record.endedAt).toBeGreaterThanOrEqual(record.start+record.duration-.04);}
+      expect(await page.evaluate(()=>diagnosticAudioScope.nodes.length+diagnosticAudioScope.timers.length)).toBe(0);
+      expect(errors).toEqual([]);
+    }finally{await context.close();}
+  });
+});
+
+test("mute cancels pending audio tests and delayed loading cannot resurrect them",async({browser})=>{
+  await runFixture(async server=>{
+    await server.action({type:"primary",primaryClientId:"clock-test"});
+    const {page,context,errors}=await open(browser,server,"clock-test");
+    try{
+      await prepareAudioTestProbe(page);
+      await page.locator('[data-audio-test-kind="start"]').click();
+      await page.waitForFunction(()=>audioTestProbe.length===1);
+      await page.locator('#soundToggle').uncheck();
+      expect(await page.evaluate(()=>audioTestProbe[0].cancelled)).toBe(true);
+      await page.locator('#soundToggle').check();
+      await page.evaluate(()=>{
+        buffersLoading=new Promise(resolve=>{window.releaseTestBuffers=resolve;});
+        window.loadingAudioTest=handleAudioTest({id:"delayed-load",kind:"start",targetClientId:clientId,
+          serverInstanceId:lastServerInstanceId,timerTime:serverNow()+1800});
+      });
+      await page.locator('#soundToggle').uncheck();
+      await page.locator('#soundToggle').check();
+      await page.evaluate(async()=>{releaseTestBuffers();await loadingAudioTest;});
+      expect(await page.evaluate(()=>audioTestProbe.length)).toBe(1);
+      expect(await page.evaluate(()=>diagnosticAudioScope?.nodes.length||0)).toBe(0);
+      expect(errors).toEqual([]);
+    }finally{await context.close();}
+  });
+});
+
+test("starting the real timer cancels only pending test cues and retains competition scheduling",async({browser})=>{
+  await runFixture(async server=>{
+    await server.action({type:"primary",primaryClientId:"clock-test"});
+    const {page,context,errors}=await open(browser,server,"clock-test");
+    try{
+      await prepareAudioTestProbe(page);
+      await page.locator('[data-audio-test-kind="warn"]').click();
+      await page.waitForFunction(()=>audioTestProbe.length===5);
+      await server.start({settings:{rotationSeconds:60,breakSeconds:15,oneShot:false},elapsedBeforePause:48});
+      await page.waitForFunction(()=>state.running&&scheduledAudioNodes.length>0);
+      expect(await page.evaluate(()=>audioTestProbe.slice(0,5).every(n=>n.cancelled))).toBe(true);
+      expect(await page.evaluate(()=>diagnosticAudioScope)).toBe(null);
+      expect(await page.evaluate(()=>scheduledAudioNodes.some(n=>!n.cancelled))).toBe(true);
+      expect(errors).toEqual([]);
+    }finally{await context.close();}
+  });
+});
+
+test("fallback test timers survive ordinary cleanup but page suspension cancels them",async({browser})=>{
+  await runFixture(async server=>{
+    await server.action({type:"primary",primaryClientId:"clock-test"});
+    const {page,context,errors}=await open(browser,server,"clock-test");
+    try{
+      await prepareAudioTestProbe(page);
+      await page.evaluate(()=>{
+        window.fallbackTests=[];
+        window.savedTestBeep=beep;
+        beep=(kind,delay=0,scheduled=false,...rest)=>{
+          if(scheduled)return false;
+          fallbackTests.push(kind);
+          return savedTestBeep(kind,delay,scheduled,...rest);
+        };
+        const scope=currentDiagnosticAudioScope();
+        scheduleDiagnosticSound("start",serverNow()+250,scope);
+        clearSignalTimers(false,true);
+      });
+      await expect.poll(()=>page.evaluate(()=>fallbackTests.length)).toBe(1);
+      await page.evaluate(()=>{
+        const scope=currentDiagnosticAudioScope();
+        scheduleDiagnosticSound("minute",serverNow()+250,scope);
+        invalidateSignalsForPageSuspension("test-pagehide");
+      });
+      await page.waitForTimeout(500);
+      expect(await page.evaluate(()=>fallbackTests)).toEqual(["start"]);
+      expect(await page.evaluate(()=>diagnosticAudioScope)).toBe(null);
+      expect(errors).toEqual([]);
+    }finally{await context.close();}
+  });
+});
+
+
+for(const change of ["profile","primary"])test("audio tests cancel when playback ownership changes: "+change,async({browser})=>{
+  await runFixture(async server=>{
+    await server.action({type:"primary",primaryClientId:"clock-test"});
+    const first=await open(browser,server,"clock-test");
+    let second;
+    try{
+      if(change==="primary")second=await open(browser,server,"new-audio-primary");
+      const page=first.page;
+      await prepareAudioTestProbe(page);
+      await page.locator('[data-audio-test-kind="warn"]').click();
+      await page.waitForFunction(()=>audioTestProbe.length===5);
+      if(change==="profile")await server.action({type:"soundProfile",soundProfile:"Boulder_JAPAN_CUP_2025"});
+      else await server.action({type:"primary",primaryClientId:"new-audio-primary"});
+      await expect.poll(()=>page.evaluate(()=>audioTestProbe.every(n=>n.cancelled))).toBe(true);
+      expect(await page.evaluate(()=>diagnosticAudioScope)).toBe(null);
+      expect(first.errors).toEqual([]);
+    }finally{await first.context.close();if(second)await second.context.close();}
+  });
+});
+
+for(const backend of ["html","gesture-html"])test("test HTML playback has separate ownership and cannot revive after mute: "+backend,async({browser})=>{
+  await runFixture(async server=>{
+    await server.action({type:"primary",primaryClientId:"clock-test"});
+    const {page,context,errors}=await open(browser,server,"clock-test");
+    try{
+      await prepareAudioTestProbe(page);
+      const result=await page.evaluate(async backend=>{
+        let pauses=0,rejectPlay;
+        HTMLMediaElement.prototype.play=function(){return new Promise((resolve,reject)=>{rejectPlay=reject;});};
+        HTMLMediaElement.prototype.pause=function(){pauses++;};
+        const scope=currentDiagnosticAudioScope();
+        const played=backend==="html"?playHtmlAudio("start",scope):playImmediateGestureAudio("start",scope);
+        clearSignalTimers(false,true);
+        const preserved=scope.htmlAudio.length===1&&pauses===0;
+        primarySoundEnabled=false;applySoundPreferenceChange();
+        const cancelled=scope.cancelled&&scope.htmlAudio.length===0&&pauses===1;
+        primarySoundEnabled=true;applySoundPreferenceChange();
+        rejectPlay(new DOMException("cancelled playback","AbortError"));
+        await Promise.resolve();await Promise.resolve();
+        return {played,preserved,cancelled,oldNodes:scope.nodes.length,
+          timerNodes:scheduledAudioNodes.length,scopeGone:diagnosticAudioScope===null};
+      },backend);
+      expect(result).toEqual({played:true,preserved:true,cancelled:true,oldNodes:0,timerNodes:0,scopeGone:true});
+      expect(errors).toEqual([]);
+    }finally{await context.close();}
+  });
+});
+
+test("synthetic test tones retain their audio-time targets through stopped-state cleanup",async({browser})=>{
+  await runFixture(async server=>{
+    await server.action({type:"primary",primaryClientId:"clock-test"});
+    const {page,context,errors}=await open(browser,server,"clock-test");
+    try{
+      await prepareAudioTestProbe(page);
+      await page.evaluate(()=>{
+        const scope=currentDiagnosticAudioScope();
+        beepSynthetic("minute",.25,true,"",false,null,null,scope);
+        window.syntheticTestNodes=scope.nodes.slice();window.syntheticTestEnds=[];
+        for(const item of syntheticTestNodes)item.node.addEventListener("ended",()=>{
+          syntheticTestEnds.push({stop:item.stop,endedAt:item.node.context.currentTime,cancelled:Boolean(item.cancelled)});
+        });
+        clearStoppedTimerSignals();
+      });
+      await expect.poll(()=>page.evaluate(()=>syntheticTestEnds.length)).toBe(2);
+      const result=await page.evaluate(()=>syntheticTestEnds);
+      for(const item of result){expect(item.cancelled).toBe(false);expect(item.endedAt).toBeGreaterThanOrEqual(item.stop-.04);}
+      expect(await page.evaluate(()=>diagnosticAudioScope.nodes.length)).toBe(0);
+      expect(errors).toEqual([]);
+    }finally{await context.close();}
+  });
+});
