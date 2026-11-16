@@ -2,9 +2,14 @@
 
 Develop startup responsiveness changes for all desktop launchers are
 documented in [review/launcher-startup454.md](review/launcher-startup454.md).
-They retain timer build454 and do not replace published 3.0.0 packages.
+They are included in 3.0.1; the earlier 3.0.0 assets are retained.
 
-Stable release **3.0.0 / timer build454** merges main and develop. Bilingual
+Stable release **3.0.1 / timer build455** combines the launcher settings editor,
+responsive startup and updated diagnostic audio behavior. Bilingual notes:
+[releases/v3.0.1.md](releases/v3.0.1.md). Validation and publication evidence:
+[review/release301.md](review/release301.md).
+
+The earlier release **3.0.0 / timer build454** merged main and develop. Bilingual
 changes since 2.3.2 are in [releases/v3.0.0.md](releases/v3.0.0.md).
 [review/release300.md](review/release300.md) records source/CI/browser checks,
 published assets and verified Latest/checksum metadata.

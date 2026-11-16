@@ -1,22 +1,22 @@
 # FDV Bouldering Timer
 
-## В разработке / In development (`develop`)
+## Новое в 3.0.1 / New in 3.0.1
 
 В настольных лаунчерах Windows (включая Win7/Win8), macOS и Linux справа от переключателя языка добавлена кнопка-шестерёнка с подсказкой «Настройки». Она открывает редактор параметров `params.txt`. «Сохранить» записывает файл и предлагает перезапустить сервер сейчас или оставить его работающим. Сервер по-прежнему читает эти параметры при запуске. Редактор проверяет ввод и сохраняет комментарии и неизвестные параметры; внешнее изменение файла защищено от перезаписи.
 
 Исправлена случайная отмена тестовых звуков: обычные ответы HTTP и обновления SSE больше не удаляют ожидающие тестовые сигналы. Тесты имеют отдельное расписание ресурсов с явной отменой при запуске таймера, отключении звука, смене профиля или потере права на воспроизведение. Сохраняются интервал между нажатиями 1 секунда и общее время начала теста через 1,8 секунды с учётом звуковой поправки. При смене основного браузера плашка AUDIO обновляется и с открытым редактором поправки.
 
-Эти изменения находятся в исходниках `develop`; опубликованные установщики 3.0.0 их пока не содержат. Автоматические проверки пройдены; слуховая проверка исправленной версии в пользовательских Chrome/Safari ещё предстоит. Подробности и ограничения — в [контексте проекта](docs/CHAT_HANDOFF.md) и [отчёте о звуке](docs/review/safari-sleep-audio454.md).
+Эти изменения включены в 3.0.1. Без изменения значений «Сохранить» просто закрывает настройки, без записи файла и вопроса о перезапуске. Подготовка запуска сервера работает в фоне и имеет ограничение времени ожидания. Подробности проверок — в [отчёте о выпуске](docs/review/release301.md).
 
 Desktop launchers for Windows (including Win7/Win8), macOS and Linux add a gear button to the right of the language switch. Its Settings tooltip opens an editor for `params.txt`. Save writes the file and offers to restart the server now or keep it running; startup remains the point when the server reads these parameters. Validation, comments, unknown parameters and protection against overwriting external edits are retained.
 
 Audio tests now own their scheduled resources, preventing ordinary HTTP replies and SSE state updates from cancelling pending previews. Timer start, muting, profile changes and loss of playback permission still cancel tests explicitly. The 1-second click cooldown, shared 1.8-second test lead and audio correction remain. Primary-browser changes also refresh the AUDIO badge while its correction editor is open.
 
-These changes are in `develop` source and are not included in the published 3.0.0 installers yet. Automated checks pass; listening tests of the corrected version in the user's Chrome/Safari remain pending. See the [project handoff](docs/CHAT_HANDOFF.md) and [audio investigation](docs/review/safari-sleep-audio454.md).
+These changes are included in 3.0.1. With unchanged values, Save simply closes Settings without writing the file or asking to restart. Server startup preparation runs in the background with a timeout. See the [release validation report](docs/review/release301.md).
 
 ## Текущая версия / Current version
 
-Версия 3.0.0 · сборка таймера 454. [Новое по сравнению с 2.3.2](docs/releases/v3.0.0.md).
+Версия 3.0.1 · сборка таймера 455. [Новое в 3.0.1](docs/releases/v3.0.1.md), [изменения 3.0.0 по сравнению с 2.3.2](docs/releases/v3.0.0.md).
 
 Лаунчер. В первой строке: «Открыть таймер», «Копировать ссылку», «PIN управления», «Перезапуск сервера», «Стоп и выход». Во второй: «Создать HTTPS-сертификат», «Проверить обновления», «Открыть сайт проекта». Проверка обновлений сообщает о новом GitHub-релизе; установку выполняет пользователь. Она не останавливает таймер. В строке состояния показаны роль сервера и адрес связанного сервера. При потере связи с настроенным резервом строка становится жёлтой: «Сервер работает, резервный сервер „адрес“ недоступен»; после восстановления снова показывается подключение. При удалении пары упоминание резерва исчезает.
 
@@ -26,7 +26,7 @@ These changes are in `develop` source and are not included in the published 3.0.
 
 Звук. После включения серверного канала звук поддерживает сам сервер: сворачивание, заморозка, закрытие вкладки и потеря связи с браузером его не останавливают. Выбор канала и звуковая поправка восстанавливаются из актуального состояния после перезапуска на том же компьютере. Явное выключение звука, выбор браузерного канала и правила резервирования сохраняют действие. При обнаруженном отказе серверного канала браузер сразу принимает воспроизведение. Автоматический возврат на сервер выполняется после восстановления, если пользователь выбрал сервер; ручной выбор браузера сохраняется. Во время передачи между каналами возможно перекрытие. Нажатие «Старт» сразу запрашивает тихий прогрев; новый ручной отсчёт на сервере начинается с подготовкой 600 мс. Стартовый сигнал может прозвучать однократно с опозданием не более 3 секунд; позже пропускается, для остальных сигналов допустимое опоздание короче. В Финале прогрев начинается за 10 секунд до конца ожидания и повторяется каждые 10 секунд до нажатия «Старт»; учитываются разрешение звука и no_sound_warm. AUDIO подтверждает готовность канала, а физическое звучание проверяется на слух. Поправка звука — от −750 до +250 мс.
 
-Version 3.0.0 · timer build 454. [New since 2.3.2](docs/releases/v3.0.0.md).
+Version 3.0.1 · timer build 455. [New in 3.0.1](docs/releases/v3.0.1.md), [3.0.0 changes since 2.3.2](docs/releases/v3.0.0.md).
 
 Launcher. First row: Open timer, Copy link, Control PIN, Restart server, Stop and exit. Second row: Create HTTPS certificate, Check updates, Open project website. Update checks notify about a new GitHub release; installation is manual and the timer keeps running. The status line shows the server role and peer address. If the configured standby becomes unreachable, the status turns yellow and reports its address as unavailable; connection text returns when contact recovers. Removing the pairing clears the peer text.
 
