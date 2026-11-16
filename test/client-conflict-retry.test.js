@@ -238,7 +238,7 @@ test("actual runtime controllers do not fall back to local mutations after a ret
     let localRenders = 0;
     const context = vm.createContext({
       state: currentState, controlsAvailable: () => true, timerControlsAvailable: () => true, isLimitedController: false,
-      requestScreenWakeLock() {}, unlockAudio() {},
+      requestScreenWakeLock() {}, unlockAudio() {}, cancelDiagnosticAudio() {},
       finalStartPrewarmPlanner: { reset() {}, stop() {} }, requestManualStartAudioWake() {}, wakeAudioOutput() {},
       isBeforeScheduledStart: () => scheduled,
       shouldUseManualStartAudioLead: () => true,
@@ -289,7 +289,7 @@ test("actual Stop controller ignores an older same-instance reset acknowledgemen
     activeSettingsFromDraft: () => ({rotationSeconds: 60}),
     sendServerAction: (...args) => fixture.transport.send(...args),
     signal: kind => {if (kind === "finish") finishSounds += 1;},
-    clearSignalTimers() {}, syncButtons() {}, render() {}, buildTimeline() {},
+    clearSignalTimers() {}, syncButtons() {}, render() {}, buildTimeline() {}, cancelDiagnosticAudio() {},
     document: {body: {classList: {remove() {}}}}
   });
   vm.runInContext(`let standaloneMode = false, serverAvailable = true;

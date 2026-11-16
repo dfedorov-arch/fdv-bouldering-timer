@@ -59,8 +59,15 @@ namespace FdvBoulderingTimerLauncher
             key = line.Substring(0, split).Trim().ToLowerInvariant(); value = line.Substring(split + 1).Trim();
             return key.Length > 0;
         }
-        internal void Save()
+        internal bool Save()
         {
+            bool changed = false;
+            foreach (Entry entry in Entries)
+            {
+                entry.Value = entry.Value.Trim();
+                if (entry.Value != entry.OriginalValue) changed = true;
+            }
+            if (!changed) return false;
             foreach (Entry entry in Entries) if (entry.Value != entry.OriginalValue) Validate(entry);
             byte[] current = File.ReadAllBytes(_path);
             if (Convert.ToBase64String(current) != Convert.ToBase64String(_originalBytes))
@@ -85,6 +92,7 @@ namespace FdvBoulderingTimerLauncher
                 File.Replace(temporary, _path, null);
             }
             finally { if (File.Exists(temporary)) File.Delete(temporary); }
+            return true;
         }
         private static void Validate(Entry entry)
         {

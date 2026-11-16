@@ -60,7 +60,7 @@ test("native RU/EN launcher preserves state and sends authenticated language to 
     if(legacy)fs.copyFileSync(path.join(projectRoot,"compat/windows-legacy/launcher.exe.config"),executable+".config");
     const result=spawnSync(executable,[path.join(directory,legacy?"legacy":"modern"),imagePrefix+(legacy?"-legacy":"")],{encoding:"utf8",timeout:45000});
     assert.equal(result.status,0,result.error?.message || result.stdout+result.stderr);
-    for (const mode of ["process-tests", "startup"]) {
+    for (const mode of ["process-tests", "startup", "settings-noop"]) {
       const check = spawnSync(executable, [mode, path.join(directory, (legacy ? "legacy-" : "modern-") + mode), process.execPath], {encoding:"utf8", timeout:30000});
       assert.equal(check.status, 0, check.error?.message || check.stdout + check.stderr);
     }

@@ -95,6 +95,29 @@ internal static class WindowsLauncherHarness
         {
             if (args[0] == "command-child") return LauncherProcessChecks.Child(args);
             if (args[0] == "process-tests") return LauncherProcessChecks.Run(Application.ExecutablePath, args[1]);
+            if (args[0] == "settings-noop")
+            {
+                Directory.CreateDirectory(args[1]);
+                string settingsPath = Path.Combine(args[1], "params.txt");
+                File.WriteAllText(settingsPath, "# preserved\r\nhttp_port=8008\r\n");
+                File.SetLastWriteTimeUtc(settingsPath, new DateTime(2000, 1, 1));
+                DateTime stamp = File.GetLastWriteTimeUtc(settingsPath);
+                foreach (bool russian in new bool[] { true, false })
+                foreach (int scenario in new int[] { 0, 1, 2 })
+                using (var dialog = new ParametersDialog(args[1]))
+                {
+                    LauncherLanguage.Russian = russian;
+                    dialog.Location = new Point(-10000, -10000); dialog.Opacity = 0; dialog.Show(); Application.DoEvents();
+                    var input = (TextBox)dialog.Controls.Find("param_http_port", true)[0];
+                    if (scenario == 1) { input.Text = "18088"; input.Text = "8008"; }
+                    if (scenario == 2) input.Text = " 8008 ";
+                    ((Button)dialog.Controls.Find("saveParameters", true)[0]).PerformClick(); Application.DoEvents();
+                    Check(!dialog.Visible && !dialog.RestartRequested, "Unchanged settings close without restart question");
+                    Check(File.GetLastWriteTimeUtc(settingsPath) == stamp && File.ReadAllText(settingsPath) == "# preserved\r\nhttp_port=8008\r\n", "No-op does not write file");
+                }
+                Console.WriteLine("Unchanged, reverted and whitespace-only settings close without writing or restart RU/EN OK");
+                return 0;
+            }
             if (args[0] == "startup")
             {
                 Application.EnableVisualStyles();

@@ -1,5 +1,9 @@
 # Windows launcher
 
+Build455: Save closes Settings immediately when parameter values are unchanged,
+including reverted edits and surrounding whitespace. No file write or restart
+question occurs. Changed values retain validation and the restart question.
+
 Startup preparation and network-address enumeration run off the UI thread,
 including the CLR2/Win7 variant. Preparation has a 15-second deadline and
 supports retry; late completion is discarded after timeout or exit. PowerShell
@@ -199,7 +203,7 @@ The header and window title show the server build in parentheses, separated from
 The gear button to the right of the language switch opens Settings (RU/EN tooltip).
 The scrollable dialog edits all entries currently present in the application’s
 `params.txt`; comments, unknown keys, UTF-8 BOM and line endings are preserved.
-Cancel leaves the file unchanged. Save validates changed values, replaces the file
+Cancel leaves the file unchanged. When values change, Save validates them, replaces the file
 atomically and asks whether to restart the server. Yes uses the existing launcher
 restart; No keeps the current process running. There are no live parameter commands.
 If the file was edited externally, reopen Settings before saving; write/permission

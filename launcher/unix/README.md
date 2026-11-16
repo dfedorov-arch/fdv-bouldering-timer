@@ -1,5 +1,9 @@
 # macOS and Linux launcher
 
+Build455: Save closes Settings immediately when parameter values are unchanged,
+including reverted edits and surrounding whitespace. No file write or restart
+question occurs. Changed values retain validation and the restart question.
+
 Startup preparation and network-address enumeration run off the UI thread.
 Preparation has a 15-second deadline and supports retry; late completion is
 discarded after timeout or exit. Listener commands drain both output pipes with

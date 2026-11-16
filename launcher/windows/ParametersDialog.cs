@@ -55,7 +55,7 @@ namespace FdvBoulderingTimerLauncher
                 try
                 {
                     foreach (MethodInvoker read in readers) read();
-                    model.Save();
+                    if (!model.Save()) { Close(); return; }
                     RestartRequested = MessageBox.Show(this, LauncherParameters.SavedMessage, Text, MessageBoxButtons.YesNo, MessageBoxIcon.Information, MessageBoxDefaultButton.Button2) == DialogResult.Yes;
                     DialogResult = DialogResult.OK; Close();
                 }

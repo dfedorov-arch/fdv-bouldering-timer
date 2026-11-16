@@ -56,7 +56,7 @@ internal sealed class ParametersDialog : Window
             try
             {
                 foreach (var read in readers) read();
-                model.Save();
+                if (!model.Save()) { Close(); return; }
                 fields.IsEnabled = false; save.IsVisible = false; cancel.IsVisible = false;
                 status.Text = LauncherParameters.SavedMessage;
                 var yes = new Button { Name = "restartYes", Content = L("Yes", "Да") };

@@ -84,6 +84,22 @@ internal static class UnixLauncherHarness
                     var starts = 0;
                     var owner = new LauncherWindow(args[1], false, () => starts++);
                     owner.Show(); Dispatcher.UIThread.RunJobs();
+                    foreach (var scenario in new[] { 0, 1, 2 })
+                    {
+                        var beforeNoop = File.ReadAllBytes(path);
+                        File.SetLastWriteTimeUtc(path, new DateTime(2000, 1, 1));
+                        var stamp = File.GetLastWriteTimeUtc(path);
+                        var noopTask = (Task)Call(owner, "EditParameters")!; Dispatcher.UIThread.RunJobs();
+                        var noop = (ParametersDialog)Field(owner, "_settingsDialog")!;
+                        var value = noop.GetVisualDescendants().OfType<TextBox>().Single(x => x.Name == "param_http_port");
+                        var original = value.Text;
+                        if (scenario == 1) { value.Text = "19000"; value.Text = original; }
+                        if (scenario == 2) value.Text = " " + original + " ";
+                        noop.GetVisualDescendants().OfType<Button>().Single(x => x.Name == "saveParameters").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                        Pump(() => noopTask.IsCompleted);
+                        Check(!noop.IsVisible && !noop.RestartRequested && starts == 1, "Unchanged settings close without question or restart");
+                        Check(File.GetLastWriteTimeUtc(path) == stamp && File.ReadAllBytes(path).SequenceEqual(beforeNoop), "No-op preserves bytes and timestamp");
+                    }
                     var task = (Task)Call(owner, "EditParameters")!; Dispatcher.UIThread.RunJobs();
                     var dialog = (ParametersDialog)Field(owner, "_settingsDialog")!;
                     var input = dialog.GetVisualDescendants().OfType<TextBox>().Single(x => x.Name == "param_http_port");
@@ -105,6 +121,7 @@ internal static class UnixLauncherHarness
                     var cancel = new ParametersDialog(args[1]); cancel.Show(owner); cancel.Close();
                     Check(File.ReadAllBytes(path).SequenceEqual(beforeCancel), "Cancel must preserve exact file bytes");
                     var yes = new ParametersDialog(args[1]); yes.Show(owner); Dispatcher.UIThread.RunJobs();
+                    yes.GetVisualDescendants().OfType<TextBox>().Single(x => x.Name == "param_http_port").Text = "18091";
                     yes.GetVisualDescendants().OfType<Button>().Single(x => x.Name == "saveParameters").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
                     yes.GetVisualDescendants().OfType<Button>().Single(x => x.Name == "restartYes").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
                     Check(yes.RestartRequested, "Yes requests existing launcher restart");
