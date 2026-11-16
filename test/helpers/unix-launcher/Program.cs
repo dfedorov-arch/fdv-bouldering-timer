@@ -28,6 +28,29 @@ internal static class UnixLauncherHarness
     {
         try
         {
+            if (args[0] == "command-child") return LauncherProcessChecks.Child(args);
+            if (args[0] == "process-tests") return LauncherProcessChecks.Run(Environment.ProcessPath!, args[1]);
+            if (args[0] == "startup")
+            {
+                AppBuilder.Configure<LauncherApp>().UseHeadless(new AvaloniaHeadlessPlatformOptions()).SetupWithoutStarting();
+                SynchronizationContext.SetSynchronizationContext(new AvaloniaSynchronizationContext());
+                LauncherWindow? current = null;
+                return LauncherProcessChecks.StartupUi(args[1], args[2],
+                    root => current = new LauncherWindow(root, false, () => { }),
+                    window => ((LauncherWindow)window).Show(), window => ((LauncherWindow)window).Close(),
+                    () =>
+                    {
+                        Dispatcher.UIThread.RunJobs();
+                        // Headless has no desktop timer loop; exercise the production tick handlers.
+                        if (current != null && !(bool)Field(current, "_allowClose")!)
+                        {
+                            Call(current, "CheckStartupPreparation", null!, EventArgs.Empty);
+                            if (!(bool)Field(current, "_startupInProgress")! && !(bool)Field(current, "_ready")! && Field(current, "_serverProcess") != null)
+                                Call(current, "CheckServerReady", null!, EventArgs.Empty);
+                        }
+                        Dispatcher.UIThread.RunJobs();
+                    });
+            }
             if (args[0] == "instance")
             {
                 using var instance = new LauncherInstance(() => { Console.WriteLine("reopened"); Console.Out.Flush(); }, args[1]);

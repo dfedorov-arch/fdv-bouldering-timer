@@ -93,6 +93,17 @@ internal static class WindowsLauncherHarness
     {
         try
         {
+            if (args[0] == "command-child") return LauncherProcessChecks.Child(args);
+            if (args[0] == "process-tests") return LauncherProcessChecks.Run(Application.ExecutablePath, args[1]);
+            if (args[0] == "startup")
+            {
+                Application.EnableVisualStyles();
+                return LauncherProcessChecks.StartupUi(args[1], args[2],
+                    delegate(string startupRoot) { return new LauncherForm(startupRoot, false); },
+                    delegate(object window) { var form = (Form)window; form.StartPosition = FormStartPosition.Manual; form.Location = new Point(-10000, -10000); form.Opacity = 0; form.Show(); },
+                    delegate(object window) { ((Form)window).Close(); },
+                    delegate { Application.DoEvents(); });
+            }
             if (args[0] == "updates")
             {
                 string updateRoot = args[1]; Directory.CreateDirectory(Path.Combine(updateRoot, "lib"));
@@ -227,6 +238,13 @@ internal static class WindowsLauncherHarness
                 Call(form, "SetStatusText", "Server is running");
                 Call(form, "SetTrayText", "FDV Bouldering Timer - running");
                 Call(form, "AppendRawLog", "Original server output");
+                DateTime networkDeadline = DateTime.UtcNow.AddSeconds(5);
+                while ((bool)Field(form, "_networkRefreshBusy"))
+                {
+                    Check(DateTime.UtcNow < networkDeadline, "Initial network enumeration completes");
+                    Application.DoEvents(); System.Threading.Thread.Sleep(5);
+                }
+                Application.DoEvents();
                 string originalLog = log.Text;
                 Check(button.Text == "EN" && status.Text == "Сервер работает", "Initial RU labels/status");
                 Check(tray.ContextMenuStrip.Items[0].Text == "Открыть лаунчер", "Initial RU tray");

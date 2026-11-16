@@ -19,6 +19,7 @@
     <Compile Include="../windows/LauncherParameters.cs" Link="LauncherParameters.cs" />
     <Compile Include="../windows/LauncherUpdates.cs" Link="LauncherUpdates.cs" />
     <Compile Include="../windows/LauncherLanguage.cs" Link="LauncherLanguage.cs" />
+    <Compile Include="../windows/LauncherProcess.cs" Link="LauncherProcess.cs" />
     <PackageReference Include="Avalonia" Version="11.3.9" />
     <PackageReference Include="Avalonia.Desktop" Version="11.3.9" />
     <PackageReference Include="Avalonia.Themes.Fluent" Version="11.3.9" />

@@ -786,6 +786,13 @@ Windows7/8 validation.
 
 ## Launcher-only release notification
 
+Desktop startup preparation is asynchronous on Windows/CLR2 and macOS/Linux.
+A per-attempt ownership fence and 15-second UI deadline prevent late startup
+from replacing current state or surviving explicit exit. Command exit and both
+pipes share a deadline; incomplete output is discarded. Network enumeration
+updates a cached address list independently of server readiness. Details and
+platform verification: [review/launcher-startup454.md](review/launcher-startup454.md).
+
 The desktop launchers share launcher/windows/LauncherUpdates.cs and spawn lib/launcher-updates.js with the configured Node runtime on a worker. The server never imports this module. No HTTP request to the timer, SSE event, command, audio hook, state write, server process control or schedule change is involved. A single automatic check occurs on the initial window open; a manual check is available thereafter, with overlapping checks disabled. Reopening a hidden window does not check again. Results update only the launcher button and notice, preserving RU/EN switching. Download opens a fixed GitHub Releases URL on explicit click. No installation is performed.
 
 The checker uses unauthenticated HTTPS to GitHub's latest stable release, bounds response size to 256 KiB, preserves TLS verification and limits redirects for the release metadata asset. A wall deadline ends the child in 8 seconds even during DNS/body stalls; the parent worker kills only that child after 10 seconds. Network errors never report an up-to-date result. No persistent check cache or background periodic polling. Stable package versions come from release-version.txt; source/CI v0.0 builds use update-info.json buildNumber to avoid downgrades. Metadata version must match the API tag. Legacy packages copy the same Node12-compatible module; no CLR TLS changes are needed.

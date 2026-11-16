@@ -143,6 +143,17 @@ namespace FdvBoulderingTimerLauncher
         private readonly System.Windows.Forms.Timer _healthTimer = new System.Windows.Forms.Timer();
         private readonly System.Windows.Forms.Timer _restartTimer = new System.Windows.Forms.Timer();
         private readonly System.Windows.Forms.Timer _networkRefreshTimer = new System.Windows.Forms.Timer();
+        private readonly System.Windows.Forms.Timer _preparationTimer = new System.Windows.Forms.Timer();
+        private LauncherOperation _startupOperation;
+        private bool _startupInProgress;
+        private int _startupTimeoutMs = 15000;
+        private MethodInvoker _startupPreparationOverride = null; // Passive harness only.
+        private MethodInvoker _startupCreatedOverride = null;
+        private MethodInvoker _portCleanupOverride = null;
+        private delegate string[][] NetworkAddressReader();
+        private NetworkAddressReader _networkReadOverride = null;
+        private string[][] _networkAddresses = new string[0][];
+        private bool _networkRefreshBusy, _networkRefreshQueued;
         private Process _serverProcess;
         private int _startupAttempts;
         private int _healthFailures;
@@ -173,6 +184,9 @@ namespace FdvBoulderingTimerLauncher
             ApplyLanguage();
 
             if (startAutomatically) Shown += delegate { StartServer(_openBrowserOnStart); CheckForUpdates(); };
+            Shown += delegate { RefreshNetworkAddresses(null, EventArgs.Empty); };
+            _preparationTimer.Interval = 100;
+            _preparationTimer.Tick += CheckStartupPreparation;
             FormClosing += OnFormClosing;
             if (startAutomatically) NetworkChange.NetworkAddressChanged += OnNetworkAddressChanged;
         }
@@ -385,10 +399,11 @@ namespace FdvBoulderingTimerLauncher
         {
             if (_updateBusy || _allowClose) return;
             _updateBusy = true; RefreshUpdateNotice();
-            string node = FindNodeExecutable();
+            var settings = _settings;
             ThreadPool.QueueUserWorkItem(delegate
             {
-                string result = LauncherUpdates.Run(node, _baseDirectory);
+                string result = "unavailable";
+                try { result = LauncherUpdates.Run(FindNodeExecutable(settings), _baseDirectory); } catch { }
                 try { if (!IsDisposed && IsHandleCreated) BeginInvoke((MethodInvoker)delegate
                 {
                     if (IsDisposed || _allowClose) return;
@@ -664,19 +679,10 @@ namespace FdvBoulderingTimerLauncher
             AddAddress(updatedAddresses, T("Local HTTP"), "http://127.0.0.1:" + _settings.HttpPort + "/");
             if (_hasHttps) AddAddress(updatedAddresses, T("Local HTTPS"), "https://127.0.0.1:" + _settings.HttpsPort + "/");
 
-            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            foreach (var network in NetworkInterface.GetAllNetworkInterfaces())
+            foreach (var network in _networkAddresses)
             {
-                if (network.OperationalStatus != OperationalStatus.Up) continue;
-                foreach (var address in network.GetIPProperties().UnicastAddresses)
-                {
-                    if (address.Address.AddressFamily != AddressFamily.InterNetwork) continue;
-                    var ip = address.Address.ToString();
-                    if (IPAddress.IsLoopback(address.Address) || ip.StartsWith("169.254.") || !seen.Add(ip)) continue;
-                    var type = NetworkType(network);
-                    AddAddress(updatedAddresses, type + " HTTP", "http://" + ip + ":" + _settings.HttpPort + "/");
-                    if (_hasHttps) AddAddress(updatedAddresses, type + " HTTPS", "https://" + ip + ":" + _settings.HttpsPort + "/");
-                }
+                AddAddress(updatedAddresses, T(network[0]) + " HTTP", "http://" + network[1] + ":" + _settings.HttpPort + "/");
+                if (_hasHttps) AddAddress(updatedAddresses, T(network[0]) + " HTTPS", "https://" + network[1] + ":" + _settings.HttpsPort + "/");
             }
             if (HasSameAddresses(updatedAddresses)) return false;
 
@@ -699,6 +705,24 @@ namespace FdvBoulderingTimerLauncher
             return true;
         }
 
+        private static string[][] ReadNetworkAddresses()
+        {
+            var addresses = new List<string[]>();
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var network in NetworkInterface.GetAllNetworkInterfaces())
+            {
+                if (network.OperationalStatus != OperationalStatus.Up) continue;
+                foreach (var address in network.GetIPProperties().UnicastAddresses)
+                {
+                    if (address.Address.AddressFamily != AddressFamily.InterNetwork) continue;
+                    var ip = address.Address.ToString();
+                    if (IPAddress.IsLoopback(address.Address) || ip.StartsWith("169.254.", StringComparison.Ordinal) || !seen.Add(ip)) continue;
+                    addresses.Add(new string[] { NetworkType(network), ip });
+                }
+            }
+            return addresses.ToArray();
+        }
+
         private static string NetworkType(NetworkInterface network)
         {
             if (network.NetworkInterfaceType == NetworkInterfaceType.Wireless80211) return "Wi-Fi";
@@ -706,7 +730,7 @@ namespace FdvBoulderingTimerLauncher
                 network.NetworkInterfaceType == NetworkInterfaceType.GigabitEthernet ||
                 network.NetworkInterfaceType == NetworkInterfaceType.FastEthernetFx ||
                 network.NetworkInterfaceType == NetworkInterfaceType.FastEthernetT) return "Ethernet";
-            return T("Network");
+            return "Network";
         }
 
         private bool HasSameAddresses(List<TimerAddress> updatedAddresses)
@@ -757,81 +781,110 @@ namespace FdvBoulderingTimerLauncher
         {
             _networkRefreshTimer.Stop();
             if (_allowClose) return;
-            if (PopulateAddresses()) AppendLog("Network addresses changed.");
+            if (_networkRefreshBusy) { _networkRefreshQueued = true; return; }
+            _networkRefreshBusy = true;
+            ThreadPool.QueueUserWorkItem(delegate
+            {
+                string[][] addresses = null;
+                try { addresses = _networkReadOverride != null ? _networkReadOverride() : ReadNetworkAddresses(); } catch { }
+                try { BeginInvoke(new MethodInvoker(delegate
+                {
+                    if (_allowClose || IsDisposed) return;
+                    _networkRefreshBusy = false;
+                    if (addresses != null) _networkAddresses = addresses;
+                    if (PopulateAddresses()) AppendLog("Network addresses changed.");
+                    if (_networkRefreshQueued) { _networkRefreshQueued = false; _networkRefreshTimer.Start(); }
+                })); } catch (InvalidOperationException) { }
+            });
         }
 
         private void StartServer(bool openBrowser)
         {
+            if (_allowClose || _startupInProgress) return;
+            if (_startupOperation != null) _startupOperation.Cancel();
+            var operation = new LauncherOperation(_startupTimeoutMs);
+            _startupOperation = operation; _startupInProgress = true;
             _pendingServerLanguage = null; _openBrowserAfterLanguageSync = false;
-            _startupTimer.Stop();
-            _healthTimer.Stop();
-            _restartTimer.Stop();
-            _ready = false;
-            _intentionalStop = true;
-            _openButton.Enabled = false;
-            SetStatusText("Starting server...");
-            _status.ForeColor = Color.FromArgb(255, 200, 87);
-            AppendLog("Starting server...");
-
-            StopServerProcess();
-            StopPortListeners();
-            _settings = LauncherSettings.Load(_baseDirectory);
-            UpdateBuildNumber("");
-            _hasHttps = HasHttpsCertificate();
-            PopulateAddresses();
-            // Also stop a stale listener if the configured ports changed.
-            StopPortListeners();
-            _intentionalStop = false;
-
-            var nodePath = FindNodeExecutable();
-            if (nodePath == null)
+            _startupTimer.Stop(); _healthTimer.Stop(); _restartTimer.Stop();
+            _ready = false; _intentionalStop = true;
+            _openButton.Enabled = false; _restartButton.Enabled = false; _certificateButton.Enabled = false;
+            _settingsButton.Enabled = false;
+            SetStatusText("Starting server..."); UpdateBuildNumber("");
+            _status.ForeColor = Color.FromArgb(255, 200, 87); AppendLog("Starting server...");
+            var previous = DetachServerProcess(); var previousSettings = _settings;
+            _preparationTimer.Start();
+            ThreadPool.QueueUserWorkItem(delegate
             {
-                SetError("Node.js was not found. Check portable_node_win in params.txt or install Node.js LTS.");
-                return;
-            }
+                try
+                {
+                    LauncherProcess.Release(previous);
+                    operation.Check(); if (_startupPreparationOverride != null) _startupPreparationOverride(); operation.Check();
+                    var settings = LauncherSettings.Load(_baseDirectory);
+                    var hasHttps = HasHttpsCertificate();
+                    if (_portCleanupOverride != null) _portCleanupOverride();
+                    else StopPortListeners(operation, previousSettings, settings);
+                    operation.Check();
+                    var nodePath = FindNodeExecutable(settings);
+                    if (nodePath == null) { FailStartup(operation, "Node.js was not found. Check portable_node_win in params.txt or install Node.js LTS."); return; }
+                    var serverScript = Path.Combine(_baseDirectory, "serve-bouldering-timer.js");
+                    if (!File.Exists(serverScript)) { FailStartup(operation, "serve-bouldering-timer.js was not found next to the launcher."); return; }
+                    var token = NewLanguageToken();
+                    var start = new ProcessStartInfo();
+                    start.FileName = nodePath; start.Arguments = QuoteArgument(serverScript);
+                    start.WorkingDirectory = _baseDirectory; start.UseShellExecute = false; start.CreateNoWindow = true;
+                    start.RedirectStandardOutput = true; start.RedirectStandardError = true;
+                    start.EnvironmentVariables["FDV_LAUNCHER_LANGUAGE_TOKEN"] = token;
+                    start.StandardOutputEncoding = Encoding.UTF8; start.StandardErrorEncoding = Encoding.UTF8;
+                    var child = new Process(); child.StartInfo = start; child.EnableRaisingEvents = true;
+                    child.OutputDataReceived += delegate(object sender, DataReceivedEventArgs args) { if (args.Data != null && !operation.Cancelled) AppendRawLog(args.Data); };
+                    child.ErrorDataReceived += delegate(object sender, DataReceivedEventArgs args) { if (args.Data != null && !operation.Cancelled) AppendRawLog(args.Data); };
+                    child.Exited += OnServerProcessExited;
+                    if (!operation.Start(child)) return;
+                    child.BeginOutputReadLine(); child.BeginErrorReadLine();
+                    if (_startupCreatedOverride != null) _startupCreatedOverride();
+                    PostStartup(operation, delegate
+                    {
+                        var accepted = operation.Take(); FinishStartupPreparation();
+                        if (accepted == null) { SetError("Server startup preparation timed out. Please try again."); return; }
+                        _serverProcess = accepted; _settings = settings; _hasHttps = hasHttps;
+                        _launcherLanguageToken = token; _intentionalStop = false;
+                        PopulateAddresses(); AppendLog("Using Node.js: " + nodePath);
+                        _startupAttempts = 0; _healthFailures = 0; _startupTimer.Tag = openBrowser;
+                        if (accepted.HasExited) { OnServerExited(); return; }
+                        _startupTimer.Start();
+                    });
+                }
+                catch (Exception error) { FailStartup(operation, "Unable to start server: " + error.Message); }
+            });
+        }
 
-            var serverScript = Path.Combine(_baseDirectory, "serve-bouldering-timer.js");
-            if (!File.Exists(serverScript))
+        private void PostStartup(LauncherOperation operation, MethodInvoker action)
+        {
+            try { BeginInvoke(new MethodInvoker(delegate
             {
-                SetError("serve-bouldering-timer.js was not found next to the launcher.");
-                return;
-            }
+                if (_allowClose || !_startupInProgress || _startupOperation != operation) { operation.Cancel(); return; }
+                action();
+            })); } catch (InvalidOperationException) { operation.Cancel(); }
+        }
 
-            try
-            {
-                var start = new ProcessStartInfo();
-                start.FileName = nodePath;
-                start.Arguments = QuoteArgument(serverScript);
-                start.WorkingDirectory = _baseDirectory;
-                start.UseShellExecute = false;
-                start.CreateNoWindow = true;
-                start.RedirectStandardOutput = true;
-                start.RedirectStandardError = true;
-                _launcherLanguageToken = NewLanguageToken();
-                start.EnvironmentVariables["FDV_LAUNCHER_LANGUAGE_TOKEN"] = _launcherLanguageToken;
-                start.StandardOutputEncoding = Encoding.UTF8;
-                start.StandardErrorEncoding = Encoding.UTF8;
+        private void FailStartup(LauncherOperation operation, string message)
+        {
+            operation.Cancel();
+            PostStartup(operation, delegate { FinishStartupPreparation(); SetError(message); });
+        }
 
-                _serverProcess = new Process();
-                _serverProcess.StartInfo = start;
-                _serverProcess.EnableRaisingEvents = true;
-                _serverProcess.OutputDataReceived += delegate(object sender, DataReceivedEventArgs args) { if (args.Data != null) AppendRawLog(args.Data); };
-                _serverProcess.ErrorDataReceived += delegate(object sender, DataReceivedEventArgs args) { if (args.Data != null) AppendRawLog(args.Data); };
-                _serverProcess.Exited += OnServerProcessExited;
-                _serverProcess.Start();
-                _serverProcess.BeginOutputReadLine();
-                _serverProcess.BeginErrorReadLine();
-                AppendLog("Using Node.js: " + nodePath);
+        private void FinishStartupPreparation()
+        {
+            _startupInProgress = false; _preparationTimer.Stop();
+            _restartButton.Enabled = true; _certificateButton.Enabled = true;
+            _settingsButton.Enabled = true;
+        }
 
-                _startupAttempts = 0;
-                _healthFailures = 0;
-                _startupTimer.Tag = openBrowser;
-                _startupTimer.Start();
-            }
-            catch (Exception error)
-            {
-                SetError("Unable to start server: " + error.Message);
-            }
+        private void CheckStartupPreparation(object sender, EventArgs args)
+        {
+            if (!_startupInProgress || _startupOperation == null || !_startupOperation.Expired) return;
+            _startupOperation.Cancel(); FinishStartupPreparation();
+            SetError("Server startup preparation timed out. Please try again.");
         }
 
         private void CheckServerReady(object sender, EventArgs args)
@@ -969,9 +1022,11 @@ namespace FdvBoulderingTimerLauncher
             StartServer(false);
         }
 
-        private string FindNodeExecutable()
+        private string FindNodeExecutable() { return FindNodeExecutable(_settings); }
+
+        private string FindNodeExecutable(LauncherSettings settings)
         {
-            var portable = Environment.ExpandEnvironmentVariables(_settings.PortableNode.Trim('"'));
+            var portable = Environment.ExpandEnvironmentVariables(settings.PortableNode.Trim('"'));
             if (!Path.IsPathRooted(portable)) portable = Path.Combine(_baseDirectory, portable);
             if (File.Exists(portable)) return Path.GetFullPath(portable);
 
@@ -988,57 +1043,45 @@ namespace FdvBoulderingTimerLauncher
             return null;
         }
 
-        private void StopPortListeners()
+        private void StopPortListeners(LauncherOperation operation, LauncherSettings previous, LauncherSettings settings)
         {
 #if FDV_LEGACY_WINDOWS
-            // Windows 7 has no NetTCPIP cmdlets. Stop only our tracked child;
-            // never kill an unrelated listener by its port on this build.
+            // Win7 has no NetTCPIP cmdlets; retain tracked-child-only stopping.
             return;
 #else
             try
             {
-                var powershell = Path.Combine(
-                    Environment.GetFolderPath(Environment.SpecialFolder.System),
-                    @"WindowsPowerShell\v1.0\powershell.exe");
+                operation.Check();
+                var powershell = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System), @"WindowsPowerShell\v1.0\powershell.exe");
                 if (!File.Exists(powershell)) return;
-                var command = "$ports=@(" + _settings.HttpPort + "," + _settings.HttpsPort + ");" +
+                var ports = new List<int>();
+                foreach (var port in new int[] { previous.HttpPort, previous.HttpsPort, settings.HttpPort, settings.HttpsPort })
+                    if (!ports.Contains(port)) ports.Add(port);
+                var numbers = new List<string>(); foreach (var port in ports) numbers.Add(port.ToString());
+                var command = "$ports=@(" + string.Join(",", numbers.ToArray()) + ");" +
                     "$connections=Get-NetTCPConnection -State Listen -ErrorAction SilentlyContinue|Where-Object{$ports -contains $_.LocalPort};" +
                     "$connections|Select-Object -ExpandProperty OwningProcess -Unique|ForEach-Object{Stop-Process -Id $_ -Force -ErrorAction SilentlyContinue}";
-                var info = new ProcessStartInfo();
-                info.FileName = powershell;
+                var info = new ProcessStartInfo(); info.FileName = powershell;
                 info.Arguments = "-NoProfile -NonInteractive -Command \"" + command + "\"";
-                info.UseShellExecute = false;
-                info.CreateNoWindow = true;
-                using (var process = Process.Start(info))
-                {
-                    process.WaitForExit(5000);
-                }
-                Thread.Sleep(300);
+                LauncherProcess.RunLines(info, 5000, operation);
             }
             catch (Exception error)
             {
+                if (operation.Cancelled) throw;
                 AppendLog("Could not stop previous port listeners: " + error.Message);
             }
 #endif
         }
 
+        private Process DetachServerProcess()
+        {
+            var process = _serverProcess; _serverProcess = null;
+            LauncherProcess.SignalStop(process); return process;
+        }
+
         private void StopServerProcess()
         {
-            try
-            {
-                if (_serverProcess != null && !_serverProcess.HasExited)
-                {
-                    _serverProcess.EnableRaisingEvents = false;
-                    _serverProcess.Kill();
-                    _serverProcess.WaitForExit(3000);
-                }
-            }
-            catch { }
-            finally
-            {
-                if (_serverProcess != null) _serverProcess.Dispose();
-                _serverProcess = null;
-            }
+            LauncherProcess.ReleaseLater(DetachServerProcess());
         }
 
         private void OnServerExited()
@@ -1128,9 +1171,10 @@ namespace FdvBoulderingTimerLauncher
 
         private void AppendRawLog(string message)
         {
+            if (_allowClose || IsDisposed || Disposing) return;
             if (InvokeRequired)
             {
-                BeginInvoke(new Action<string>(AppendRawLog), message);
+                try { BeginInvoke(new Action<string>(AppendRawLog), message); } catch (InvalidOperationException) { }
                 return;
             }
             _log.AppendText("[" + DateTime.Now.ToString("HH:mm:ss") + "] " + message + Environment.NewLine);
@@ -1160,6 +1204,9 @@ namespace FdvBoulderingTimerLauncher
         {
             if (_allowClose) return;
             _allowClose = true;
+            _preparationTimer.Stop();
+            if (_startupOperation != null) _startupOperation.Cancel();
+            _startupInProgress = false;
             StopNetworkMonitoring();
             _startupTimer.Stop();
             _healthTimer.Stop();
@@ -1200,6 +1247,8 @@ namespace FdvBoulderingTimerLauncher
                 _healthTimer.Dispose();
                 _restartTimer.Dispose();
                 _networkRefreshTimer.Dispose();
+                _preparationTimer.Dispose();
+                if (_startupOperation != null) _startupOperation.Cancel();
                 _tray.Dispose();
                 if (_serverProcess != null) _serverProcess.Dispose();
             }

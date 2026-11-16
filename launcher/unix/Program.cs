@@ -24,6 +24,8 @@ using Avalonia.Threading;
 using Avalonia.Themes.Fluent;
 using LauncherUpdates = FdvBoulderingTimerLauncher.LauncherUpdates;
 using LauncherLanguage = FdvBoulderingTimerLauncher.LauncherLanguage;
+using LauncherOperation = FdvBoulderingTimerLauncher.LauncherOperation;
+using LauncherProcess = FdvBoulderingTimerLauncher.LauncherProcess;
 
 namespace FdvBoulderingTimer.Launcher;
 
@@ -180,6 +182,16 @@ internal sealed class LauncherWindow : Window
     private readonly DispatcherTimer _healthTimer = new() { Interval = TimeSpan.FromSeconds(1) };
     private readonly DispatcherTimer _restartTimer = new();
     private readonly DispatcherTimer _networkRefreshTimer = new() { Interval = TimeSpan.FromMilliseconds(750) };
+    private readonly DispatcherTimer _preparationTimer = new() { Interval = TimeSpan.FromMilliseconds(100) };
+    private LauncherOperation? _startupOperation;
+    private bool _startupInProgress;
+    private int _startupTimeoutMs = 15000;
+    private Action? _startupPreparationOverride = null; // Passive harness, no production override.
+    private Action? _startupCreatedOverride = null;
+    private Action? _portCleanupOverride = null;
+    private Func<string[][]>? _networkReadOverride = null;
+    private string[][] _networkAddresses = Array.Empty<string[]>();
+    private bool _networkRefreshBusy, _networkRefreshQueued;
     private readonly HttpClient _healthClient = new(new SocketsHttpHandler
     {
         ConnectTimeout = TimeSpan.FromMilliseconds(500),
@@ -233,6 +245,7 @@ internal sealed class LauncherWindow : Window
             // must never re-enter startup or stop/restart the running child.
             if (_initialStartRequested) return;
             _initialStartRequested = true;
+            RefreshNetworkAddresses(null, EventArgs.Empty);
             if (initialStartOverride != null) initialStartOverride();
             else if (startAutomatically) { StartServer(_openBrowserAfterStart); CheckForUpdates(); }
         };
@@ -241,6 +254,7 @@ internal sealed class LauncherWindow : Window
         _healthTimer.Tick += CheckServerHealth;
         _restartTimer.Tick += RestartTimerTick;
         _networkRefreshTimer.Tick += RefreshNetworkAddresses;
+        _preparationTimer.Tick += CheckStartupPreparation;
         NetworkChange.NetworkAddressChanged += OnNetworkAddressChanged;
     }
 
@@ -491,7 +505,7 @@ internal sealed class LauncherWindow : Window
             var close = new Button { Content = T("Close") }; close.Click += (_, _) => message.Close(); panel.Children.Add(close);
             message.Content = panel; await message.ShowDialog(this);
         }
-        finally { _settingsDialog = null; _settingsButton.IsEnabled = true; }
+        finally { _settingsDialog = null; _settingsButton.IsEnabled = !_startupInProgress; }
     }
 
     private static string T(string english) => LauncherLanguage.Text(english);
@@ -523,8 +537,12 @@ internal sealed class LauncherWindow : Window
     {
         if (_updateBusy || _allowClose) return;
         _updateBusy = true; RefreshUpdateNotice();
-        string? node = FindNodeExecutable();
-        var result = await Task.Run(() => LauncherUpdates.Run(node ?? "", _baseDirectory));
+        var settings = _settings;
+        var result = await Task.Run(() =>
+        {
+            try { return LauncherUpdates.Run(FindNodeExecutable(settings) ?? "", _baseDirectory); }
+            catch { return "unavailable"; }
+        });
         if (_allowClose) return;
         _updateBusy = false; _updateResult = result; RefreshUpdateNotice();
     }
@@ -647,19 +665,10 @@ internal sealed class LauncherWindow : Window
         AddAddress(updatedAddresses, "Local HTTP", "http://127.0.0.1:" + _settings.HttpPort + "/");
         if (_hasHttps) AddAddress(updatedAddresses, "Local HTTPS", "https://127.0.0.1:" + _settings.HttpsPort + "/");
 
-        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var network in NetworkInterface.GetAllNetworkInterfaces())
+        foreach (var network in _networkAddresses)
         {
-            if (network.OperationalStatus != OperationalStatus.Up) continue;
-            foreach (var address in network.GetIPProperties().UnicastAddresses)
-            {
-                if (address.Address.AddressFamily != AddressFamily.InterNetwork) continue;
-                var ip = address.Address.ToString();
-                if (IPAddress.IsLoopback(address.Address) || ip.StartsWith("169.254.", StringComparison.Ordinal) || !seen.Add(ip)) continue;
-                var type = NetworkType(network);
-                AddAddress(updatedAddresses, type + " HTTP", "http://" + ip + ":" + _settings.HttpPort + "/");
-                if (_hasHttps) AddAddress(updatedAddresses, type + " HTTPS", "https://" + ip + ":" + _settings.HttpsPort + "/");
-            }
+            AddAddress(updatedAddresses, network[0] + " HTTP", "http://" + network[1] + ":" + _settings.HttpPort + "/");
+            if (_hasHttps) AddAddress(updatedAddresses, network[0] + " HTTPS", "https://" + network[1] + ":" + _settings.HttpsPort + "/");
         }
         if (HasSameAddresses(updatedAddresses)) return false;
 
@@ -679,6 +688,24 @@ internal sealed class LauncherWindow : Window
         }
         if (_addresses.Items.Count > 0) _addresses.SelectedIndex = selectedIndex >= 0 ? selectedIndex : 0;
         return true;
+    }
+
+    private static string[][] ReadNetworkAddresses()
+    {
+        var addresses = new List<string[]>();
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var network in NetworkInterface.GetAllNetworkInterfaces())
+        {
+            if (network.OperationalStatus != OperationalStatus.Up) continue;
+            foreach (var address in network.GetIPProperties().UnicastAddresses)
+            {
+                if (address.Address.AddressFamily != AddressFamily.InterNetwork) continue;
+                var ip = address.Address.ToString();
+                if (IPAddress.IsLoopback(address.Address) || ip.StartsWith("169.254.", StringComparison.Ordinal) || !seen.Add(ip)) continue;
+                addresses.Add(new string[] { NetworkType(network), ip });
+            }
+        }
+        return addresses.ToArray();
     }
 
     private static string NetworkType(NetworkInterface network)
@@ -736,82 +763,114 @@ internal sealed class LauncherWindow : Window
     {
         _networkRefreshTimer.Stop();
         if (_allowClose) return;
-        if (PopulateAddresses()) AppendLog("Network addresses changed.");
+        if (_networkRefreshBusy) { _networkRefreshQueued = true; return; }
+        _networkRefreshBusy = true;
+        _ = Task.Run(() =>
+        {
+            string[][]? addresses = null;
+            try { addresses = _networkReadOverride != null ? _networkReadOverride() : ReadNetworkAddresses(); } catch { }
+            try { Dispatcher.UIThread.Post(() =>
+            {
+                if (_allowClose) return;
+                _networkRefreshBusy = false;
+                if (addresses != null) _networkAddresses = addresses;
+                if (PopulateAddresses()) AppendLog("Network addresses changed.");
+                if (_networkRefreshQueued) { _networkRefreshQueued = false; _networkRefreshTimer.Start(); }
+            }); } catch (InvalidOperationException) { }
+        });
     }
 
     private void StartServer(bool openBrowser)
     {
+        if (_allowClose || _startupInProgress) return;
+        _startupOperation?.Cancel();
+        var operation = new LauncherOperation(_startupTimeoutMs);
+        _startupOperation = operation; _startupInProgress = true;
         _pendingServerLanguage = null; _openBrowserAfterLanguageSync = false;
         BeginNewProbeCycle();
-        _startupTimer.Stop();
-        _healthTimer.Stop();
-        _restartTimer.Stop();
-        _ready = false;
-        _intentionalStop = true;
-        _openButton.IsEnabled = false;
+        _startupTimer.Stop(); _healthTimer.Stop(); _restartTimer.Stop();
+        _ready = false; _intentionalStop = true;
+        _openButton.IsEnabled = false; _restartButton.IsEnabled = false; _certificateButton.IsEnabled = false;
+        _settingsButton.IsEnabled = false;
         SetStatusText("Starting server...");
-        _buildLabel.Text = "";
-        Title = "FDV Bouldering Timer";
-        _status.Foreground = Brush(255, 200, 87);
-        AppendLog("Starting server...");
-
-        StopServerProcess();
-        StopPortListeners();
-        _settings = LauncherSettings.Load(_baseDirectory);
-        _hasHttps = HasHttpsCertificate();
-        PopulateAddresses();
-        // The configured ports may have changed since the previous start.
-        StopPortListeners();
-        _intentionalStop = false;
-
-        var nodePath = FindNodeExecutable();
-        if (nodePath == null)
+        _buildLabel.Text = ""; Title = "FDV Bouldering Timer";
+        _status.Foreground = Brush(255, 200, 87); AppendLog("Starting server...");
+        var previous = DetachServerProcess();
+        var previousSettings = _settings;
+        _preparationTimer.Start();
+        _ = Task.Run(() =>
         {
-            SetError(NodeNotFoundMessage());
-            return;
-        }
-        RemovePortableRuntimeQuarantine(nodePath);
-
-        var serverScript = Path.Combine(_baseDirectory, "serve-bouldering-timer.js");
-        if (!File.Exists(serverScript))
-        {
-            SetError(ServerScriptNotFoundMessage());
-            return;
-        }
-
-        try
-        {
-            var start = new ProcessStartInfo
+            try
             {
-                FileName = nodePath,
-                WorkingDirectory = _baseDirectory,
-                UseShellExecute = false,
-                RedirectStandardOutput = true,
-                RedirectStandardError = true
-            };
-            start.ArgumentList.Add(serverScript);
-            _launcherLanguageToken = Convert.ToHexString(RandomNumberGenerator.GetBytes(32)).ToLowerInvariant();
-            start.Environment["FDV_LAUNCHER_LANGUAGE_TOKEN"] = _launcherLanguageToken;
+                LauncherProcess.Release(previous);
+                operation.Check(); _startupPreparationOverride?.Invoke(); operation.Check();
+                var settings = LauncherSettings.Load(_baseDirectory);
+                var hasHttps = HasHttpsCertificate();
+                if (_portCleanupOverride != null) _portCleanupOverride();
+                else StopPortListeners(operation, previousSettings, settings);
+                operation.Check();
+                var nodePath = FindNodeExecutable(settings);
+                if (nodePath == null) { FailStartup(operation, NodeNotFoundMessage()); return; }
+                RemovePortableRuntimeQuarantine(nodePath, operation);
+                operation.Check();
+                var serverScript = Path.Combine(_baseDirectory, "serve-bouldering-timer.js");
+                if (!File.Exists(serverScript)) { FailStartup(operation, ServerScriptNotFoundMessage()); return; }
+                var token = Convert.ToHexString(RandomNumberGenerator.GetBytes(32)).ToLowerInvariant();
+                var start = new ProcessStartInfo { FileName = nodePath, WorkingDirectory = _baseDirectory,
+                    UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true };
+                start.ArgumentList.Add(serverScript); start.Environment["FDV_LAUNCHER_LANGUAGE_TOKEN"] = token;
+                var child = new Process { StartInfo = start, EnableRaisingEvents = true };
+                child.OutputDataReceived += (_, args) => { if (args.Data != null && !operation.Cancelled) AppendLog(args.Data, technical: true); };
+                child.ErrorDataReceived += (_, args) => { if (args.Data != null && !operation.Cancelled) AppendLog(args.Data, technical: true); };
+                child.Exited += OnServerProcessExited;
+                if (!operation.Start(child)) return;
+                child.BeginOutputReadLine(); child.BeginErrorReadLine();
+                _startupCreatedOverride?.Invoke();
+                PostStartup(operation, () =>
+                {
+                    var accepted = operation.Take();
+                    FinishStartupPreparation();
+                    if (accepted == null) { SetError("Server startup preparation timed out. Please try again."); return; }
+                    _serverProcess = accepted; _settings = settings; _hasHttps = hasHttps;
+                    _launcherLanguageToken = token; _intentionalStop = false;
+                    PopulateAddresses(); AppendLog("Using Node.js: " + nodePath);
+                    _startupAttempts = 0; _healthFailures = 0; _startupAccessNoticeShown = false;
+                    _openBrowserAfterStart = openBrowser;
+                    if (accepted.HasExited) { ScheduleServerRestart("server process exited unexpectedly"); return; }
+                    _startupTimer.Start();
+                });
+            }
+            catch (Exception error) { FailStartup(operation, "Unable to start server: " + error.Message); }
+        });
+    }
 
-            _serverProcess = new Process { StartInfo = start, EnableRaisingEvents = true };
-            _serverProcess.OutputDataReceived += (_, args) => { if (args.Data != null) AppendLog(args.Data, technical: true); };
-            _serverProcess.ErrorDataReceived += (_, args) => { if (args.Data != null) AppendLog(args.Data, technical: true); };
-            _serverProcess.Exited += OnServerProcessExited;
-            _serverProcess.Start();
-            _serverProcess.BeginOutputReadLine();
-            _serverProcess.BeginErrorReadLine();
-            AppendLog("Using Node.js: " + nodePath);
-
-            _startupAttempts = 0;
-            _healthFailures = 0;
-            _startupAccessNoticeShown = false;
-            _openBrowserAfterStart = openBrowser;
-            _startupTimer.Start();
-        }
-        catch (Exception error)
+    private void PostStartup(LauncherOperation operation, Action action)
+    {
+        try { Dispatcher.UIThread.Post(() =>
         {
-            SetError("Unable to start server: " + error.Message);
-        }
+            if (_allowClose || !_startupInProgress || _startupOperation != operation) { operation.Cancel(); return; }
+            action();
+        }); } catch (InvalidOperationException) { operation.Cancel(); }
+    }
+
+    private void FailStartup(LauncherOperation operation, string message)
+    {
+        operation.Cancel();
+        PostStartup(operation, () => { FinishStartupPreparation(); SetError(message); });
+    }
+
+    private void FinishStartupPreparation()
+    {
+        _startupInProgress = false; _preparationTimer.Stop();
+        _restartButton.IsEnabled = true; _certificateButton.IsEnabled = true;
+        _settingsButton.IsEnabled = true;
+    }
+
+    private void CheckStartupPreparation(object? sender, EventArgs args)
+    {
+        if (!_startupInProgress || _startupOperation == null || !_startupOperation.Expired) return;
+        _startupOperation.Cancel(); FinishStartupPreparation();
+        SetError("Server startup preparation timed out. Please try again.");
     }
 
     private string NodeNotFoundMessage()
@@ -1019,9 +1078,11 @@ internal sealed class LauncherWindow : Window
         StartServer(false);
     }
 
-    private string? FindNodeExecutable()
+    private string? FindNodeExecutable() { return FindNodeExecutable(_settings); }
+
+    private string? FindNodeExecutable(LauncherSettings settings)
     {
-        var portable = Environment.ExpandEnvironmentVariables(_settings.PortableNodeForCurrentOs().Trim('"'));
+        var portable = Environment.ExpandEnvironmentVariables(settings.PortableNodeForCurrentOs().Trim('"'));
         if (!Path.IsPathRooted(portable)) portable = Path.Combine(_baseDirectory, portable);
         if (File.Exists(portable)) return Path.GetFullPath(portable);
 
@@ -1040,7 +1101,7 @@ internal sealed class LauncherWindow : Window
         return null;
     }
 
-    private void RemovePortableRuntimeQuarantine(string nodePath)
+    private void RemovePortableRuntimeQuarantine(string nodePath, LauncherOperation operation)
     {
         if (!RuntimeInformation.IsOSPlatform(OSPlatform.OSX)) return;
 
@@ -1057,59 +1118,52 @@ internal sealed class LauncherWindow : Window
             var removed = 0;
             foreach (var path in Directory.EnumerateFileSystemEntries(runtimeRoot, "*", SearchOption.AllDirectories).Prepend(runtimeRoot))
             {
+                operation.Check();
                 if (RemoveExtendedAttribute(path, "com.apple.quarantine", 0) == 0) removed++;
             }
             if (removed > 0) AppendLog("Prepared the portable Node.js runtime for macOS (removed quarantine).");
         }
         catch (Exception error)
         {
+            if (operation.Cancelled) throw;
             AppendLog("Unable to prepare the portable Node.js runtime: " + error.Message);
         }
     }
 
-    private void StopPortListeners()
+    private void StopPortListeners(LauncherOperation operation, LauncherSettings previous, LauncherSettings settings)
     {
-        foreach (var port in new[] { _settings.HttpPort, _settings.HttpsPort })
+        foreach (var port in new[] { previous.HttpPort, previous.HttpsPort, settings.HttpPort, settings.HttpsPort }.Distinct())
         {
             try
             {
-                var pids = FindListenerPids(port).Distinct().ToArray();
+                operation.Check();
+                var pids = FindListenerPids(port, operation).Distinct().ToArray();
                 foreach (var pid in pids)
                 {
-                    try
-                    {
-                        Process.GetProcessById(pid).Kill();
-                    }
-                    catch
-                    {
-                    }
+                    operation.Check();
+                    try { using var process = Process.GetProcessById(pid); process.Kill(); }
+                    catch (ArgumentException) { } catch (InvalidOperationException) { } catch (System.ComponentModel.Win32Exception) { }
                 }
             }
             catch (Exception error)
             {
+                if (operation.Cancelled) throw;
                 AppendLog(string.Format(T("Could not stop listeners on port {0}: {1}"), port, error.Message));
             }
         }
     }
 
-    private static IEnumerable<int> FindListenerPids(int port)
+    private static IEnumerable<int> FindListenerPids(int port, LauncherOperation operation)
     {
         if (CommandExists("lsof"))
         {
-            foreach (var pid in RunAndReadLines("lsof", "-tiTCP:" + port, "-sTCP:LISTEN"))
-            {
+            foreach (var pid in RunAndReadLines(operation, "lsof", "-nP", "-tiTCP:" + port, "-sTCP:LISTEN"))
                 if (int.TryParse(pid.Trim(), out var parsed)) yield return parsed;
-            }
             yield break;
         }
-
         if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux) && CommandExists("fuser"))
-        {
-            foreach (var token in RunAndReadLines("fuser", port + "/tcp").SelectMany(line => line.Split(' ', StringSplitOptions.RemoveEmptyEntries)))
-            {
+            foreach (var token in RunAndReadLines(operation, "fuser", port + "/tcp").SelectMany(line => line.Split(' ', StringSplitOptions.RemoveEmptyEntries)))
                 if (int.TryParse(token.Trim(), out var parsed)) yield return parsed;
-            }
-        }
     }
 
     private static bool CommandExists(string command)
@@ -1119,58 +1173,30 @@ internal sealed class LauncherWindow : Window
             .Any(folder => File.Exists(Path.Combine(folder, command)));
     }
 
-    private static IEnumerable<string> RunAndReadLines(string fileName, params string[] arguments)
+    private static IEnumerable<string> RunAndReadLines(LauncherOperation operation, string fileName, params string[] arguments)
     {
-        try
-        {
-            var info = new ProcessStartInfo
-            {
-                FileName = fileName,
-                UseShellExecute = false,
-                RedirectStandardOutput = true,
-                RedirectStandardError = true
-            };
-            foreach (var argument in arguments) info.ArgumentList.Add(argument);
-            using var process = Process.Start(info);
-            if (process == null) yield break;
-            var output = process.StandardOutput.ReadToEnd();
-            process.WaitForExit(1500);
-            foreach (var line in output.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries))
-            {
-                yield return line;
-            }
-        }
-        finally
-        {
-        }
+        var info = new ProcessStartInfo { FileName = fileName };
+        foreach (var argument in arguments) info.ArgumentList.Add(argument);
+        return LauncherProcess.RunLines(info, 1500, operation);
+    }
+
+    private Process? DetachServerProcess()
+    {
+        var process = _serverProcess; _serverProcess = null;
+        LauncherProcess.SignalStop(process);
+        return process;
     }
 
     private void StopServerProcess()
     {
-        try
-        {
-            if (_serverProcess != null && !_serverProcess.HasExited)
-            {
-                _serverProcess.EnableRaisingEvents = false;
-                _serverProcess.Kill();
-                _serverProcess.WaitForExit(3000);
-            }
-        }
-        catch
-        {
-        }
-        finally
-        {
-            _serverProcess?.Dispose();
-            _serverProcess = null;
-        }
+        LauncherProcess.ReleaseLater(DetachServerProcess());
     }
 
     private void OnServerProcessExited(object? sender, EventArgs args)
     {
         Dispatcher.UIThread.Post(() =>
         {
-            if (_allowClose || _intentionalStop) return;
+            if (_allowClose || _intentionalStop || !ReferenceEquals(_serverProcess, sender)) return;
             _ready = false;
             _openButton.IsEnabled = false;
             SetStatusText("Server stopped unexpectedly");
@@ -1240,11 +1266,12 @@ internal sealed class LauncherWindow : Window
     private void AppendLog(string message, bool technical = false)
     {
         var text = technical ? message : T(message);
-        Dispatcher.UIThread.Post(() =>
+        try { Dispatcher.UIThread.Post(() =>
         {
+            if (_allowClose) return;
             _log.Text += "[" + DateTime.Now.ToString("HH:mm:ss") + "] " + text + Environment.NewLine;
             _log.CaretIndex = _log.Text.Length;
-        });
+        }); } catch (InvalidOperationException) { }
     }
 
     private void StopAndExit()
@@ -1257,6 +1284,7 @@ internal sealed class LauncherWindow : Window
     {
         if (_allowClose) return;
         _allowClose = true;
+        _preparationTimer.Stop(); _startupOperation?.Cancel(); _startupInProgress = false;
         CancelPendingProbes();
         StopNetworkMonitoring();
         _startupTimer.Stop();

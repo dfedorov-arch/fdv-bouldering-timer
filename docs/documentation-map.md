@@ -1,5 +1,9 @@
 # Documentation map
 
+Develop startup responsiveness changes for all desktop launchers are
+documented in [review/launcher-startup454.md](review/launcher-startup454.md).
+They retain timer build454 and do not replace published 3.0.0 packages.
+
 Stable release **3.0.0 / timer build454** merges main and develop. Bilingual
 changes since 2.3.2 are in [releases/v3.0.0.md](releases/v3.0.0.md).
 [review/release300.md](review/release300.md) records source/CI/browser checks,

@@ -51,6 +51,7 @@ if (uniqueBuilds.size !== 1) {
   "scripts/build-windows-legacy.js",
   "scripts/get-windows-legacy-tools.ps1",
   "launcher/windows/LauncherTheme.cs",
+  "launcher/windows/LauncherProcess.cs",
   "launcher/windows/launcher.manifest",
   "installer/windows/FDVInstaller.wixproj",
   "installer/windows/ReadMe-legacy-msi.txt",

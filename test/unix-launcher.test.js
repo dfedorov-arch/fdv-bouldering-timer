@@ -54,6 +54,8 @@ test("Unix headless UI, real language endpoint and per-user single-instance rest
     });
   });}
   assert.match(await run(["settings",path.join(directory,"settings")]),/Settings RU\/EN.*OK/);
+  assert.match(await run(["process-tests",path.join(directory,"process-tests")]),/Process deadlines/);
+  assert.match(await run(["startup",path.join(directory,"startup"),process.execPath]),/UI responsive/);
   const token=crypto.randomBytes(32).toString("hex"),server=await fixture(t,null,{launcherToken:token});
   await server.action({type:"primary",primaryClientId:"clock-test"});await server.start();server.frame(9000);
   const before=await server.state(),port=new URL(server.baseUrl).port;

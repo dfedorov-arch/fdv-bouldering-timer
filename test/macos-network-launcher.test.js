@@ -42,7 +42,7 @@ test("launcher serializes and bounds local health probes", () => {
 
 test("macOS launcher removes quarantine only from its bundled Node.js runtime", () => {
   const source = fs.readFileSync(path.join(projectRoot, "launcher", "unix", "Program.cs"), "utf8");
-  assert.match(source, /RemovePortableRuntimeQuarantine\(nodePath\)/);
+  assert.match(source, /RemovePortableRuntimeQuarantine\(nodePath, operation\)/);
   assert.match(source, /Path\.Combine\(_baseDirectory, "runtime", "mac"\)/);
   assert.match(source, /Path\.GetRelativePath\(runtimeRoot/);
   assert.match(source, /RemoveExtendedAttribute\(path, "com\.apple\.quarantine", 0\)/);
@@ -68,8 +68,9 @@ test("launcher reloads settings on restart and refreshes addresses on network ch
     source.indexOf("private void StartServer"),
     source.indexOf("private string NodeNotFoundMessage")
   );
-  assert.match(startServer, /_settings = LauncherSettings\.Load\(_baseDirectory\)/);
-  assert.match(startServer, /_hasHttps = HasHttpsCertificate\(\)/);
+  assert.match(startServer, /var settings = LauncherSettings\.Load\(_baseDirectory\)/);
+  assert.match(startServer, /var hasHttps = HasHttpsCertificate\(\)/);
+  assert.match(startServer, /_settings = settings; _hasHttps = hasHttps/);
   assert.match(startServer, /PopulateAddresses\(\)/);
   assert.match(source, /NetworkChange\.NetworkAddressChanged \+= OnNetworkAddressChanged/);
   assert.match(source, /Interval = TimeSpan\.FromMilliseconds\(750\)/);

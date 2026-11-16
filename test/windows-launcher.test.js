@@ -19,8 +19,9 @@ test("Windows launcher reloads settings and links on every server restart", () =
     source.indexOf("private void StartServer"),
     source.indexOf("private void CheckServerReady")
   );
-  assert.match(startServer, /_settings = LauncherSettings\.Load\(_baseDirectory\)/);
-  assert.match(startServer, /_hasHttps = HasHttpsCertificate\(\)/);
+  assert.match(startServer, /var settings = LauncherSettings\.Load\(_baseDirectory\)/);
+  assert.match(startServer, /var hasHttps = HasHttpsCertificate\(\)/);
+  assert.match(startServer, /_settings = settings; _hasHttps = hasHttps/);
   assert.match(startServer, /PopulateAddresses\(\)/);
 });
 
@@ -43,7 +44,7 @@ test("native RU/EN launcher preserves state and sends authenticated language to 
   t.after(()=>fs.rmSync(directory,{recursive:true,force:true}));
   const compiler=path.join(process.env.WINDIR,"Microsoft.NET/Framework64/v4.0.30319/csc.exe");
   const sources=["launcher/windows/FdvBoulderingTimerLauncher.cs","launcher/windows/HttpsCertificate.cs",
-    "launcher/windows/HttpsCertificateDialog.cs","launcher/windows/LauncherLanguage.cs","launcher/windows/LauncherUpdates.cs","launcher/windows/LauncherParameters.cs","launcher/windows/ParametersDialog.cs","launcher/windows/LauncherTheme.cs","test/helpers/windows-launcher-harness.cs"].map(file=>path.join(projectRoot,file));
+    "launcher/windows/HttpsCertificateDialog.cs","launcher/windows/LauncherLanguage.cs","launcher/windows/LauncherUpdates.cs","launcher/windows/LauncherParameters.cs","launcher/windows/ParametersDialog.cs","launcher/windows/LauncherTheme.cs","launcher/windows/LauncherProcess.cs","test/helpers/windows-launcher-harness.cs","test/helpers/launcher-process-checks.cs"].map(file=>path.join(projectRoot,file));
   const imagePrefix=path.join(projectRoot,"dist/windows-launcher-language");
   fs.mkdirSync(path.dirname(imagePrefix),{recursive:true});
   function compileAndRun(legacy){
@@ -59,6 +60,10 @@ test("native RU/EN launcher preserves state and sends authenticated language to 
     if(legacy)fs.copyFileSync(path.join(projectRoot,"compat/windows-legacy/launcher.exe.config"),executable+".config");
     const result=spawnSync(executable,[path.join(directory,legacy?"legacy":"modern"),imagePrefix+(legacy?"-legacy":"")],{encoding:"utf8",timeout:45000});
     assert.equal(result.status,0,result.error?.message || result.stdout+result.stderr);
+    for (const mode of ["process-tests", "startup"]) {
+      const check = spawnSync(executable, [mode, path.join(directory, (legacy ? "legacy-" : "modern-") + mode), process.execPath], {encoding:"utf8", timeout:30000});
+      assert.equal(check.status, 0, check.error?.message || check.stdout + check.stderr);
+    }
     return executable;
   }
   const executables=[compileAndRun(false)];

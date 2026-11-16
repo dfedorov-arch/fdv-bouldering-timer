@@ -188,6 +188,7 @@ namespace FdvBoulderingTimerLauncher
             { "Clipboard is busy: ", "Буфер обмена занят: " },
             { "Control PIN", "PIN управления" },
             { "Save PIN", "Сохранить PIN" },
+            { "Server startup preparation timed out. Please try again.", "Подготовка запуска сервера заняла слишком много времени. Повторите попытку." },
             { "Remove PIN", "Удалить PIN" },
             { "Enter four digits.", "Введите четыре цифры." },
             { "Server is not ready.", "Сервер ещё не готов." },
