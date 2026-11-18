@@ -11,6 +11,7 @@ const {
   monotonicClockIncludesSleep,
   runningElapsedAfterRestore
 } = require("./lib/timer-domain");
+const finalAppeals = require("./lib/final-appeals");
 const { createTimerTransitions } = require("./lib/timer-transitions");
 const clientDelivery = require("./lib/client-delivery");
 const startListDomain = require("./lib/start-list");
@@ -32,7 +33,7 @@ const legacyRuntimeStatePath = runtimeStatePath;
 const beepsPath = path.join(root, "beeps");
 const fontsPath = path.join(root, "fonts");
 const offlineAudioPath = path.join(root, "lib", "offline-audio.js");
-const BUILD_NUMBER = 455;
+const BUILD_NUMBER = 456;
 const serverInstanceId = crypto.randomUUID();
 let serverAudio = null;
 const launcherLanguageToken = process.env.FDV_LAUNCHER_LANGUAGE_TOKEN || "";
@@ -474,6 +475,12 @@ const timerState = {
   timerVerticalStretchDisabledClientIds: [],
   showBrowserNumbers: false,
   startListFinalCycle: 0,
+  finalAppealRotations: [],
+  finalAppealActiveId: "",
+  finalAppealRegularSettings: null,
+  finalAppealSignalFloor: 0,
+  finalAppealClassicElapsed: 0,
+  classicCueFloor: 0,
   version: 1
 };
 
@@ -517,7 +524,7 @@ let diagnosticsBroadcastTimer = null;
 let startListDataRevision = 1;
 let lastDiagnosticsBroadcastAt = 0;
 
-const runtimeCommandTypes = new Set(["start", "pause", "stopCountdown", "reset", "seek", "seekCycle"]);
+const runtimeCommandTypes = new Set(["start", "pause", "stopCountdown", "reset", "seek", "seekCycle", "finalAppeals"]);
 
 function actionRequiresPrimary(type) {
   return type !== "primary" && type !== "primaryPin";
@@ -928,7 +935,7 @@ function queueClockRepairEffects() {
   // to avoid nested broadcasts and snapshot writes inside those reads.
   setImmediate(() => {
     clockRepairEffectsPending = false;
-    finalizeScheduledCountdown();
+    finalizeScheduledCountdown(); finalizeClassicInterruption();
     finalizeOneShot();
     armCurrentStateTransition();
     scheduleSnapshotWrite(true);
@@ -1067,6 +1074,12 @@ function assignTimerState(source = {}) {
     "timerVerticalStretchDisabledClientIds",
     "showBrowserNumbers",
     "startListFinalCycle",
+    "finalAppealRotations",
+    "finalAppealActiveId",
+    "finalAppealRegularSettings",
+    "finalAppealSignalFloor",
+    "finalAppealClassicElapsed",
+    "classicCueFloor",
     "version"
   ]) {
     if (Object.prototype.hasOwnProperty.call(source, key)) timerState[key] = source[key];
@@ -1126,6 +1139,7 @@ function restoreTimerSnapshot() {
     });
     timerState.showBrowserNumbers = Boolean(timerState.showBrowserNumbers);
     timerState.startListFinalCycle = Math.max(0, Math.round(numberOrDefault(timerState.startListFinalCycle, 0)));
+    assignTimerState(finalAppeals.restoreTimeline(timerState));
     clientAudioOffsets.clear();
     restoredServerAudioSelection = snapshot.serverAudioSelection?.host === os.hostname()
       && snapshot.serverAudioSelection?.platform === process.platform ? snapshot.serverAudioSelection.selection : null;
@@ -1748,9 +1762,11 @@ function clearStartListIncidents() {
   let changed = false;
   timerState.startLists = sanitizeStartLists(timerState.startLists).map((list) => {
     if (!list?.incidents?.length) return list;
+    const retained = finalAppeals.retainedIncidents(timerState, list);
+    if (retained.length === list.incidents.length) return list;
     changed = true;
     const { incidents: _incidents, ...cleanList } = list;
-    return cleanList;
+    return retained.length ? { ...cleanList, incidents: retained } : cleanList;
   });
   if (changed) startListDataRevision += 1;
   return changed;
@@ -1807,6 +1823,15 @@ function elapsedSeconds(now = null) {
   return Math.max(0, (wallNow() - timerState.startedAt) / 1000);
 }
 
+function finalizeClassicInterruption() {
+  const next = finalAppeals.interrupt(timerState, elapsedSeconds());
+  if (next === timerState) return;
+  assignTimerState(next);
+  clearTimerStartedAt();
+  timerState.version += 1;
+  scheduleSnapshotWrite(true);
+}
+
 function finalizeOneShot(now = wallNow()) {
   if (!timerState.running || timerState.countdownOnly || !timerState.activeSettings.oneShot) return;
   const duration = Math.max(0,
@@ -1861,6 +1886,13 @@ function armCurrentStateTransition() {
       : timerState.startedAt);
     return;
   }
+  const interruption = finalAppeals.interruption(timerState);
+  if (interruption !== null) {
+    const remainingMs = Math.max(0, (interruption - elapsedSeconds()) * 1000)
+      / (secondaryServer?.clock.ready ? secondaryServer.clock.rate : 1);
+    armStateTransition(wallNow() + remainingMs);
+    return;
+  }
   if (timerState.activeSettings.oneShot) {
     const duration = Math.max(0,
       numberOrDefault(timerState.activeSettings.rotationSeconds, 0)
@@ -1881,7 +1913,7 @@ function publicState(options = {}) {
   performanceCount("publicStateCalls");
   const performanceStartedAt = performanceStart();
   try {
-  finalizeScheduledCountdown();
+  finalizeScheduledCountdown(); finalizeClassicInterruption();
   finalizeOneShot();
   repairTimerClockContinuity();
   const sentAt = wallNow();
@@ -1920,6 +1952,7 @@ function publicState(options = {}) {
     ...publicTimerState,
     ...(includeStartLists ? { startLists } : {}),
     startListRevision,
+    startListFinalSkippedRotations: startListDomain.finalSkippedRotations(timerState.startLists),
     serverInstanceId,
     delivery: deliveryMetadata(clientId),
     startedAt: publicStartedAt(sentAt, elapsed),
@@ -2515,11 +2548,27 @@ function handleRequest(req, res) {
           || timerState.completed || timerState.elapsedBeforePause > 0))
           || (type === "start" && timerState.completed))
       );
-      const clearIncidentsForNewRound = type === "reset"
+      const clearIncidentsForNewRound = !finalAppeals.active(timerState) && (type === "reset"
         || (type === "start"
           && (body.startMode === "scheduled"
             || (!timerState.waitingForManualStart
-              && (timerState.elapsedBeforePause === 0 || timerState.completed))));
+              && (timerState.elapsedBeforePause === 0 || timerState.completed)))));
+
+      if ((type === "seek" || type === "seekCycle") && finalAppeals.active(timerState)
+        && !(type === "seekCycle" && !timerState.running && (timerState.completed || timerState.elapsedBeforePause === 0))) {
+        sendJson(res, 409, { ...actionPublicState(), actionDenied: true, finalAppealError: "rotation-locked" });
+        return;
+      }
+      if (type === "finalAppeals") {
+        try {
+          assignTimerState(finalAppeals.replaceQueue({ ...timerState, elapsed: elapsedSeconds() }, body.rotations));
+          timerState.version += 1;
+          armCurrentStateTransition();
+        } catch (error) {
+          sendJson(res, 400, { ...actionPublicState(), actionDenied: true, finalAppealError: error.message });
+          return;
+        }
+      }
 
       const timerAction = timerTransitions.applyTimerAction(timerState, body, {
         now,
@@ -2528,19 +2577,20 @@ function handleRequest(req, res) {
       });
       if (timerAction.changed) {
         assignTimerState(timerAction.state);
-        if (timerAction.effects.clock === "set") timerState.audioRunId = crypto.randomUUID();
+        if (timerAction.effects.clock === "set" && !(timerState.finalAppealActiveId && timerState.finalAppealSignalFloor > 0)) timerState.audioRunId = crypto.randomUUID();
         if (clearIncidentsForNewRound) clearStartListIncidents();
-        if (advanceCompletedFinalList) timerState.startListFinalCycle += 1;
+        if (advanceCompletedFinalList && !timerAction.effects.finalAppealCycleHandled) timerState.startListFinalCycle += 1;
         if (timerAction.effects.clock === "set") setTimerStartedAt(timerAction.state.startedAt);
         if (timerAction.effects.clock === "clear") clearTimerStartedAt();
         if (timerAction.effects.transitionAt !== null) {
-          armStateTransition(timerAction.effects.transitionAt);
+          armCurrentStateTransition();
         }
         audioWakeCommand = timerAction.effects.audioWakeCommand;
       }
 
       if (type === "seekCycle" && !timerState.running) {
         const cycle = Math.max(1, Math.min(9999, Math.round(numberOrDefault(body.cycle, 1))));
+        assignTimerState(finalAppeals.reposition(timerState, cycle));
         const settings = timerState.activeSettings || {};
         const cycleDuration = Math.max(1,
           numberOrDefault(settings.rotationSeconds, 0) + numberOrDefault(settings.breakSeconds, 0));
@@ -2716,6 +2766,10 @@ function handleRequest(req, res) {
           sendJson(res, 409, { ...actionPublicState(), startListConflict: true });
           return;
         }
+        if (timerState.startLists[listIndex].routeCount !== routeCount && finalAppeals.plans(timerState).some(plan => !plan.completed && plan.entries.some(entry => entry.listIndex === listIndex))) {
+          sendJson(res, 409, { ...actionPublicState(), actionDenied: true, finalAppealError: "rotation-list-locked" });
+          return;
+        }
         if (timerState.startLists[listIndex].routeCount !== routeCount) {
           timerState.startLists[listIndex] = startListDomain.sanitize({ ...timerState.startLists[listIndex], routeCount });
           startListDataRevision += 1;
@@ -2725,6 +2779,11 @@ function handleRequest(req, res) {
 
       if (type === "startLists") {
         const nextStartLists = sanitizeStartLists(body.startLists);
+        const listError = finalAppeals.listUpdateError(timerState, nextStartLists);
+        if (listError) {
+          sendJson(res, 409, { ...actionPublicState(), actionDenied: true, finalAppealError: listError });
+          return;
+        }
         if (timerState.startLists.length !== 2 || nextStartLists.length !== 2) timerState.startListParallel = false;
         timerState.startLists = nextStartLists;
         startListDataRevision += 1;
@@ -3007,7 +3066,7 @@ secondaryServer = createSecondaryServer({
     scheduleSnapshotWrite();
   },
   exportState: (knownVersion, knownSessionRevision) => {
-    finalizeScheduledCountdown(); finalizeOneShot();
+    finalizeScheduledCountdown(); finalizeClassicInterruption(); finalizeOneShot();
     if (knownVersion === timerState.version) return knownSessionRevision === timerState.browserSessionRevision ? {} : {
       browserSessions: timerState.browserSessions, browserSessionRevision: timerState.browserSessionRevision
     };
@@ -3064,7 +3123,7 @@ serverAudio = createServerAudio({
 
 
 if (restoredFromSnapshot) {
-  finalizeScheduledCountdown();
+  finalizeScheduledCountdown(); finalizeClassicInterruption();
   finalizeOneShot();
   armCurrentStateTransition();
   armPrimaryRestoreGrace();

@@ -19,7 +19,7 @@ function harness({ offset = 0, buffered = false, initialElapsed = 234, oneShot =
   const timers = new Map(), events = [], sounds = [], nodes = [];
   const noop = () => {};
   const context = vm.createContext({
-    window: {
+    window: { FDVRotationSlots: require("../lib/rotation-slots"), FDVFinalAppeals: require("../lib/final-appeals"),
       setTimeout: (callback, ms) => {
         const timerId = ++id;
         timers.set(timerId, { callback, at: now + ms });

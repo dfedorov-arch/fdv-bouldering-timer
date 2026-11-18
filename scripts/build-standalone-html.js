@@ -67,6 +67,7 @@ function build() {
   html = html.replace('<script src="lib/speaker-keep-awake.js"></script>', () => scriptTag(read("lib/speaker-keep-awake.js")));
   html = html.replace('<script src="lib/final-start-prewarm.js"></script>', () => scriptTag(read("lib/final-start-prewarm.js")));
   const clientSecondaryServer = read("lib/client-secondary-server.js");
+  for (const name of ["rotation-slots", "final-appeals", "final-appeal-dialog"]) html = html.replace(`<script src="lib/${name}.js"></script>`, () => scriptTag(read(`lib/${name}.js`)));
   const startListDisplay = read("lib/start-list-display.js");
   const startList = read("lib/start-list.js");
   const startListRouteEditor = read("lib/start-list-route-editor.js");

@@ -1,5 +1,21 @@
 # Documentation map
 
+Develop build456 aligns the New Final start-list schedule with the supplied
+2026 playbook, including nine starters and DNS with continuous actual rotation
+numbers. Rest is automatic. Reference and verification:
+[review/final-playbook456.md](review/final-playbook456.md). Published3.0.1/build455
+packages are retained until a separate release is requested.
+
+Develop456 also adds judge-created extra rotations with per-athlete times,
+manual opt-in start cues and unchanged ordinary numbering. Reference:
+[review/final-appeals456.md](review/final-appeals456.md). The bilingual guide and
+`help-assets/final-appeal-dialog[-en].png` document the actual dialog.
+
+Classic shared-flow and immediate repeat placement, exclusive single-athlete
+attempts, Old Final support and empty rows for all three formats are documented
+in [review/rotation-slots456.md](review/rotation-slots456.md). The guide includes
+`help-assets/classic-rotation-dialog.png` and `help-assets/empty-rotation-row.png`.
+
 Develop startup responsiveness changes for all desktop launchers are
 documented in [review/launcher-startup454.md](review/launcher-startup454.md).
 They are included in 3.0.1; the earlier 3.0.0 assets are retained.

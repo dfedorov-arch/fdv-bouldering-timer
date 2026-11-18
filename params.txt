@@ -20,6 +20,7 @@ festival_break_minutes=30
 
 final_rotation_minutes=4
 final_round_format=old
+# Retained for compatibility. New Final calculates rest from the starting field automatically.
 final_rest_rotations=3
 
 primary_browser=false

@@ -17,6 +17,7 @@ function source(name) {
 function audioHarness(pending = false) {
   const timers = [], played = new Set(), sounds = [];
   const context = vm.createContext({
+    window: { FDVRotationSlots: require("../lib/rotation-slots"), FDVFinalAppeals: require("../lib/final-appeals") },
     clockCalibrationPending: pending, audioScheduleGeneration: 0, pageAudioSuspended: false,
     document: { hidden: false }, state: { running: true, serverStartedAt:100000, manualStartDisplayHold:true }, signalsInvalidatedWhileHidden: false,
     standaloneMode:false, lastServerInstanceId:"server-a", handledManualStart:null, scheduledAudioNodes:[],

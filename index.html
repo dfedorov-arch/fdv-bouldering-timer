@@ -1846,6 +1846,17 @@
       line-height: 1;
       transition: border-color .16s ease, box-shadow .16s ease, color .16s ease;
     }
+    .start-list-appeal-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-width: 0; }
+    .start-list-appeal-heading > span { min-width: 0; }
+    .start-list-appeal-add { position: relative; flex: 0 0 auto; font-size: 0; color: var(--text); }
+    .start-list-appeal-add::before, .start-list-appeal-add::after {
+      content: ""; position: absolute; top: 50%; left: 50%; width: 18px; height: 4px;
+      border-radius: 1px; background: currentColor; transform: translate(-50%, -50%);
+    }
+    .start-list-appeal-add::after { transform: translate(-50%, -50%) rotate(90deg); }
+    body.start-list-dense .start-list-appeal-add::before, body.start-list-dense .start-list-appeal-add::after { width: 14px; height: 3px; }
+    body.start-list-ultra-dense .start-list-appeal-add::before, body.start-list-ultra-dense .start-list-appeal-add::after { width: 10px; height: 2px; }
+    .start-list-incident-action:disabled { opacity: .35; cursor: default; }
     .start-list-route-button:focus-visible { border-color: var(--cyan); outline: none; }
     .start-list-route-button:disabled { cursor: default; opacity: 1; }
     .start-list-route-button.is-selected {
@@ -1880,6 +1891,8 @@
     .route-marker.active { border: 2px solid #07140d; border-radius: 50%; background: var(--list-active-color); }
     .route-marker.done { border: 2px solid #101f36; background: var(--list-done-color); transform: rotate(45deg) scale(.82); }
     .route-marker.ready { width: 0; height: 0; border-left: 9px solid transparent; border-right: 9px solid transparent; border-bottom: 18px solid var(--list-ready-color); filter: drop-shadow(0 0 1px #1b1400); }
+    .route-marker.empty { position:relative; }
+    .route-marker.empty::before { content:"";position:absolute;left:0;right:0;top:calc(50% - 2px);height:4px;border-radius:1px;background:var(--list-paused-color); }
     .route-marker.paused::before,
     .route-marker.paused::after { content: ""; position: absolute; top: 1px; bottom: 1px; width: 5px; border-radius: 1px; background: var(--list-paused-color); }
     .route-marker.paused { position: relative; }
@@ -2988,6 +3001,11 @@
     #controlPinForm input { width: 100%; margin-bottom: 12px; font-size: 24px; }
     #controlPinForm button { width: 100%; min-height: 44px; }
     #controlPinMessage { min-height: 1.5em; color: #ffb76b; }
+  body .route-marker.dns { display: inline-block; width: auto; height: auto; font-size: 9px; line-height: 1; color: var(--muted, #8d97a5); background: none; border: 0; transform: none; }
+    .start-list-table tr.is-excluded td.route-cell::after { display: none; }
+
+    td.appeal-time-cell { position:relative;z-index:4;overflow:visible !important; }
+    .appeal-ready-time { position:absolute;z-index:5;left:calc(50% + 12px);top:50%;transform:translateY(-50%);white-space:nowrap;background:#242b35;color:#ffc857;border:1px solid #8e783e;border-radius:4px;padding:1px 5px;font-size:1em;font-weight:bold;line-height:1.3;pointer-events:none; }
   </style>
 </head>
 <body>
@@ -3226,6 +3244,9 @@
       document.write('<script src="lib/offline-audio.js"><\/script>');
     }
   </script>
+  <script src="lib/rotation-slots.js"></script>
+  <script src="lib/final-appeals.js"></script>
+  <script src="lib/final-appeal-dialog.js"></script>
   <script src="lib/start-list-display.js"></script>
   <script src="lib/start-list.js"></script>
   <script src="lib/start-list-route-editor.js"></script>
@@ -3278,10 +3299,16 @@
       startListIndexes: [],
       startListVisible: false,
       startListFinalCycle: 0,
+      finalAppealRotations: [],
+      finalAppealActiveId: "",
+      finalAppealRegularSettings: null,
+      finalAppealSignalFloor: 0,
+      finalAppealClassicElapsed: 0,
+      classicCueFloor: 0,
       timeline: []
     };
 
-    const pageBuildNumber = 455;
+    const pageBuildNumber = 456;
     const projectUrl = "https://github.com/dfedorov-arch/fdv-bouldering-timer";
     const buildLinkConfirmDelayMs = 550;
     const offlineSnapshotKey = "fdvBoulderingTimerOfflineSnapshot";
@@ -3340,8 +3367,9 @@
         routeIncidentPauseSuperseded: "Пауза с ротации {start} не действует: трасса остановлена с ротации {stop}",
         routeIncidentPausedUntilStop: "Приостановка с ротации {start} завершена остановкой на ротации {stop}",
         routeIncidentNoParticipant: "В выбранной ротации на этой трассе нет участника.",
-        routeMarkerReady: "Готовится", routeMarkerActive: "На трассе", routeMarkerDone: "Закончил", routeMarkerPaused: "Техническая пауза", routeMarkerStopped: "Трасса остановлена",
+        routeMarkerDns: "DNS — не стартовал", routeMarkerReady: "Готовится", routeMarkerActive: "На трассе", routeMarkerDone: "Закончил", routeMarkerPaused: "Техническая пауза", routeMarkerStopped: "Трасса остановлена",
         startListExcludeParticipant: "Исключить участника из списка?", startListRestoreParticipant: "Вернуть участника в список?",
+        startListMarkDns: "DNS: участник не стартовал на первой трассе", startListRestoreDns: "Снять DNS и вернуть участника",
         controls: "Управление", start: "Старт", pause: "Пауза", reset: "Стоп", sectionHide: "Скрыть", sectionShow: "Показать",
         showBrowserNumbers: "Показать номера браузеров", hideBrowserNumbers: "Скрыть номера браузеров", serverTime: "Время сервера",
         pinBrowser: "Закрепить место браузера", unpinBrowser: "Открепить место браузера", moveBrowserUp: "Переместить браузер выше", moveBrowserDown: "Переместить браузер ниже",
@@ -3442,8 +3470,9 @@
         routeIncidentPauseSuperseded: "Pause from rotation {start} does not apply: route stopped from rotation {stop}",
         routeIncidentPausedUntilStop: "Pause from rotation {start} ended with a stop at rotation {stop}",
         routeIncidentNoParticipant: "There is no participant on this route in the selected rotation.",
-        routeMarkerReady: "Preparing", routeMarkerActive: "On route", routeMarkerDone: "Finished", routeMarkerPaused: "Technical pause", routeMarkerStopped: "Route stopped",
+        routeMarkerDns: "DNS — did not start", routeMarkerReady: "Preparing", routeMarkerActive: "On route", routeMarkerDone: "Finished", routeMarkerPaused: "Technical pause", routeMarkerStopped: "Route stopped",
         startListExcludeParticipant: "Exclude participant from the list?", startListRestoreParticipant: "Return participant to the list?",
+        startListMarkDns: "DNS: athlete did not start the first boulder", startListRestoreDns: "Remove DNS and restore athlete",
         controls: "Controls", start: "Start", pause: "Pause", reset: "Stop", sectionHide: "Hide", sectionShow: "Show",
         showBrowserNumbers: "Show browser numbers", hideBrowserNumbers: "Hide browser numbers", serverTime: "Server time",
         pinBrowser: "Pin browser position", unpinBrowser: "Unpin browser position", moveBrowserUp: "Move browser up", moveBrowserDown: "Move browser down",
@@ -4377,7 +4406,7 @@
           const lists = [...state.startLists];
           lists[index] = window.FDVStartList.sanitize({ ...lists[index], routeCount });
           await commitStartLists(lists);
-          return true;
+          return state.startLists[index]?.routeCount === routeCount;
         }
         const saved = await sendServerAction("startListRoutes", {
           listIndex: index, routeCount, expectedStartListRevision: lastStartListServerRevision
@@ -4639,7 +4668,7 @@
     const displayBoundaryGuardMs = 8;
     const startListCriticalReserveMs = 750;
     const progressUpdateIntervalMs = 250;
-    const runtimeCommandTypes = new Set(["start", "pause", "stopCountdown", "reset", "seek", "seekCycle"]);
+    const runtimeCommandTypes = new Set(["start", "pause", "stopCountdown", "reset", "seek", "seekCycle", "finalAppeals"]);
 
     function scheduleFitTimer() {
       performanceCount("timerFitRequests");
@@ -4886,7 +4915,8 @@
       if (isInitialManualStart(segment)) {
         scheduleInitialManualStartSignal(segment);
       } else if (isBeforeScheduledStart()
-        && (!state.activeSettings.oneShot || state.manualStartDisplayHold)) {
+        && (!state.activeSettings.oneShot || state.manualStartDisplayHold)
+        && window.FDVFinalAppeals.initialStartAllowed(state)) {
         scheduleBufferedSignalAt(segment, state.serverStartedAt, "start", true);
       }
       if (options.reason) {
@@ -4909,6 +4939,7 @@
 
     function scheduleRecentPhaseSignalAfterResume(segment) {
       if (pageAudioSuspended || clockCalibrationPending || !state.running || state.countdownOnly || !segment) return false;
+      if (!window.FDVFinalAppeals.initialStartAllowed(state) && segment.type === "rotation" && segment.start === 0) return false;
       if (isInitialManualStart(segment)) return scheduleInitialManualStartSignal(segment);
       const targetServerTime = Number(serverTimeForElapsed(segment.start));
       const lateGraceMs = recentPhaseSignalGraceMs(segment);
@@ -5011,7 +5042,13 @@
           startListParallel: state.startListParallel,
           startListEnabled: state.startListEnabled,
           startListVisible: state.startListVisible,
-          startListFinalCycle: state.startListFinalCycle
+          startListFinalCycle: state.startListFinalCycle,
+          finalAppealRotations: state.finalAppealRotations,
+          finalAppealActiveId: state.finalAppealActiveId,
+          finalAppealRegularSettings: state.finalAppealRegularSettings,
+          finalAppealClassicElapsed: state.finalAppealClassicElapsed,
+          classicCueFloor: state.classicCueFloor,
+          finalAppealSignalFloor: state.finalAppealSignalFloor
         }
       });
     }
@@ -5113,7 +5150,13 @@
             startListParallel: state.startListParallel,
             startListEnabled: state.startListEnabled,
             startListVisible: state.startListVisible,
-            startListFinalCycle: state.startListFinalCycle
+            startListFinalCycle: state.startListFinalCycle,
+          finalAppealRotations: state.finalAppealRotations,
+          finalAppealActiveId: state.finalAppealActiveId,
+          finalAppealRegularSettings: state.finalAppealRegularSettings,
+          finalAppealClassicElapsed: state.finalAppealClassicElapsed,
+          classicCueFloor: state.classicCueFloor,
+          finalAppealSignalFloor: state.finalAppealSignalFloor
           }
         };
         const serializedSnapshot = JSON.stringify(snapshot);
@@ -5211,8 +5254,15 @@
             ? Boolean(snapshot.state.startListEnabled)
             : snapshot.state.startListVisible !== false,
           startListVisible: snapshot.state.startListVisible !== false && hasStartLists(restoredStartLists),
-          startListFinalCycle: Math.max(0, Math.round(Number(snapshot.state.startListFinalCycle) || 0))
+          startListFinalCycle: Math.max(0, Math.round(Number(snapshot.state.startListFinalCycle) || 0)),
+          finalAppealRotations: snapshot.state.finalAppealRotations || [],
+          finalAppealActiveId: snapshot.state.finalAppealActiveId || "",
+          finalAppealRegularSettings: snapshot.state.finalAppealRegularSettings || null,
+          finalAppealClassicElapsed: Number(snapshot.state.finalAppealClassicElapsed) || 0,
+          classicCueFloor: Number(snapshot.state.classicCueFloor) || 0,
+          finalAppealSignalFloor: Number(snapshot.state.finalAppealSignalFloor) || 0
         });
+        Object.assign(state, window.FDVFinalAppeals.restoreTimeline(state));
         startListDataRevision += 1;
         lastStartListRenderKey = "";
         startListEditorOpen = state.startListEnabled;
@@ -6662,7 +6712,7 @@
       els.breakSeconds.step = "1";
       els.breakParameterField.hidden = finalMode;
       els.finalRoundFormatField.hidden = !finalMode;
-      els.finalRestField.hidden = !finalMode || finalRoundFormat !== "new";
+      els.finalRestField.hidden = true; // New Final rest follows the fixed competition schedule.
       els.festivalAnnouncementsRow.hidden = !festivalMode;
       els.startListToggleRow.hidden = festivalMode;
       updateStartListVisibility();
@@ -6685,6 +6735,7 @@
     }
 
     function readSettings() {
+      if (window.FDVFinalAppeals.active(state)) return state.activeSettings;
       return activeSettingsFromDraft();
     }
 
@@ -6813,7 +6864,7 @@
           return;
         }
       } else {
-        if (finishFinal) state.startListFinalCycle = 0;
+        if (finishFinal) { state.startListFinalCycle = 0; Object.assign(state, window.FDVFinalAppeals.clear(state)); }
         saveOfflineSnapshot();
       }
       if (state.running || state.elapsedBeforePause > 0) {
@@ -6995,6 +7046,13 @@
         safeStorageSet("sessionStorage", startListEditorPreferenceKey, startListEditorOpen ? "1" : "0");
       }
       state.startListFinalCycle = Math.max(0, Math.round(Number(remote.startListFinalCycle) || 0));
+      state.finalAppealRotations = remote.finalAppealRotations || [];
+      state.finalAppealActiveId = remote.finalAppealActiveId || "";
+      state.finalAppealRegularSettings = remote.finalAppealRegularSettings || null;
+      state.finalAppealSignalFloor = Number(remote.finalAppealSignalFloor) || 0;
+      state.finalAppealClassicElapsed = Number(remote.finalAppealClassicElapsed) || 0;
+      state.classicCueFloor = Number(remote.classicCueFloor) || 0;
+      state.startListFinalSkippedRotations = Array.isArray(remote.startListFinalSkippedRotations) ? remote.startListFinalSkippedRotations : undefined;
       state.flashing = remote.flashing !== false;
       const breakWarningsChanged = Boolean(remote.muteBreakWarnings) !== state.muteBreakWarnings;
       state.muteBreakWarnings = Boolean(remote.muteBreakWarnings);
@@ -7118,7 +7176,8 @@
           if (isInitialManualStart(segment)) {
             scheduleInitialManualStartSignal(segment);
           } else if (!pageAudioSuspended && waitingForStart
-            && (!state.activeSettings.oneShot || state.manualStartDisplayHold)) {
+            && (!state.activeSettings.oneShot || state.manualStartDisplayHold)
+        && window.FDVFinalAppeals.initialStartAllowed(state)) {
             scheduleBufferedSignalAt(segment, state.serverStartedAt, "start", true);
           }
           if (options.resumeAudioSchedule) {
@@ -7191,6 +7250,13 @@
         safeStorageSet("sessionStorage", startListEditorPreferenceKey, startListEditorOpen ? "1" : "0");
       }
       state.startListFinalCycle = Math.max(0, Math.round(Number(remote.startListFinalCycle) || 0));
+      state.finalAppealRotations = remote.finalAppealRotations || [];
+      state.finalAppealActiveId = remote.finalAppealActiveId || "";
+      state.finalAppealRegularSettings = remote.finalAppealRegularSettings || null;
+      state.finalAppealSignalFloor = Number(remote.finalAppealSignalFloor) || 0;
+      state.finalAppealClassicElapsed = Number(remote.finalAppealClassicElapsed) || 0;
+      state.classicCueFloor = Number(remote.classicCueFloor) || 0;
+      state.startListFinalSkippedRotations = Array.isArray(remote.startListFinalSkippedRotations) ? remote.startListFinalSkippedRotations : undefined;
       state.showBrowserNumbers = Boolean(remote.showBrowserNumbers);
       state.browserDisplayNumber = Math.max(0, Math.round(Number(remote.browserDisplayNumber) || 0));
       state.showServerTime = Boolean(remote.showServerTime);
@@ -8171,8 +8237,10 @@
     function clearStartListIncidentsForNewRound() {
       const nextStartLists = normalizeStartLists(state.startLists).map((list) => {
         if (!list?.incidents?.length) return list;
+        const retained = window.FDVFinalAppeals.retainedIncidents(state, list);
+        if (retained.length === list.incidents.length) return list;
         const { incidents: _incidents, ...cleanList } = list;
-        return cleanList;
+        return retained.length ? { ...cleanList, incidents: retained } : cleanList;
       });
       replaceCanonicalStartLists(nextStartLists, { rememberScroll: false });
     }
@@ -8776,6 +8844,7 @@
 
     function currentStartListPosition() {
       if (!hasStartLists()) return { cycle: 0, phase: "ready" };
+      if (window.FDVFinalAppeals.active(state)) return { cycle: window.FDVFinalAppeals.isClassic(state) ? window.FDVFinalAppeals.anchor(state) : state.startListFinalCycle, phase: "completed" };
       const secondsUntilStart = Math.max(0, (state.serverStartedAt - serverNow()) / 1000);
       const scheduledCountdown = state.countdownOnly
         || (state.running && state.serverStartedAt > serverNow() && !state.manualStartDisplayHold);
@@ -8802,15 +8871,13 @@
 
     function startListSchedule(list) {
       const displayPreset = state.running || state.elapsedBeforePause > 0 || state.completed ? state.runtimePreset : state.activePreset;
-      if (displayPreset !== "final") return {};
+      if (displayPreset !== "final") return window.FDVRotationSlots.decorateSchedule(state, state.startLists.indexOf(list), list, {}, elapsedSeconds());
       const settings = state.running || state.elapsedBeforePause > 0 || state.completed
         ? activeSettings()
         : activeSettingsFromDraft();
-      return {
-        finalFormat: settings.finalRoundFormat === "new" ? "new" : "old",
-        restRotations: settings.finalRestRotations || 3,
-        participantCount: window.FDVStartList.includedParticipantCount(list?.rows?.length, list?.excludedParticipants) || 1
-      };
+      return window.FDVStartList.finalSchedule(list, settings, standaloneMode
+        ? window.FDVStartList.finalSkippedRotations(state.startLists)
+        : state.startListFinalSkippedRotations);
     }
 
     function startListCalculationIncidents(list) {
@@ -8819,7 +8886,7 @@
 
     function startListMarkerLabel(marker) {
       const keys = {
-        ready: "routeMarkerReady",
+        empty: "routeMarkerPaused", dns: "routeMarkerDns", ready: "routeMarkerReady",
         active: "routeMarkerActive",
         done: "routeMarkerDone",
         paused: "routeMarkerPaused",
@@ -8851,8 +8918,43 @@
       });
     }
 
+    function openFinalAppealDialog(listIndex = 0) {
+      if (!controlsAvailable() || !window.FDVFinalAppeals.supported(state)) return;
+      window.FDVFinalAppealDialog.open({state, language, getSettings: draftSettings, getElapsed: elapsedSeconds, listIndex, onSave: async rotations => {
+        const next = window.FDVFinalAppeals.replaceQueue({ ...state, draftSettings: draftSettings(), elapsed: elapsedSeconds() }, rotations);
+        delete next.draftSettings; delete next.elapsed;
+        if (!standaloneMode) return await sendServerAction("finalAppeals", {rotations}) === true;
+        Object.assign(state, next);
+        buildTimeline(state.activeSettings);
+        lastStartListRenderKey = "";
+        syncButtons(); render(); saveOfflineSnapshot();
+        return true;
+      }});
+    }
+
+    function appealCellMarker(listIndex, participantIndex, routeIndex, fallback) {
+      return window.FDVFinalAppeals.marker(state, listIndex, participantIndex, routeIndex, elapsedSeconds(), fallback);
+    }
+
+    function appealRowStatus(listIndex, participantIndex, fallback) {
+      const activeAppeal = window.FDVFinalAppeals.active(state);
+      const plan = activeAppeal || window.FDVFinalAppeals.upcoming(state, elapsedSeconds());
+      if (!plan) return fallback;
+      if (!activeAppeal && fallback === "active") return fallback;
+      const entry = plan.entries.find(entry => entry.listIndex === listIndex && entry.participantIndex === participantIndex);
+      if (entry) { const status = appealCellMarker(listIndex, participantIndex, entry.route, ""); if (status !== "done") return status; }
+      const next = activeAppeal && window.FDVFinalAppeals.upcoming(state);
+      if (next?.entries.some(entry => entry.listIndex === listIndex && entry.participantIndex === participantIndex)) return "ready";
+      const regularPreparation = activeAppeal && !next && (state.running && !state.countdownOnly || state.elapsedBeforePause > 0 || state.completed);
+      if (regularPreparation && fallback === "ready") return "ready";
+      return fallback === "ready" || activeAppeal ? "" : fallback;
+    }
+
     function startListIncidentActions(activePause, stop) {
       if (stop) return "";
+      if (window.FDVFinalAppeals.isFinal(state)) return `
+        <span title="${language === "en" ? "Route pause is not available in Final" : "Для формата «Финал» пауза трассы не предусмотрена"}"><button class="start-list-incident-action pause" type="button" disabled aria-label="${escapeHtml(t("routeIncidentPause"))}"></button></span>
+        <button class="start-list-incident-action stop" type="button" data-start-list-incident-action="stop" title="${escapeHtml(t("routeIncidentStop"))}" aria-label="${escapeHtml(t("routeIncidentStop"))}"></button>`;
       if (activePause) {
         return `
           <button class="start-list-incident-action resume" type="button" data-start-list-incident-action="resume" title="${escapeHtml(t("routeIncidentResume"))}" aria-label="${escapeHtml(t("routeIncidentResume"))}"></button>
@@ -9008,11 +9110,11 @@
         routeIndex,
         cycle,
         calculationIncidents,
-        window.FDVStartList.includedParticipantCount(list.rows.length, list.excludedParticipants),
+        window.FDVStartList.scheduleParticipantCount(list.rows.length, list.excludedParticipants, startListSchedule(list)),
         startListSchedule(list)
       );
       if (participantIndex < 0) return;
-      const rowIndex = window.FDVStartList.participantRowIndex(participantIndex, list.excludedParticipants, list.rows.length);
+      const rowIndex = window.FDVStartList.participantRowIndex(participantIndex, list.excludedParticipants, list.rows.length, startListSchedule(list));
       const row = slot.querySelector(`[data-participant-index="${rowIndex}"]`);
       const cell = row?.querySelector(`[data-start-list-route-cell="${routeIndex}"]`);
       if (!cell) return;
@@ -9031,7 +9133,7 @@
 
     async function applyStartListIncidentAction(slot, listIndex, routeIndex, action, incidentIndex = null) {
       const list = state.startLists[listIndex];
-      if (!list) return;
+      if (!list || window.FDVFinalAppeals.isFinal(state) && (action === "pause" || action === "resume")) return;
       const cycleInput = slot.querySelector("[data-start-list-incident-cycle]");
       const pauseWaveInput = slot.querySelector("[data-start-list-pause-wave]");
       const cycle = Math.max(1, Math.min(9999, Math.round(Number(cycleInput?.value) || defaultRouteIncidentCycle())));
@@ -9048,10 +9150,10 @@
           routeIndex,
           cycle,
           startListCalculationIncidents(list),
-          window.FDVStartList.includedParticipantCount(list.rows.length, list.excludedParticipants),
+          window.FDVStartList.scheduleParticipantCount(list.rows.length, list.excludedParticipants, startListSchedule(list)),
           startListSchedule(list)
         );
-        const participantIndex = window.FDVStartList.participantRowIndex(calculatedParticipantIndex, list.excludedParticipants, list.rows.length);
+        const participantIndex = window.FDVStartList.participantRowIndex(calculatedParticipantIndex, list.excludedParticipants, list.rows.length, startListSchedule(list));
         if (participantIndex < 0) {
           renderStartListIncidentMenu(slot, list, listIndex, currentStartListPosition(), t("routeIncidentNoParticipant"));
           return;
@@ -9096,7 +9198,7 @@
     async function toggleStartListParticipantExclusion(listIndex, participantIndex) {
       const list = state.startLists[listIndex];
       if (!list || !controlsAvailable() || participantIndex < 0 || participantIndex >= list.rows.length) return;
-      const excludedParticipants = window.FDVStartList.normalizeExcludedParticipants(list.excludedParticipants, list.rows.length);
+      const excludedParticipants = window.FDVStartList.normalizeExcludedParticipants(list.excludedParticipants, list.rows.length, startListSchedule(list));
       const nextExcludedParticipants = excludedParticipants.includes(participantIndex)
         ? excludedParticipants.filter((index) => index !== participantIndex)
         : [...excludedParticipants, participantIndex];
@@ -9151,6 +9253,42 @@
       queueStartListRenderAfterPaint();
     }
 
+
+    function updateAppealReadyTime(cell, seconds) {
+      var label = cell.querySelector(".appeal-ready-time");
+      if (!seconds) { if (label) cell.removeChild(label); cell.classList.remove("appeal-time-cell"); return; }
+      if (!label) { label=document.createElement("span"); label.className="appeal-ready-time"; cell.appendChild(label); }
+      var value=String(Math.floor(seconds/60))+":"+(seconds%60<10?"0":"")+String(seconds%60);
+      if(label.textContent!==value)label.textContent=value;
+      cell.classList.add("appeal-time-cell");
+    }
+
+    function renderRotationSlotRows(scroll, list, index, position, settings) {
+      const api = window.FDVRotationSlots, projection = api.build(state,index,list);
+      const body = scroll.querySelector("tbody"); if (!body) return;
+      const phaseElapsed = window.FDVFinalAppeals.active(state) ? 0 : Math.max(0, elapsedSeconds() % Math.max(1,settings.rotationSeconds+settings.breakSeconds));
+      for (const slot of projection.slots) {
+        let row = body.querySelector('[data-rotation-slot="'+slot.id+'"]');
+        if (!row) {
+          row = document.createElement("tr"); row.dataset.rotationSlot = slot.id;
+          row.title = slot.kind === "empty" ? (language === "en" ? "Empty rotation" : "Пустая ротация") : (language === "en" ? "Additional attempt" : "Повторный выход");
+          row.innerHTML = list.headers.map((_,c)=>'<td>'+escapeHtml(api.text(slot,c,list))+'</td>').join("")
+            + Array.from({length:list.routeCount},(_,r)=>'<td class="route-cell" data-slot-route="'+r+'"></td>').join("");
+          body.insertBefore(row,body.querySelector('[data-participant-index="'+slot.beforeIndex+'"]'));
+        }
+        let status = "";
+        row.querySelectorAll("[data-slot-route]").forEach(cell=>{
+          const marker = api.marker(slot,Number(cell.dataset.slotRoute),position.cycle,position.phase,phaseElapsed,settings.rotationSeconds);
+          if (marker === "active" || marker === "ready" && status !== "active") status=marker;
+          if (cell.dataset.startListMarker === marker) return;
+          cell.dataset.startListMarker = marker;
+          cell.innerHTML = marker ? '<span class="route-marker '+marker+'" aria-label="'+escapeHtml(startListMarkerLabel(marker))+'"></span>' : "";
+        });
+        row.querySelectorAll("[data-slot-route]").forEach(cell=>updateAppealReadyTime(cell,cell.dataset.startListMarker === "ready" ? slot.timeSeconds : 0));
+        row.className = status ? 'is-'+status : '';
+      }
+    }
+
     function renderStartList() {
       loadStoredStartListScrollPositions();
       updateStartListVisibility();
@@ -9163,7 +9301,7 @@
       const settings = state.running || state.elapsedBeforePause > 0 || state.completed
         ? activeSettings()
         : activeSettingsFromDraft();
-      const renderKey = `${language}:${position.cycle}:${position.phase}:${settings.finalRoundFormat || "old"}:${settings.finalRestRotations || 3}:${(state.startListIndexes || []).join(",")}:${startListDataRevision}`;
+      const renderKey = `${window.FDVFinalAppeals.progress(state, elapsedSeconds())}:${language}:${position.cycle}:${position.phase}:${settings.finalRoundFormat || "old"}:${settings.finalRestRotations || 3}:${(state.startListIndexes || []).join(",")}:${startListDataRevision}`;
       if (renderKey === lastStartListRenderKey) {
         performanceCount("startListRenderSkips");
         return;
@@ -9191,11 +9329,12 @@
           titleBar.title = list.title || "";
         }
         const incidents = startListCalculationIncidents(list);
-        const excludedParticipants = window.FDVStartList.normalizeExcludedParticipants(list.excludedParticipants, list.rows.length);
+        const excludedParticipants = window.FDVStartList.normalizeExcludedParticipants(list.excludedParticipants, list.rows.length, startListSchedule(list));
         const schedule = startListSchedule(list);
         const canManageIncidents = Boolean(slot.querySelector("[data-start-list-incident-menu]")) && controlsAvailable();
         const previousScroll = { top: scroll.scrollTop, left: scroll.scrollLeft };
-        const tableKey = `${language}:${index}:${startListDataRevision}:${canManageIncidents}`;
+        const projection = window.FDVRotationSlots.build(state,index,list);
+        const tableKey = `${projection.key}:${language}:${index}:${startListDataRevision}:${canManageIncidents}:${window.FDVFinalAppeals.supported(state)}`;
         const table = scroll.querySelector(".start-list-table");
         const rebuildTable = !table || scroll.dataset.startListTableKey !== tableKey;
         if (rebuildTable) {
@@ -9208,16 +9347,18 @@
           }).join("");
           const body = list.rows.map((row, participantIndex) => {
             const excluded = excludedParticipants.includes(participantIndex);
-            const calculationParticipantIndex = window.FDVStartList.participantScheduleIndex(participantIndex, excludedParticipants, list.rows.length);
-            const rowStatus = excluded ? "" : window.FDVStartList.rowStatus(calculationParticipantIndex, list.routeCount, position.cycle, position.phase, incidents, schedule);
-            const exclusionTitle = excluded ? t("startListRestoreParticipant") : t("startListExcludeParticipant");
+            const calculationParticipantIndex = window.FDVStartList.participantScheduleIndex(participantIndex, excludedParticipants, list.rows.length, schedule);
+            const rowStatus = excluded ? "" : appealRowStatus(index, participantIndex, window.FDVStartList.rowStatus(calculationParticipantIndex, list.routeCount, position.cycle, position.phase, incidents, schedule));
+            const exclusionTitle = schedule.finalFormat === "new"
+              ? t(excluded ? "startListRestoreDns" : "startListMarkDns")
+              : t(excluded ? "startListRestoreParticipant" : "startListExcludeParticipant");
             const cells = list.headers.map((_, columnIndex) => {
               const exclusionControl = canManageIncidents && columnIndex === 0;
-              return `<td${exclusionControl ? ` data-start-list-participant-exclusion="${participantIndex}" tabindex="0" role="button" title="${escapeHtml(exclusionTitle)}" aria-label="${escapeHtml(exclusionTitle)}"` : ""}>${escapeHtml(row[columnIndex] || "")}</td>`;
+              return `<td${exclusionControl ? ` data-start-list-participant-exclusion="${participantIndex}" tabindex="0" role="button" title="${escapeHtml(exclusionTitle)}" aria-label="${escapeHtml(exclusionTitle)}"` : ""}>${escapeHtml(columnIndex===0 && projection.slots.length && window.FDVRotationSlots.orderColumn(list.headers[0]) ? projection.rowNumbers[participantIndex] : row[columnIndex] || "")}</td>`;
             }).join("");
             const routes = Array.from({ length: list.routeCount }, (_, routeIndex) => {
-              const marker = excluded ? "" : window.FDVStartList.marker(calculationParticipantIndex, routeIndex, position.cycle, position.phase, incidents, schedule);
-              return `<td class="route-cell" data-start-list-route-cell="${routeIndex}" data-start-list-marker="${marker}">${marker ? `<span class="route-marker ${marker}" aria-label="${escapeHtml(startListMarkerLabel(marker))}"></span>` : ""}</td>`;
+              const marker = excluded ? (schedule.finalFormat === "new" ? "dns" : "") : appealCellMarker(index, participantIndex, routeIndex, window.FDVStartList.marker(calculationParticipantIndex, routeIndex, position.cycle, position.phase, incidents, schedule));
+              return `<td class="route-cell" data-start-list-route-cell="${routeIndex}" data-start-list-marker="${marker}">${marker ? `<span class="route-marker ${marker}" aria-label="${escapeHtml(startListMarkerLabel(marker))}">${marker === "dns" ? "DNS" : ""}</span>` : ""}</td>`;
             }).join("");
             return `<tr data-participant-index="${participantIndex}" class="${excluded ? "is-excluded" : rowStatus ? `is-${rowStatus}` : ""}">${cells}${routes}</tr>`;
           }).join("");
@@ -9226,7 +9367,13 @@
           performanceCount("startListTableRebuilds");
           performanceCount("startListRowsBuilt", list.rows.length);
           performanceCount("startListRouteCellsBuilt", list.rows.length * list.routeCount);
-          scroll.innerHTML = `<table class="start-list-table"><colgroup>${tableColumns}</colgroup><thead><tr>${list.headers.map((header) => `<th>${escapeHtml(header)}</th>`).join("")}${routeHeaders}</tr></thead><tbody>${body}</tbody></table>`;
+          const dataHeaders = list.headers.map((header, columnIndex) => {
+            const label = escapeHtml(header);
+            if (!canManageIncidents || !window.FDVFinalAppeals.supported(state) || columnIndex !== list.headers.length - 1) return `<th>${label}</th>`;
+            const title = language === "en" ? "Add an additional rotation" : "Добавить дополнительную ротацию";
+            return `<th><div class="start-list-appeal-heading"><span>${label}</span><button class="start-list-route-button start-list-appeal-add" type="button" data-final-appeal-add title="${title}" aria-label="${title}">+</button></div></th>`;
+          }).join("");
+          scroll.innerHTML = `<table class="start-list-table"><colgroup>${tableColumns}</colgroup><thead><tr>${dataHeaders}${routeHeaders}</tr></thead><tbody>${body}</tbody></table>`;
           scroll.dataset.startListTableKey = tableKey;
           rebuiltTables = true;
         } else {
@@ -9241,22 +9388,28 @@
             const participantIndex = Number(row.dataset.participantIndex);
             if (!Number.isInteger(participantIndex) || participantIndex < 0 || participantIndex >= list.rows.length) return;
             const excluded = excludedParticipants.includes(participantIndex);
-            const calculationParticipantIndex = window.FDVStartList.participantScheduleIndex(participantIndex, excludedParticipants, list.rows.length);
-            const rowStatus = excluded ? "" : window.FDVStartList.rowStatus(calculationParticipantIndex, list.routeCount, position.cycle, position.phase, incidents, schedule);
+            const calculationParticipantIndex = window.FDVStartList.participantScheduleIndex(participantIndex, excludedParticipants, list.rows.length, schedule);
+            const rowStatus = excluded ? "" : appealRowStatus(index, participantIndex, window.FDVStartList.rowStatus(calculationParticipantIndex, list.routeCount, position.cycle, position.phase, incidents, schedule));
             const nextClassName = excluded ? "is-excluded" : rowStatus ? `is-${rowStatus}` : "";
             if (row.className !== nextClassName) row.className = nextClassName;
             row.querySelectorAll("[data-start-list-route-cell]").forEach((cell) => {
               const routeIndex = Number(cell.dataset.startListRouteCell);
-              const marker = excluded ? "" : window.FDVStartList.marker(calculationParticipantIndex, routeIndex, position.cycle, position.phase, incidents, schedule);
+              const marker = excluded ? (schedule.finalFormat === "new" ? "dns" : "") : appealCellMarker(index, participantIndex, routeIndex, window.FDVStartList.marker(calculationParticipantIndex, routeIndex, position.cycle, position.phase, incidents, schedule));
               if ((cell.dataset.startListMarker || "") === marker) return;
               cell.dataset.startListMarker = marker;
               cell.innerHTML = marker
-                ? `<span class="route-marker ${marker}" aria-label="${escapeHtml(startListMarkerLabel(marker))}"></span>`
+                ? `<span class="route-marker ${marker}" aria-label="${escapeHtml(startListMarkerLabel(marker))}">${marker === "dns" ? "DNS" : ""}</span>`
                 : "";
               performanceCount("startListMarkersChanged");
             });
           });
         }
+        scroll.querySelectorAll("tbody tr[data-participant-index]").forEach(row=>row.querySelectorAll("[data-start-list-route-cell]").forEach(cell=>{
+          const readyMarker=cell.querySelector(".route-marker");
+          if(readyMarker) readyMarker.style.opacity=cell.dataset.startListMarker === "ready" && window.FDVStartList.preparationDeferred(Number(cell.dataset.startListRouteCell),position.cycle,position.phase,schedule) ? ".35" : "";
+          updateAppealReadyTime(cell,cell.dataset.startListMarker === "ready" ? window.FDVFinalAppeals.readyTime(state,index,Number(row.dataset.participantIndex),Number(cell.dataset.startListRouteCell),elapsedSeconds()) : 0);
+        }));
+        renderRotationSlotRows(scroll,list,index,position,settings);
         const highlightedRows = [...scroll.querySelectorAll("tbody tr.is-active, tbody tr.is-ready")];
         const highlightedIndexes = highlightedRows
           .map((row) => Number(row.dataset.participantIndex))
@@ -9282,10 +9435,11 @@
           position.cycle,
           position.phase,
           incidents,
-          window.FDVStartList.includedParticipantCount(list.rows.length, excludedParticipants),
+          window.FDVStartList.scheduleParticipantCount(list.rows.length, excludedParticipants, schedule),
           schedule
         );
-        const anchor = Math.max(0, window.FDVStartList.participantRowIndex(calculationAnchor, excludedParticipants, list.rows.length));
+        const anchor = Math.max(0, schedule.finalFormat === "new" ? calculationAnchor
+          : window.FDVStartList.participantRowIndex(calculationAnchor, excludedParticipants, list.rows.length, schedule));
         scroll.dataset.startListAnchor = String(anchor);
         const autoScrollKey = `${position.cycle}:${position.phase}:${anchor}`;
         const pendingScroll = pendingStartListScrollRestores[index];
@@ -9404,6 +9558,11 @@
 
     async function commitStartLists(value) {
       const lists = normalizeStartLists(value);
+      const listError = window.FDVFinalAppeals.listUpdateError(state, lists);
+      if (listError) {
+        window.alert(language === "en" ? "Remove pending additional rotations before replacing their lists or marking assigned athletes DNS." : "Удалите запланированные допротации перед заменой их списков или назначением DNS выбранным спортсменам.");
+        return;
+      }
       if (standaloneMode) {
         const keepParallelLayout = state.startLists.length === 2 && lists.length === 2;
         replaceCanonicalStartLists(lists);
@@ -10865,7 +11024,7 @@
     }
 
     function immediateStartSignal() {
-      if (!canPlaySound()) return;
+      if (!window.FDVFinalAppeals.initialStartAllowed(state) || !canPlaySound()) return;
       const scheduleGeneration = audioScheduleGeneration;
       const delay = Math.max(0, audioUserOffsetMs / 1000);
       if (delay > 0) {
@@ -10896,13 +11055,13 @@
     }
 
     function isInitialManualStart(segment) {
-      return !standaloneMode && state.running && !state.countdownOnly
+      return window.FDVFinalAppeals.initialStartAllowed(state) && !standaloneMode && state.running && !state.countdownOnly
         && state.manualStartLeadMs > 0 && state.manualStartDisplayHold
         && segment?.cycle === 1 && segment.type === "rotation" && segment.start === 0;
     }
 
     function manualStartRunCurrent(targetServerTime) {
-      return state.running && !state.countdownOnly && state.manualStartDisplayHold
+      return window.FDVFinalAppeals.initialStartAllowed(state) && state.running && !state.countdownOnly && state.manualStartDisplayHold
         && Math.abs(state.serverStartedAt - targetServerTime) < 10;
     }
 
@@ -10960,7 +11119,7 @@
     }
 
     function scheduleManualStartWatchdog(targetServerTime) {
-      if (clockCalibrationPending || !canPlaySound() || !Number.isFinite(targetServerTime) || targetServerTime <= 0) return;
+      if (!window.FDVFinalAppeals.initialStartAllowed(state) || clockCalibrationPending || !canPlaySound() || !Number.isFinite(targetServerTime) || targetServerTime <= 0) return;
       const scheduleGeneration = audioScheduleGeneration;
       const signalKey = manualStartSignalKey(targetServerTime);
       const soundTargetServerTime = audioServerTime(targetServerTime);
@@ -11379,14 +11538,17 @@
       // A Final segment always has cycle 1; use its persistent attempt number
       // rather than a wall-time anchor that can move slightly during clock sync.
       const finalAttempt = Math.max(0, Math.round(Number(state.startListFinalCycle) || 0));
-      const phaseKey = finalTransition ? `${segment.cycle}:finish:${finalAttempt}` : nextPhaseSignalKey(segment);
-      const soundKind = transitionSoundKind(segment, finalTransition);
-      if (lastPhaseSignalKey === phaseKey || scheduledPhaseSignalKeys.has(phaseKey)) return;
-      scheduledPhaseSignalKeys.add(phaseKey);
+      const phaseKey = finalTransition ? `${segment.cycle}:finish:${state.finalAppealActiveId || finalAttempt}` : nextPhaseSignalKey(segment);
+      const interruption = window.FDVFinalAppeals.interruption(state);
+      if (interruption !== null && segment.end >= interruption && segment.type === "break") return;
+      const soundKind = interruption !== null && segment.end === interruption ? "end" : transitionSoundKind(segment, finalTransition);
+      const phaseIdentity = state.finalAppealActiveId ? `${phaseKey}:${audioEventRunId()}` : phaseKey;
+      if (lastPhaseSignalKey === phaseIdentity || scheduledPhaseSignalKeys.has(phaseIdentity)) return;
+      scheduledPhaseSignalKeys.add(phaseIdentity);
       const signalKey = `rotationBoundary:${phaseKey}:${audioEventRunId()}`;
       const onPlay = () => {
-        lastPhaseSignalKey = phaseKey;
-        scheduledPhaseSignalKeys.delete(phaseKey);
+        lastPhaseSignalKey = phaseIdentity;
+        scheduledPhaseSignalKeys.delete(phaseIdentity);
       };
       scheduleBufferedSignalAt(segment, targetServerTime, soundKind, true, shouldTryBufferImmediately(targetServerTime), null, {
         signalKey,
@@ -11454,7 +11616,8 @@
     function clearStoppedTimerSignals() {
       audioSchedulerHealth.needsReschedule = false;
       const oneShot = Boolean(state.activeSettings?.oneShot);
-      const completedFinal = oneShot && state.completed && !state.countdownOnly;
+      const stagedClassic = Boolean(state.finalAppealActiveId && state.finalAppealClassicElapsed > 0 && !state.running && !state.elapsedBeforePause);
+      const completedFinal = oneShot && state.completed && !state.countdownOnly || stagedClassic;
       // Natural completion must not race the final buffer/fallback. Manual
       // Pause/Stop must cancel even a buffer due within the usual 200 ms margin.
       clearSignalTimers(completedFinal, oneShot && !completedFinal);
@@ -11511,6 +11674,8 @@
       const phaseElapsedSeconds = duration - remaining;
       if (includePhase
         && Date.now() >= suppressPhaseSignalsUntil
+        && window.FDVFinalAppeals.initialStartAllowed(state)
+        && (window.FDVFinalAppeals.interruption(state) === null || segment.start < window.FDVFinalAppeals.interruption(state))
         && !isInitialManualStart(segment)
         && phaseElapsedSeconds >= 0
         && phaseElapsedSeconds * 1000 <= signalLateGraceMs.start
@@ -11520,6 +11685,28 @@
         signal(segment.type === "break" ? "end" : "start");
       }
 
+      const appeal = window.FDVFinalAppeals.active(state);
+      for (const seconds of window.FDVFinalAppeals.startOffsets(appeal)) {
+        if (seconds <= Math.max(0, Number(state.finalAppealSignalFloor) || 0)) continue; // Initial and already elapsed cues have separate owners.
+        const target = serverTimeForElapsed(seconds);
+        if ((options.futureOnly && audioServerTime(target) <= serverNow()) || !shouldScheduleServerSignal(target, 3000)) continue;
+        scheduleSignalAt(segment, target - audioEarlyPrewarmSeconds * 1000, "prewarm", false);
+        scheduleBufferedSignalAt(segment, target, "start", true, shouldTryBufferImmediately(target), null, {
+          signalKey: `appealStart:${appeal.id}:${seconds}:${audioEventRunId()}`, lateGraceMs: 3000
+        });
+      }
+      const flowTargets = new Set();
+      const settingsForSlots = activeSettings();
+      const spanForSlots = settingsForSlots.rotationSeconds + settingsForSlots.breakSeconds;
+      for (const cue of window.FDVRotationSlots.cues(state)) {
+        const seconds = (cue.cycle - 1) * spanForSlots + settingsForSlots.rotationSeconds - cue.timeSeconds;
+        if (cue.cycle !== segment.cycle || segment.type !== "rotation" || seconds <= Math.max(0,Number(state.classicCueFloor)||0) || seconds % spanForSlots === 0 || flowTargets.has(seconds)) continue;
+        flowTargets.add(seconds);
+        const target = serverTimeForElapsed(seconds);
+        if ((options.futureOnly && audioServerTime(target) <= serverNow()) || !shouldScheduleServerSignal(target,3000)) continue;
+        scheduleSignalAt(segment,target-audioEarlyPrewarmSeconds*1000,"prewarm",false);
+        scheduleBufferedSignalAt(segment,target,"start",true,shouldTryBufferImmediately(target),null,{signalKey:`flowStart:${seconds}:${audioEventRunId()}`,lateGraceMs:3000});
+      }
       scheduleFestivalAnnouncements(segment, remaining);
 
       const phaseTargetServerTime = serverTimeForElapsed(segment.end);
@@ -11528,7 +11715,8 @@
         const settings = activeSettings();
         const totalDuration = settings.rotationSeconds + settings.breakSeconds;
         const finalTransition = settings.oneShot && segment.end >= totalDuration;
-        schedulePhaseTransitionAt(segment, phaseTargetServerTime, finalTransition);
+        const interruption = window.FDVFinalAppeals.interruption(state);
+        if (interruption === null || segment.end <= interruption) schedulePhaseTransitionAt(segment, phaseTargetServerTime, finalTransition);
       }
 
       const minuteTargetServerTime = serverTimeForElapsed(segment.end - 60);
@@ -11829,11 +12017,13 @@
     }
 
     function cycleInputEditable() {
-      return controlsAvailable() && !state.running && !isViewerClient
+      return controlsAvailable() && (!window.FDVFinalAppeals.active(state) || state.completed || state.elapsedBeforePause === 0) && !state.running && !isViewerClient
         && !document.body.classList.contains("fullscreen") && !state.countdownOnly;
     }
 
     function setCycleMeta(cycle = displayedCycleNumber()) {
+      const appeal = window.FDVFinalAppeals.active(state);
+      if (appeal) { setElementText(els.cycleMeta, `${language === "en" ? "A/R after rotation" : "Допротация после"} ${appeal.afterCycle}`); return; }
       const normalizedCycle = Math.max(1, Math.min(9999, Math.round(Number(cycle) || 1)));
       setElementText(els.cycleMeta, `${t("cycle")} ${normalizedCycle}`);
     }
@@ -11960,7 +12150,7 @@
       setElementClass(document.body, "countdown-active", state.countdownOnly
         || state.waitingForManualStart
         || (state.running && state.serverStartedAt > serverNow()));
-      setElementClass(document.body, "scrub-ready", !state.running && !isViewerClient && !isReady);
+      setElementClass(document.body, "scrub-ready", !window.FDVFinalAppeals.active(state) && !state.running && !isViewerClient && !isReady);
 
       if (state.countdownOnly) {
         const untilStart = Math.max(0, (state.serverStartedAt - serverNow()) / 1000);
@@ -12352,7 +12542,7 @@
     function finalRoundProgressLocked() {
       const finalSelected = state.runtimePreset === "final" || state.activePreset === "final";
       const completedCycles = Math.max(0, Math.round(Number(state.startListFinalCycle) || 0));
-      return finalSelected && completedCycles > 0;
+      return finalSelected && (completedCycles > 0 || window.FDVFinalAppeals.plans(state).length > 0);
     }
 
     function formatSelectionLocked() {
@@ -12397,6 +12587,11 @@
         return;
       }
 
+      const interrupted = window.FDVFinalAppeals.interrupt(state, elapsedSeconds());
+      if (interrupted !== state) {
+        Object.assign(state, interrupted); state.serverStartedAt = 0;
+        buildTimeline(state.activeSettings); clearSignalTimers(true); syncButtons(); saveOfflineSnapshot(); return;
+      }
       const settings = activeSettings();
       const duration = settings.rotationSeconds + settings.breakSeconds;
       if (!state.countdownOnly && settings.oneShot && elapsedSeconds() >= duration) {
@@ -12405,6 +12600,7 @@
         state.elapsedBeforePause = duration;
         state.serverStartedAt = 0;
         syncButtons();
+        saveOfflineSnapshot();
       }
     }
 
@@ -12420,14 +12616,16 @@
     function startStandaloneTimer() {
       confirmStandaloneClockContinuity();
       const waitingForManualStart = state.waitingForManualStart;
-      if (state.completed && state.runtimePreset === "final") state.startListFinalCycle += 1;
+      const appealStart = window.FDVFinalAppeals.prepare(state, {type:"start"});
+      if (state.completed && state.runtimePreset === "final" && !appealStart.managedCycle) state.startListFinalCycle += 1;
+      Object.assign(state, appealStart.state);
       const isFreshStart = state.elapsedBeforePause === 0 || state.completed || state.waitingForManualStart;
       const elapsed = isFreshStart ? 0 : state.elapsedBeforePause;
       clearSignalTimers();
       if (isFreshStart) {
-        if (!waitingForManualStart) clearStartListIncidentsForNewRound();
+        if (!waitingForManualStart && !window.FDVFinalAppeals.active(state)) clearStartListIncidentsForNewRound();
         if (!waitingForManualStart) state.runtimePreset = state.activePreset;
-        state.activeSettings = activeSettingsFromDraft();
+        if (!window.FDVFinalAppeals.active(state)) state.activeSettings = activeSettingsFromDraft();
         state.completed = false;
         lastPhaseSignalKey = "1:rotation";
         immediateStartSignal();
@@ -12459,10 +12657,13 @@
     function resetStandaloneTimer(shouldSignal = false) {
       confirmStandaloneClockContinuity();
       const stoppedOneShot = Boolean(activeSettings().oneShot);
+      const stoppedAppeal = window.FDVFinalAppeals.active(state);
       const completedFinalAttempt = state.runtimePreset === "final"
         && ((state.running && !state.countdownOnly) || state.completed || state.elapsedBeforePause > 0);
-      if (completedFinalAttempt) state.startListFinalCycle += 1;
-      clearStartListIncidentsForNewRound();
+      const appealReset = window.FDVFinalAppeals.prepare(state, {type:"reset"});
+      if (completedFinalAttempt && !appealReset.managedCycle) state.startListFinalCycle += 1;
+      Object.assign(state, appealReset.state);
+      if (!stoppedAppeal && !window.FDVFinalAppeals.active(state)) clearStartListIncidentsForNewRound();
       state.running = false;
       state.completed = false;
       state.countdownOnly = false;
@@ -12471,9 +12672,9 @@
       state.startedAt = 0;
       state.pausedAt = 0;
       state.accumulatedPause = 0;
-      state.elapsedBeforePause = 0;
+      state.elapsedBeforePause = appealReset.resetElapsed ?? 0;
       state.runtimePreset = state.activePreset;
-      state.activeSettings = activeSettingsFromDraft();
+      if (!window.FDVFinalAppeals.active(state) && !(stoppedAppeal && window.FDVFinalAppeals.isClassic(state))) state.activeSettings = activeSettingsFromDraft();
       lastSegmentIndex = -1;
       lastPhaseSignalKey = "";
       clearSignalTimers(false, stoppedOneShot);
@@ -12499,7 +12700,7 @@
       }
       const isFreshStart = state.elapsedBeforePause === 0 || state.completed;
       const useStartAudioLead = isFreshStart && shouldUseManualStartAudioLead();
-      if (isFreshStart && !useStartAudioLead) {
+      if (isFreshStart && !useStartAudioLead && !window.FDVFinalAppeals.plans(state).some(plan => !plan.completed)) {
         lastPhaseSignalKey = "1:rotation";
         immediateStartSignal();
       }
@@ -12564,7 +12765,7 @@
         const target = new Date(now);
         target.setHours(Number(els.startHours.value || 0), Number(els.startMinutes.value || 0), 0, 0);
         clearStartListIncidentsForNewRound();
-        state.activeSettings = activeSettingsFromDraft();
+        if (!window.FDVFinalAppeals.active(state)) state.activeSettings = activeSettingsFromDraft();
         state.runtimePreset = state.activePreset;
         if (target.getTime() <= now && state.activeSettings.oneShot) {
           target.setDate(target.getDate() + 1);
@@ -12952,7 +13153,7 @@
     }
 
     function canScrub() {
-      return controlsAvailable() && !state.running && !isViewerClient && state.elapsedBeforePause > 0;
+      return controlsAvailable() && !window.FDVFinalAppeals.active(state) && !state.running && !isViewerClient && state.elapsedBeforePause > 0;
     }
 
     async function seekToCycle(value) {
@@ -12964,6 +13165,7 @@
         await sendServerAction("seekCycle", { cycle });
         return;
       }
+      Object.assign(state, window.FDVFinalAppeals.reposition(state, cycle));
       const settings = activeSettings();
       const cycleDuration = Math.max(1, settings.rotationSeconds + settings.breakSeconds);
       state.running = false;
@@ -13524,6 +13726,7 @@
       const slot = event.target.closest("[data-start-list-index]");
       if (!slot) return;
       const index = Number(slot.dataset.startListIndex);
+      if (event.target.closest("[data-final-appeal-add]")) { openFinalAppealDialog(Number(event.target.closest("[data-start-list-index]")?.dataset.startListIndex) || 0); return; }
       const exclusionCell = event.target.closest("[data-start-list-participant-exclusion]");
       if (exclusionCell) {
         toggleStartListParticipantExclusion(index, Number(exclusionCell.dataset.startListParticipantExclusion));
@@ -13809,7 +14012,7 @@
         event.target.matches('input[type="radio"][data-server-audio-route]');
       // Typing and modal actions must never trigger competition hotkeys.
       if (event.defaultPrevented || event.isComposing || (event.target instanceof Element &&
-          (event.target.isContentEditable || event.target.closest("textarea, select, dialog[open]") ||
+          (event.target.isContentEditable || event.target.closest("textarea, select, dialog[open], [role=dialog]") ||
            (!audioRouteRadio && event.target.closest("input"))))) return;
       const key = event.key.toLowerCase();
       const isCtrl = event.ctrlKey || event.metaKey;

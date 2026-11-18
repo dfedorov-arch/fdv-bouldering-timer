@@ -32,7 +32,7 @@ test("stopping before or at a planned pause start preserves its end through canc
       const state = { startLists: [initial] };
       const cycleInput = { value: String(stopCycle) };
       const apply = vm.runInNewContext(`(${match[0]})`, {
-        state, window: { FDVStartList: startList },
+        state, window: { FDVStartList: startList, FDVRotationSlots: require("../lib/rotation-slots"), FDVFinalAppeals: require("../lib/final-appeals") },
         currentStartListPosition: () => ({ cycle: 15 }),
         defaultRouteIncidentCycle: () => 15,
         commitStartLists: async (lists) => { state.startLists = lists; }
@@ -227,7 +227,7 @@ test("protocol rendering yields to timer paint and sound scheduling", () => {
 });
 
 test("phase changes update protocol nodes without rebuilding table structure", () => {
-  assert.match(index, /const tableKey = `\$\{language\}:\$\{index\}:\$\{startListDataRevision\}:\$\{canManageIncidents\}`/);
+  assert.match(index, /const tableKey = `\$\{projection\.key\}:\$\{language\}:\$\{index\}:\$\{startListDataRevision\}:\$\{canManageIncidents\}:\$\{window\.FDVFinalAppeals\.supported\(state\)\}`/);
   assert.match(index, /const rebuildTable = !table \|\| scroll\.dataset\.startListTableKey !== tableKey/);
   assert.match(index, /if \(rebuildTable\) \{[\s\S]*?performanceCount\("startListTableRebuilds"\)[\s\S]*?scroll\.dataset\.startListTableKey = tableKey;[\s\S]*?\} else \{\s*performanceCount\("startListDynamicUpdates"\)/);
   assert.match(index, /data-start-list-route-header="\$\{routeIndex\}"/);
@@ -447,7 +447,7 @@ test("start-list route incident controls render pause, stop, resume and cancella
   assert.match(index, /function clearStartListIncidentsForNewRound\(\)[\s\S]*?incidents: _incidents[\s\S]*?replaceCanonicalStartLists\(nextStartLists/);
   assert.match(index, /function resetStandaloneTimer\([\s\S]*?clearStartListIncidentsForNewRound\(\)/);
   assert.match(index, /function startTimerByTime\([\s\S]*?if \(standaloneMode\)[\s\S]*?clearStartListIncidentsForNewRound\(\)/);
-  assert.match(server, /const clearIncidentsForNewRound = type === "reset"[\s\S]*?type === "start"[\s\S]*?body\.startMode === "scheduled"[\s\S]*?clearStartListIncidents\(\)/);
+  assert.match(server, /const clearIncidentsForNewRound = !finalAppeals\.active\(timerState\) && \(type === "reset"[\s\S]*?type === "start"[\s\S]*?body\.startMode === "scheduled"[\s\S]*?clearStartListIncidents\(\)/);
   assert.match(index, /FDVStartList\.marker\(calculationParticipantIndex, routeIndex, position\.cycle, position\.phase, incidents, schedule\)/);
 });
 
@@ -458,10 +458,10 @@ test("the leftmost row cell toggles a participant's protocol exclusion", () => {
   assert.match(index, /tr\.is-excluded td\[data-start-list-participant-exclusion\]:hover,[\s\S]*?outline-color: var\(--green\);[\s\S]*?background-color: rgba\(38, 208, 124, \.18\) !important/);
   assert.doesNotMatch(index, /routeIndex === list\.routeCount - 1/);
   assert.match(index, /tr\.is-excluded td::after[\s\S]*?height: 1px;[\s\S]*?background: #ff4b50/);
-  assert.match(index, /const marker = excluded \? "" : window\.FDVStartList\.marker/);
+  assert.match(index, /const marker = excluded \? \(schedule\.finalFormat === "new" \? "dns" : ""\) : appealCellMarker\(index, participantIndex, routeIndex, window\.FDVStartList\.marker/);
   assert.match(index, /function toggleStartListParticipantExclusion[\s\S]*?excludedParticipants\.includes\(participantIndex\)[\s\S]*?commitStartLists/);
   assert.match(index, /addEventListener\("keydown"[\s\S]*?event\.key !== "Enter" && event\.key !== " "/);
-  assert.match(index, /participantScheduleIndex\(participantIndex, excludedParticipants, list\.rows\.length\)/);
+  assert.match(index, /participantScheduleIndex\(participantIndex, excludedParticipants, list\.rows\.length, schedule\)/);
   assert.match(index, /calculationIncidents\(list\?\.incidents, list\?\.excludedParticipants, list\?\.rows\?\.length, startListSchedule\(list\)\)/);
   assert.match(index, /function startListExclusionsChanged\(currentList, nextList\)[\s\S]*?normalizeExcludedParticipants[\s\S]*?currentExcluded[\s\S]*?nextExcluded/);
   assert.match(index, /startListExclusionsChanged\(state\.startLists\[index\], lists\[index\]\)[\s\S]*?pendingStartListScrollRestores\[index\] = null;[\s\S]*?lastStartListScrollAnchors\[index\] = null/);
@@ -583,8 +583,8 @@ test("primary PIN button highlights its outline on hover", () => {
 test("Final controls expose old and new start-list schedules without a break field", () => {
   assert.match(index, /id="finalRoundFormatField"[\s\S]*?name="finalRoundFormat" value="old"[\s\S]*?name="finalRoundFormat" value="new"/);
   assert.match(index, /id="finalRestRotations" type="number" min="1" max="9"[\s\S]*?value="3"/);
-  assert.match(index, /els\.breakParameterField\.hidden = finalMode;[\s\S]*?els\.finalRoundFormatField\.hidden = !finalMode;[\s\S]*?finalRoundFormat !== "new"/);
-  assert.match(index, /function startListSchedule\(list\)[\s\S]*?finalFormat:[\s\S]*?restRotations:[\s\S]*?participantCount:/);
+  assert.match(index, /els\.breakParameterField\.hidden = finalMode;[\s\S]*?els\.finalRoundFormatField\.hidden = !finalMode;[\s\S]*?els\.finalRestField\.hidden = true/);
+  assert.match(index, /function startListSchedule\(list\)[\s\S]*?FDVStartList\.finalSchedule\(list, settings/);
   assert.match(index, /const breakSeconds = finalMode \? 0/);
   assert.match(index, /const timerParametersLocked = \(state\.running && !beforeScheduledStart\)[\s\S]*?finalRoundProgressLocked\(\);[\s\S]*?climbMinutes\.disabled = !available \|\| timerParametersLocked[\s\S]*?finalRoundFormatInputs/);
   assert.match(index, /function finalRoundProgressLocked\(\)[\s\S]*?startListFinalCycle[\s\S]*?completedCycles > 0/);

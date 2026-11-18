@@ -28,7 +28,7 @@ function harness(settings = { rotationSeconds: 60, breakSeconds: 0, oneShot: fal
   const context = vm.createContext({
     pageAudioSuspended: false,
     performance: { now: () => now },
-    window: {
+    window: { FDVRotationSlots: require("../lib/rotation-slots"), FDVFinalAppeals: require("../lib/final-appeals"),
       setTimeout: (callback, delay) => {
         const id = ++nextTimer;
         timers.set(id, { callback, at: now + delay });

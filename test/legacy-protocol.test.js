@@ -16,6 +16,12 @@ test("Legacy start-list display core remains parseable by ES5-era browsers", () 
   assert.match(displayCore, /root\.FDVStartListDisplay = api/);
   assert.ok(buildNumber, "Modern page must expose its build number");
   assert.match(legacy, new RegExp(`src="lib/start-list-display\\.js\\?v=${buildNumber}"`));
+  const appeals = fs.readFileSync(path.join(root, "lib", "final-appeals.js"), "utf8");
+  assert.doesNotMatch(appeals, /\b(?:const|let|class)\b|=>|\?\.|\.\.\.|`|Number\.isInteger/);
+  assert.match(legacy, new RegExp(`src="lib/final-appeals\\.js\\?v=${buildNumber}"`));
+  const slots = fs.readFileSync(path.join(root, "lib", "rotation-slots.js"), "utf8");
+  assert.doesNotMatch(slots, /\b(?:const|let|class)\b|=>|\?\.|\.\.\.|`|Number\.isInteger/);
+  assert.match(legacy, new RegExp(`src="lib/rotation-slots\\.js\\?v=${buildNumber}"`));
 });
 
 test("Legacy requests protocol data conditionally and stores it separately from timer snapshots", () => {
@@ -35,8 +41,8 @@ test("Legacy tables retain static DOM and use transition candidates for ordinary
 
 test("Legacy keeps excluded rows visible and calculates markers with effective participant indexes", () => {
   assert.match(legacy, /excludedParticipants: entry\.list\.excludedParticipants \|\| \[\]/);
-  assert.match(legacy, /participantScheduleIndex\(i, excludedParticipants, list\.rows\.length\)/);
-  assert.match(legacy, /cell\.calculationParticipantIndex < 0 \? "" : window\.FDVStartListDisplay\.marker/);
+  assert.match(legacy, /participantScheduleIndex\(i, excludedParticipants, list\.rows\.length, protocolSchedule\(list\)\)/);
+  assert.match(legacy, /cell\.calculationParticipantIndex < 0 \? \(schedule\.finalFormat === "new" \? "dns" : ""\) : window\.FDVStartListDisplay\.marker/);
   assert.match(legacy, /tr\.protocol-excluded td:after[\s\S]*?height: 1px;[\s\S]*?background: #ff4b50/);
 });
 

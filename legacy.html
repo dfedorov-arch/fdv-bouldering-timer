@@ -429,6 +429,8 @@
       transform: rotate(45deg);
     }
 
+    .route-marker.empty { display:block;position:relative; }
+    .route-marker.empty:before { content:"";position:absolute;left:0;right:0;top:6px;height:4px;background:#8d97a5; }
     .route-marker.paused:before,
     .route-marker.paused:after {
       content: "";
@@ -619,6 +621,11 @@
       pointer-events: none;
     }
 
+  body .route-marker.dns { display: block; width: auto; height: auto; font-size: 12px; line-height: 1; color: #8d97a5; background: none; border: 0; }
+    .protocol-table tr.protocol-excluded td.protocol-route-cell:after { display: none; }
+
+    td.appeal-time-cell { position:relative;z-index:4;overflow:visible !important; }
+    .appeal-ready-time { position:absolute;z-index:5;left:calc(50% + 12px);top:50%;transform:translateY(-50%);white-space:nowrap;background:#242b35;color:#ffc857;border:1px solid #8e783e;border-radius:4px;padding:1px 5px;font-size:1em;font-weight:bold;line-height:1.3;pointer-events:none; }
   </style>
 </head>
 <body>
@@ -634,13 +641,15 @@
   </div>
   <div id="protocolPane"><div id="protocolLayout"></div></div>
 
-  <script src="lib/start-list-display.js?v=455"></script>
-  <script src="lib/client-secondary-server.js?v=455"></script>
+  <script src="lib/rotation-slots.js?v=456"></script>
+  <script src="lib/final-appeals.js?v=456"></script>
+  <script src="lib/start-list-display.js?v=456"></script>
+  <script src="lib/client-secondary-server.js?v=456"></script>
   <script src="lib/client-delivery.js?v=448"></script>
-  <script src="lib/timer-stretch.js?v=455"></script>
+  <script src="lib/timer-stretch.js?v=456"></script>
   <script>
     (function () {
-      var legacyBuildNumber = 455;
+      var legacyBuildNumber = 456;
       var state = null;
       var serverOffset = 0;
       var lastContact = 0;
@@ -1657,7 +1666,7 @@
         var css = ".route-marker.ready{border-bottom-color:" + colors.listReadyColor + ";}"
           + ".route-marker.active{background-color:" + colors.listActiveColor + ";}"
           + ".route-marker.done{background-color:" + colors.listDoneColor + ";}"
-          + ".route-marker.paused:before,.route-marker.paused:after{background-color:" + colors.listPausedColor + ";}"
+          + ".route-marker.empty:before,.route-marker.paused:before,.route-marker.paused:after{background-color:" + colors.listPausedColor + ";}"
           + ".route-marker.stopped:before,.route-marker.stopped:after{background-color:" + colors.listStoppedColor + ";}";
         var style;
         if (appliedListMarkerColorKey === css) return;
@@ -1944,6 +1953,7 @@
         var cycleLength;
         var cycle;
         if (!state || !legacyProtocols.length) return { cycle: 0, phase: "ready" };
+        if (window.FDVFinalAppeals.active(state)) return { cycle: window.FDVFinalAppeals.isClassic(state) ? window.FDVFinalAppeals.anchor(state) : state.startListFinalCycle, phase: "completed" };
         secondsUntilStart = Math.max(0, (Number(state.startedAt || 0) - serverNow()) / 1000);
         scheduledCountdown = state.countdownOnly
           || (state.running && Number(state.startedAt || 0) > serverNow() && !state.manualStartDisplayHold);
@@ -1974,19 +1984,14 @@
 
       function protocolSchedule(list) {
         var settings = protocolRawSettings();
-        if (protocolDisplayPreset() !== "final") return {};
-        return {
-          finalFormat: settings.finalRoundFormat === "new" ? "new" : "old",
-          restRotations: Number(settings.finalRestRotations) || 3,
-          participantCount: list && list.rows
-            ? window.FDVStartListDisplay.includedParticipantCount(list.rows.length, list.excludedParticipants) || 1
-            : 1
-        };
+        if (protocolDisplayPreset() !== "final") return window.FDVRotationSlots.decorateSchedule(state, Number(list._rotationListIndex), list, {}, elapsedSeconds());
+        return window.FDVStartListDisplay.finalSchedule(list, settings, state.startListFinalSkippedRotations);
       }
 
       function protocolScheduleKey(schedule) {
         return String(schedule.finalFormat || "classic") + ":"
-          + String(schedule.restRotations || 0) + ":" + String(schedule.participantCount || 0);
+          + String(schedule.restRotations || 0) + ":" + String(schedule.participantCount || 0)
+          + ":" + String(schedule.skippedRotations || "") + ":" + String(schedule.slotKey || "");
       }
 
       function protocolMarkerLabel(status) {
@@ -2021,10 +2026,10 @@
       }
 
       function buildTransitionIndex(view, schedule, scheduleKey) {
-        var incidents = window.FDVStartListDisplay.rebaseIncidents(
+        var incidents = window.FDVStartListDisplay.calculationIncidents(
           view.list.incidents,
           view.list.excludedParticipants,
-          view.list.rows.length
+          view.list.rows.length, schedule
         );
         var transitions = {};
         var active = {};
@@ -2054,6 +2059,7 @@
 
       function buildProtocolTable(entry, slot) {
         var list = entry.list;
+        list._rotationListIndex = entry.index;
         var title = document.createElement("div");
         var scroll = document.createElement("div");
         var table = document.createElement("table");
@@ -2106,13 +2112,13 @@
         for (i = 0; i < list.rows.length; i += 1) {
           tr = document.createElement("tr");
           excluded = excludedParticipants.indexOf(i) !== -1;
-          calculationParticipantIndex = window.FDVStartListDisplay.participantScheduleIndex(i, excludedParticipants, list.rows.length);
+          calculationParticipantIndex = window.FDVStartListDisplay.participantScheduleIndex(i, excludedParticipants, list.rows.length, protocolSchedule(list));
           if (excluded) tr.className = "protocol-excluded";
           for (j = 0; j < list.headers.length; j += 1) {
             td = document.createElement("td");
             td.className = "protocol-data-cell" + (j === 0 ? " protocol-data-cell-first" : j === 1 ? " protocol-data-cell-second" : "");
             td.title = String(list.rows[i][j] || "");
-            td.appendChild(document.createTextNode(String(list.rows[i][j] || "")));
+            td.appendChild(document.createTextNode(String(j === 0 && window.FDVRotationSlots.orderColumn(list.headers[0]) && window.FDVRotationSlots.build(state,entry.index,list).slots.length ? window.FDVRotationSlots.build(state,entry.index,list).rowNumbers[i] : list.rows[i][j] || "")));
             tr.appendChild(td);
           }
           var routeCells = [];
@@ -2128,6 +2134,15 @@
           tbody.appendChild(tr);
           rows.push({ element: tr, cells: routeCells, status: "", excluded: excluded });
         }
+        var slotRows = [];
+        window.FDVRotationSlots.build(state,entry.index,list).slots.forEach(function (rotationSlot) {
+          var slotRow=document.createElement("tr"), slotCells=[], c, cell, marker;
+          slotRow.setAttribute("data-rotation-slot",rotationSlot.id);
+          for(c=0;c<list.headers.length;c++) { cell=document.createElement("td"); cell.className="protocol-data-cell"; cell.appendChild(document.createTextNode(window.FDVRotationSlots.text(rotationSlot,c,list))); slotRow.appendChild(cell); }
+          for(c=0;c<list.routeCount;c++) { cell=document.createElement("td"); cell.className="protocol-route-cell"; marker=document.createElement("span"); marker.className="route-marker"; cell.appendChild(marker); slotRow.appendChild(cell); slotCells.push({element:marker,status:""}); }
+          tbody.insertBefore(slotRow,rows[rotationSlot.beforeIndex] ? rows[rotationSlot.beforeIndex].element : null);
+          slotRows.push({slot:rotationSlot,element:slotRow,cells:slotCells});
+        });
         table.appendChild(tbody);
         scroll.appendChild(table);
         slot.appendChild(title);
@@ -2147,6 +2162,7 @@
           scroll: scroll,
           table: table,
           rows: rows,
+          slotRows: slotRows,
           routeHeaders: routeHeaders,
           lastCycle: null,
           lastPhase: "",
@@ -2205,6 +2221,8 @@
         var layoutKey = legacyProtocols.map(function (entry) { return entry.index; }).join(",")
           + ":" + String(Boolean(state && state.startListParallel))
           + ":" + String(useParallelProtocolColumns())
+          + ":" + JSON.stringify(state.finalAppealRotations || [])
+          + ":" + protocolDisplayPreset() + ":" + String(protocolRawSettings().finalRoundFormat || "old")
           + ":" + String(state && (state.language || (state.config && state.config.language)) || "ru");
         var i;
         var view;
@@ -2217,16 +2235,27 @@
         }
         for (i = 0; i < legacyProtocols.length; i += 1) {
           view = protocolViews[String(legacyProtocols[i].index)];
-          if (view) view.list = legacyProtocols[i].list;
+          if (view) { view.list = legacyProtocols[i].list; view.list._rotationListIndex = legacyProtocols[i].index; }
         }
         protocolDataDirty = false;
       }
+
+
+    function updateAppealReadyTime(cell, seconds) {
+      var label = cell.querySelector(".appeal-ready-time");
+      if (!seconds) { if (label) cell.removeChild(label); if (/(^|\s)appeal-time-cell(\s|$)/.test(cell.className)) cell.className=cell.className.replace(/\s*appeal-time-cell\b/g, ""); return; }
+      if (!label) { label=document.createElement("span"); label.className="appeal-ready-time"; cell.appendChild(label); }
+      var value=String(Math.floor(seconds/60))+":"+(seconds%60<10?"0":"")+String(seconds%60);
+      if(label.textContent!==value)label.textContent=value;
+      if (!/(^|\s)appeal-time-cell(\s|$)/.test(cell.className)) cell.className += " appeal-time-cell";
+    }
 
       function updateProtocolMarker(cell, status) {
         if (cell.status === status) return false;
         cell.status = status;
         cell.element.className = status ? "route-marker " + status : "route-marker";
-        cell.element.title = protocolMarkerLabel(status);
+        cell.element.title = status === "dns" ? "DNS" : protocolMarkerLabel(status);
+        cell.element.innerHTML = status === "dns" ? "DNS" : "";
         return true;
       }
 
@@ -2253,10 +2282,10 @@
       }
 
       function updateProtocolHeaders(view, cycle) {
-        var incidents = window.FDVStartListDisplay.rebaseIncidents(
+        var incidents = window.FDVStartListDisplay.calculationIncidents(
           view.list.incidents,
           view.list.excludedParticipants,
-          view.list.rows.length
+          view.list.rows.length, protocolSchedule(view.list)
         );
         var i;
         var status;
@@ -2271,6 +2300,13 @@
       }
 
       function evaluateProtocolCells(view, position, schedule, candidates) {
+        var slotSettings = state.finalAppealRegularSettings || activeSettings();
+        var phaseElapsed = window.FDVFinalAppeals.active(state) ? 0 : Math.max(0,elapsedSeconds() % Math.max(1,slotSettings.rotationSeconds+slotSettings.breakSeconds));
+        (view.slotRows || []).forEach(function (row) {
+          var rowStatus="";
+          row.cells.forEach(function (cell,r) { var marker=window.FDVRotationSlots.marker(row.slot,r,position.cycle,position.phase,phaseElapsed,slotSettings.rotationSeconds); updateProtocolMarker(cell,marker); updateAppealReadyTime(cell.element.parentNode,marker==="ready"?row.slot.timeSeconds:0); if(marker==="active" || marker==="ready" && rowStatus!=="active")rowStatus=marker; });
+          row.element.className=rowStatus ? "protocol-"+rowStatus : "";
+        });
         var incidents = window.FDVStartListDisplay.calculationIncidents(
           view.list.incidents,
           view.list.excludedParticipants,
@@ -2286,7 +2322,7 @@
         if (candidates) {
           for (i = 0; i < candidates.length; i += 1) {
             cell = candidates[i];
-            status = cell.calculationParticipantIndex < 0 ? "" : window.FDVStartListDisplay.marker(
+            status = cell.calculationParticipantIndex < 0 ? (schedule.finalFormat === "new" ? "dns" : "") : window.FDVStartListDisplay.marker(
               cell.calculationParticipantIndex,
               cell.routeIndex,
               position.cycle,
@@ -2294,13 +2330,16 @@
               incidents,
               schedule
             );
+            status = window.FDVFinalAppeals.marker(state, view.index, cell.participantIndex, cell.routeIndex, elapsedSeconds(), status);
             if (updateProtocolMarker(cell, status)) dirtyRows[String(cell.participantIndex)] = true;
+            cell.element.style.opacity=status==="ready" && window.FDVStartListDisplay.preparationDeferred(cell.routeIndex,position.cycle,position.phase,schedule) ? ".35" : "";
+              updateAppealReadyTime(cell.element.parentNode,status==="ready"?window.FDVFinalAppeals.readyTime(state,view.index,cell.participantIndex,cell.routeIndex,elapsedSeconds()):0);
           }
         } else {
           for (participantIndex = 0; participantIndex < view.rows.length; participantIndex += 1) {
             for (routeIndex = 0; routeIndex < view.rows[participantIndex].cells.length; routeIndex += 1) {
               cell = view.rows[participantIndex].cells[routeIndex];
-              status = cell.calculationParticipantIndex < 0 ? "" : window.FDVStartListDisplay.marker(
+              status = cell.calculationParticipantIndex < 0 ? (schedule.finalFormat === "new" ? "dns" : "") : window.FDVStartListDisplay.marker(
                 cell.calculationParticipantIndex,
                 routeIndex,
                 position.cycle,
@@ -2308,7 +2347,10 @@
                 incidents,
                 schedule
               );
+              status = window.FDVFinalAppeals.marker(state, view.index, participantIndex, routeIndex, elapsedSeconds(), status);
               if (updateProtocolMarker(cell, status)) dirtyRows[String(participantIndex)] = true;
+              cell.element.style.opacity=status==="ready" && window.FDVStartListDisplay.preparationDeferred(cell.routeIndex,position.cycle,position.phase,schedule) ? ".35" : "";
+              updateAppealReadyTime(cell.element.parentNode,status==="ready"?window.FDVFinalAppeals.readyTime(state,view.index,participantIndex,routeIndex,elapsedSeconds()):0);
             }
           }
         }
@@ -2446,7 +2488,9 @@
         if (view.transitionScheduleKey !== scheduleKey || view.dataRevision !== protocolRevision) {
           buildTransitionIndex(view, schedule, scheduleKey);
         }
-        candidates = fastProtocolCandidates(view, position, scheduleKey);
+        var appealProgress = window.FDVFinalAppeals.progress(state, elapsedSeconds());
+        candidates = appealProgress || view.lastAppealProgress ? null : fastProtocolCandidates(view, position, scheduleKey);
+        view.lastAppealProgress = appealProgress;
         fullUpdate = candidates === null;
         evaluateProtocolCells(view, position, schedule, candidates);
         updateProtocolHeaders(view, position.cycle);
@@ -2555,6 +2599,7 @@
         position = currentProtocolPosition(view);
         progressKey = protocolRevision + ":" + String(position.cycle) + ":" + position.phase
           + ":" + protocolScheduleKey(protocolSchedule(legacyProtocols[0] && legacyProtocols[0].list));
+        progressKey += ":" + window.FDVFinalAppeals.progress(state, elapsedSeconds());
         if (progressKey === protocolProgressKey) return;
         protocolProgressKey = progressKey;
         for (key in protocolViews) {
@@ -2580,6 +2625,7 @@
           : Math.max(1, currentTimerCycle());
         var label = waiting ? (english ? "Waiting for start" : "Ожидание старта")
           : (english ? "Rotation " : "Ротация ") + cycle;
+        if (window.FDVFinalAppeals.active(state)) label = (english ? "A/R after rotation " : "Допротация после ") + window.FDVFinalAppeals.active(state).afterCycle;
         var className = waiting ? "cycle-waiting" : view.isBreak ? "cycle-break" : "cycle-rotation";
         if (cycleBadgeEl.innerHTML !== label) cycleBadgeEl.innerHTML = label;
         if (cycleBadgeEl.className !== className) cycleBadgeEl.className = className;

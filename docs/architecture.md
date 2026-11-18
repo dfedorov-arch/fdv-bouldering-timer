@@ -1,5 +1,59 @@
 # Timer architecture
 
+## New Final start-list schedule (build456)
+
+The shared ES5 schedule implements the supplied Boulder Final Playbook 2026:
+eight starters use offsets0/4/8/12 and twenty rotations; nine use0/4/9/13 and
+twenty-two. Larger fields alternate floor(N/2) and ceil(N/2) route gaps, keeping
+at most two athletes active. Rest is automatic, independent of the retained
+legacy finalRestRotations setting. In New Final, excluded rows mean DNS on the
+first boulder and retain their original participant indexes. Entirely empty
+nominal slots are omitted, so DNS starter3 sends starter4 out on actual Start3.
+The existing rotation counter remains continuous. Global derived skip metadata
+is supplied to all clients, including clients receiving only selected lists;
+standalone derives it locally. No timer/audio anchor changes are involved.
+Classic/Old Final exclusions keep their previous compaction behavior.
+See [review/final-playbook456.md](review/final-playbook456.md) for the table
+comparison, numbering convention, incident handling and validation.
+
+## Additional New Final rotations (build456)
+
+The shared ES5 `lib/final-appeals.js` manages ordered judge-created extra
+rotations independently of ordinary numbering. Timer transitions retain the
+existing clocks, warm-ups and common warning/finish scheduler. A/R duration is
+the maximum assigned time, selected later starts are grouped by offset and
+use stable event identities with a three-second deadline. A saved resumed-cue
+floor prevents already elapsed starts from sounding again. Queue changes do
+not reset the currently playing native audio plan. The primary-only dialog,
+standalone persistence, SEC replication and Legacy marker refresh are described
+in [review/final-appeals456.md](review/final-appeals456.md). Route pause is
+disabled for both Final formats; permanent route stops persist until explicitly changed.
+The global timer Pause remains available. Each dialog block saves separately
+and collapses to an editable summary. The time cap follows the current ordinary
+draft, including changes while a shorter A/R is staged. Rewinding re-arms future
+A/R entries; old snapshots are reconciled without moving any clock. Completed
+records remain editable. Modern and Legacy prepare the next actual extra or
+ordinary attempt, retaining current climbers. A/R finish deduplication includes
+the execution identity, so replaying an edited or rewound record sounds once.
+
+## Classic slots, exclusive attempts and empty rows (build456)
+
+ES5 `lib/rotation-slots.js` projects flow rows without mutating canonical athlete
+indexes. Front slots propagate with the ordinary two-rotation route spacing.
+Immediate slots reserve the requested boulder in the next regular rotation and
+shift its following athletes downstream. `attemptCycles` is shared by Modern
+and Legacy. Empty rows retain serial numbering and use graphical dash markers.
+Old Final uses the existing exclusive A/R state machine with exactly one athlete.
+Classic solo attempts save `finalAppealClassicElapsed`, automatically stop at
+the preceding regular boundary, then restore that coordinate after A/R. The
+server owns this transition without any browser. Standalone mirrors it and
+persists natural completion. SEC/snapshots carry the coordinate and cue floor.
+Ordinary common warnings and warm-ups remain in their existing planners; optional
+flow starts are grouped by actual timer coordinate, capped at three seconds late
+and skipped after resuming past their cue floor. Pending regular starts beyond an
+exclusive boundary are excluded; an already submitted boundary END is retained.
+See [review/rotation-slots456.md](review/rotation-slots456.md).
+
 This document describes the current implementation contract. User-facing documentation uses **start list** / **список**. Existing internal identifiers such as `startList*`, `protocolRevision`, and `legacyProtocols` are compatibility details and must not be renamed casually.
 
 Numbered timer repetitions use **Ротация / Rotation** in both clients and the incident editor. This is a display-only terminology change: `cycle`, `seekCycle`, `startCycle`, `resumeCycle`, saved state, and imported Cycle column aliases retain their existing names and behavior.

@@ -1,6 +1,121 @@
 # FDV Bouldering Timer — контекст следующего чата
 
-Обновлено: 16 ноября 2026 года. Перед работой сверить Git и текущие процессы.
+## Classic / Old Final / empty rotations (develop456, 18 November)
+
+Latest user correction: retain the next ordinary athlete's preparation while
+the current Classic repeat is still preparing, but draw that ordinary triangle
+at 35% opacity. Restore full opacity when the repeat starts. Marker semantics,
+row highlighting and scroll readiness remain ordinary ready. This supersedes
+the earlier hidden-ready correction below. Modern/Legacy both use the shared
+preparationDeferred display helper; no clock/audio changes. 87 Node cases and
+two Chromium scenarios passed, including automatic return to full opacity.
+Owner test UI and standalone updated without restart; existing tabs need Ctrl+F5.
+
+Ready-time overlay follow-up: Modern and Legacy display awarded M:SS to the
+right of an additional-attempt ready marker, in an opaque absolute badge above
+adjacent cells/dashes. It disappears when the marker becomes active or done;
+ordinary preparation and empty rows have no badge. Covers Classic virtual rows
+and both exclusive Final formats, including preparation for the next A/R.
+Ready plan edits invalidate display data. Three Chromium scenarios, 105 targeted
+Node cases and a final 43-case domain/ES5 check passed; screenshots inspected.
+Standalone and owner test UI updated without server restart; Ctrl+F5 required.
+
+Follow-up: a delayed shared-flow repeat in the current rotation and the normal
+athlete for the next rotation both displayed ready on the same boulder. Shared
+Modern/Legacy marker logic now hides the next ordinary ready marker until the
+repeat's awarded time begins. Its schedule remains shifted to the next rotation.
+87 Node cases and two Modern/Legacy Chromium scenarios passed. UI/shared display
+files and standalone were updated in the owner test copy without restarting its
+server. Existing tabs need Ctrl+F5; clock/audio scheduling were not changed.
+
+Completed the user's extension and answered choices: Classic placement is per
+block (front slot or immediate next rotation); solo checkbox defaults off;
+empty rotations are available in Classic and both Finals. Old Final route pause
+is disabled and exactly one athlete may be assigned to its A/R. New shared ES5
+rotation-slots projection adds virtual rows and shifted ordinary schedules.
+Classic solo stages automatically at a regular boundary, saves/restores its
+coordinate, persists and mirrors over SEC. Existing warm-ups and common cues
+remain; optional starts are grouped, bounded and skipped after resume. Native
+boundary END survives staging. Standalone completion now persists for reload.
+Guide and RU/EN dialog screenshots updated. Full Linux suite654/642pass/12skip,
+46 distinct Chromium scenarios, 31 actual Node12 child-server A/R cases and
+67 targeted native/slot cases passed. Build remains456. No commit/push/release.
+On the user's subsequent launch request, the separate owner test copy was updated
+and launched on 18 November at http://127.0.0.1:18088/. Launcher PID26284 and child
+Node PID28852 are recorded in `dist/github-sync-20261116/launched-test.json`;
+recheck executable paths before stopping them. Params and saved lists were kept,
+ordinary counter3, timer idle, no queued extra rotations. Backup:
+`dist/final-playbook-audit/test456-before-slots-20261118-180233`.
+An independent HTTP check confirmed build456 and both updated slot/dialog modules.
+Existing browser tabs need Ctrl+F5. See [review/rotation-slots456.md](review/rotation-slots456.md).
+
+
+Обновлено: 18 ноября 2026 года. Перед работой сверить Git и текущие процессы.
+
+## Дополнительные ротации нового Финала (develop456)
+
+Последующая правка редактора: белый CSS-плюс, выровненная шапка; минуты/секунды
+отдельными полями со стрелками, максимум — время обычной ротации из актуальных
+настроек. Save/Cancel у каждого блока; сохранённый блок сворачивается, пустой
+исчезает; Add скрыта во время правки. Завершённые доступны для Edit/Remove,
+фактически выполняющаяся попытка защищена от перезаписи. Возврат назад и загрузка
+старого снимка после возврата переотмечают будущие допротации как запланированные.
+Подготовка Modern/Legacy учитывает следующий фактический выход, сохраняя текущих
+лезущих. Повторное исполнение того же ID различается по аудиоидентичности запуска.
+Проверки: полный Node640/628pass/12skip/0fail; Chromium38 различных сценариев;
+18 A/R проверок с дочерними Node12. RU/EN скриншоты редактора обновлены.
+В краткой сводке допротации каждый спортсмен теперь показан отдельной строкой
+вместо разделения точками с запятой. Проверен прежний браузерный сценарий
+редактора и скриншот сводки; модуль и standalone обновлены в тестовой копии.
+Тестовая копия `dist/launcher-test-20261116-fb05eec3` обновлена и запущена
+18.11.2026 на http://127.0.0.1:18088/; PID лаунчера19852 на момент запуска,
+перед остановкой всегда заново проверять путь процесса. Метаданные запуска:
+`dist/github-sync-20261116/launched-test.json`. Резервная копия до UI2:
+`dist/final-playbook-audit/test456-before-ui2-20261118-155639`.
+Настройки и списки сохранены; обычный счётчик8 остался, две будущие допротации
+снова запланированы. Дополнительная правка заголовка ФИО заменяет float у плюса
+на flex-строку с вертикальным центрированием. Проверены 62 Node-проверки и
+геометрия заголовков в Chromium. HTML обновлён в тестовой копии без перезапуска;
+для применения в уже открытой вкладке нужен Ctrl+F5.
+После обнаружения остановленной тестовой копии она запущена повторно с уже
+выровненным заголовком: последний PID лаунчера22728, метаданные обновлены;
+последующий независимый HTTP-запрос подтвердил200 и актуальный HTML.
+
+Реализованы по согласованному сценарию владельца: + перед первой трассой,
+таблица спортсменов/чекбоксов трасс/времени и стартового сигнала, несколько
+блоков. Все стартовые сигналы по умолчанию выключены. Общий таймер равен
+максимальному времени; более короткие попытки начинаются позже, общий финиш.
+Обычный счётчик не увеличивается для допротации. Сохранены общие прогревы,
+600мс серверного ручного старта, предупреждения и финиш. Повторы прошедших
+стартов после паузы отсекаются; поздний стартовый сигнал — максимум3с.
+Очередь следует снимкам/SEC; есть standalone и read-only Legacy.
+Пауза трассы нового Финала отключена, полная остановка и пауза таймера остаются.
+Подробности и проверки: [review/final-appeals456.md](review/final-appeals456.md).
+Финальные проверки: Node634/622pass/12skip/0fail; Chromium35 различных
+сценариев; 12 A/R проверок с реальными дочерними Node12 и 5 прежних проверок
+Windows Legacy, включая смешанное шифрованное SEC. Скриншоты диалога RU/EN
+обновлены; standalone пересобран. Первоначально тест456 с Playbook запускался
+на18088; последующие обновления этой копии описаны выше.
+Изменения локальные; коммит/публикация не выполнялись.
+
+## Локальный develop456: новый Финал по Playbook2026
+
+По руководству владельца обновлён общий ES5 расчёт списков Modern/Legacy/Node.
+8 финалистов — 20 ротаций, 9 — 22; для10+ максимум два спортсмена на трассах.
+Исключение в новом Финале означает DNS на первой трассе и сохраняет исходные
+места. Полностью пустые ротации пропускаются с непрерывным фактическим счётчиком:
+при DNS третьего четвёртый выходит на третьем запуске. Сервер публикует общую
+карту пропусков для всех браузеров независимо от выбранных списков. Standalone
+рассчитывает её самостоятельно; таймерные и аудиочасы/идентичности не менялись.
+Отдых автоматический; final_rest_rotations сохранён для совместимости файлов,
+но больше не применяется к расписанию и не показан в редакторе параметров.
+Порядок строк не переворачивается; список загружается в стартовом порядке.
+Пользователь уточнил: нельзя оставлять пустой фактический запуск при DNS1–4.
+Старый Финал/Классика сохранили прежнее исключение со сдвигом.
+Код пока локальный; опубликованный3.0.1 не заменён. Тестовые копии обновляются отдельно.
+Подробности: [review/final-playbook456.md](review/final-playbook456.md).
+Проверки: полный Node-набор609 pass/12 skip/0 fail, Chromium28 pass,
+Windows/CLR2 launcher/update8 pass, Linux headless settings RU/EN pass.
 
 ## Выпущен 3.0.1 / сборка 455
 

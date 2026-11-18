@@ -76,7 +76,7 @@ internal static class UnixLauncherHarness
                 Directory.CreateDirectory(args[1]);
                 AppBuilder.Configure<LauncherApp>().UseHeadless(new AvaloniaHeadlessPlatformOptions()).SetupWithoutStarting();
                 var path = Path.Combine(args[1], "params.txt");
-                var sample = "# comment\r\nhttp_port =8008\r\nsound=true\r\nlanguage=ru\r\ncustom_key=untouched=1\r\nhttp_port=8008\r\n";
+                var sample = "# comment\r\nhttp_port =8008\r\nsound=true\r\nlanguage=ru\r\ncustom_key=untouched=1\r\nhttp_port=8008\r\nfinal_rest_rotations=5\r\n";
                 File.WriteAllText(path, sample, new UTF8Encoding(true));
                 foreach (var russian in new[] { true, false })
                 {
@@ -103,6 +103,7 @@ internal static class UnixLauncherHarness
                     var task = (Task)Call(owner, "EditParameters")!; Dispatcher.UIThread.RunJobs();
                     var dialog = (ParametersDialog)Field(owner, "_settingsDialog")!;
                     var input = dialog.GetVisualDescendants().OfType<TextBox>().Single(x => x.Name == "param_http_port");
+                    Check(!dialog.GetVisualDescendants().OfType<Control>().Any(x => x.Name == "param_final_rest_rotations"), "Automatic Final rest is not editable");
                     var beforeInvalid = File.ReadAllText(path);
                     input.Text = "not-a-port";
                     dialog.GetVisualDescendants().OfType<Button>().Single(x => x.Name == "saveParameters").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
@@ -112,6 +113,7 @@ internal static class UnixLauncherHarness
                     Check(File.ReadAllText(path).Contains("http_port =" + input.Text + "\r\n"), "File saved before asking for restart");
                     Check(File.ReadAllText(path).Contains("custom_key=untouched=1\r\n"), "Unknown keys and CRLF preserved");
                     Check(File.ReadAllBytes(path)[0] == 239, "UTF8 BOM preserved");
+                    Check(File.ReadAllText(path).Contains("final_rest_rotations=5\r\n"), "Legacy rest value is retained in the file");
                     Check(!dialog.RestartRequested && starts == 1, "Saving must not restart");
                     Check(dialog.GetVisualDescendants().OfType<TextBlock>().Any(x => x.Text == FdvBoulderingTimerLauncher.LauncherParameters.SavedMessage), "Restart question shown");
                     dialog.GetVisualDescendants().OfType<Button>().Single(x => x.Name == "restartNo").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));

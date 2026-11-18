@@ -27,6 +27,24 @@ function harness(options={}){
   },queues:()=>calls.filter(call=>call[0]==="replace")};
 }
 
+test("editing future A/R rotations cannot reset or cut the current native audio generation",async()=>{
+ const h=harness();await h.claim();const generation=h.route.snapshot().generation;h.calls.length=0;
+ h.c.state.finalAppealRotations=[{id:"future",afterCycle:4,entries:[{listIndex:0,participantIndex:0,route:0,timeSeconds:90,startSignal:false}],completed:false}];
+ await h.route.reconcile();assert.equal(h.route.snapshot().generation,generation);assert.equal(h.calls.some(c=>c[0]==="stop"),false);
+ h.c.state.finalAppealRotations[0].entries[0].startSignal=true;await h.route.reconcile();
+ assert.equal(h.route.snapshot().generation,generation);assert.equal(h.calls.some(c=>c[0]==="stop"),false);
+});
+test("automatic Classic solo staging preserves the already submitted regular boundary END",async()=>{
+ const h=harness();h.c.state.activePreset="classic";h.c.state.activeSettings={rotationSeconds:60,breakSeconds:0,oneShot:false};
+ h.c.state.finalAppealRotations=[{id:"solo",afterCycle:1,solo:true,entries:[{listIndex:0,participantIndex:0,route:0,timeSeconds:30,startSignal:false}]}];
+ h.c.now=108000;await h.claim();assert.ok(h.queues().at(-1)[1].some(cue=>cue.kind==="end"&&cue.at===109750));
+ const generation=h.route.snapshot().generation;h.calls.length=0;
+ h.c.now=109800;h.c.startedAt=0;h.c.state={...h.c.state,running:false,finalAppealActiveId:"solo",finalAppealClassicElapsed:60,elapsedBeforePause:0,activeSettings:{rotationSeconds:30,breakSeconds:0,oneShot:true}};
+ h.route.changed();await settle();await settle();
+ assert.equal(h.calls.some(call=>call[0]==="stop"),false);assert.equal(h.route.snapshot().generation,generation);
+ assert.ok(h.queues().at(-1)[1].some(cue=>cue.kind==="end"&&cue.at===109750));
+});
+
 test("a lost browser and expired registry do not cancel native cues or their saved correction",async()=>{
   const h=harness(),token=await h.claim();h.calls.length=0;
   const generation=h.route.snapshot().generation;

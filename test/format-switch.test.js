@@ -46,7 +46,7 @@ function harness({ standalone = false, answer = true, language = "ru", overrides
     },
     controlsAvailable: () => available,
     t: key => translations[language][key],
-    window: { confirm: message => { confirmations.push(message); return answer; } },
+    window: { FDVRotationSlots: require("../lib/rotation-slots"), FDVFinalAppeals: require("../lib/final-appeals"), confirm: message => { confirmations.push(message); return answer; } },
     setInputsFromDraft: value => { inputs = { ...value }; radios.forEach(r=>{r.checked=r.value===(value.finalRoundFormat||"old");}); },
     draftSettings: () => ({ ...inputs,finalRoundFormat:radios.find(r=>r.checked)?.value||"old" }),
     updateParameterLabels: () => {},

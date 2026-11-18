@@ -18,6 +18,7 @@ function harness({ oneShot = true, manual = true, hidden = false, pending = fals
   const plans = [];
   const segment = { cycle: 1, type: "rotation", start: 0, end: 240 };
   const context = vm.createContext({
+    window: { FDVRotationSlots: require("../lib/rotation-slots"), FDVFinalAppeals: require("../lib/final-appeals") },
     document: { hidden }, pageAudioSuspended: hidden, clockCalibrationPending: pending,
     state: { running, countdownOnly, serverStartedAt: future ? 100600 : 100000 - lateMs,
       manualStartDisplayHold: manual, manualStartLeadMs: manual ? 600 : 0, activeSettings: { oneShot } },

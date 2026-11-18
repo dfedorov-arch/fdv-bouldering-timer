@@ -41,6 +41,7 @@ namespace FdvBoulderingTimerLauncher
             {
                 string key, value;
                 if (!Parse(line, out key, out value)) continue;
+                if (key == "final_rest_rotations") continue; // Retain in file; New Final uses the competition schedule.
                 int index = Entries.FindIndex(delegate(Entry e) { return e.Key == key; });
                 if (index < 0) Entries.Add(new Entry(key, value)); else Entries[index].Value = Entries[index].OriginalValue = value;
             }
