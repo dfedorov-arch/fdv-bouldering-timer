@@ -41,6 +41,23 @@ internal static class LauncherProcessChecks
         var elapsed = Stopwatch.StartNew();
         while (!predicate()) { Check(elapsed.ElapsedMilliseconds < timeout, "Process check timed out"); Thread.Sleep(10); }
     }
+    // A child Node fixture appends "pid:port" to started.txt after its listen
+    // callback. File.Exists can observe the file while appendFileSync still
+    // holds or is flushing it, so a naive File.ReadAllLines throws IOException.
+    // Poll until the writer releases the file and the expected lines are present.
+    private static string[] ReadLinesWhenReady(string path, int minimumLines, int timeout)
+    {
+        var clock = Stopwatch.StartNew();
+        while (true)
+        {
+            string[] lines = null;
+            try { lines = File.ReadAllLines(path); }
+            catch (IOException) { } // Writer still holds or is flushing the file.
+            if (lines != null && lines.Length >= minimumLines) return lines;
+            Check(clock.ElapsedMilliseconds < timeout, "Timed out waiting for lines in " + path);
+            Thread.Sleep(5);
+        }
+    }
     internal static int Run(string executable, string root)
     {
         Directory.CreateDirectory(root);
@@ -156,14 +173,14 @@ internal static class LauncherProcessChecks
             PumpFor(pump, 200);
             Check(Object.ReferenceEquals(first, Field(window, "_serverProcess")) && (bool)Field(window, "_ready"), "Abandoned completion cannot overwrite a newer ready server");
             Check(cleanupCalls == 1, "Cancelled preparation cannot run late port cleanup");
-            Check(File.ReadAllLines(Path.Combine(fixture, "started.txt")).Length == 1, "Exactly one server was started");
+            Check(ReadLinesWhenReady(Path.Combine(fixture, "started.txt"), 1, 3000).Length == 1, "Exactly one server was started");
 
             WriteServer(fixture, node, portB); Call(window, "StartServer", false);
             PumpUntil(delegate { return (bool)Field(window, "_ready"); }, pump, 7000);
             var second = (Process)Field(window, "_serverProcess"); int secondPid = second.Id;
             Check(firstPid != secondPid, "Explicit restart starts a replacement process");
             WaitUntil(delegate { return !Alive(firstPid); }, 3000);
-            var starts = File.ReadAllLines(Path.Combine(fixture, "started.txt"));
+            var starts = ReadLinesWhenReady(Path.Combine(fixture, "started.txt"), 2, 3000);
             Check(starts.Length == 2 && starts[1].EndsWith(":" + portB), "Restart reloads the configured port");
             Call(window, "OnServerProcessExited", first, EventArgs.Empty); PumpFor(pump, 100);
             Check((bool)Field(window, "_ready") && Object.ReferenceEquals(second, Field(window, "_serverProcess")), "Old process exit cannot restart the replacement");
@@ -183,7 +200,7 @@ internal static class LauncherProcessChecks
         {
             show(pendingWindow); Call(pendingWindow, "StartServer", false);
             PumpUntil(delegate { return createdEntered.WaitOne(0) && File.Exists(Path.Combine(pendingRoot, "started.txt")); }, pump, 7000);
-            int pendingPid = Int32.Parse(File.ReadAllLines(Path.Combine(pendingRoot, "started.txt"))[0].Split(':')[0]);
+            int pendingPid = Int32.Parse(ReadLinesWhenReady(Path.Combine(pendingRoot, "started.txt"), 1, 3000)[0].Split(':')[0]);
             Check(Field(pendingWindow, "_serverProcess") == null, "Worker still owns unadopted child");
             Call(pendingWindow, "PrepareExit"); createdGate.Set();
             PumpFor(pump, 150); WaitUntil(delegate { return !Alive(pendingPid); }, 3000);
