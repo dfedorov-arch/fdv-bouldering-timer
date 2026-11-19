@@ -1,5 +1,13 @@
 # FDV Bouldering Timer — контекст следующего чата
 
+## Latest stable: 3.1.1 / build457 (19 November 2026)
+
+Published v3.1.1, tag7146332eafcb5062ef1bb80914fb1d06eb4a73ce. Main and develop
+synchronized. Workflow44559509616 passed; waiting macOS jobs were retried with
+successful jobs preserved and no source/tag changes. Verified18 assets,16 package
+SHA-256 digests, release body, v3.1.1/build457 metadata and stable Latest.
+Review: [review/release311.md](review/release311.md). Test server left running.
+
 Build457 exclusion display follow-up: restore full-row red strikes through all
 route cells in Classic and Old Final. In New Final, retain DNS text without a
 route-cell strike for retained nominal slots; globally skipped nominal rotations
