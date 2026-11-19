@@ -1,11 +1,13 @@
 # FDV Bouldering Timer
 
-В `develop` готовится сборка456: расписание нового Финала по Playbook2026,
+[Новое в 3.1.0 / New in 3.1.0](docs/releases/v3.1.0.md)
+
+В версии **3.1.0 / сборка456**: расписание нового Финала по Playbook2026,
 22 ротации для9 финалистов, максимум два спортсмена в обычной ротации и DNS без
 пустых фактических запусков. Отдых рассчитывается автоматически. Подробности:
 [сопоставление и проверки](docs/review/final-playbook456.md).
 
-Develop build456 aligns New Final lists with Playbook2026: nine starters use22
+Version **3.1.0 / build456** aligns New Final lists with Playbook2026: nine starters use22
 rotations, at most two athletes climb in a regular rotation, and DNS creates no empty
 actual Starts. Rest is automatic. See the [verification report](docs/review/final-playbook456.md).
 
