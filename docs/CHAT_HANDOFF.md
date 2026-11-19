@@ -1,5 +1,35 @@
 # FDV Bouldering Timer — контекст следующего чата
 
+## Синхронизация develop с GitHub и зелёный CI (19 ноября 2026)
+
+Работа над сборкой 456 опубликована. Коммит `37b2952` («Add Playbook Final
+schedule, extra rotations and Classic slots (build 456)», 48 файлов, +3751/−225)
+отправлен в `origin/develop`. `main` не менялся и остаётся на `23a6a86`. Тег и
+релиз не создавались: `v3.0.1` (сборка 455) остаётся Latest.
+
+Первый прогон CI 44347205138 упал не из-за кода: в заданиях `windows-legacy`
+x86/x64 файл `started.txt` читался, пока дочерний Node-процесс ещё держал его
+открытым (`IOException` «файл занят другим процессом»). Тот же тест в задании
+`windows-launcher` того же прогона прошёл; локальный прогон
+`test/windows-legacy.test.js` на настоящем Node12.22.12 x64 дал 5/5. Отдельно
+macOS ARM64 так и не получил раннер (очередь), а `release` и `*-installers`
+были пропущены из-за падения.
+
+Исправление — коммит `35f7c8e` («Fix launcher startup test race reading
+started.txt while it is written»): в `test/helpers/launcher-process-checks.cs`
+добавлено чтение с повтором до появления нужного числа строк; логика таймера не
+менялась. Прогон 44477996497 (номер 77) полностью зелёный: все 15 обязательных
+заданий успешны, включая `windows-legacy` x86/x64, macOS ARM64 и `release`;
+`macos-preview` пропущен штатно. Пакеты 456 существуют только как артефакты CI
+(`release-packages-44477996497`, 939,3 МБ), ничего не опубликовано.
+
+Тестовая копия из этих исходников: `dist/test-server-20261119-456`, свой
+`params.txt` (http 18088 / https 18443) и своё `runtime-state`; запущена
+19 ноября в 10:21 MSK, PID 24948, http://127.0.0.1:18088/, сборка 456, таймер
+остановлен. Процесс работает с обычными правами, поэтому из confined-shell не
+виден (`Access denied`) — останавливать из обычного PowerShell. Основной сервер
+8008/8443 не запускался.
+
 ## Classic / Old Final / empty rotations (develop456, 18 November)
 
 Latest user correction: retain the next ordinary athlete's preparation while
@@ -39,7 +69,9 @@ remain; optional starts are grouped, bounded and skipped after resume. Native
 boundary END survives staging. Standalone completion now persists for reload.
 Guide and RU/EN dialog screenshots updated. Full Linux suite654/642pass/12skip,
 46 distinct Chromium scenarios, 31 actual Node12 child-server A/R cases and
-67 targeted native/slot cases passed. Build remains456. No commit/push/release.
+67 targeted native/slot cases passed. Build remains456. This work was later
+committed and pushed as `37b2952` (see the synchronization section above); no tag
+or release was created.
 On the user's subsequent launch request, the separate owner test copy was updated
 and launched on 18 November at http://127.0.0.1:18088/. Launcher PID26284 and child
 Node PID28852 are recorded in `dist/github-sync-20261116/launched-test.json`;
@@ -50,7 +82,7 @@ An independent HTTP check confirmed build456 and both updated slot/dialog module
 Existing browser tabs need Ctrl+F5. See [review/rotation-slots456.md](review/rotation-slots456.md).
 
 
-Обновлено: 18 ноября 2026 года. Перед работой сверить Git и текущие процессы.
+Обновлено: 19 ноября 2026 года. Перед работой сверить Git и текущие процессы.
 
 ## Дополнительные ротации нового Финала (develop456)
 
@@ -96,7 +128,8 @@ Existing browser tabs need Ctrl+F5. See [review/rotation-slots456.md](review/rot
 Windows Legacy, включая смешанное шифрованное SEC. Скриншоты диалога RU/EN
 обновлены; standalone пересобран. Первоначально тест456 с Playbook запускался
 на18088; последующие обновления этой копии описаны выше.
-Изменения локальные; коммит/публикация не выполнялись.
+Изменения опубликованы коммитом `37b2952` в `develop`; `main` и опубликованный
+3.0.1 не менялись, тег и релиз не создавались.
 
 ## Локальный develop456: новый Финал по Playbook2026
 
@@ -112,7 +145,8 @@ Windows Legacy, включая смешанное шифрованное SEC. С
 Порядок строк не переворачивается; список загружается в стартовом порядке.
 Пользователь уточнил: нельзя оставлять пустой фактический запуск при DNS1–4.
 Старый Финал/Классика сохранили прежнее исключение со сдвигом.
-Код пока локальный; опубликованный3.0.1 не заменён. Тестовые копии обновляются отдельно.
+Код опубликован в `develop` (см. раздел синхронизации выше); опубликованный3.0.1
+не заменён. Тестовые копии обновляются отдельно.
 Подробности: [review/final-playbook456.md](review/final-playbook456.md).
 Проверки: полный Node-набор609 pass/12 skip/0 fail, Chromium28 pass,
 Windows/CLR2 launcher/update8 pass, Linux headless settings RU/EN pass.
