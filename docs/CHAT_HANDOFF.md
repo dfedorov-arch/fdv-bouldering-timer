@@ -1,5 +1,41 @@
 # FDV Bouldering Timer — контекст следующего чата
 
+Build457 exclusion display follow-up: restore full-row red strikes through all
+route cells in Classic and Old Final. In New Final, retain DNS text without a
+route-cell strike for retained nominal slots; globally skipped nominal rotations
+receive a red strike instead of visible DNS. Pure excludedCellSkipped helper
+reads the existing global skipped mapping without changing any timing or schedule.
+Modern and Legacy, standalone and filtered-list behavior verified: 95 Node cases,
+seven Chromium Playbook cases passed. Three row screenshots visually inspected.
+Updated owner test UI/shared display module and standalone without server restart;
+existing browser tabs need Ctrl+F5. Build stays457; no commit/push/release yet.
+
+Latest local development build is457 (456 is already published in3.1.0).
+Updated Modern/Legacy/server/SW constants, Legacy asset query versions and
+generated offline/standalone bundles; release-input and whitespace checks pass.
+Current test server was updated to457 while paused; params/lists and exact
+paused elapsed3467.084726811328s were retained. System Node runs at the same
+`dist/test-server-20261119-456` path and HTTP18088; folder name retained intentionally.
+Backup `dist/final-playbook-audit/test-before-build457-20261119-173147`.
+No commit/push/new release for this local follow-up yet. Refresh existing tabs.
+
+## Post-3.1.0: manual Start at an ordinary rotation boundary
+
+Local develop fix: a manual start at any exact full-span rotation boundary
+receives the initial-start 600ms quiet prewarm lead and one start cue, including
+after seek and after an exclusive Classic repeat. Middle-of-phase resumes remain
+silent. `manualStartElapsed` preserves the selected timeline coordinate separately
+from the new start target; included in server snapshots/SEC and standalone saves.
+Modern/Legacy hold the selected rotation during preparation; Modern recovery and
+native planning share the new target without a duplicate boundary cue. Standalone
+now applies the same lead. Full Linux662/650pass/12skip/0fail; targeted39 Node cases,
+two initial browser cases and five distinct regression browser scenarios passed
+(Classic seventh-rotation start, pause/reset during resume, both standalone flows).
+Updated owner `dist/test-server-20261119-456`, system Node PID32048 on18088.
+Paused coordinate1890s preserved, no extra rotations; Ctrl+F5 needed.
+Backup `dist/final-playbook-audit/test456-before-boundary-start-20261119-172404`.
+Build456 retained. Changes are local; released v3.1.0/tag has not been modified.
+
 ## Stable 3.1.0 published, 19 November 2026
 
 Latest stable is now v3.1.0/build456, tag88b5f8e. Main/develop synchronized;

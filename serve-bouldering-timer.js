@@ -33,7 +33,7 @@ const legacyRuntimeStatePath = runtimeStatePath;
 const beepsPath = path.join(root, "beeps");
 const fontsPath = path.join(root, "fonts");
 const offlineAudioPath = path.join(root, "lib", "offline-audio.js");
-const BUILD_NUMBER = 456;
+const BUILD_NUMBER = 457;
 const serverInstanceId = crypto.randomUUID();
 let serverAudio = null;
 const launcherLanguageToken = process.env.FDV_LAUNCHER_LANGUAGE_TOKEN || "";
@@ -424,6 +424,7 @@ const timerState = {
   countdownOnly: false,
   waitingForManualStart: false,
   manualStartLeadMs: 0,
+  manualStartElapsed: 0,
   manualStartDisplayHold: false,
   elapsedBeforePause: 0,
   startedAt: 0,
@@ -1037,6 +1038,7 @@ function assignTimerState(source = {}) {
     "countdownOnly",
     "waitingForManualStart",
     "manualStartLeadMs",
+    "manualStartElapsed",
     "manualStartDisplayHold",
     "elapsedBeforePause",
     "startedAt",

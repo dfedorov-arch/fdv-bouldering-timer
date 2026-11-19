@@ -4,6 +4,12 @@ const d = require("../lib/start-list-display");
 const {fixture} = require("./helpers/controlled-clock-server");
 const settings = {rotationSeconds:240,breakSeconds:0,oneShot:true,finalRoundFormat:"new",finalRestRotations:3};
 const list = (count, excludedParticipants=[]) => ({headers:["#","Name"],rows:Array.from({length:count},(_,i)=>[String(i+1),"Athlete "+(i+1)]),routeCount:4,excludedParticipants});
+test("exclusion display distinguishes a removed nominal rotation from a retained DNS slot",()=>{
+ const schedule=d.finalSchedule(list(8,[2]),{finalRoundFormat:"new"});
+ assert.equal(d.excludedCellSkipped(2,0,schedule),true);assert.equal(d.excludedCellSkipped(2,1,schedule),false);
+ assert.equal(d.excludedCellSkipped(2,0,{}),true);assert.equal(d.excludedCellSkipped(2,0,{finalFormat:"old"}),true);
+ const other=list(8);const shared=d.finalSchedule(list(8,[2]),{finalRoundFormat:"new"},d.finalSkippedRotations([list(8,[2]),other]));assert.equal(d.excludedCellSkipped(2,0,shared),false);
+});
 
 test("Playbook tables: all 32/36 starts match the 8- and 9-starter examples",()=>{
   for(const [count,offsets,last] of [[8,[0,4,8,12],20],[9,[0,4,9,13],22]]) {

@@ -91,7 +91,7 @@ test("Classic solo automatically stages at the regular boundary and resumes the 
  s=tx.applyTimerAction(s,{type:"pause"},{now:640600,elapsedAtAction:20}).state;
  s=tx.applyTimerAction(s,start,{now:650000}).state;assert.equal(s.manualStartLeadMs,0);assert.equal(s.finalAppealSignalFloor,20);
  s={...s,running:false,completed:true,elapsedBeforePause:90};s=tx.applyTimerAction(s,start,{now:750000}).state;
- assert.equal(s.finalAppealActiveId,"");assert.equal(s.startedAt,240000);assert.equal(s.activeSettings.oneShot,false);assert.equal(s.activeSettings.rotationSeconds,240);assert.equal(s.finalAppealRotations[0].completed,true);
+ assert.equal(s.finalAppealActiveId,"");assert.equal(s.startedAt,240600);assert.equal(s.manualStartLeadMs,600);assert.equal(s.activeSettings.oneShot,false);assert.equal(s.activeSettings.rotationSeconds,240);assert.equal(s.finalAppealRotations[0].completed,true);
  assert.equal(s.classicCueFloor,510);assert.equal(ar.interruption(s),null);
 });
 test("Classic solo Stop returns to the boundary; reset and rewind rearm the queue",()=>{

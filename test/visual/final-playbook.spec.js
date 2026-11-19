@@ -36,7 +36,8 @@ for(const [dns,cycle,p,r] of [[[2],3,3,0],[[4],17,5,3]]){
       for(const page of pages){
         await expect(marker(page,p,r,"active")).toBeVisible();
         await expect(marker(page,dns[0],0,"dns")).toHaveText("DNS");
-        await expect(marker(page,dns[0],0,"dns")).toBeVisible();
+        if(dns[0]===2)await expect(marker(page,dns[0],0,"dns")).toBeHidden();
+        else await expect(marker(page,dns[0],0,"dns")).toBeVisible();
         if(dns[0]===2) await page.screenshot({path:test.info().outputPath(page===pages[0]?"modern-dns.png":"legacy-dns.png"),fullPage:true});
       }
       await server.start({activePreset:"final",settings});
@@ -45,6 +46,18 @@ for(const [dns,cycle,p,r] of [[[2],3,3,0],[[4],17,5,3]]){
     });
   });
 }
+test("exclusion strikes all route cells in Classic/Old Final and only skipped cells in New Final",async({browser})=>{
+ await withPages(browser,8,[2],async(server,pages)=>{
+  for(const [preset,format] of [["classic","old"],["final","old"],["final","new"]]){
+   await server.action({type:"settings",activePreset:preset,settings:{rotationMinutes:4,breakSeconds:preset==="classic"?15:0,oneShot:preset==="final",finalRoundFormat:format}});
+   for(const page of pages){const row=page.locator('.start-list-table tbody tr,.protocol-table tbody tr').nth(2);const cells=row.locator('td.route-cell,td.protocol-route-cell');
+    await expect.poll(async()=>cells.evaluateAll(nodes=>nodes.map(n=>getComputedStyle(n,'::after').display))).toEqual(format==="new"?["block","none","none","none"]:["block","block","block","block"]);
+    if(format==="new"){await expect(cells.nth(0).locator('.route-marker.dns')).toBeHidden();await expect(cells.nth(1).locator('.route-marker.dns')).toBeVisible();}
+    await row.screenshot({path:test.info().outputPath(`exclusion-${preset}-${format}-${pages.indexOf(page)}.png`)});
+   }
+  }
+ });
+});
 
 test("nine starters keep two active boulders at rotation 9 and finish at 22",async({browser})=>{
   await withPages(browser,9,[],async(server,pages)=>{

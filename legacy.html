@@ -622,7 +622,8 @@
     }
 
   body .route-marker.dns { display: block; width: auto; height: auto; font-size: 12px; line-height: 1; color: #8d97a5; background: none; border: 0; }
-    .protocol-table tr.protocol-excluded td.protocol-route-cell:after { display: none; }
+    .protocol-table tr.protocol-excluded td.protocol-route-cell.dns-retained:after { display: none; }
+    .protocol-table td.dns-skipped .route-marker.dns { visibility:hidden; }
 
     td.appeal-time-cell { position:relative;z-index:4;overflow:visible !important; }
     td.appeal-time-cell:last-child .appeal-ready-time { left:auto;right:calc(50% + 12px); }
@@ -642,15 +643,15 @@
   </div>
   <div id="protocolPane"><div id="protocolLayout"></div></div>
 
-  <script src="lib/rotation-slots.js?v=456"></script>
-  <script src="lib/final-appeals.js?v=456"></script>
-  <script src="lib/start-list-display.js?v=456"></script>
-  <script src="lib/client-secondary-server.js?v=456"></script>
+  <script src="lib/rotation-slots.js?v=457"></script>
+  <script src="lib/final-appeals.js?v=457"></script>
+  <script src="lib/start-list-display.js?v=457"></script>
+  <script src="lib/client-secondary-server.js?v=457"></script>
   <script src="lib/client-delivery.js?v=448"></script>
-  <script src="lib/timer-stretch.js?v=456"></script>
+  <script src="lib/timer-stretch.js?v=457"></script>
   <script>
     (function () {
-      var legacyBuildNumber = 456;
+      var legacyBuildNumber = 457;
       var state = null;
       var serverOffset = 0;
       var lastContact = 0;
@@ -1816,7 +1817,7 @@
         if (!state) return 0;
         if (!state.running) return Number(state.elapsedBeforePause || state.elapsed || 0) || 0;
         if (Number(state.startedAt || 0) > serverNow()) return 0;
-        return Math.max(0, (serverNow() - Number(state.startedAt || 0)) / 1000);
+        return Math.max(state.manualStartDisplayHold ? Number(state.manualStartElapsed || 0) : 0, (serverNow() - Number(state.startedAt || 0)) / 1000);
       }
 
       function isManualStartHoldPending() {
@@ -2300,6 +2301,12 @@
         }
       }
 
+      function updateProtocolExclusionCell(cell, schedule, excluded) {
+        var suffix = excluded && schedule.finalFormat === "new" ? window.FDVStartListDisplay.excludedCellSkipped(cell.participantIndex,cell.routeIndex,schedule) ? " dns-skipped" : " dns-retained" : "";
+        var expected = "protocol-route-cell" + suffix;
+        if(cell.element.parentNode.className !== expected)cell.element.parentNode.className=expected;
+      }
+
       function evaluateProtocolCells(view, position, schedule, candidates) {
         var slotSettings = state.finalAppealRegularSettings || activeSettings();
         var phaseElapsed = window.FDVFinalAppeals.active(state) ? 0 : Math.max(0,elapsedSeconds() % Math.max(1,slotSettings.rotationSeconds+slotSettings.breakSeconds));
@@ -2323,6 +2330,7 @@
         if (candidates) {
           for (i = 0; i < candidates.length; i += 1) {
             cell = candidates[i];
+            updateProtocolExclusionCell(cell,schedule,view.rows[cell.participantIndex].excluded);
             status = cell.calculationParticipantIndex < 0 ? (schedule.finalFormat === "new" ? "dns" : "") : window.FDVStartListDisplay.marker(
               cell.calculationParticipantIndex,
               cell.routeIndex,
@@ -2340,6 +2348,7 @@
           for (participantIndex = 0; participantIndex < view.rows.length; participantIndex += 1) {
             for (routeIndex = 0; routeIndex < view.rows[participantIndex].cells.length; routeIndex += 1) {
               cell = view.rows[participantIndex].cells[routeIndex];
+              updateProtocolExclusionCell(cell,schedule,view.rows[participantIndex].excluded);
               status = cell.calculationParticipantIndex < 0 ? (schedule.finalFormat === "new" ? "dns" : "") : window.FDVStartListDisplay.marker(
                 cell.calculationParticipantIndex,
                 routeIndex,

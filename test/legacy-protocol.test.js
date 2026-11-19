@@ -253,5 +253,5 @@ test("Legacy measures signed render timing and keeps an ordinary scheduled run a
   assert.match(legacy, /lastRenderDelayMs = Math\.round\(\(callbackServerTime - targetServerTime\) \* 10\) \/ 10/);
   assert.match(legacy, /&renderDelay=[\s\S]*?&renderDelayAge=/);
   assert.match(legacy, /if \(state\.countdownOnly \|\| \(state\.running && Number\(state\.startedAt \|\| 0\) > serverNow\(\)\)\)/);
-  assert.match(legacy, /return Math\.max\(0, \(serverNow\(\) - Number\(state\.startedAt \|\| 0\)\) \/ 1000\)/);
+  assert.match(legacy, /return Math\.max\(state\.manualStartDisplayHold \? Number\(state\.manualStartElapsed \|\| 0\) : 0, \(serverNow\(\) - Number\(state\.startedAt \|\| 0\)\) \/ 1000\)/);
 });

@@ -714,7 +714,7 @@ test("server SYNC uses fresh health rather than persisted historical anomalies",
 });
 
 test("timer time remains derived from the synchronized server clock", () => {
-  assert.match(index, /return Math\.max\(0, \(serverNow\(\) - state\.serverStartedAt\) \/ 1000\);/);
+  assert.match(index, /return Math\.max\(state\.manualStartDisplayHold \? Number\(state\.manualStartElapsed \|\| 0\) : 0, \(serverNow\(\) - state\.serverStartedAt\) \/ 1000\);/);
   assert.match(index, /source\.start\(start\);/);
 });
 

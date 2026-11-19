@@ -237,7 +237,7 @@ test("actual runtime controllers do not fall back to local mutations after a ret
     const before = JSON.stringify(currentState);
     let localRenders = 0;
     const context = vm.createContext({
-      state: currentState, controlsAvailable: () => true, timerControlsAvailable: () => true, isLimitedController: false,
+      window: {FDVFinalAppeals: require("../lib/final-appeals")}, state: currentState, controlsAvailable: () => true, timerControlsAvailable: () => true, isLimitedController: false,
       requestScreenWakeLock() {}, unlockAudio() {}, cancelDiagnosticAudio() {},
       finalStartPrewarmPlanner: { reset() {}, stop() {} }, requestManualStartAudioWake() {}, wakeAudioOutput() {},
       isBeforeScheduledStart: () => scheduled,

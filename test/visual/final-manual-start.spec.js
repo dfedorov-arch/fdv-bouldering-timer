@@ -59,6 +59,20 @@ async function signals(page) {
     ends:window.finalStartProbe.filter(e=>e.key.includes("rotationBoundary:1:finish:"))
   }));
 }
+test("Classic manual starts at rotation seven use the initial lead and one cue on both screens; middle resumes stay silent",async({browser})=>{
+ await withDisplays(browser,async(server,pages)=>{
+  await reset(server,pages,false);await server.action({type:"seekCycle",cycle:7});
+  for(const page of pages)await page.waitForFunction(()=>!state.running&&state.elapsedBeforePause===48);
+  await manualStart(pages);
+  for(const page of pages){expect(await page.evaluate(()=>state.manualStartLeadMs)).toBe(600);expect(await page.evaluate(()=>getCurrentSegment(elapsedSeconds()).cycle)).toBe(7);}
+  await pages[0].waitForTimeout(1300);
+  for(const page of pages)expect((await signals(page)).starts).toHaveLength(1);
+  await server.action({type:"pause"});for(const page of pages)await page.waitForFunction(()=>!state.running);
+  for(const page of pages)await page.evaluate(()=>{window.finalStartProbe=[];});
+  await manualStart(pages);await pages[0].waitForTimeout(900);
+  for(const page of pages){expect(await page.evaluate(()=>state.manualStartLeadMs)).toBe(0);expect((await signals(page)).starts).toHaveLength(0);}
+ });
+});
 
 test("clock refinements cannot replay the same manual start event, but a new run can sound",async({browser})=>{
   await withDisplays(browser,async(server,pages)=>{

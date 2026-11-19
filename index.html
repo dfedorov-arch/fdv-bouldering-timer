@@ -3002,7 +3002,8 @@
     #controlPinForm button { width: 100%; min-height: 44px; }
     #controlPinMessage { min-height: 1.5em; color: #ffb76b; }
   body .route-marker.dns { display: inline-block; width: auto; height: auto; font-size: 9px; line-height: 1; color: var(--muted, #8d97a5); background: none; border: 0; transform: none; }
-    .start-list-table tr.is-excluded td.route-cell::after { display: none; }
+    .start-list-table tr.is-excluded td.route-cell.dns-retained::after { display: none; }
+    .start-list-table td.dns-skipped .route-marker.dns { visibility:hidden; }
 
     td.appeal-time-cell { position:relative;z-index:4;overflow:visible !important; }
     td.appeal-time-cell:last-child .appeal-ready-time { left:auto;right:calc(50% + 12px); }
@@ -3276,6 +3277,7 @@
       countdownOnly: false,
       waitingForManualStart: false,
       manualStartLeadMs: 0,
+      manualStartElapsed: 0,
       manualStartDisplayHold: false,
       activePreset: "classic",
       runtimePreset: "classic",
@@ -3309,7 +3311,7 @@
       timeline: []
     };
 
-    const pageBuildNumber = 456;
+    const pageBuildNumber = 457;
     const projectUrl = "https://github.com/dfedorov-arch/fdv-bouldering-timer";
     const buildLinkConfirmDelayMs = 550;
     const offlineSnapshotKey = "fdvBoulderingTimerOfflineSnapshot";
@@ -5020,7 +5022,7 @@
         startListDataRevision,
         state: {
           running: state.running,
-          completed: state.completed,
+          completed: state.completed, manualStartElapsed: state.manualStartElapsed, manualStartLeadMs: state.manualStartLeadMs, manualStartDisplayHold: state.manualStartDisplayHold,
           countdownOnly: state.countdownOnly,
           waitingForManualStart: state.waitingForManualStart,
           serverStartedAt: standaloneMode ? state.serverStartedAt : null,
@@ -5125,7 +5127,7 @@
           draftSettings: draftSettings(),
           state: {
             running: state.running,
-            completed: state.completed,
+            completed: state.completed, manualStartElapsed: state.manualStartElapsed, manualStartLeadMs: state.manualStartLeadMs, manualStartDisplayHold: state.manualStartDisplayHold,
             countdownOnly: state.countdownOnly,
             waitingForManualStart: state.waitingForManualStart,
             serverStartedAt: state.serverStartedAt,
@@ -5224,6 +5226,9 @@
           ? String(snapshot.startListServerRevision || "").slice(0, 200)
           : "";
         Object.assign(state, {
+          manualStartElapsed: Number(snapshot.state.manualStartElapsed || 0),
+          manualStartLeadMs: Number(snapshot.state.manualStartLeadMs || 0),
+          manualStartDisplayHold: Boolean(snapshot.state.manualStartDisplayHold),
           running: Boolean(snapshot.state.running),
           completed: Boolean(snapshot.state.completed),
           countdownOnly: Boolean(snapshot.state.countdownOnly),
@@ -6788,7 +6793,7 @@
     function elapsedSeconds() {
       if (!state.running) return state.elapsedBeforePause;
       if (state.serverStartedAt) {
-        return Math.max(0, (serverNow() - state.serverStartedAt) / 1000);
+        return Math.max(state.manualStartDisplayHold ? Number(state.manualStartElapsed || 0) : 0, (serverNow() - state.serverStartedAt) / 1000);
       }
       return (performance.now() - state.startedAt - state.accumulatedPause) / 1000;
     }
@@ -7022,6 +7027,7 @@
       state.countdownOnly = Boolean(remote.countdownOnly);
       state.waitingForManualStart = Boolean(remote.waitingForManualStart);
       state.manualStartLeadMs = Number(remote.manualStartLeadMs || 0);
+      state.manualStartElapsed = Number(remote.manualStartElapsed || 0);
       state.manualStartDisplayHold = Boolean(remote.manualStartDisplayHold);
       state.serverStartedAt = Number(remote.startedAt || 0);
       state.audioRunId = typeof remote.audioRunId === "string" ? remote.audioRunId : "";
@@ -7226,6 +7232,7 @@
       state.countdownOnly = Boolean(remote.countdownOnly);
       state.waitingForManualStart = Boolean(remote.waitingForManualStart);
       state.manualStartLeadMs = Number(remote.manualStartLeadMs || 0);
+      state.manualStartElapsed = Number(remote.manualStartElapsed || 0);
       state.manualStartDisplayHold = Boolean(remote.manualStartDisplayHold);
       state.serverStartedAt = Number(remote.startedAt || 0);
       state.audioRunId = typeof remote.audioRunId === "string" ? remote.audioRunId : "";
@@ -9359,7 +9366,7 @@
             }).join("");
             const routes = Array.from({ length: list.routeCount }, (_, routeIndex) => {
               const marker = excluded ? (schedule.finalFormat === "new" ? "dns" : "") : appealCellMarker(index, participantIndex, routeIndex, window.FDVStartList.marker(calculationParticipantIndex, routeIndex, position.cycle, position.phase, incidents, schedule));
-              return `<td class="route-cell" data-start-list-route-cell="${routeIndex}" data-start-list-marker="${marker}">${marker ? `<span class="route-marker ${marker}" aria-label="${escapeHtml(startListMarkerLabel(marker))}">${marker === "dns" ? "DNS" : ""}</span>` : ""}</td>`;
+              return `<td class="route-cell${excluded && schedule.finalFormat === "new" ? window.FDVStartList.excludedCellSkipped(participantIndex,routeIndex,schedule) ? " dns-skipped" : " dns-retained" : ""}" data-start-list-route-cell="${routeIndex}" data-start-list-marker="${marker}">${marker ? `<span class="route-marker ${marker}" aria-label="${escapeHtml(startListMarkerLabel(marker))}">${marker === "dns" ? "DNS" : ""}</span>` : ""}</td>`;
             }).join("");
             return `<tr data-participant-index="${participantIndex}" class="${excluded ? "is-excluded" : rowStatus ? `is-${rowStatus}` : ""}">${cells}${routes}</tr>`;
           }).join("");
@@ -9395,6 +9402,8 @@
             if (row.className !== nextClassName) row.className = nextClassName;
             row.querySelectorAll("[data-start-list-route-cell]").forEach((cell) => {
               const routeIndex = Number(cell.dataset.startListRouteCell);
+              cell.classList.toggle("dns-skipped",excluded && schedule.finalFormat === "new" && window.FDVStartList.excludedCellSkipped(participantIndex,routeIndex,schedule));
+              cell.classList.toggle("dns-retained",excluded && schedule.finalFormat === "new" && !window.FDVStartList.excludedCellSkipped(participantIndex,routeIndex,schedule));
               const marker = excluded ? (schedule.finalFormat === "new" ? "dns" : "") : appealCellMarker(index, participantIndex, routeIndex, window.FDVStartList.marker(calculationParticipantIndex, routeIndex, position.cycle, position.phase, incidents, schedule));
               if ((cell.dataset.startListMarker || "") === marker) return;
               cell.dataset.startListMarker = marker;
@@ -10279,7 +10288,7 @@
           // Deliberate route changes keep future-only playback. On failure,
           // recent cues may recover within their existing lateness limits.
           if (!recoverRecent && isInitialManualStart(getCurrentSegment(elapsedSeconds()))
-            && serverNow() >= audioServerTime(state.serverStartedAt)) noteManualStartHandled(state.serverStartedAt);
+            && serverNow() >= audioServerTime(state.serverStartedAt + Number(state.manualStartElapsed || 0)*1000)) noteManualStartHandled(state.serverStartedAt + Number(state.manualStartElapsed || 0)*1000);
           rescheduleStandaloneSignals({forceStopAudio:true,futureOnly:!recoverRecent,includeRecentPhaseSignal:recoverRecent});
         },
         record: (stage,details) => recordPerformanceAudioClock(stage,details),
@@ -11056,14 +11065,14 @@
     }
 
     function isInitialManualStart(segment) {
-      return window.FDVFinalAppeals.initialStartAllowed(state) && !standaloneMode && state.running && !state.countdownOnly
+      return window.FDVFinalAppeals.initialStartAllowed(state) && state.running && !state.countdownOnly
         && state.manualStartLeadMs > 0 && state.manualStartDisplayHold
-        && segment?.cycle === 1 && segment.type === "rotation" && segment.start === 0;
+        && segment?.type === "rotation" && segment.start === Number(state.manualStartElapsed || 0);
     }
 
     function manualStartRunCurrent(targetServerTime) {
       return window.FDVFinalAppeals.initialStartAllowed(state) && state.running && !state.countdownOnly && state.manualStartDisplayHold
-        && Math.abs(state.serverStartedAt - targetServerTime) < 10;
+        && Math.abs(state.serverStartedAt + Number(state.manualStartElapsed || 0)*1000 - targetServerTime) < 10;
     }
 
     function manualStartWasHandled(targetServerTime) {
@@ -11101,7 +11110,7 @@
 
     function scheduleInitialManualStartSignal(segment) {
       if (!isInitialManualStart(segment)) return false;
-      const target = state.serverStartedAt;
+      const target = state.serverStartedAt + Number(state.manualStartElapsed || 0)*1000;
       if (manualStartWasHandled(target)) return false;
       if (playedSignalKeys.has(manualStartSignalKey(target))) return false;
       if (serverNow() - audioServerTime(target) > manualStartRecoveryGraceMs) {
@@ -11114,7 +11123,7 @@
       scheduleBufferedSignalAt(segment, target, "start", true, true, () => playManualStartSound(target), {
         signalKey: manualStartSignalKey(target), initialManualStart: true,
         lateGraceMs: manualStartRecoveryGraceMs,
-        onPlay: () => { noteManualStartHandled(target); lastPhaseSignalKey = "1:rotation"; }
+        onPlay: () => { noteManualStartHandled(target); lastPhaseSignalKey = `${segment.cycle}:rotation`; }
       });
       return true;
     }
@@ -11927,7 +11936,7 @@
         && !state.countdownOnly
         && state.elapsedBeforePause === 0
         && Boolean(state.manualStartDisplayHold)
-        && state.serverStartedAt > serverNow();
+        && state.serverStartedAt + Number(state.manualStartElapsed || 0)*1000 > serverNow();
     }
 
     function nextSecondBoundaryServerTime(currentServerTime, endServerTime) {
@@ -12176,7 +12185,7 @@
       }
 
       if (isManualStartHoldPending()) {
-        const initialSegment = getCurrentSegment(0);
+        const initialSegment = getCurrentSegment(Number(state.manualStartElapsed || 0));
         if (initialSegment) {
           setElementClass(document.body, "countdown-active", false);
           const initialDuration = initialSegment.end - initialSegment.start;
@@ -12622,6 +12631,7 @@
       Object.assign(state, appealStart.state);
       const isFreshStart = state.elapsedBeforePause === 0 || state.completed || state.waitingForManualStart;
       const elapsed = isFreshStart ? 0 : state.elapsedBeforePause;
+      const boundaryStart = window.FDVFinalAppeals.rotationStart(activeSettings(),elapsed);
       clearSignalTimers();
       if (isFreshStart) {
         if (!waitingForManualStart && !window.FDVFinalAppeals.active(state)) clearStartListIncidentsForNewRound();
@@ -12629,18 +12639,21 @@
         if (!window.FDVFinalAppeals.active(state)) state.activeSettings = activeSettingsFromDraft();
         state.completed = false;
         lastPhaseSignalKey = "1:rotation";
-        immediateStartSignal();
       }
+      state.manualStartElapsed = boundaryStart ? elapsed : 0;
+      state.manualStartLeadMs = boundaryStart ? 600 : 0;
+      state.manualStartDisplayHold = boundaryStart;
       buildTimeline(state.activeSettings || activeSettingsFromDraft());
       state.running = true;
       state.countdownOnly = false;
       state.waitingForManualStart = false;
       state.elapsedBeforePause = 0;
-      state.serverStartedAt = serverNow() - elapsed * 1000;
-      state.startedAt = performance.now() - elapsed * 1000;
+      state.serverStartedAt = serverNow() + state.manualStartLeadMs - elapsed * 1000;
+      state.startedAt = performance.now() + state.manualStartLeadMs - elapsed * 1000;
       lastSegmentIndex = -1;
       syncButtons();
       render();
+      if(boundaryStart) scheduleManualStartWatchdog(state.serverStartedAt + elapsed*1000);
       saveOfflineSnapshot();
     }
 
@@ -12700,7 +12713,7 @@
         return;
       }
       const isFreshStart = state.elapsedBeforePause === 0 || state.completed;
-      const useStartAudioLead = isFreshStart && shouldUseManualStartAudioLead();
+      const useStartAudioLead = window.FDVFinalAppeals.rotationStart(isFreshStart ? activeSettingsFromDraft() : activeSettings(),state.completed ? 0 : state.elapsedBeforePause) && shouldUseManualStartAudioLead();
       if (isFreshStart && !useStartAudioLead && !window.FDVFinalAppeals.plans(state).some(plan => !plan.completed)) {
         lastPhaseSignalKey = "1:rotation";
         immediateStartSignal();
@@ -12717,7 +12730,7 @@
         startAudioLead: useStartAudioLead
       }, { rescheduleSignals: true, includePhaseSignal: false });
       if (sent === true) {
-        if (useStartAudioLead) scheduleManualStartWatchdog(state.serverStartedAt);
+        if (useStartAudioLead) scheduleManualStartWatchdog(state.serverStartedAt + Number(state.manualStartElapsed || 0)*1000);
         return;
       }
       if (sent === "conflict") return;

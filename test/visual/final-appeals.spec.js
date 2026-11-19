@@ -228,7 +228,7 @@ test("standalone dialog, A/R execution, pause/resume and reload retain assignmen
   await expect(page.locator('#cycleMeta')).toContainText(/Допротация|A\/R/);
   await page.reload({waitUntil:"domcontentloaded"});await page.waitForFunction(()=>!!state.finalAppealActiveId);
   expect(await page.evaluate(()=>state.activeSettings.rotationSeconds)).toBe(8);
-  await page.evaluate(()=>startTimer());await page.waitForTimeout(500);await page.evaluate(()=>pauseTimer());
+  await page.evaluate(()=>startTimer());await page.waitForFunction(()=>state.running&&elapsedSeconds()>0.1);await page.evaluate(()=>pauseTimer());
   expect(await page.evaluate(()=>state.startListFinalCycle)).toBe(0);
   await page.reload({waitUntil:"domcontentloaded"});await page.waitForFunction(()=>!!state.finalAppealActiveId&&!state.running&&state.elapsedBeforePause>0);
   await page.evaluate(()=>startTimer());await page.waitForFunction(()=>state.completed,null,{timeout:10000});
