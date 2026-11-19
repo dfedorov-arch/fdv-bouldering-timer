@@ -1,5 +1,13 @@
 # FDV Bouldering Timer — контекст следующего чата
 
+## Stable 3.1.0 published, 19 November 2026
+
+Latest stable is now v3.1.0/build456, tag88b5f8e. Main/develop synchronized;
+notes committed separately1278fb6. Workflow44507877659 passed after retrying
+the failed Win7/8 x64 browser job without changing source/tag. Verified18 assets,
+all16 package SHA-256 digests, update metadata and Latest. Review:
+[review/release310.md](review/release310.md). Current test server was left running.
+
 ## Синхронизация develop с GitHub и зелёный CI (19 ноября 2026)
 
 Работа над сборкой 456 опубликована. Коммит `37b2952` («Add Playbook Final
