@@ -1,5 +1,7 @@
 # FDV Bouldering Timer
 
+Текущая версия: **3.1.1 / сборка457**. [Описание изменений / Release notes](docs/releases/v3.1.1.md).
+
 [Новое в 3.1.0 / New in 3.1.0](docs/releases/v3.1.0.md)
 
 В версии **3.1.0 / сборка456**: расписание нового Финала по Playbook2026,
