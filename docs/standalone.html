@@ -3014,6 +3014,7 @@
     .start-list-table tr.is-excluded td.route-cell::after { display: none; }
 
     td.appeal-time-cell { position:relative;z-index:4;overflow:visible !important; }
+    td.appeal-time-cell:last-child .appeal-ready-time { left:auto;right:calc(50% + 12px); }
     .appeal-ready-time { position:absolute;z-index:5;left:calc(50% + 12px);top:50%;transform:translateY(-50%);white-space:nowrap;background:#242b35;color:#ffc857;border:1px solid #8e783e;border-radius:4px;padding:1px 5px;font-size:1em;font-weight:bold;line-height:1.3;pointer-events:none; }
   </style>
 </head>
@@ -3260,10 +3261,10 @@ window.FDV_OFFLINE_BUNDLE = {"config":{"httpPort":8008,"httpsPort":8443,"classic
 
 // Display/scheduling projection only: canonical athletes and timer clocks stay intact.
 (function (root, factory) {
-  var api = factory();
+  var api = factory(function () { return typeof module === "object" && module.exports ? require("./start-list-display") : root.FDVStartListDisplay; });
   if (typeof module === "object" && module.exports) module.exports = api;
   if (root) root.FDVRotationSlots = api;
-})(typeof window !== "undefined" ? window : null, function () {
+})(typeof window !== "undefined" ? window : null, function (displayCore) {
   var cache = [];
   function classic(state) {
     return (state.running || state.completed || state.elapsedBeforePause > 0 || state.finalAppealActiveId
@@ -3280,7 +3281,7 @@ window.FDV_OFFLINE_BUNDLE = {"config":{"httpPort":8008,"httpsPort":8443,"classic
         : isClassic && !plan.solo && plan.entries.some(function (entry) { return entry.listIndex === listIndex; });
     });
     if (!relevant.length) return { slots: [], normalCycles: null, key: "", conflicts: [], rowNumbers: [] };
-    var key = JSON.stringify([isClassic, listIndex, list.rows, list.excludedParticipants || [], list.routeCount, relevant]);
+    var key = JSON.stringify([isClassic, listIndex, list.rows, list.excludedParticipants || [], list.routeCount, list.incidents || [], relevant]);
     var i, j, r, prior;
     for (i = 0; i < cache.length; i++) if (cache[i].key === key) return cache[i].value;
     var slots = [], fronts = [], immediate = [], normal = [], stream = [], excluded = list.excludedParticipants || [], conflicts = [];
@@ -3288,6 +3289,13 @@ window.FDV_OFFLINE_BUNDLE = {"config":{"httpPort":8008,"httpsPort":8443,"classic
     for (i = 0; i < list.rows.length; i++) {
       if (excluded.indexOf(i) >= 0) continue;
       normal.push({ kind: "normal", participantIndex: i, rank: rank++, cycles: [] });
+    }
+    function resolvedSchedule() {
+      var api = displayCore(), schedule = { attemptCycles: normal.map(function (row) { return row.cycles; }), slotKey: JSON.stringify(normal.map(function (row) { return row.cycles; })) };
+      return { api: api, schedule: schedule, incidents: api.calculationIncidents(list.incidents, excluded, list.rows.length, schedule) };
+    }
+    function actualCycle(row, route, context) {
+      return row.kind === "normal" ? context.api.attemptInfo(row.rank, route, context.incidents, context.schedule).activeCycle : row.cycles[route];
     }
     relevant.forEach(function (plan) {
       if (plan.kind === "empty") {
@@ -3322,19 +3330,19 @@ window.FDV_OFFLINE_BUNDLE = {"config":{"httpPort":8008,"httpsPort":8443,"classic
       stream = normal.concat(fronts).sort(function (a, b) { return a.frontCycle - b.frontCycle; });
       immediate.sort(function (a, b) { return a.afterCycle - b.afterCycle || b.route - a.route || a.ordinal - b.ordinal; });
       immediate.forEach(function (slot) {
-        var target = slot.afterCycle + 1, found = -1, row, route, k;
-        for (var n = 0; n < stream.length; n++) if (stream[n].cycles[slot.route] === target) { found = n; break; }
+        var target = slot.afterCycle + 1, found = -1, row, route, k, context = resolvedSchedule();
+        for (var n = 0; n < stream.length; n++) if (actualCycle(stream[n], slot.route, context) === target) { found = n; break; }
         if (found >= 0) {
           row = stream[found];
           slot.beforeIndex = list.rows.length;
           for (k = found; k < stream.length; k++) if (stream[k].kind === "normal") { slot.beforeIndex = stream[k].participantIndex; break; }
           if (row.kind === "normal") {
             for (k = found; k < stream.length; k++) for (route = slot.route; route < routeCount; route++) {
-              if (stream[k].cycles[route] >= target) stream[k].cycles[route]++;
+              if (actualCycle(stream[k], route, context) !== null && actualCycle(stream[k], route, context) >= target) stream[k].cycles[route]++;
             }
           } else if (row.kind === "attempt" && row.route === slot.route) conflicts.push(slot.id);
         } else {
-          for (k = 0; k < stream.length; k++) if (stream[k].kind === "normal" && stream[k].cycles[slot.route] > target) {
+          for (k = 0; k < stream.length; k++) if (stream[k].kind === "normal" && actualCycle(stream[k], slot.route, context) > target) {
             slot.beforeIndex = stream[k].participantIndex; break;
           }
         }
@@ -3345,6 +3353,19 @@ window.FDV_OFFLINE_BUNDLE = {"config":{"httpPort":8008,"httpsPort":8443,"classic
         for (j = i + 1; j < stream.length; j++) if (stream[j].kind === "normal") { stream[i].beforeIndex = stream[j].participantIndex; break; }
         if (j === stream.length) stream[i].beforeIndex = list.rows.length;
       }
+      // Reserve against the resolved incident timeline, including flow slots.
+      // A pause may otherwise move an ordinary athlete into an existing gap.
+      slots.filter(function (slot) { return slot.kind === "attempt"; }).sort(function (a,b) {
+        return a.cycles[a.route]-b.cycles[b.route] || b.route-a.route || a.ordinal-b.ordinal;
+      }).forEach(function (slot) {
+        var target=slot.cycles[slot.route], context=resolvedSchedule(), occupant=-1, n, k, route;
+        for(n=0;n<normal.length;n++) if(actualCycle(normal[n],slot.route,context)===target){occupant=n;break;}
+        if(occupant<0)return;
+        for(k=occupant;k<normal.length;k++)for(route=slot.route;route<routeCount;route++) {
+          var actual=actualCycle(normal[k],route,context);
+          if(actual!==null && actual>=target)normal[k].cycles[route]++;
+        }
+      });
       var reserved = {};
       slots.forEach(function (slot) {
         if (slot.kind !== "attempt") return;
@@ -3352,6 +3373,13 @@ window.FDV_OFFLINE_BUNDLE = {"config":{"httpPort":8008,"httpsPort":8443,"classic
         if (reserved[targetKey]) conflicts.push(slot.id);
         reserved[targetKey] = true;
       });
+      var finalContext=resolvedSchedule();
+      normal.forEach(function (row) { for(var route=0;route<routeCount;route++) {
+        var cycle=actualCycle(row,route,finalContext), occupancy=route+":"+cycle;
+        if(cycle===null)continue;
+        if(reserved[occupancy])conflicts.push("normal_"+row.participantIndex+"_"+route);
+        reserved[occupancy]=true;
+      }});
     }
     slots.sort(function (a, b) { return a.beforeIndex - b.beforeIndex || a.afterCycle - b.afterCycle || a.ordinal - b.ordinal; });
     var numbers = [], displayIndex = 0, slotIndex = 0;
@@ -3588,6 +3616,12 @@ window.FDV_OFFLINE_BUNDLE = {"config":{"httpPort":8008,"httpsPort":8443,"classic
         if (!old || incident.resolution === "resume" && (old.resolution !== "resume" || old.resumeCycle !== incident.resumeCycle)) error = "route-pause-unavailable";
       });
     });
+    if (!error && isClassic(state)) {
+      var candidate = copy(state); candidate.startLists = nextLists;
+      nextLists.forEach(function (list, li) {
+        if (list && rotationSlots.build(candidate, li, list).conflicts.length) error = "rotation-conflict";
+      });
+    }
     return error;
   }
   function retainedIncidents(state, list) {

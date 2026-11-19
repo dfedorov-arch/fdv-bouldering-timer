@@ -42,6 +42,18 @@ test("Classic immediate slots reserve only the chosen route then propagate the d
  assert.deepEqual(p.normalCycles[2],[3,6,8,10]);assert.deepEqual(p.normalCycles[1],[2,4,6,8]);
  assert.equal(p.normalCycles[3][0],4);assert.equal(p.normalCycles[3][1],7);
 });
+test("a route pause from seven to nine is resolved before reserving route five in rotation fifteen",()=>{
+ const s=state();s.startLists[0].routeCount=5;s.startLists[0].incidents=[{kind:"pause",route:2,startCycle:7,resumeCycle:9,participantIndex:4,resolution:"resume"}];
+ const next=ar.replaceQueue(s,[plan("repeat",14,"immediate",false,[entry(3,4,60)])]);
+ const list=next.startLists[0],schedule=slots.decorateSchedule(next,0,list,{},14*255+61),p=slots.build(next,0,list),incidents=display.calculationIncidents(list.incidents,[],list.rows.length,schedule);
+ assert.equal(display.marker(4,4,15,"rotation",incidents,schedule),"ready");assert.equal(display.marker(4,4,16,"rotation",incidents,schedule),"active");
+ assert.equal(slots.marker(p.slots[0],4,15,"rotation",181,240),"active");assert.deepEqual(p.conflicts,[]);
+ for(let cycle=1;cycle<45;cycle++)for(let route=0;route<5;route++){
+  const count=list.rows.filter((_,pi)=>display.marker(pi,route,cycle,"rotation",incidents,schedule)==="active").length+p.slots.filter(slot=>slots.marker(slot,route,cycle,"rotation",239,240)==="active").length;
+  assert.ok(count<=1,`route ${route+1}, cycle ${cycle}: ${count}`);
+ }
+ const moved={...list,incidents:[{...list.incidents[0],resumeCycle:10}]};const movedSchedule=slots.decorateSchedule(next,0,moved,{});assert.notEqual(movedSchedule.slotKey,schedule.slotKey);
+});
 test("an immediate repeat in a naturally empty route window leaves the normal field unchanged",()=>{
  const s=ar.replaceQueue(state(),[plan("early",0,"immediate",false,[entry(0,3,90)])]),p=slots.build(s,0,s.startLists[0]);
  assert.equal(p.slots[0].beforeIndex,0);assert.equal(p.slots[0].cycles[3],1);assert.deepEqual(p.normalCycles[0],[1,3,5,7]);

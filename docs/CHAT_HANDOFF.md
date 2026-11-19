@@ -32,6 +32,23 @@ started.txt while it is written»): в `test/helpers/launcher-process-checks.cs`
 
 ## Classic / Old Final / empty rotations (develop456, 18 November)
 
+19 November: immediate reservations now resolve route incidents before locating
+the displaced ordinary athlete. The owner's pause on route2 at cycles7–9 moved
+the actual route5 occupant into15; the earlier projection displaced a different
+athlete using unpaused cycles. Reservation and final occupancy validation now
+include resolved ordinary attempts; queue/list changes reject remaining conflicts.
+Projection caching includes incident content. Last-route time badges appear LEFT
+of the marker. 106 targeted Node cases, four Chromium scenarios and full Linux
+suite656/644pass/12skip/0fail passed.
+IMPORTANT current server is the user's NEW copy `dist/test-server-20261119-456`,
+not the former launcher-test folder. System Node PID27468, HTTP18088/HTTPS18443;
+actual process directory was verified. Updated/restarted preserving saved pause
+1881.873429841797s, Classic120s+10s and one immediate repeat after14 on route5.
+Independent API/projection confirms repeat15, displaced ordinary athlete16.
+Backup `dist/final-playbook-audit/test456-before-incident-reservation-20261119-110634`.
+Launch metadata updated; existing tabs need Ctrl+F5. Recheck process paths before
+stopping anything; the parent process may already have exited.
+
 Latest user correction: retain the next ordinary athlete's preparation while
 the current Classic repeat is still preparing, but draw that ordinary triangle
 at 35% opacity. Restore full opacity when the repeat starts. Marker semantics,

@@ -74,6 +74,18 @@ for(const preset of ["classic","old","new"])test(`empty rotation renders a numbe
   await page.locator('.start-list-table').screenshot({path:test.info().outputPath(`empty-${preset}.png`)});
  });
 });
+test("route pause and an immediate repeat never overlap; final-route time is to the left on Modern and Legacy",async({browser})=>{
+ await pagesFor(browser,"classic",async(server,pages)=>{
+  const l=list();l.routeCount=5;l.incidents=[{kind:"pause",route:2,startCycle:7,resumeCycle:9,participantIndex:4,resolution:"resume"}];await server.action({type:"startLists",startLists:[l]});
+  await server.action({type:"finalAppeals",rotations:[{id:"last",afterCycle:14,placement:"immediate",solo:false,entries:[entry(3,4,60)]}]});
+  await server.action({type:"seekCycle",cycle:15});await server.start({settings:{rotationSeconds:240,breakSeconds:15,oneShot:false},elapsedBeforePause:14*255+1});
+  for(const page of pages){const slot=page.locator('[data-rotation-slot]');await expect(slot.locator('.appeal-ready-time')).toHaveText('1:00');
+   expect(await slot.evaluate(row=>{const badge=row.querySelector('.appeal-ready-time').getBoundingClientRect(),marker=row.querySelector('.route-marker.ready').getBoundingClientRect();return badge.right<=marker.left;})).toBe(true);
+  }
+  await server.action({type:"pause"});await server.action({type:"seekCycle",cycle:15});await server.start({settings:{rotationSeconds:240,breakSeconds:15,oneShot:false},elapsedBeforePause:14*255+181});
+  for(const page of pages){await expect(page.locator('[data-rotation-slot] .route-marker.active')).toHaveCount(1);await expect(page.locator('.start-list-table tbody tr[data-participant-index] td:last-child .route-marker.active,.protocol-table tbody tr:not([data-rotation-slot]) td:last-child .route-marker.active')).toHaveCount(0);await page.locator('.start-list-table,.protocol-table').screenshot({path:test.info().outputPath('incident-reservation-'+pages.indexOf(page)+'.png')});}
+ });
+});
 test("standalone Classic restores settings and flow after a solo attempt",async({browser})=>{
  const context=await browser.newContext({offline:true});try{
   const page=await context.newPage();const errors=[];page.on("pageerror",e=>errors.push(e.message));
