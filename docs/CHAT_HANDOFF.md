@@ -1,5 +1,19 @@
 # FDV Bouldering Timer — контекст следующего чата
 
+## Changes prepared for 3.1.2 / build458
+
+- On macOS automatic browser opening uses `open -g` to keep the launcher
+  focused at startup. The owner reported no further hover delays in repeated
+  launches. Manual opening still activates the browser.
+- Selecting the next rotation in New Final stages the pending extra rotation
+  at that boundary. Server and standalone use the same staging helper, limited
+  to Final modes.
+- During a scheduled start wait, browser sound tests use the calendar start
+  anchor. Internal clock updates continue without cancelling the test.
+- A separate Windows report of silent server audio remains under investigation.
+  The WAV/MP3 comparison was discussed with the owner. No Windows audio or codec
+  changes are included.
+
 ## Latest stable: 3.1.1 / build457 (19 November 2026)
 
 Published v3.1.1, tag7146332eafcb5062ef1bb80914fb1d06eb4a73ce. Main and develop

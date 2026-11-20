@@ -3311,7 +3311,7 @@
       timeline: []
     };
 
-    const pageBuildNumber = 457;
+    const pageBuildNumber = 458;
     const projectUrl = "https://github.com/dfedorov-arch/fdv-bouldering-timer";
     const buildLinkConfirmDelayMs = 550;
     const offlineSnapshotKey = "fdvBoulderingTimerOfflineSnapshot";
@@ -10559,11 +10559,17 @@
         && (!state.running || isBeforeScheduledStart());
     }
 
+    function diagnosticAudioStartAnchor() {
+      // While waiting, the server can reproject the same calendar start onto
+      // its monotonic clock. A new projection does not invalidate a sound test.
+      return standaloneMode ? state.serverStartedAt : state.serverStartedAtWall;
+    }
+
     function diagnosticAudioScopeIsCurrent(scope) {
       return Boolean(scope && scope === diagnosticAudioScope && !scope.cancelled
         && scope.serverInstanceId === lastServerInstanceId
         && scope.audioLoadGeneration === audioLoadGeneration
-        && scope.audioRunId === state.audioRunId && scope.startedAt === state.serverStartedAt
+        && scope.audioRunId === state.audioRunId && scope.startedAt === diagnosticAudioStartAnchor()
         && diagnosticAudioAllowed());
     }
 
@@ -10602,7 +10608,7 @@
       if (!diagnosticAudioAllowed()) return null;
       diagnosticAudioScope ||= { cancelled: false, nodes: [], timers: [], htmlAudio: [],
         serverInstanceId: lastServerInstanceId, audioLoadGeneration,
-        audioRunId: state.audioRunId, startedAt: state.serverStartedAt };
+        audioRunId: state.audioRunId, startedAt: diagnosticAudioStartAnchor() };
       return diagnosticAudioScope;
     }
 
@@ -13179,6 +13185,7 @@
         await sendServerAction("seekCycle", { cycle });
         return;
       }
+      const previousSettings = state.activeSettings;
       Object.assign(state, window.FDVFinalAppeals.reposition(state, cycle));
       const settings = activeSettings();
       const cycleDuration = Math.max(1, settings.rotationSeconds + settings.breakSeconds);
@@ -13192,6 +13199,9 @@
         ? cycle > 1 ? 0.001 : 0
         : (cycle - 1) * cycleDuration;
       if (settings.oneShot) state.startListFinalCycle = cycle - 1;
+      const staged = window.FDVFinalAppeals.stageAfterFinalSeek(state);
+      if (staged !== state) Object.assign(state, staged);
+      if (state.activeSettings !== previousSettings) buildTimeline(state.activeSettings);
       lastSegmentIndex = -1;
       lastPhaseSignalKey = "";
       clearSignalTimers();

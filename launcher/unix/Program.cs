@@ -614,7 +614,7 @@ internal sealed class LauncherWindow : Window
         if (_allowClose) return;
         if (_pendingServerLanguage != null) { _ = TrySyncServerLanguage(); return; }
         if (generation != _probeGeneration || _serverProcess != process) return;
-        if (_openBrowserAfterLanguageSync) { _openBrowserAfterLanguageSync = false; OpenLocalTimer(); }
+        if (_openBrowserAfterLanguageSync) { _openBrowserAfterLanguageSync = false; OpenLocalTimer(inBackground: true); }
     }
 
     internal void ReopenFromDock()
@@ -647,7 +647,7 @@ internal sealed class LauncherWindow : Window
             menu.Items.Add(item); _trayItems.Add((item, text));
         }
         Add("Show launcher", ShowLauncher);
-        Add("Open timer", OpenLocalTimer);
+        Add("Open timer", () => OpenLocalTimer());
         Add("Restart server", () => StartServer(false));
         Add("Create HTTPS certificate", () => { ShowLauncher(); _ = CreateHttpsCertificate(); });
         menu.Items.Add(new NativeMenuItemSeparator());
@@ -930,7 +930,7 @@ internal sealed class LauncherWindow : Window
                 if (LauncherLanguage.ValidServerLanguage(languageState!) && _pendingServerLanguage == null)
                 {
                     AdoptServerLanguage(languageState, intentRevision);
-                    if (_openBrowserAfterStart) OpenLocalTimer();
+                    if (_openBrowserAfterStart) OpenLocalTimer(inBackground: true);
                 }
                 else QueueServerLanguage(_openBrowserAfterStart); // Compatibility with older servers.
                 return;
@@ -1211,13 +1211,13 @@ internal sealed class LauncherWindow : Window
         OpenUrl(selected.Url);
     }
 
-    private void OpenLocalTimer()
+    private void OpenLocalTimer(bool inBackground = false)
     {
         if (!_ready) return;
-        OpenUrl("http://127.0.0.1:" + _settings.HttpPort + "/");
+        OpenUrl("http://127.0.0.1:" + _settings.HttpPort + "/", inBackground);
     }
 
-    private void OpenUrl(string url)
+    private void OpenUrl(string url, bool inBackground = false)
     {
         var command = RuntimeInformation.IsOSPlatform(OSPlatform.OSX) ? "open" :
             CommandExists("xdg-open") ? "xdg-open" :
@@ -1225,6 +1225,8 @@ internal sealed class LauncherWindow : Window
         if (command.Length == 0) { AppendLog("No supported browser opener was found."); return; }
 
         var info = new ProcessStartInfo { FileName = command, UseShellExecute = false };
+        // Keep the launcher active during automatic startup on macOS.
+        if (command == "open" && inBackground) info.ArgumentList.Add("-g");
         if (command == "gio") info.ArgumentList.Add("open");
         info.ArgumentList.Add(url);
         try { Process.Start(info); }

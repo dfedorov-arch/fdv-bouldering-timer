@@ -224,3 +224,34 @@ test("server enforces the round cap and supports completed editing, rewind and r
  assert.equal(s.finalAppealRotations[0].entries[0].participantIndex,1);
  s=await server.action({type:"finalAppeals",rotations:[]});assert.deepEqual(s.finalAppealRotations,[]);assert.equal(s.startListFinalCycle,8);
 });
+
+test("selecting rotation 9 in New Final stages the queued extra rotation after 8", async t => {
+ const server = await fixture(t, "darwin", { requestTimeoutMs: 3000 });
+ await server.action({ type: "primary", primaryClientId: "clock-test" });
+ await server.action({ type: "startLists", startLists: [list()] });
+ await server.action({ type: "settings", activePreset: "final", settings: state().draftSettings });
+ await server.action({ type: "seekCycle", cycle: 8 });
+ const before = await server.action({ type: "finalAppeals", rotations: [plan("after8", 8, [entry(1, 0, 120)])] });
+ assert.equal(ar.upcoming(before).id, "after8");
+ assert.equal(before.activeSettings.rotationSeconds, 240);
+
+ const staged = await server.action({ type: "seekCycle", cycle: 9 });
+ assert.equal(staged.finalAppealActiveId, "after8");
+ assert.equal(staged.startListFinalCycle, 8);
+ assert.equal(staged.activeSettings.rotationSeconds, 120);
+ assert.equal(staged.elapsedBeforePause, 0);
+ assert.equal(staged.running, false);
+
+ const running = await server.start({ ...start });
+ assert.equal(running.finalAppealActiveId, "after8");
+ assert.equal(running.activeSettings.rotationSeconds, 120);
+ assert.equal(ar.initialStartAllowed(running), false);
+ const stopped = await server.action({ type: "reset", activePreset: "final", settings });
+ assert.equal(stopped.finalAppealActiveId, "");
+ assert.equal(stopped.startListFinalCycle, 8);
+ assert.equal(stopped.activeSettings.rotationSeconds, 240);
+ assert.equal(stopped.finalAppealRotations[0].completed, true);
+ const ordinary = await server.action({ type: "seekCycle", cycle: 9 });
+ assert.equal(ordinary.finalAppealActiveId, "");
+ assert.equal(ordinary.activeSettings.rotationSeconds, 240);
+});

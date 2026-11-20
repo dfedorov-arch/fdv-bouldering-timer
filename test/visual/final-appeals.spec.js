@@ -187,6 +187,16 @@ test("rotation 10 prepares the inserted A/R instead of ordinary rotation 11 in M
    await expect(page.locator('.appeal-ready-time')).toHaveText('2:00');
    await expect(marker(page,5,1,"active")).toBeVisible();await expect(marker(page,1,2,"active")).toBeVisible();
   }
+  const cycleInput = pages[0].locator('#cycleInput');
+  await cycleInput.fill('11');
+  await cycleInput.press('Tab');
+  for (const page of pages) {
+   await expect(page.locator('#cycleMeta, #cycleBadge')).toContainText(/Допротация|A\/R/);
+   await expect(marker(page,7,3,"ready")).toBeVisible();
+   await expect(marker(page,6,1,"ready")).toHaveCount(0);
+  }
+  expect((await server.state()).activeSettings.rotationSeconds).toBe(120);
+  await server.action({type:"seekCycle",cycle:10});
   await server.start({activePreset:"final",settings});const anchor=(await server.state()).timerClock.startedAt;
   await server.action({type:"finalAppeals",rotations:[plan("after10",[entry(6,3,120)],10)]});
   for(const page of pages){await expect(marker(page,7,3,"ready")).toHaveCount(0);await expect(marker(page,6,3,"ready")).toBeVisible();}
@@ -233,6 +243,15 @@ test("standalone dialog, A/R execution, pause/resume and reload retain assignmen
   await page.reload({waitUntil:"domcontentloaded"});await page.waitForFunction(()=>!!state.finalAppealActiveId&&!state.running&&state.elapsedBeforePause>0);
   await page.evaluate(()=>startTimer());await page.waitForFunction(()=>state.completed,null,{timeout:10000});
   await page.evaluate(()=>startTimer());expect(await page.evaluate(()=>state.finalAppealActiveId)).toBe("");expect(await page.evaluate(()=>state.startListFinalCycle)).toBe(0);
-  expect(await page.evaluate(()=>state.activeSettings.rotationSeconds)).toBe(240);expect(errors).toEqual([]);
+  expect(await page.evaluate(()=>state.activeSettings.rotationSeconds)).toBe(240);
+  await page.waitForFunction(()=>state.running&&elapsedSeconds()>0.1);
+  await page.evaluate(()=>pauseTimer());
+  await page.evaluate(()=>seekToCycle(8));
+  await page.evaluate(rotations=>Object.assign(state, FDVFinalAppeals.replaceQueue(state, rotations)),
+     [plan("standalone-after8",[entry(1,0,120)],8)]);
+  await page.evaluate(()=>seekToCycle(9));
+  await expect(page.locator('#cycleMeta')).toContainText(/Допротация после 8|A\/R after rotation 8/);
+  expect(await page.evaluate(()=>state.activeSettings.rotationSeconds)).toBe(120);
+  expect(errors).toEqual([]);
  }finally{if(ctx)await ctx.close();fs.rmSync(directory,{recursive:true,force:true});}
 });

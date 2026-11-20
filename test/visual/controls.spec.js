@@ -3,9 +3,9 @@ const {test,expect} = require("@playwright/test");
 const path = require("node:path");
 const {fixture} = require("../helpers/controlled-clock-server");
 
-async function runFixture(run) {
+async function runFixture(run, options = {}) {
   const cleanups=[];
-  try { await run(await fixture({after:fn=>cleanups.push(fn)},"darwin",{liveClocks:true})); }
+  try { await run(await fixture({after:fn=>cleanups.push(fn)},"darwin",{liveClocks:true,...options})); }
   finally { for (const fn of cleanups.reverse()) await fn(); }
 }
 async function open(browser,server,id,viewport={width:1280,height:900},legacy=false,options={}) {
@@ -544,6 +544,66 @@ for(const order of ["event-first","response-first"])test("audio test survives it
     }finally{await context.close();}
   });
 });
+
+for (const preset of ["classic", "final"]) {
+  test(`browser audio test survives clock updates while waiting for scheduled ${preset} start`, async ({ browser }) => {
+    await runFixture(async server => {
+      await server.action({ type: "primary", primaryClientId: "clock-test" });
+      const { page, context, errors } = await open(browser, server, "clock-test");
+      try {
+        const future = new Date((await server.state()).now + 10 * 60 * 1000);
+        await server.start({
+          activePreset: preset, startMode: "scheduled",
+          startHours: String(future.getHours()), startMinutes: String(future.getMinutes()),
+          settings: { rotationSeconds: 60, breakSeconds: 0, oneShot: preset === "final", finalRoundFormat: "new" }
+        });
+        await page.waitForFunction(() => isBeforeScheduledStart() && canPlaySound());
+        await prepareAudioTestProbe(page);
+
+        // Hold the reply until the SSE event has queued the test. The reply
+        // then sees the same scheduled start through a new clock sample.
+        await page.route("**/api/action", async route => {
+          const response = await route.fetch();
+          if (route.request().postDataJSON().type === "audioTest") {
+            await page.waitForFunction(() => audioTestProbe.length === 1);
+          }
+          await route.fulfill({ response });
+        });
+
+        await page.locator('[data-audio-test-kind="start"]').click();
+        await page.waitForFunction(() => audioTestProbe.length === 1);
+        const before = await page.evaluate(() => ({
+          monotonic: state.serverStartedAt, wall: state.serverStartedAtWall, run: state.audioRunId
+        }));
+        await page.evaluate(async () => {
+          for (let i = 0; i < 5; i++) {
+            await syncFromServer({ forceApply: true });
+          }
+        });
+        const after = await page.evaluate(() => ({
+          monotonic: state.serverStartedAt, wall: state.serverStartedAtWall, run: state.audioRunId
+        }));
+        expect(after.monotonic).not.toBe(before.monotonic);
+        expect({ wall: after.wall, run: after.run }).toEqual({ wall: before.wall, run: before.run });
+        await expect.poll(() => page.evaluate(() => audioTestProbe[0].endedAt || 0)).toBeGreaterThan(0);
+        const record = await page.evaluate(() => audioTestProbe[0]);
+        expect(record.cancelled).toBe(false);
+        expect(record.endedAt).toBeGreaterThanOrEqual(record.start + record.duration - .04);
+        expect(await page.evaluate(() => isBeforeScheduledStart())).toBe(true);
+
+        // Cancelling the scheduled start itself still invalidates a preview.
+        await page.unroute("**/api/action");
+        await page.locator('[data-audio-test-kind="start"]').click();
+        await page.waitForFunction(() => audioTestProbe.length === 2);
+        await server.action({ type: "stopCountdown" });
+        await page.waitForFunction(() => !state.running && audioTestProbe[1].cancelled);
+        expect(errors).toEqual([]);
+      } finally {
+        await context.close();
+      }
+    }, { integerWallClock: true });
+  });
+}
 
 test("successive accepted audio tests retain every cue including all five warnings",async({browser})=>{
   await runFixture(async server=>{

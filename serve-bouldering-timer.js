@@ -33,7 +33,7 @@ const legacyRuntimeStatePath = runtimeStatePath;
 const beepsPath = path.join(root, "beeps");
 const fontsPath = path.join(root, "fonts");
 const offlineAudioPath = path.join(root, "lib", "offline-audio.js");
-const BUILD_NUMBER = 457;
+const BUILD_NUMBER = 458;
 const serverInstanceId = crypto.randomUUID();
 let serverAudio = null;
 const launcherLanguageToken = process.env.FDV_LAUNCHER_LANGUAGE_TOKEN || "";
@@ -2606,6 +2606,8 @@ function handleRequest(req, res) {
           ? cycle > 1 ? 0.001 : 0
           : (cycle - 1) * cycleDuration;
         if (settings.oneShot) timerState.startListFinalCycle = cycle - 1;
+        const staged = finalAppeals.stageAfterFinalSeek(timerState);
+        if (staged !== timerState) assignTimerState(staged);
         clearTimerStartedAt();
         armStateTransition(0);
         timerState.version += 1;
