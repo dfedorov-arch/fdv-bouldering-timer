@@ -21,6 +21,71 @@ async function open(browser,server,id,viewport={width:1280,height:900},legacy=fa
   return {page,context,errors};
 }
 
+for (const preset of ["classic", "final"]) {
+  for (const showList of [false, true]) {
+    test(`paused ${preset} keeps the rotation arrows active with the start list ${showList ? "visible" : "hidden"}`, async ({ browser }) => {
+      await runFixture(async server => {
+        const oneShot = preset === "final";
+        const settings = { rotationSeconds: 300, breakSeconds: oneShot ? 0 : 15,
+          oneShot, finalRoundFormat: "new" };
+        await server.action({ type: "primary", primaryClientId: "clock-test" });
+        await server.action({ type: "settings", activePreset: preset,
+          settings: { ...settings, rotationMinutes: 5 } });
+        await server.action({ type: "startLists", startLists: [{
+          headers: ["#", "Athlete"], routeCount: 4,
+          rows: Array.from({ length: 16 }, (_, index) => [String(index + 1), `Athlete ${index + 1}`])
+        }] });
+        await server.start({ activePreset: preset, settings });
+        await server.action({ type: "pause" });
+        await server.action({ type: "seekCycle", cycle: 4 });
+        const { page, context } = await open(browser, server, "clock-test");
+        try {
+          await server.action({ type: "startListDisplay", targetClientId: "clock-test", listIndex: 0, enabled: true });
+          await server.action({ type: "startListEnabled", enabled: showList });
+          const list = page.locator(".start-list-table");
+          if (showList) await expect(list).toBeVisible();
+          else await expect(list).toBeHidden();
+          const input = page.locator("#cycleInput");
+          const expectCycle = async cycle => {
+            await expect.poll(async () => {
+              const state = await server.state();
+              return oneShot ? state.startListFinalCycle + 1 : state.elapsedBeforePause / 315 + 1;
+            }).toBe(cycle);
+            await page.waitForFunction(expected => displayedCycleNumber() === expected, cycle);
+            await expect(input).toHaveValue(String(cycle));
+          };
+          await expectCycle(4);
+          await expect(input).toBeEnabled();
+          // Finish the startup layout before fixing the pointer at one screen position.
+          await page.evaluate(() => document.fonts.ready);
+          await page.waitForTimeout(1100);
+          const original = await input.elementHandle();
+          const { width, height } = await input.boundingBox();
+          const position = { x: width - 5, y: height / 4 };
+          await input.hover({ position });
+          await input.click({ position });
+          await expectCycle(5);
+          for (let cycle = 6; cycle <= 8; cycle += 1) {
+            // Leave the cursor on the spinner between clicks, as on a real mouse.
+            await page.mouse.down();
+            await page.mouse.up();
+            await expectCycle(cycle);
+          }
+          expect(await original.evaluate(element => element === document.getElementById("cycleInput"))).toBe(true);
+          for (const [key, cycles] of [["ArrowUp", [9, 10]], ["ArrowDown", [9, 8, 7, 6, 5, 4]]]) {
+            for (const cycle of cycles) {
+              await page.keyboard.press(key);
+              await expectCycle(cycle);
+            }
+          }
+        } finally {
+          await context.close();
+        }
+      });
+    });
+  }
+}
+
 test("CTRL exposes only four controls, supports hotkeys and revocation, and remains unavailable in Legacy",async({browser})=>{
   await runFixture(async server=>{
     await server.action({type:"primary",primaryClientId:"clock-test"});

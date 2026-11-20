@@ -3311,7 +3311,7 @@
       timeline: []
     };
 
-    const pageBuildNumber = 458;
+    const pageBuildNumber = 459;
     const projectUrl = "https://github.com/dfedorov-arch/fdv-bouldering-timer";
     const buildLinkConfirmDelayMs = 550;
     const offlineSnapshotKey = "fdvBoulderingTimerOfflineSnapshot";
@@ -8034,7 +8034,27 @@
       const cycleTitle = editableCycle ? t("cycleNumber") : phaseName;
       const cycleDigits = String(cycleNumber).length;
       const cycleChip = `<label class="chip cycle-chip ${phaseClass}" style="--cycle-digits:${cycleDigits}" title="${escapeHtml(cycleTitle)}"><span>${t("cycle")}</span><input id="cycleInput" class="cycle-input" type="number" min="1" max="9999" step="1" value="${cycleNumber}" aria-label="${t("cycleNumber")}" title="${escapeHtml(cycleTitle)}"${editableCycle ? "" : " disabled"}></label>`;
-      setScheduleMarkup(cycleChip, true, false, scheduleStateKey);
+      const input = els.schedule.querySelector("#cycleInput");
+      if (!input) {
+        setScheduleMarkup(cycleChip, true, false, scheduleStateKey);
+        return;
+      }
+
+      // Replacing a native number field interrupts its spinner and drops focus.
+      const chip = input.parentElement;
+      setElementClassName(chip, `chip cycle-chip ${phaseClass}`);
+      chip.style.setProperty("--cycle-digits", String(cycleDigits));
+      chip.title = cycleTitle;
+      setElementText(chip.firstElementChild, t("cycle"));
+      input.title = cycleTitle;
+      input.setAttribute("aria-label", t("cycleNumber"));
+      input.disabled = !editableCycle;
+      const value = String(cycleNumber);
+      input.defaultValue = value;
+      if (input.value !== value) input.value = value;
+      lastScheduleStateKey = scheduleStateKey;
+      lastScheduleMarkup = cycleChip;
+      scheduleFitTimer();
     }
 
     function escapeHtml(value) {
