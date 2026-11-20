@@ -1,6 +1,19 @@
 # FDV Bouldering Timer — контекст следующего чата
 
-## Changes prepared for 3.1.2 / build458
+## Latest stable 3.1.2 / build458 (20 November 2026)
+
+Published [v3.1.2](https://github.com/dfedorov-arch/fdv-bouldering-timer/releases/tag/v3.1.2)
+at commit ef62b7a0d32640801c3a61a41fb09c0f02231ca7. All 15 required
+[release jobs](https://github.com/dfedorov-arch/fdv-bouldering-timer/actions/runs/44813125920)
+passed. Verified 18 assets, all 16 package digests, the bilingual notes and
+v3.1.2/build458 update metadata. The
+[project site](https://github.com/dfedorov-arch/fdv-bouldering-timer/actions/runs/44814628512)
+deployed successfully from main. Running timer instances were left alone.
+
+Local checks: 654 Node tests passed and 10 platform-specific tests were skipped.
+Chromium passed 22 of 23 initially. The existing silent extra-rotation test
+timed out on its second Start and passed both targeted reruns. The Unix
+launcher compiled successfully.
 
 - On macOS automatic browser opening uses `open -g` to keep the launcher
   focused at startup. The owner reported no further hover delays in repeated
@@ -14,7 +27,7 @@
   The WAV/MP3 comparison was discussed with the owner. No Windows audio or codec
   changes are included.
 
-## Latest stable: 3.1.1 / build457 (19 November 2026)
+## Previous release: 3.1.1 / build457 (19 November 2026)
 
 Published v3.1.1, tag7146332eafcb5062ef1bb80914fb1d06eb4a73ce. Main and develop
 synchronized. Workflow44559509616 passed; waiting macOS jobs were retried with
