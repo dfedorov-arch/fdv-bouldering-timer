@@ -380,6 +380,14 @@ This is asynchronous two-server hot standby, not consensus or synchronous transa
 
 Regression coverage: `test/secondary-server.test.js` covers pairing/refusal, monotonic rate, timeline identity, forwarding/deduplication, list revision translation, access restrictions, state/PIN/configuration/command-ledger restoration, pending Final restart and independent completion. Return scenarios change the operator during outage, reverse twice, restart the new primary, drop a committed role-change acknowledgement and block a return address. `test/client-secondary-server.test.js` covers the exact threshold, partial outage, per-tab persistence, old-epoch rejection, metadata-only reversal and subsequent reuse of the old process. `test/visual/secondary.spec.js` uses two real isolated servers plus Modern/Legacy pages for audio-node preservation, single/all transfer, merged diagnostics, two successive role reversals and timed outage/return as standby.
 
+### Hosted Secondary server and spectator display
+
+The account service in `portal/server.cjs` provisions one personal instance per user. `portal/instances.cjs` supervises a loopback child process and proxies owner HTTP/SSE and the SEC WebSocket. The portal redeems a one-use, 15-minute enrollment code for an existing per-instance tunnel token only after checking build compatibility and idle standby state. The local timer opens outbound WSS via `lib/secondary-tunnel.js`. Peer replication and authority continue to use the SEC controller. The HTTPS addresses for displays and the peer transport have separate routing requirements.
+
+The permanent instance slug identifies process and storage. The portal may present a different owner alias. A retained address continues to route to the same instance. A disabled address stays reserved, rejects new requests and closes proxied HTTP/SSE and WebSocket connections for that hostname. The guest hostname is separate. Guest requests use a shared spectator snapshot and canonical time samples without registration in the browser registry. Timer commands, diagnostics and SEC upgrades are restricted to the owner route. The account-only QR image is generated from the enabled guest URL and served as an image.
+
+Ordinary stop and restart retain the instance snapshot. A confirmed reset stops the child, rotates the tunnel token, invalidates the outstanding code, removes that instance's writable directory and starts with the packaged defaults. The account, URL routing and management journal live in portal state. For operations and test coverage see [portal/README.md](../portal/README.md) and [sec-websocket.md](sec-websocket.md).
+
 ### Established single-server timing
 
 The Node.js server is authoritative for competition state, settings, browser assignments, start lists, incidents, and timeline anchors. Browsers render that state and extrapolate the moving timer from synchronized timestamps.

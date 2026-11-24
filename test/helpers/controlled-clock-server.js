@@ -23,7 +23,7 @@ async function freePort() {
   return port;
 }
 
-async function fixture(t, platform, { liveClocks = false, legacyRuntime = process.env.FDV_TEST_SERVER_NODE12 || null, listenHost = "127.0.0.1", launcherToken = "", nativeAudioStub = false, nativeAudioDisabled = true, integerWallClock = false, nativeAudioCoordinatorSource = null, requestTimeoutMs = 1000, startupParams = {} } = {}) {
+async function fixture(t, platform, { liveClocks = false, legacyRuntime = process.env.FDV_TEST_SERVER_NODE12 || null, listenHost = "127.0.0.1", launcherToken = "", nativeAudioStub = false, nativeAudioDisabled = true, integerWallClock = false, nativeAudioCoordinatorSource = null, requestTimeoutMs = 1000, startupParams = {}, tunnelEnvironment = {} } = {}) {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), "fdv-clock-continuity-"));
   const profile = path.join(directory, "isolated-profile");
   fs.mkdirSync(profile);
@@ -145,7 +145,8 @@ async function fixture(t, platform, { liveClocks = false, legacyRuntime = proces
     cwd: directory,
     // Never load the operator's per-user HTTPS key or bind its HTTPS port.
     env: { ...process.env, HOME: profile, USERPROFILE: profile, LOCALAPPDATA: path.join(profile,"AppData","Local"),
-      XDG_STATE_HOME: path.join(profile,".local","state"), HOST: listenHost, PORT: String(port), HTTPS_PORT: "0", FDV_LAUNCHER_LANGUAGE_TOKEN: launcherToken },
+      XDG_STATE_HOME: path.join(profile,".local","state"), HOST: listenHost, PORT: String(port), HTTPS_PORT: "0", FDV_LAUNCHER_LANGUAGE_TOKEN: launcherToken,
+      FDV_SEC_TUNNEL_URL: "", FDV_SEC_TUNNEL_TOKEN: "", ...tunnelEnvironment },
     stdio: ["ignore", "pipe", "pipe"]
   });
   childClosed = false;

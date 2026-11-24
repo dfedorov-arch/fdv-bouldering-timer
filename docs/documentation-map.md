@@ -216,6 +216,9 @@ Build 416 uses LEG on all diagnostic cards and keeps the main badges on one row,
 | `docs/index.html` | GitHub Pages landing page; download buttons must use `releases/latest` rather than a hard-coded version |
 | `docs/assets/overview-en.png` | Unreferenced historical application overview; replace before reusing |
 | `docs/standalone.html` | Generated GitHub Pages standalone timer; never edit manually |
+| `help.html#hosted-timer`, `help.html?lang=en#hosted-timer-en` | Bilingual hosted timer instructions, including access, pairing, address changes, reset, spectator link and QR code |
+| `portal/README.md` | Hosted portal deployment, lifecycle, account and guest routing |
+| `docs/sec-websocket.md` | Hosted enrollment and manual WSS deployment |
 
 ## Developer documentation
 
@@ -239,7 +242,7 @@ Project-level files outside the worktree:
 
 - `../PROJECT-CONTEXT.md` is the handoff map for future development sessions.
 - `../PERFORMANCE-ANALYSIS.md` records the completed performance audit and the status of its optimizations.
-- `../help.docx` is an editable operator-manual artifact. Its content must agree with `help.html`; every meaningful edit requires DOCX render and page-by-page visual QA.
+- `../help.docx` is an archival operator-manual snapshot dated 3 August 2026. The owner no longer uses it. Maintain the current operator guide in `help.html`.
 
 ## Not product documentation
 

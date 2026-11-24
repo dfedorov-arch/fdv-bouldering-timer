@@ -1,5 +1,5 @@
 "use strict";
-const { authenticatedFetch: fetch, credentials } = require("./helpers/browser-session");
+const { authenticatedFetch: fetch, credentials, rememberCredentials } = require("./helpers/browser-session");
 
 const test = require("node:test");
 const assert = require("node:assert/strict");
@@ -131,6 +131,105 @@ test("automatic SEC takeover keeps authority after 20 seconds and rejoins the fo
   assert.equal(returned.elapsed,47);assert.equal(returned.sec.primaryUrl,backup.baseUrl);
   assert.equal((await backup.state()).sec.role,"primary");
   assert.equal((await fetch(backup.baseUrl+"/api/state")).headers.get("x-fdv-secondary-role"),"primary");
+});
+
+for (const useCode of [false, true]) test(`SEC pairs through WSS ${useCode ? "with a one-time hosted code" : "with preconfigured credentials"} and reverses roles`, {timeout:25000}, async t => {
+  const fs = require("node:fs");
+  const path = require("node:path");
+  const https = require("node:https");
+  const net = require("node:net");
+  const { spawnSync } = require("node:child_process");
+  const { randomBytes } = require("node:crypto");
+  const WebSocket = require("../lib/vendor/ws");
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "fdv-tunnel-tls-"));
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }));
+  const key = path.join(directory, "key.pem"), cert = path.join(directory, "cert.pem");
+  const openssl = process.env.FDV_TEST_OPENSSL || "openssl";
+  const generated = spawnSync(openssl, ["req", "-x509", "-newkey", "rsa:2048", "-nodes", "-days", "1",
+    "-subj", "/CN=127.0.0.1", "-addext", "subjectAltName=IP:127.0.0.1", "-keyout", key, "-out", cert]);
+  if (generated.error?.code === "ENOENT") return t.skip("OpenSSL is needed for disposable WSS certificates");
+  assert.equal(generated.status, 0, generated.stderr?.toString());
+  const token = randomBytes(32).toString("hex");
+  const code = randomBytes(12).toString("hex");
+  let enrolled = false;
+  const backup = await fixture(t, "linux", {tunnelEnvironment:{FDV_SEC_TUNNEL_TOKEN:token}});
+  const proxy = https.createServer({key:fs.readFileSync(key),cert:fs.readFileSync(cert)}, async (req,res) => {
+    let body = "";
+    for await (const chunk of req) body += chunk;
+    const accepted = useCode && !enrolled && req.url === "/api/sec/enroll" && JSON.parse(body).code === code;
+    if (accepted) enrolled = true;
+    res.writeHead(accepted ? 200 : 403,{"content-type":"application/json"});
+    res.end(JSON.stringify(accepted ? {token} : {}));
+  });
+  const backendPort = Number(new URL(backup.baseUrl).port);
+  const peerSockets = new Set();
+  proxy.on("upgrade", (req, downstream, head) => {
+    const upstream = net.connect(backendPort, "127.0.0.1", () => {
+      let headers = "";
+      for (let index = 0; index < req.rawHeaders.length; index += 2) {
+        headers += req.rawHeaders[index] + ": " + req.rawHeaders[index + 1] + "\r\n";
+      }
+      upstream.write(req.method + " " + req.url + " HTTP/1.1\r\n" + headers + "\r\n");
+      upstream.write(head);
+      downstream.pipe(upstream).pipe(downstream);
+    });
+    for (const socket of [upstream, downstream]) {
+      peerSockets.add(socket);
+      socket.on("error", () => socket.destroy());
+      socket.on("close", () => { peerSockets.delete(socket); upstream.destroy(); downstream.destroy(); });
+    }
+  });
+  await new Promise(resolve => proxy.listen(0, "127.0.0.1", resolve));
+  t.after(() => { for (const socket of peerSockets) socket.destroy(); proxy.close(); });
+  const publicOrigin = "https://127.0.0.1:" + proxy.address().port;
+  const endpoint = publicOrigin.replace("https:", "wss:") + "/api/sec/tunnel";
+  const unauthorized = new WebSocket(endpoint, {ca:fs.readFileSync(cert)});
+  await new Promise(resolve => unauthorized.once("error", error => {
+    assert.match(error.message, /403/);
+    resolve();
+  }));
+  const primary = await fixture(t, "linux", {tunnelEnvironment:{
+    ...(useCode ? {} : {FDV_SEC_TUNNEL_TOKEN:token, FDV_SEC_TUNNEL_URL:endpoint}), NODE_EXTRA_CA_CERTS:cert
+  }});
+  const localOrigin = "http://local-fdv.invalid:8008";
+  await primary.action({type:"primary",primaryClientId:"clock-test"});
+  await primary.start();
+  const session = await credentials(primary.baseUrl,"clock-test");
+  const paired = await new Promise((resolve,reject) => {
+    const request = http.request(primary.baseUrl + "/api/sec/configure", {method:"POST",headers:{
+      Host:new URL(localOrigin).host, "Content-Type":"application/json", "X-FDV-Client-Secret":session.secret
+    }}, response => {
+      let body = "";
+      response.on("data",chunk => { body += chunk; });
+      response.on("end",() => resolve({status:response.statusCode,body}));
+    });
+    request.on("error",reject);
+    request.end(JSON.stringify({address:publicOrigin,clientId:"clock-test",pairingCode:useCode ? code : ""}));
+  });
+  assert.equal(paired.status,200,JSON.stringify(paired.body));
+  assert.equal(enrolled,useCode);
+  assert.ok(!paired.body.includes(token));
+  const initial = await backup.state();
+  assert.equal(initial.sec.primaryUrl, localOrigin);
+  assert.equal(initial.sec.secondaryUrl, publicOrigin);
+  assert.ok(initial.running);
+  rememberCredentials(backup.baseUrl,"clock-test",session);
+  await actionThroughStandby(backup,{type:"pause"});
+  assert.equal((await primary.state()).running,false);
+  await primary.stop();
+  backup.frame(2100);
+  assert.equal((await sec(backup,"takeover",{automatic:true,session:initial.sec.session},{headers:{Origin:localOrigin}})).status,200);
+  await backup.action({type:"seek",elapsed:47});
+  backup.frame(21000);
+  primary.frame(21000);
+  await primary.restart();
+  const returned = await until(async () => {
+    const state = await primary.state().catch(() => null);
+    return state?.sec?.epoch === 1 && state.sec.role === "secondary" && state.sec.ready && state;
+  });
+  assert.equal(returned.elapsed,47);
+  assert.equal(returned.sec.primaryUrl,publicOrigin);
+  assert.equal((await backup.state()).sec.role,"primary");
 });
 
 test("early recovery retries a changed reserve snapshot and a lost commit acknowledgement without losing commands",{timeout:20000},async t=>{
@@ -361,6 +460,7 @@ test("SEC rejects a nonempty standby instead of overwriting its competition", { 
   await backup.action({type:"seek",elapsed:12});
   const result = await sec(primary,"configure",{address:backup.baseUrl});
   assert.equal(result.status,400);
+  assert.equal(result.body.code,"SEC_TARGET_HAS_TIMER_STATE");
   assert.equal((await backup.state()).elapsed,12);
   assert.equal((await primary.state()).sec,null);
 });

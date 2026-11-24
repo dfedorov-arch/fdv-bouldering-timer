@@ -3232,6 +3232,8 @@
     <h3 id="secondaryServerTitle">Резервный сервер</h3>
     <label for="secondaryServerAddress" id="secondaryServerAddressLabel">Адрес сервера</label>
     <input id="secondaryServerAddress" type="url" placeholder="http://192.168.1.20:8008" autocomplete="off" spellcheck="false">
+    <label for="secondaryPairingCode" id="secondaryPairingCodeLabel">Код привязки (для публичного таймера)</label>
+    <input id="secondaryPairingCode" type="text" maxlength="24" autocomplete="off" spellcheck="false">
     <p id="secondaryServerHint"></p>
     <div id="secondaryServerStatus" class="secondary-server-status" role="status" aria-live="polite"></div>
     <div class="secondary-server-actions">
@@ -12985,6 +12987,10 @@
       const info = secondaryConnection.info();
       document.getElementById("secondaryServerTitle").textContent = language === "ru" ? "Резервный сервер" : "Secondary server";
       document.getElementById("secondaryServerAddressLabel").textContent = language === "ru" ? "Адрес сервера" : "Server address";
+      document.getElementById("secondaryPairingCodeLabel").textContent = language === "ru" ? "Код привязки (для публичного таймера)" : "Pairing code (for a hosted timer)";
+      const code = document.getElementById("secondaryPairingCode");
+      code.value = "";
+      code.disabled = Boolean(info.config);
       document.getElementById("secondaryServerHint").textContent = language === "ru"
         ? "Нужен пустой сервер той же сборки с одинаковыми папками beeps и fonts. Для HTTPS нужен доверенный сертификат. Переход на резервный — через 2 секунды без связи. Если основной вернётся в течение 20 секунд, экраны вернутся на него; после этого резервный сохраняет управление."
         : "Use an empty server of the same build with identical beeps and fonts folders. HTTPS requires a trusted certificate. Failover takes 2 seconds. The primary can regain control within 20 seconds; after that, the Secondary server retains control.";
@@ -13007,6 +13013,39 @@
 
     function secondarySetupError(remote) {
       const ru = language === "ru";
+      const messages = {
+        SEC_ADDRESS_INVALID: ["Укажите полный адрес сервера, начиная с http:// или https://.", "Enter the full server address starting with http:// or https://."],
+        SEC_SAME_SERVER: ["Вы указали адрес этого же таймера. Введите адрес второго экземпляра.", "You entered this timer’s own address. Enter the address of the other instance."],
+        SEC_LOCAL_PAIRING_BUSY: ["Локальный сервер уже выполняет привязку. Дождитесь её завершения.", "The local server is already pairing. Wait for that operation to finish."],
+        SEC_LOCAL_ALREADY_PAIRED: ["Локальный таймер уже связан с резервом. Сначала отключите эту пару.", "The local timer already has a Secondary server. Disconnect that pair first."],
+        SEC_ADDRESS_DNS: ["Домен сервера не найден. Скопируйте адрес таймера из кабинета и проверьте интернет.", "The server name did not resolve. Copy its address from the account and check your internet connection."],
+        SEC_ADDRESS_TLS: ["Локальный сервер не доверяет HTTPS-сертификату. Проверьте адрес, срок действия сертификата и доверие к нему на компьютере с сервером.", "The local server could not verify the HTTPS certificate. Check the address, certificate expiry and trust on the server computer."],
+        SEC_HOSTED_HTTPS_REQUIRED: ["Для кода привязки нужен адрес HTTPS из кабинета.", "A pairing code requires the HTTPS address from the account."],
+        SEC_HOSTED_ADDRESS: ["По этому адресу не найден сервис привязки. Используйте адрес экземпляра таймера из кабинета.", "No pairing service was found at this address. Use the timer instance address from the account."],
+        SEC_HOSTED_UNAVAILABLE: ["Публичный экземпляр не отвечает. Проверьте его статус в кабинете и повторите попытку.", "The hosted instance is not responding. Check its status in the account and retry."],
+        SEC_TARGET_UNREACHABLE: ["Локальный сервер не смог связаться с резервом. Проверьте адрес, порт и доступность резерва с этого компьютера.", "The local server could not reach the Secondary server. Check the address, port and connectivity from this computer."],
+        SEC_TUNNEL_PRECONFIGURED: ["В параметрах запуска уже настроен WSS-туннель. Уберите прежнюю конфигурацию и перезапустите локальный сервер, чтобы подключиться по коду.", "A WSS tunnel is already configured at startup. Remove that configuration and restart the local server to pair with a code."],
+        SEC_TUNNEL_UNAVAILABLE: ["Не удалось открыть канал WSS. Проверьте доступ к публичному таймеру и поддержку WebSocket в сети. Если код уже использован, создайте новый.", "The WSS channel could not be opened. Check access to the hosted timer and WebSocket support on the network. Create a fresh code if necessary."],
+        SEC_CODE_FORMAT: ["Код должен содержать 24 символа. Скопируйте его целиком из кабинета.", "The code must contain 24 characters. Copy the full code from the account."],
+        SEC_CODE_INVALID: ["Код не подошёл. Проверьте, что адрес и последний код взяты из кабинета одного экземпляра.", "The code did not match. Check that the address and latest code belong to the same instance."],
+        SEC_CODE_USED: ["Код уже использован. Создайте новый в кабинете.", "This code has already been used. Create a new one in the account."],
+        SEC_CODE_EXPIRED: ["Срок действия кода истёк. Создайте новый в кабинете.", "The pairing code has expired. Create a new one in the account."],
+        SEC_CODE_RATE_LIMITED: ["Слишком много попыток. Повторите подключение позже.", "Too many attempts. Retry the connection later."],
+        SEC_TARGET_RUNNING: ["На резервном таймере идёт отсчёт. Если он больше не нужен, остановите и сбросьте его в интерфейсе резервного таймера, затем повторите привязку.", "The Secondary server is running a countdown. If it is no longer needed, stop and reset it on the Secondary timer, then retry pairing."],
+        SEC_TARGET_HAS_TIMER_STATE: ["На резерве сохранён отсчёт. Если он больше не нужен, сбросьте его в интерфейсе резервного таймера.", "The Secondary server holds a countdown. Reset it on the Secondary timer if it is no longer needed."],
+        SEC_TARGET_HAS_START_LISTS: ["На резервном таймере загружены стартовые списки. Уберите их, если этот экземпляр должен стать резервом.", "The Secondary timer already has start lists. Remove them if this instance is intended to act as a standby."],
+        SEC_TARGET_HAS_PIN: ["На резервном таймере установлен PIN. Снимите его перед привязкой.", "A PIN is set on the Secondary timer. Clear it before pairing."],
+        SEC_TARGET_HAS_OPERATOR: ["На резервном таймере выбран управляющий браузер. Освободите управление на резерве перед привязкой.", "The Secondary timer has an assigned operator browser. Release control on the Secondary timer before pairing."],
+        SEC_TARGET_ALREADY_PAIRED: ["Этот сервер уже связан с другим. Сначала отключите существующую пару.", "This server is already paired. Disconnect the existing pair first."],
+        SEC_TARGET_PAIRING_BUSY: ["Резервный сервер уже выполняет привязку. Дождитесь её завершения и повторите попытку.", "The Secondary server is already pairing. Wait for that operation to finish and retry."],
+        SEC_TARGET_STOPPED: ["Публичный сервер остановлен. Запустите его в кабинете и создайте новый код.", "The hosted server is stopped. Start it in the account and create a new code."],
+        SEC_TARGET_SUSPENDED: ["Владелец публичного экземпляра приостановлен администратором.", "The hosted instance owner has been suspended by the administrator."],
+        SEC_BUILD_MISMATCH: ["Сборки серверов различаются. Обновите локальный и публичный серверы до одной сборки.", "The servers run different builds. Update both servers to the same build."],
+        SEC_ASSETS_MISMATCH: ["На серверах различаются звуки или шрифты. Проверьте папки beeps и fonts в обеих сборках.", "The servers have different sounds or fonts. Check the beeps and fonts folders on both servers."],
+        SEC_LATENCY_HIGH: ["Ответ резерва занял больше 500 мс. Проверьте стабильность соединения и повторите попытку.", "The Secondary server took over 500 ms to respond. Check the connection and try again."],
+        SEC_INITIAL_SYNC_FAILED: ["Серверы установили связь, но резерв не подтвердил получение состояния. Проверьте связь и создайте новый код, если прежний уже использован.", "The servers connected, but the Secondary did not confirm the initial state. Check the connection and create a new code if the previous one was used."]
+      };
+      if (Object.prototype.hasOwnProperty.call(messages, remote.code)) return messages[remote.code][ru ? 0 : 1];
       if (["SEC_CRYPTO_UNSUPPORTED", "SEC_CRYPTO_INVALID", "SEC_CRYPTO_CHANNEL"].includes(remote.code)) return ru
         ? "Не удалось установить защищённое соединение между серверами. Обновите оба сервера до одной актуальной сборки и повторите подключение."
         : "Could not establish a protected connection between servers. Update both servers to the same current build and reconnect.";
@@ -13040,7 +13079,7 @@
         const address = document.getElementById("secondaryServerAddress").value.trim();
         const response = await fetch(remove ? "/api/sec/remove" : "/api/sec/configure", {
           method: "POST", headers: { "content-type": "application/json" },
-          body: JSON.stringify({ clientId, address })
+          body: JSON.stringify({ clientId, address, pairingCode: document.getElementById("secondaryPairingCode").value.trim() })
         });
         const remote = await response.json();
         if (!response.ok) throw new Error(secondarySetupError(remote));
@@ -13050,6 +13089,9 @@
           : remove ? "Secondary server disconnected" : "Servers paired. Checking browser connectivity.";
         secondaryConnection.check();
         document.getElementById("secondaryServerAddress").disabled = !remove;
+        const code = document.getElementById("secondaryPairingCode");
+        code.value = "";
+        code.disabled = !remove;
         document.getElementById("secondaryServerConnect").disabled = !remove;
       } catch (error) {
         status.classList.add("error");

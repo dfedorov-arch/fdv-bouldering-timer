@@ -2284,7 +2284,7 @@ function handleRequest(req, res) {
         sendJson(res, 403, { error: "Only the primary browser can configure Secondary server" }); return;
       }
       if (requestUrl.pathname === "/api/sec/configure") {
-        await secondaryServer.configure(body.address, `${req.socket.encrypted ? "https" : "http"}://${req.headers.host}`);
+        await secondaryServer.configure(body.address, `${req.socket.encrypted ? "https" : "http"}://${req.headers.host}`, String(body.pairingCode || "").trim());
       } else if (requestUrl.pathname === "/api/sec/remove") {
         await secondaryServer.remove();
       } else {
@@ -2341,6 +2341,49 @@ function handleRequest(req, res) {
     sendJson(res, 200, requestUrl.searchParams.get("reset") === "1"
       ? resetPerformanceDiagnostics()
       : performanceSnapshot());
+    return;
+  }
+
+  if (requestUrl.pathname === "/api/spectator" && req.method === "GET") {
+    if (secondaryServer.fenced || secondaryServer.receivingBaseline) {
+      sendJson(res, 503, { error: "Timer state is temporarily unavailable" });
+      return;
+    }
+    repairTimerClockContinuity();
+    finalizeScheduledCountdown(); finalizeClassicInterruption(); finalizeOneShot();
+    const sec = secondaryServer.publicInfo();
+    const settings = timerState.activeSettings;
+    const clockTime = timerClockNow();
+    const canonicalStart = secondaryServer.clock.ready ? replicaStartedAt
+      : timerClockOrigin + timerStartedAtMono + timerClockSleepOffset;
+    sendJson(res, 200, {
+      status: timerDisplayStatusLabel(),
+      elapsed: elapsedSeconds(),
+      rotation: settings.rotationSeconds,
+      rest: settings.breakSeconds,
+      oneShot: Boolean(settings.oneShot),
+      startListFinalCycle: timerState.startListFinalCycle,
+      appealAfterCycle: finalAppeals.active(timerState)?.afterCycle,
+      countdownOnly: Boolean(timerState.countdownOnly),
+      sourceConnected: !secondaryServer.following || Boolean(sec?.sourceConnected),
+      language: timerState.language,
+      version: timerState.version,
+      instance: serverInstanceId,
+      clockTime,
+      clockRate: secondaryServer.clock.ready ? secondaryServer.clock.rate : 1,
+      observedAt: Number(process.hrtime.bigint()) / 1e6,
+      startedAt: timerState.running ? canonicalStart : 0,
+      manualStartElapsed: timerState.manualStartDisplayHold ? Number(timerState.manualStartElapsed || 0) : null,
+      appearance: {
+        timerFont: config.timerFont, timerFontUrl: config.timerFontUrl,
+        countdownTextColor: config.countdownTextColor, countdownBackgroundColor: config.countdownBackgroundColor,
+        rotationTextColor: config.rotationTextColor, rotationBackgroundColor: config.rotationBackgroundColor,
+        rotationLastFiveTextColor: config.rotationLastFiveTextColor, rotationLastFiveBackgroundColor: config.rotationLastFiveBackgroundColor,
+        breakTextColor: config.breakTextColor, breakBackgroundColor: config.breakBackgroundColor,
+        timerVerticalStretchDefault: config.timerVerticalStretchDefault,
+        timerVerticalStretchMaxPercent: config.timerVerticalStretchMaxPercent
+      }
+    });
     return;
   }
 
@@ -3048,11 +3091,19 @@ function applySecondaryConfig(value) {
 }
 
 secondaryServer = createSecondaryServer({
+  tunnel: process.env.FDV_SEC_TUNNEL_TOKEN || process.env.FDV_SEC_TUNNEL_URL ? {
+    token: process.env.FDV_SEC_TUNNEL_TOKEN, endpoint: process.env.FDV_SEC_TUNNEL_URL
+  } : null,
   build: BUILD_NUMBER, instanceId: serverInstanceId, timerNow: timerClockNow,
   primaryClientId: () => timerState.primaryClientId,
   authorizeBrowser: (req, id) => authenticatedBrowser(req, id) && browserPinAllowed(id),
-  canPair: () => !primaryPinActive() && !timerState.primaryClientId && !timerState.running && !timerState.completed
-    && !timerState.elapsedBeforePause && !hasStartLists(timerState.startLists),
+  pairingBlocker: () => {
+    if (timerState.running) return "SEC_TARGET_RUNNING";
+    if (timerState.completed || timerState.elapsedBeforePause) return "SEC_TARGET_HAS_TIMER_STATE";
+    if (hasStartLists(timerState.startLists)) return "SEC_TARGET_HAS_START_LISTS";
+    if (primaryPinActive()) return "SEC_TARGET_HAS_PIN";
+    return timerState.primaryClientId ? "SEC_TARGET_HAS_OPERATOR" : "";
+  },
   resources: secondaryResources,
   config: () => ({ ...config }),
   restoreConfig: applySecondaryConfig,
@@ -3191,6 +3242,7 @@ function logListeningAddress(protocol, currentPort, currentHost) {
 function startServers(createServer, protocol, currentPort) {
   return listenHosts().map((currentHost, index) => {
     const currentServer = createServer();
+    secondaryServer.attachTunnel(currentServer);
     currentServer.on("error", (error) => {
       const critical = configuredHost || currentHost === "127.0.0.1" || index === 0;
       if (critical) throw error;
@@ -3203,6 +3255,7 @@ function startServers(createServer, protocol, currentPort) {
   });
 }
 
+secondaryServer.startTunnel();
 startServers(() => http.createServer(handleRequest), "http", port);
 
 if (!certificatePaths.managed && fs.existsSync(keyPath) && fs.existsSync(certPath)) {

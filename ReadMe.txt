@@ -101,6 +101,8 @@ FDV Bouldering Timer — локальный сетевой таймер для �
 Резервный сервер
 --------------------
 
+Для локального сервера за NAT можно запустить публичный экземпляр на https://fdvtimer.online/. В кабинете получите адрес и одноразовый код привязки. Введите их в SEC локального таймера совместимой сборки с полем кода. Соединение WSS открывает локальный сервер без проброса портов. Порядок настройки, управление сервером и гостевая ссылка с QR-кодом описаны в help.html#hosted-timer.
+
 При открытии основного браузера по HTTP через localhost/127.0.0.1 сервер передаёт резерву адрес используемого сетевого интерфейса; резерв проверяет доступность и идентификатор основного. Сетевой адрес или домен, уже использованный браузером, сохраняется. Для HTTPS откройте основной сервер по сетевому имени из доверенного сертификата. Если выбранный адрес недоступен резерву или экранам (например, NAT/VDS), откройте основной по доступному сетевому адресу и повторите настройку.
 
 Если отключение запрещено, сообщение перечислит подключённые к резерву браузеры. Верните их на основной через плашки диагностики либо закройте вкладки, подождите 6–8 секунд и повторите. Существующую пару со старым адресом 127.0.0.1 после обновления настройте заново: сохранённые адреса автоматически не изменяются.
@@ -238,6 +240,8 @@ Keys: Z Start, Ctrl+Q Pause, P Stop, Ctrl+F fullscreen, Ctrl+M primary browser. 
 
 Secondary server
 --------------------
+
+For a local server behind NAT, start a hosted instance at https://fdvtimer.online/. Get its address and one-time pairing code from the account and enter them in SEC on a matching local server build with the code field. Outbound WSS from the local server requires no port forwarding. For setup, server controls and the spectator link with a QR code, see help.html?lang=en#hosted-timer-en.
 
 An HTTP localhost/127.0.0.1 primary advertises its selected outbound network interface; the reserve verifies reachability and process identity. Existing network addresses/domains are preserved. For HTTPS, open the primary through a network name covered by its trusted certificate. If NAT/VDS makes an address unreachable by the reserve/displays, reopen the primary through a reachable address and retry setup.
 

@@ -769,6 +769,7 @@
             <ul>
               <li><a href="#screen-control">Управление экранами</a></li>
               <li><a href="#diagnostics">Диагностика</a></li>
+              <li><a href="#hosted-timer">Публичный таймер и гостевой экран</a></li>
               <li><a href="#network">Работа без связи</a></li>
             </ul>
           </li>
@@ -1043,6 +1044,7 @@
 
 
         <h3 id="secondary-server">Резервный сервер</h3>
+        <p>Этот раздел описывает прямую связь по адресам двух серверов. Для локального сервера за NAT с персональным экземпляром на fdvtimer.online используйте <a href="#hosted-timer">связывание через личный кабинет</a>.</p>
         <p>Начиная со сборки 448 обмен между серверами шифруется автоматически, включая HTTP. Обновите оба сервера до одной сборки: перехода к открытому обмену при несовместимости нет. Сверка отпечатка при первом сопряжении не выполняется; первоначальное подключение защищено от прослушивания, но не от активной подмены посредником. Это шифрование не распространяется на HTTP-соединения браузеров.</p>
         <p>Если основной браузер открыт по HTTP через localhost или 127.0.0.1, при связи с резервом на другом компьютере сервер автоматически использует адрес сетевого интерфейса, через который соединяется с резервом. Резерв проверяет, что по этому адресу отвечает именно основной сервер. Уже использованный сетевой адрес или домен сохраняется. Для HTTPS откройте основной сервер по сетевому имени, указанному в доверенном сертификате: подмены имени на IP и обхода проверки сертификатов нет. При NAT/VDS адрес должен быть доступен резерву и всем экранам; иначе откройте основной сервер по доступному сетевому адресу и повторите настройку. Сохранённая пара со старым адресом 127.0.0.1 автоматически не переписывается — после обновления её нужно отключить и настроить заново.</p>
         <ol>
@@ -1060,6 +1062,26 @@
         <p>Перед сменой ролей новый основной проверяет сетевой адрес вернувшегося сервера и его идентичность. Используются адреса, известные по предыдущим подключениям; адрес 127.0.0.1 не подходит для связи разных компьютеров. Если обратный доступ или доверие HTTPS не настроены, новый основной продолжает работать, а старый остаётся заблокированным и повторяет попытки — не считается готовым резервом. Для автоматической смены ролей оба сервера должны иметь сетевой доступ друг к другу и доверять сертификатам друг друга. Отключить пару можно на текущем основном сервере, предварительно закрыв страницы, подключённые к резерву.</p>
         <p class="note">Оба сервера и все экраны должны иметь сетевой доступ к адресу резерва. Защищённая HTTPS-страница не может обращаться к HTTP-резерву; сертификат HTTPS должен быть доверенным каждому браузеру <strong>и Node.js основного сервера</strong>. Подтверждения самоподписанного сертификата в браузере недостаточно для серверного соединения. Используйте доверенный сертификат или заранее настройте доверие к своему центру сертификации. Автономный HTML и автономный режим APK не подключают резервный сервер; в сетевом режиме APK резервный сервер работает как в обычном экране.</p>
         <p class="note">Два сервера без внешнего арбитра не исключают разделение управления при полном разделении сети: одна группа может видеть только основной, другая — только резерв. До соревнований проверьте оба адреса на всех устройствах, отключение основного, переход и возврат старого сервера. Последняя команда, потерянная до подтверждения и репликации, не может считаться гарантированно перенесённой.</p>
+
+        <h3 id="hosted-timer">Публичный таймер и гостевой экран</h3>
+        <p>Кабинет на <a href="https://fdvtimer.online/" target="_blank" rel="noopener">fdvtimer.online</a> запускает персональный экземпляр таймера. Локальный сервер за NAT сам открывает исходящее защищённое WebSocket-соединение (WSS). Для этой связи достаточно выхода в интернет. Проброс портов и VPN-клиент не нужны. Экраны, которые должны работать через публичный экземпляр, открывают его HTTPS-адрес.</p>
+        <h4>Запуск и связывание</h4>
+        <ol>
+          <li>Если администратор уже разрешил регистрацию на вашу почту, нажмите «Зарегистрироваться» и подтвердите адрес по письму. Иначе нажмите «Подать заявку на доступ». ФИО и email обязательны. Решение придёт по почте.</li>
+          <li>В кабинете задайте короткий адрес или оставьте поле пустым для автоматического адреса. Нажмите «Запустить таймер». Кабинет покажет статус сервера, отсчёта и связи с локальным сервером. Кнопки открытия страниц, включая «Открыть таймер», используют новую вкладку.</li>
+          <li>Для связывания нужна серверная сборка той же версии, что указана в кабинете, с полем кода в окне SEC. В кабинете нажмите «Создать код привязки». Скопируйте код значком рядом с ним и адрес из поля «Адрес для связывания с локальным сервером». Код действует 15 минут и используется один раз.</li>
+          <li>В основном браузере <strong>локального</strong> таймера откройте SEC, введите этот HTTPS-адрес и код, затем подключите резерв. Успешное соединение подтверждает статус «Связь с локальным сервером установлена» в кабинете.</li>
+        </ol>
+        <p class="note">На 24 ноября 2026 года публичный экземпляр использует тестовую сборку 457 с полем кода SEC. Стабильный релиз 3.1.2 (сборка 458), доступный по кнопке «Скачать последнюю версию», пока не поддерживает такое связывание. Для проверки нужна совместимая тестовая сборка.</p>
+        <p>У публичного резерва перед привязкой не должно быть сохранённого отсчёта, стартовых списков, PIN, управляющего браузера или действующей пары. Если кабинет сообщает о списках, откройте публичный таймер и включите «Стартовые списки» в разделе «Параметры» основного браузера. Выключенный показ скрывает таблицы, но списки остаются на сервере.</p>
+        <h4>Управление публичным сервером</h4>
+        <ul>
+          <li>Значок копирования рядом с полем «Публичный HTTPS» копирует адрес. Карандаш открывает изменение короткого адреса. Если оставить прежний адрес рабочим, открытые по нему экраны и существующая связь продолжат работать. Если отключить его, кабинет запросит подтверждение. Соединения экранов и SEC по прежнему адресу будут закрыты.</li>
+          <li>PIN устанавливается и снимается прямо в панели «PIN управления». Обычный перезапуск сохраняет данные и настройки. При нажатии «Стоп» во время отсчёта или действующего соединения с локальным сервером кабинет предупреждает о последствиях и запрашивает подтверждение. Возобновить работу остановленного экземпляра можно кнопкой «Запустить».</li>
+          <li><strong>«Перезапустить сервер с очисткой всех данных»</strong> удаляет отсчёт, стартовые списки, PIN и настройки публичного экземпляра, разрывает привязку и запускает сервер с настройками по умолчанию. Публичные адреса и гостевая ссылка сохраняются. Для повторного связывания нужен новый код. Не выполняйте сброс во время активной фазы соревнований.</li>
+        </ul>
+        <h4>Ссылка для зрителей</h4>
+        <p>Включите гостевую ссылку в кабинете. Значок рядом с полем «Адрес» копирует её, а «QR-код» открывает изображение в новой вкладке. QR-код можно отсканировать или скопировать через контекстное меню картинки. Подтверждение копирования адреса появляется под соответствующим полем. На гостевом табло видны синхронизированный отсчёт и номер ротации, когда он доступен. Полный экран включается и выключается на самом табло. Гости не могут управлять таймером и не попадают в диагностику основного браузера. Для судейских и обычных синхронных экранов используйте адрес самого таймера.</p>
 
         <h3 id="legacy-mode">7.3. Legacy-режим для старых экранов</h3>
         <p>Legacy-экран предназначен для старых браузеров в телевизорах, планшетах и медиаплеерах, где обычная страница может работать нестабильно. Он открывается как <code>/legacy.html</code> без видимых служебных параметров в адресной строке.</p>
@@ -1492,6 +1514,7 @@ xattr -dr com.apple.quarantine "/полный/путь/к/fdv-bouldering-timer-m
           <li><a href="#en-controls">Buttons and keyboard shortcuts</a></li>
           <li><a href="#en-start-lists">Start lists</a></li>
           <li><a href="#en-screens">Connecting and controlling displays</a></li>
+          <li><a href="#hosted-timer-en">Hosted timer and spectator display</a></li>
           <li><a href="#en-sound">Sound and flashing</a></li>
           <li><a href="#en-transfer">Moving and starting on another computer</a></li>
           <li><a href="#en-settings">The params.txt file</a></li>
@@ -1679,6 +1702,7 @@ xattr -dr com.apple.quarantine "/полный/путь/к/fdv-bouldering-timer-m
         </ul>
 
         <h3 id="secondary-server-en">Secondary server</h3>
+        <p>This section covers a direct connection between two servers. For a local server behind NAT with a personal fdvtimer.online instance, follow the <a href="#hosted-timer-en">hosted pairing instructions</a>.</p>
         <p>Starting with build 448, peer traffic is encrypted automatically, including over HTTP. Update both servers to the same build; incompatible peers never fall back to plaintext. Initial pairing does not verify a fingerprint: it protects against passive listening, not an active intermediary. This encryption does not cover browser HTTP connections.</p>
         <p>For an HTTP localhost/127.0.0.1 primary, pairing with another computer advertises the actual outbound network-interface address. The reserve verifies primary process identity at that address. Existing network addresses/domains are preserved. For HTTPS, open the primary using a network name covered by its trusted certificate: there is no IP substitution or certificate bypass. With NAT/VDS, the address must be reachable by the reserve and all displays; otherwise reopen the primary through a reachable network address and retry setup. Existing pairs with old 127.0.0.1 primary addresses are not silently rewritten; disconnect and reconfigure them after updating.</p>
         <ol>
@@ -1696,6 +1720,26 @@ xattr -dr com.apple.quarantine "/полный/путь/к/fdv-bouldering-timer-m
         <p>The current primary first verifies the returning server's identity and a network address known from previous connections; 127.0.0.1 does not connect different computers. If reverse reachability or HTTPS trust is unavailable, the current primary continues while the former primary stays fenced and retries, rather than being shown as a ready standby. Automatic role reversal requires bidirectional reachability and certificate trust on both servers. Unpair from the current primary after closing pages connected through the standby.</p>
         <p class="note">Both servers and every display must reach the secondary address. HTTPS pages cannot contact an HTTP standby. The HTTPS certificate must be trusted by every browser <strong>and the primary server's Node.js</strong>; accepting a self-signed certificate warning in a browser alone is insufficient. Use a trusted certificate or configure trust for your certificate authority. Standalone HTML and APK standalone mode do not use a Secondary server; network APK mode uses a Secondary server like an ordinary display.</p>
         <p class="note">Two servers without a witness cannot prevent split authority during a complete network partition. Test both addresses, primary failure, takeover and the old primary's return on actual devices before competition. A last command lost before acknowledgement and replication cannot be guaranteed to transfer.</p>
+
+        <h3 id="hosted-timer-en">Hosted timer and spectator display</h3>
+        <p>The account on <a href="https://fdvtimer.online/" target="_blank" rel="noopener">fdvtimer.online</a> runs a personal timer instance. A local server behind NAT opens an outbound secure WebSocket connection (WSS). It needs internet access and works without port forwarding or a VPN client. Displays that depend on the hosted instance open its HTTPS address.</p>
+        <h4>Start and pair the servers</h4>
+        <ol>
+          <li>If an administrator has approved your email for registration, select «Зарегистрироваться» (Register) and verify your address by email. Otherwise select «Подать заявку на доступ» (Request access). Name and email are required. The decision arrives by email.</li>
+          <li>Choose a short address in the account or leave it blank to get one automatically. Select «Запустить таймер» (Start timer). The account shows server, countdown and local connection status. Buttons that open pages, including «Открыть таймер» (Open timer), open a new tab.</li>
+          <li>Use a server build that matches the build shown in the account and includes a pairing-code field in SEC. In the account, select «Создать код привязки» (Create pairing code). Use the icon to copy the code and copy the HTTPS address shown for pairing with the local server. The code is valid for 15 minutes and can be used once.</li>
+          <li>Open SEC in the primary browser of the <strong>local</strong> timer, enter the HTTPS address and code, and connect. The account confirms when the local server is connected.</li>
+        </ol>
+        <p class="note">As of 24 November 2026, the hosted instance uses test build 457 with the SEC code field. Stable release 3.1.2 (build 458), available from the latest-version download button, does not support hosted pairing yet. Use a compatible test build for verification.</p>
+        <p>Before pairing, the hosted standby must have no saved countdown, start lists, PIN, assigned primary browser or existing pair. If start lists block pairing, open the hosted timer and turn on Start lists in the primary browser's settings. Turning off list display hides the tables while keeping the lists on the server.</p>
+        <h4>Manage the hosted server</h4>
+        <ul>
+          <li>The copy icon beside the public HTTPS address copies it. The pencil opens the short-address editor. Keeping the old address lets displays and the existing connection continue using it. Disabling it requires confirmation and closes display and SEC connections through that address.</li>
+          <li>Set or remove the control PIN in its panel. A normal restart preserves data and settings. Stop prompts for confirmation during an active countdown or an active connection to the local server. Use Start to bring a stopped instance back online.</li>
+          <li><strong>Restart server and clear all data</strong> clears the hosted countdown, start lists, PIN and settings, breaks the pairing and starts the server with defaults. The public addresses and spectator link are retained. Pair again with a new code. Avoid clearing data during an active competition round.</li>
+        </ul>
+        <h4>Share the spectator link</h4>
+        <p>Enable the spectator link in the account. The icon next to its address copies the link and the QR button opens a scannable image in a new tab. To copy the image, use the image context menu. Confirmation appears below the address you copied. The spectator display shows the synchronized countdown and the rotation number when available, with its own fullscreen toggle. Spectators have read-only access and are absent from primary browser diagnostics. Use the timer's own address for officials and ordinary synchronized displays.</p>
 
         <h3>7.3. Legacy mode for older displays</h3>
         <p>Legacy mode is intended for old TV browsers, tablets, and media players where the normal page may be unstable. It opens as <code>/legacy.html</code> without visible service parameters in the address bar.</p>
