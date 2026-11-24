@@ -35,6 +35,8 @@ try{
     foreach($row in (Read-Rows 'SELECT `Property`, `Value` FROM `Property`' @('Name','Value'))){$properties[$row.Name]=$row.Value}
     Assert-Equal $properties.ProductVersion $Version 'MSI product version'
     Assert-Equal $properties.ALLUSERS '1' 'MSI installation scope'
+    Assert-Equal $properties.CREATE_DESKTOP_SHORTCUT '1' 'MSI desktop shortcut selected by default'
+    Assert-Equal $properties.CREATE_START_MENU_SHORTCUT '1' 'MSI Start menu shortcut selected by default'
     $expectedName=if($Legacy){"FDV Bouldering Timer (Windows 7-8 $Architecture)"}else{'FDV Bouldering Timer'}
     Assert-Equal $properties.ProductName $expectedName 'MSI product name'
     $upgrade=if(!$Legacy){'{B72ED423-6973-467C-8AB5-7F85D90CF8D9}'}elseif($Architecture -eq 'x64'){'{31EFCB29-AD9A-4E08-9B01-F20A68727C19}'}else{'{CDF4D4AB-5521-427C-B10B-92F10BF6B90D}'}

@@ -2,7 +2,7 @@
 
 ## Публичный таймер, кабинет и WSS — 24 ноября 2026
 
-Начните с [руководства](../help.html#hosted-timer), [развёртывания кабинета](../portal/README.md) и [описания SEC по WSS](sec-websocket.md). Рабочая копия для продолжения — `fdv-bouldering-timer-develop`, ветка `develop`. Кабинет и WSS интегрируются в сборку 459. Отдельные локальные изменения MSI описаны ниже. Тесты и дальнейшие правки выполнять в этой рабочей копии.
+Начните с [руководства](../help.html#hosted-timer), [развёртывания кабинета](../portal/README.md) и [описания SEC по WSS](sec-websocket.md). Рабочая копия для продолжения — `fdv-bouldering-timer-develop`, ветка `develop`. Кабинет и WSS интегрированы в сборку 459. Изменения для будущих Windows MSI описаны ниже. Тесты и дальнейшие правки выполнять в этой рабочей копии.
 
 ### Состояние развёртывания
 
@@ -35,8 +35,9 @@ Future installer preference: Windows MSI desktop shortcut checkbox now defaults
 ON through CREATE_DESKTOP_SHORTCUT=1 in shared Product.wxs (modern and Win7/8,
 x86/x64). Users can still uncheck it; component remains property-conditioned.
 Compiled-MSI verification now requires both shortcut defaults to be selected.
-Four installer asset checks, XML wiring and PowerShell parsing passed. Published
-3.1.1 installers were not rebuilt; this local change is for future releases.
+Four installer asset checks, XML wiring and PowerShell parsing passed. The
+change is part of develop for future releases. Existing installers keep
+their original defaults.
 
 ## Latest stable 3.1.2 / build458 (20 November 2026)
 

@@ -21,6 +21,7 @@
       <Directory Id="FDVStartMenuFolder" Name="$(var.InstallerName)" />
     </StandardDirectory>
     <Property Id="CREATE_START_MENU_SHORTCUT" Value="1" />
+    <Property Id="CREATE_DESKTOP_SHORTCUT" Value="1" />
     <Property Id="WIXUI_INSTALLDIR" Value="INSTALLFOLDER" />
     <Component Id="InstalledPackageMarker" Directory="INSTALLFOLDER" Guid="*">
       <File Id="InstalledMarkerFile" Source="$(sys.SOURCEFILEDIR)..\common\fdv-installed.marker"
