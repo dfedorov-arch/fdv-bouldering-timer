@@ -108,6 +108,15 @@ test("invited email verification, per-instance enrollment and administrator susp
   assert.equal(JSON.parse(aliasIdentity.text).serverInstanceId,firstId);
   const aliasPage = await request("/account",{cookie:userCookie});
   assert.match(aliasPage.text,/id="pair-address" value="http:\/\/fdv-short\.timers\.local\.test"/);
+  assert.match(aliasPage.text,/href="\/account\/timer\/qr" target="_blank" rel="noopener"/);
+  const timerQr = await request("/account/timer/qr",{cookie:userCookie});
+  assert.equal(timerQr.status,200);
+  assert.match(timerQr.text,/<img[^>]*src="\/account\/timer\/qr\.gif"/);
+  assert.ok(timerQr.text.includes(`href="http://${alias}"`));
+  const timerQrImage = await request("/account/timer/qr.gif",{cookie:userCookie});
+  assert.equal(timerQrImage.status,200);
+  assert.equal(timerQrImage.contentType,"image/gif");
+  assert.equal((await request("/account/timer/qr.gif")).status,303);
   assert.match(aliasPage.text,/Скачать последнюю версию/);
   assert.equal((await identity()).serverInstanceId,firstId);
   assert.equal((await request("/account/guest/enable",{cookie:userCookie,data:{}})).status,303);
@@ -215,8 +224,13 @@ test("invited email verification, per-instance enrollment and administrator susp
   } });
   await new Promise((resolve,reject) => { tunnel.once("open",resolve); tunnel.once("error",reject); });
   assert.match((await request("/account",{cookie:userCookie})).text,/Перезапустить сервер с очисткой всех данных/);
+  const anotherPrevious = "fdv-previous.timers.local.test";
+  assert.equal((await changeAddress("fdv-short","fdv-previous","keep")).status,303);
+  assert.equal((await changeAddress("fdv-previous","fdv-short","keep")).status,303);
+  assert.equal((await request("/api/sec/identity",{host:anotherPrevious})).status,200);
   const confirmationPage = await request("/account/reset",{cookie:userCookie});
   assert.match(confirmationPage.text,/Не выполняйте сброс во время активной фазы соревнований/);
+  assert.match(confirmationPage.text,/Сохранённые прежние адреса будут отключены/);
   const confirmation = confirmationPage.text.match(/name="confirmation" value="([a-f0-9]+)"/)[1];
   const reset = {cookie:userCookie,data:{confirmation}};
   const unusedCode = (await request("/account/code",{cookie:userCookie,data:{}})).text.match(/<output id="pairing-code">([a-f0-9]+)<\/output>/)[1];
@@ -236,9 +250,14 @@ test("invited email verification, per-instance enrollment and administrator susp
   const resetDisconnected = new Promise(resolve => tunnel.once("close",resolve));
   assert.equal((await request("/account/reset",reset)).status,303);
   await resetDisconnected;
-  const afterReset = (await identity()).serverInstanceId;
+  const afterReset = JSON.parse((await request("/api/sec/identity",{host:alias})).text).serverInstanceId;
+  assert.ok(afterReset);
   assert.notEqual(afterReset,beforeReset);
-  assert.equal(JSON.parse((await request("/api/sec/identity",{host:alias})).text).serverInstanceId,afterReset);
+  assert.equal((await request("/api/sec/identity",{host})).status,404);
+  assert.equal((await request("/api/sec/identity",{host:anotherPrevious})).status,404);
+  assert.equal((await changeAddress("fdv-short","boulder24","keep")).status,303);
+  assert.equal((await changeAddress("boulder24","fdv-short","keep")).status,303);
+  assert.equal((await identity()).serverInstanceId,afterReset);
   assert.equal((await ownerState()).startLists.some(Boolean),false);
   assert.equal((await status()).pin,false);
   assert.equal((await status()).paired,false);
@@ -283,6 +302,7 @@ test("invited email verification, per-instance enrollment and administrator susp
   }
   assert.equal((await request("/api/spectator",{host:guest})).status,200);
   assert.match((await request("/account",{cookie:userCookie})).text,/id="pair-address" value="http:\/\/fdv-new\.timers\.local\.test"/);
+  assert.ok((await request("/account/timer/qr",{cookie:userCookie})).text.includes(`href="http://${renamedHost}"`));
   const renamedTunnel = new WebSocket(`ws://127.0.0.1:${port}/api/sec/tunnel`, {headers:{
     Host:renamedHost, Authorization:"Bearer " + newToken
   }});

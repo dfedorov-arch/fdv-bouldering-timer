@@ -303,13 +303,16 @@ function createPortal({ stateDir, timerDir, publicOrigin, domain, adminPassword,
       if (route === "/account/address" && auth && !auth.admin && auth.instance) {
         return reply(res, 200, site.editAddress(auth, domain, activeSlug(auth.instance)));
       }
-      if (route === "/account/guest/qr" || route === "/account/guest/qr.gif") {
+      const qr = route.match(/^\/account\/(guest|timer)\/qr(\.gif)?$/);
+      if (qr) {
         if (!auth) return redirect(res, "/login");
         if (auth.admin) return failure(res, 403, "Действие недоступно.");
-        const address = guestAddress(auth.instance);
+        if (!auth.instance) return failure(res, 404, "Сначала запустите публичный таймер.");
+        const kind = qr[1];
+        const address = kind === "guest" ? guestAddress(auth.instance) : instances.address(auth.instance, activeSlug(auth.instance));
         if (!address) return failure(res, 404, "Гостевая ссылка отключена.");
-        if (route.endsWith(".gif")) return reply(res, 200, site.guestQrImage(address), "image/gif");
-        return reply(res, 200, site.guestQrPage(auth, address));
+        if (qr[2]) return reply(res, 200, site.addressQrImage(address), "image/gif");
+        return reply(res, 200, site.addressQrPage(auth, address, kind));
       }
       if (route === "/account/status") {
         return reply(res, auth && !auth.admin ? 200 : 401,
@@ -517,9 +520,12 @@ function createPortal({ stateDir, timerDir, publicOrigin, domain, adminPassword,
         record(instance, "Очистка данных не завершилась.");
         return accountPage(res, auth, "", "Не удалось завершить очистку. Сервер остановлен. Повторите сброс.");
       }
+      const current = activeSlug(instance);
+      const previousAddresses = [instance.slug, ...Object.keys(instance.addressHistory || {})];
+      instance.addressHistory = Object.fromEntries(previousAddresses.filter(slug => slug !== current).map(slug => [slug, false]));
+      instance.stopped = Boolean(auth.paused);
+      record(instance, "Данные и настройки таймера очищены. Прежние адреса отключены. Привязка к локальному серверу сброшена.");
       if (auth.paused) return failure(res, 403, "Доступ приостановлен.");
-      instance.stopped = false;
-      record(instance, "Данные и настройки таймера очищены. Привязка к локальному серверу сброшена.");
       try { await instances.start(instance); }
       catch (_) {
         record(instance, "После очистки сервер не запустился.");

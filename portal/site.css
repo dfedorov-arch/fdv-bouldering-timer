@@ -77,15 +77,15 @@ button:disabled{opacity:.5;cursor:default}
 .address-box{padding:.65rem .85rem;background:var(--surface);border:1px solid var(--line);border-radius:.4rem}
 .address-box label{margin:0}
 .address-box input{flex:1;min-width:min(100%,18rem);color:var(--accent)}
-.instance-address-controls{display:flex;align-items:center;gap:.5rem;flex:1 1 18rem;min-width:0}
-.instance-address-controls input{min-width:0}
+.instance-address-controls{display:flex;align-items:center;flex-wrap:wrap;gap:.5rem;flex:1 1 18rem;min-width:0}
+.instance-address-controls input{flex:1 1 16rem;min-width:0}
 .address-choice{border:1px solid var(--line);border-radius:.35rem;margin:0}
 .address-choice label{display:flex;align-items:center;gap:.5rem;margin:.4rem 0}
 .address-choice input{width:auto}
 .guest-address-box{width:fit-content;max-width:100%;gap:.5rem .75rem}
 .guest-address-box output{width:fit-content;max-width:100%;min-width:0;color:var(--accent);overflow-wrap:anywhere;user-select:text}
-.guest-address-actions{display:flex;align-items:center;flex-wrap:wrap;gap:.5rem}
-.guest-qr{width:min(100%,20rem);margin-bottom:1rem;image-rendering:pixelated}
+.address-actions{display:flex;align-items:center;flex-wrap:wrap;gap:.5rem}
+.address-qr{width:min(100%,20rem);margin-bottom:1rem;image-rendering:pixelated}
 .copy-status:empty{display:none}
 .address-box+.copy-status{margin:.35rem 0 0}
 .launcher-options{display:grid;grid-template-columns:1fr 1fr;gap:1rem}

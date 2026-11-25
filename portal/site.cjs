@@ -105,10 +105,11 @@ ${message ? notice(message) : ""}
 <section aria-labelledby="instance-address-title"><h2 id="instance-address-title">Адрес таймера</h2>
 ${url ? `<div class="address-box"><label for="instance-address">Публичный HTTPS</label>
 <div class="instance-address-controls"><input id="instance-address" type="url" value="${html(url)}" readonly>
-${copyIcon("instance-address", "Копировать ссылку")}
+<div class="address-actions">${copyIcon("instance-address", "Копировать ссылку")}
 <a class="button secondary icon-button" href="/account/address" ${newTab} aria-label="Изменить короткий адрес" title="Изменить короткий адрес">
 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true">
-<path d="M4 20l4.5-1 11-11a2.1 2.1 0 0 0-3-3l-11 11L4 20zM14.5 7.5l3 3"/></svg></a></div></div>
+<path d="M4 20l4.5-1 11-11a2.1 2.1 0 0 0-3-3l-11 11L4 20zM14.5 7.5l3 3"/></svg></a>
+${button("QR-код", "/account/timer/qr", true)}</div></div></div>
 <p id="instance-address-copy-status" class="copy-status" role="status"></p>
 <div class="launcher-actions server-actions">
   <a id="open-instance" class="button" href="${html(url)}" ${newTab}${running ? "" : " hidden"}>Открыть таймер</a>
@@ -132,7 +133,7 @@ ${copyIcon("pairing-code", "Копировать код привязки")}</div
 ${instanceButton("code", "Создать код привязки", "pair", !ready || status.paired)}</section></div>` : ""}
 ${url ? `<section><h2>Гостевая ссылка</h2><p>На гостевых экранах управление недоступно. Они не отображаются в панели управления основного браузера и меньше нагружают сервер.</p>
 ${links.guest ? `<div class="address-box guest-address-box"><label for="guest-address">Адрес</label><output id="guest-address">${html(links.guest)}</output>
-<div class="guest-address-actions">${copyIcon("guest-address", "Копировать гостевую ссылку")}
+<div class="address-actions">${copyIcon("guest-address", "Копировать гостевую ссылку")}
 ${button("QR-код", "/account/guest/qr", true)}</div></div>
 <p id="guest-address-copy-status" class="copy-status" role="status"></p>
 <div class="launcher-actions">${button("Открыть гостевой экран", links.guest, true)}
@@ -147,7 +148,7 @@ function editAddress(account, domain, previous, { slug = previous, retire = fals
 <input type="hidden" name="previous" value="${html(previous)}">
 ${addressField(domain, slug)}
 <fieldset class="address-choice"><legend>Прежний адрес</legend>
-<label><input type="radio" name="previousAddress" value="keep"${retire ? "" : " checked"}> Оставить рабочим</label>
+<label><input type="radio" name="previousAddress" value="keep"${retire ? "" : " checked"}> Оставить рабочим до полной очистки</label>
 <label><input type="radio" name="previousAddress" value="retire"${retire ? " checked" : ""}> Отключить</label></fieldset>
 <div class="actions"><button type="submit">Сохранить адрес</button><a class="button secondary" href="/account">Отмена</a></div></form>`, account);
 }
@@ -174,16 +175,18 @@ function confirmStop(account, status) {
 function confirmReset(account, confirmation) {
   return panel(resetLabel, `
 <p>Все данные и настройки публичного таймера будут удалены. Это включает стартовые списки, параметры раунда и PIN управления. Текущий отсчёт остановится, а связь с локальным сервером разорвётся.</p>
+<p>Сохранённые прежние адреса будут отключены. Текущий публичный HTTPS-адрес и гостевая ссылка сохранятся.</p>
 <p><strong>Не выполняйте сброс во время активной фазы соревнований.</strong></p>
 <div class="actions"><a class="button secondary" href="/account">Отмена</a>
 <form action="/account/reset" method="post"><input type="hidden" name="confirmation" value="${html(confirmation)}">
 <button class="danger" type="submit">Очистить данные и перезапустить</button></form></div>`, account);
 }
-function guestQrPage(account, address) {
-  return panel("QR-код гостевой ссылки", `<img class="guest-qr" src="/account/guest/qr.gif" alt="QR-код гостевой ссылки">
+function addressQrPage(account, address, kind) {
+  const title = kind === "guest" ? "QR-код гостевой ссылки" : "QR-код публичного адреса таймера";
+  return panel(title, `<img class="address-qr" src="/account/${kind}/qr.gif" alt="${html(title)}">
 <p><a class="instance-link" href="${html(address)}" ${newTab}>${html(address)}</a></p>`, account);
 }
-function guestQrImage(address) {
+function addressQrImage(address) {
   const code = createQrCode(0, "M");
   code.addData(address);
   code.make();
@@ -241,4 +244,4 @@ function guestAsset(pathname, timerDir) {
     if (fs.existsSync(file)) return ["font/" + path.extname(file).slice(1), fs.readFileSync(file)];
   }
 }
-module.exports = { landing, panel, notice, login, register, verify, applyPage, accountPage, editAddress, confirmAddressChange, confirmStop, confirmReset, adminPage, staticAsset, guest, guestAsset, guestQrPage, guestQrImage };
+module.exports = { landing, panel, notice, login, register, verify, applyPage, accountPage, editAddress, confirmAddressChange, confirmStop, confirmReset, adminPage, staticAsset, guest, guestAsset, addressQrPage, addressQrImage };
