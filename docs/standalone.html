@@ -3576,7 +3576,7 @@ window.FDV_OFFLINE_BUNDLE = {"config":{"httpPort":8008,"httpsPort":8443,"classic
     next.finalAppealRotations = normalized;
     return stage(next);
   }
-  function reposition(state, cycle) {
+  function reposition(state, cycle, keepClassicBoundary) {
     var next = copy(state), current = active(state);
     if (current) {
       next.activeSettings = copy(state.finalAppealRegularSettings || state.activeSettings);
@@ -3586,6 +3586,7 @@ window.FDV_OFFLINE_BUNDLE = {"config":{"httpPort":8008,"httpsPort":8443,"classic
     }
     next.finalAppealRotations = plans(state).map(function (item) {
       if (isClassic(state) && exclusive(state, item)) {
+        if (keepClassicBoundary && item.afterCycle === cycle - 1 && (!current || item.id !== current.id)) return item;
         var positioned = copy(item); positioned.completed = item.afterCycle < cycle; return positioned;
       }
       if (item.afterCycle >= cycle && item.completed || current && item.id === current.id) {
@@ -3668,14 +3669,34 @@ window.FDV_OFFLINE_BUNDLE = {"config":{"httpPort":8008,"httpsPort":8443,"classic
     }
     return state;
   }
-  function stageAfterFinalSeek(state) {
-    if (!isFinal(state)) return state;
-    // Final uses a small elapsed value to display the selected ordinary
-    // rotation. At this boundary an unfinished extra takes precedence.
-    var target = copy(state);
+  function seekCycle(state, cycle) {
+    var classic = isClassic(state), current = classic && active(state);
+    // An active Classic solo displays the number of the regular rotation
+    // waiting at its boundary. Advancing finishes the solo at that coordinate.
+    var leavingSolo = current && cycle === current.afterCycle + 2;
+    if (leavingSolo) cycle = current.afterCycle + 1;
+    var adjacent = classic && (leavingSolo || !current
+      && cycle === Math.floor((Number(state.elapsedBeforePause) || 0) / regularSpan(state)) + 2);
+    // A direct jump still bypasses earlier solos. A forward step keeps the
+    // pending solos at the next boundary in their original order.
+    var next = reposition(state, cycle, adjacent), settings = next.activeSettings;
+    next.completed = false;
+    next.countdownOnly = false;
+    next.waitingForManualStart = false;
+    next.manualStartLeadMs = 0;
+    next.manualStartDisplayHold = false;
+    next.startedAt = 0;
+    next.elapsedBeforePause = settings.oneShot
+      ? cycle > 1 ? 0.001 : 0
+      : (cycle - 1) * regularSpan(next);
+    if (settings.oneShot) next.startListFinalCycle = cycle - 1;
+    if (adjacent) return stage(next);
+    if (!isFinal(next)) return next;
+    // Final uses a small elapsed value to display the regular rotation.
+    var target = copy(next);
     target.elapsedBeforePause = 0;
     var staged = stage(target);
-    return staged === target ? state : staged;
+    return staged === target ? next : staged;
   }
   // Called before the existing timer transition. Exclusive attempts retain the
   // ordinary coordinate; shared Classic slots leave its clock continuous.
@@ -3822,7 +3843,7 @@ window.FDV_OFFLINE_BUNDLE = {"config":{"httpPort":8008,"httpsPort":8443,"classic
     return fallback === "active" || fallback === "ready" ? "" : fallback;
   }
   return { plans: plans, active: active, isNewFinal: isNewFinal, anchor: anchor, duration: duration,
-    startOffsets: startOffsets, initialStartAllowed: initialStartAllowed, clear: clear, stage: stage, stageAfterFinalSeek: stageAfterFinalSeek,
+    startOffsets: startOffsets, initialStartAllowed: initialStartAllowed, clear: clear, stage: stage, seekCycle: seekCycle,
     prepare: prepare, normalize: normalize, marker: marker, locked: locked, progress: progress, replaceQueue: replaceQueue,
     listUpdateError: listUpdateError, retainedIncidents: retainedIncidents, maximumTime: maximumTime,
     upcoming: upcoming, reposition: reposition, restoreTimeline: restoreTimeline,
@@ -10732,6 +10753,7 @@ window.FDV_XLSX_LIBRARY_SOURCE = "/*! xlsx.js (C) 2013-present SheetJS -- http:/
         state.runtimePreset,
         segment?.type || (waitingForStart ? "waiting" : "ready"),
         cycleNumber,
+        state.finalAppealActiveId,
         showCycle,
         editableCycle,
         hasBreak,
@@ -14775,6 +14797,8 @@ window.FDV_XLSX_LIBRARY_SOURCE = "/*! xlsx.js (C) 2013-present SheetJS -- http:/
     function displayedCycleNumber(segment = null) {
       const settings = activeSettings();
       if (settings.oneShot) {
+        const classicSolo = state.runtimePreset === "classic" && window.FDVFinalAppeals.active(state);
+        if (classicSolo) return classicSolo.afterCycle + 1;
         const completedCycles = Math.max(0, Math.round(Number(state.startListFinalCycle) || 0));
         return Math.max(1, completedCycles + ((state.running || state.completed || state.elapsedBeforePause > 0) ? 1 : 0));
       }
@@ -15975,21 +15999,8 @@ window.FDV_XLSX_LIBRARY_SOURCE = "/*! xlsx.js (C) 2013-present SheetJS -- http:/
         return;
       }
       const previousSettings = state.activeSettings;
-      Object.assign(state, window.FDVFinalAppeals.reposition(state, cycle));
-      const settings = activeSettings();
-      const cycleDuration = Math.max(1, settings.rotationSeconds + settings.breakSeconds);
-      state.running = false;
-      state.completed = false;
-      state.countdownOnly = false;
-      state.waitingForManualStart = false;
+      Object.assign(state, window.FDVFinalAppeals.seekCycle(state, cycle));
       state.serverStartedAt = 0;
-      state.startedAt = 0;
-      state.elapsedBeforePause = settings.oneShot
-        ? cycle > 1 ? 0.001 : 0
-        : (cycle - 1) * cycleDuration;
-      if (settings.oneShot) state.startListFinalCycle = cycle - 1;
-      const staged = window.FDVFinalAppeals.stageAfterFinalSeek(state);
-      if (staged !== state) Object.assign(state, staged);
       if (state.activeSettings !== previousSettings) buildTimeline(state.activeSettings);
       lastSegmentIndex = -1;
       lastPhaseSignalKey = "";

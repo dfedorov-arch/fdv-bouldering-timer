@@ -8005,6 +8005,7 @@
         state.runtimePreset,
         segment?.type || (waitingForStart ? "waiting" : "ready"),
         cycleNumber,
+        state.finalAppealActiveId,
         showCycle,
         editableCycle,
         hasBreak,
@@ -12048,6 +12049,8 @@
     function displayedCycleNumber(segment = null) {
       const settings = activeSettings();
       if (settings.oneShot) {
+        const classicSolo = state.runtimePreset === "classic" && window.FDVFinalAppeals.active(state);
+        if (classicSolo) return classicSolo.afterCycle + 1;
         const completedCycles = Math.max(0, Math.round(Number(state.startListFinalCycle) || 0));
         return Math.max(1, completedCycles + ((state.running || state.completed || state.elapsedBeforePause > 0) ? 1 : 0));
       }
@@ -13248,21 +13251,8 @@
         return;
       }
       const previousSettings = state.activeSettings;
-      Object.assign(state, window.FDVFinalAppeals.reposition(state, cycle));
-      const settings = activeSettings();
-      const cycleDuration = Math.max(1, settings.rotationSeconds + settings.breakSeconds);
-      state.running = false;
-      state.completed = false;
-      state.countdownOnly = false;
-      state.waitingForManualStart = false;
+      Object.assign(state, window.FDVFinalAppeals.seekCycle(state, cycle));
       state.serverStartedAt = 0;
-      state.startedAt = 0;
-      state.elapsedBeforePause = settings.oneShot
-        ? cycle > 1 ? 0.001 : 0
-        : (cycle - 1) * cycleDuration;
-      if (settings.oneShot) state.startListFinalCycle = cycle - 1;
-      const staged = window.FDVFinalAppeals.stageAfterFinalSeek(state);
-      if (staged !== state) Object.assign(state, staged);
       if (state.activeSettings !== previousSettings) buildTimeline(state.activeSettings);
       lastSegmentIndex = -1;
       lastPhaseSignalKey = "";

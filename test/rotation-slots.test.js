@@ -122,6 +122,46 @@ test("editing a Classic solo into the past cannot rewind the running timer; forw
  const jumped=tx.applyTimerAction(queued,{type:"seek",elapsed:2500}).state;assert.equal(jumped.finalAppealRotations[0].completed,true);
  const reset=tx.applyTimerAction(jumped,{type:"reset"}).state;assert.equal(reset.finalAppealRotations[0].completed,false);assert.equal(reset.elapsedBeforePause,0);
 });
+test("Classic next-cycle seek follows the solo queue and then returns to the regular rotation", async t => {
+ const server = await fixture(t, "darwin");
+ await server.action({type:"settings",activePreset:"classic",settings:{rotationMinutes:4,breakSeconds:15,oneShot:false}});
+ await server.action({type:"startLists",startLists:lists()});
+ await server.action({type:"finalAppeals",rotations:[
+  plan("first",2,"flow",true,[entry(0,0,60)]),
+  plan("second",2,"flow",true,[entry(1,1,90)])
+ ]});
+
+ // A direct jump skips earlier solos. Moving one rotation follows the boundary.
+ let state = await server.action({type:"seekCycle",cycle:3});
+ assert.equal(state.finalAppealActiveId,"");
+ assert.equal(state.finalAppealRotations[0].completed,true);
+ state = await server.action({type:"seekCycle",cycle:2});
+ assert.equal(state.finalAppealRotations[0].completed,false);
+
+ state = await server.action({type:"seekCycle",cycle:3});
+ assert.equal(state.finalAppealActiveId,"first");
+ assert.equal(state.finalAppealClassicElapsed,510);
+ assert.equal(state.activeSettings.rotationSeconds,60);
+ assert.equal(state.elapsedBeforePause,0);
+ assert.equal(state.running,false);
+
+ // Both solos display the next regular rotation number (3).
+ state = await server.action({type:"seekCycle",cycle:4});
+ assert.equal(state.finalAppealActiveId,"second");
+ assert.equal(state.finalAppealRotations[0].completed,true);
+ assert.equal(state.activeSettings.rotationSeconds,90);
+
+ state = await server.action({type:"seekCycle",cycle:4});
+ assert.equal(state.finalAppealActiveId,"");
+ assert.equal(state.elapsedBeforePause,510);
+ assert.equal(state.running,false);
+ assert.equal(state.activeSettings.rotationSeconds,240);
+ assert.deepEqual(state.finalAppealRotations.map(plan => plan.completed),[true,true]);
+
+ state = await server.action({type:"seekCycle",cycle:2});
+ assert.deepEqual(state.finalAppealRotations.map(plan => plan.completed),[false,false]);
+});
+
 test("server stages Classic solo without a browser, persists its resume coordinate and continues normally",{timeout:12000},async t=>{
  const server=await fixture(t,"darwin");await server.action({type:"primary",primaryClientId:"clock-test"});
  await server.action({type:"settings",activePreset:"classic",settings:{rotationMinutes:1,breakSeconds:5,oneShot:false}});await server.action({type:"startLists",startLists:lists()});

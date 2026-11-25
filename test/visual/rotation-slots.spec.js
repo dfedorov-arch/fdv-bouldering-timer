@@ -86,6 +86,62 @@ test("route pause and an immediate repeat never overlap; final-route time is to 
   for(const page of pages){await expect(page.locator('[data-rotation-slot] .route-marker.active')).toHaveCount(1);await expect(page.locator('.start-list-table tbody tr[data-participant-index] td:last-child .route-marker.active,.protocol-table tbody tr:not([data-rotation-slot]) td:last-child .route-marker.active')).toHaveCount(0);await page.locator('.start-list-table,.protocol-table').screenshot({path:test.info().outputPath('incident-reservation-'+pages.indexOf(page)+'.png')});}
  });
 });
+test("Classic up arrow opens the solo after rotation 10 before the ordinary rotation 11",async({browser})=>{
+ await pagesFor(browser,"classic",async(server,[page])=>{
+  await server.action({type:"seekCycle",cycle:10});
+  await server.action({type:"finalAppeals",rotations:[{...plan("flow",true),afterCycle:10}]});
+  const input=page.locator("#cycleInput");
+  await expect(input).toHaveValue("10");
+  await input.press("ArrowUp");
+  await expect(page.locator("#cycleMeta")).toContainText(/Допротация после 10|A\/R after rotation 10/);
+  await expect(input).toHaveValue("11");
+  expect((await server.state()).activeSettings.rotationSeconds).toBe(90);
+  await expect(page.locator(".start-list-table .route-marker.ready")).toHaveCount(1);
+
+  await input.press("ArrowDown");
+  await expect(page.locator("#cycleMeta")).toHaveText(/^(Ротация|Rotation) 10$/);
+  expect((await server.state()).finalAppealRotations[0].completed).toBe(false);
+
+  await input.press("ArrowUp");
+  await expect(page.locator("#cycleMeta")).toContainText(/Допротация после 10|A\/R after rotation 10/);
+  await input.press("ArrowUp");
+  await expect(page.locator("#cycleMeta")).toHaveText(/^(Ротация|Rotation) 11$/);
+  await expect(input).toHaveValue("11");
+  const regular=await server.state();
+  expect(regular.elapsedBeforePause).toBe(2550);
+  expect(regular.running).toBe(false);
+  expect(regular.finalAppealRotations[0].completed).toBe(true);
+ },{legacy:false});
+});
+
+test("standalone Classic uses the same forward step through a solo rotation",async({browser})=>{
+ const context=await browser.newContext();
+ try{
+  const page=await context.newPage();
+  const url="http://standalone.invalid/";
+  const path=require("node:path").resolve(__dirname,"../../docs/standalone.html");
+  await context.route("**/*",route=>route.request().url()===url
+   ? route.fulfill({path,contentType:"text/html; charset=utf-8"}) : route.abort());
+  await page.goto(url);
+  await page.waitForFunction(()=>standaloneMode);
+  await page.evaluate(()=>setPreset("classic"));
+  await page.locator("#startListToggle").check();
+  await page.evaluate(l=>commitStartLists([l]),list());
+  await page.evaluate(rotations=>Object.assign(state,FDVFinalAppeals.replaceQueue(state,rotations)),
+   [{...plan("flow",true),afterCycle:1}]);
+  const input=page.locator("#cycleInput");
+  await expect(input).toHaveValue("1");
+
+  await input.press("ArrowUp");
+  await expect(page.locator("#cycleMeta")).toContainText(/Допротация после 1|A\/R after rotation 1/);
+  await expect(input).toHaveValue("2");
+  await input.press("ArrowUp");
+  await expect(page.locator("#cycleMeta")).toHaveText(/^(Ротация|Rotation) 2$/);
+  await expect(input).toHaveValue("2");
+  expect(await page.evaluate(()=>state.finalAppealRotations[0].completed)).toBe(true);
+ }finally{await context.close();}
+});
+
 test("standalone Classic restores settings and flow after a solo attempt",async({browser})=>{
  const context=await browser.newContext({offline:true});try{
   const page=await context.newPage();const errors=[];page.on("pageerror",e=>errors.push(e.message));

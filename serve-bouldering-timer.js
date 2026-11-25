@@ -2635,22 +2635,7 @@ function handleRequest(req, res) {
 
       if (type === "seekCycle" && !timerState.running) {
         const cycle = Math.max(1, Math.min(9999, Math.round(numberOrDefault(body.cycle, 1))));
-        assignTimerState(finalAppeals.reposition(timerState, cycle));
-        const settings = timerState.activeSettings || {};
-        const cycleDuration = Math.max(1,
-          numberOrDefault(settings.rotationSeconds, 0) + numberOrDefault(settings.breakSeconds, 0));
-        timerState.completed = false;
-        timerState.countdownOnly = false;
-        timerState.waitingForManualStart = false;
-        timerState.manualStartLeadMs = 0;
-        timerState.manualStartDisplayHold = false;
-        timerState.startedAt = 0;
-        timerState.elapsedBeforePause = settings.oneShot
-          ? cycle > 1 ? 0.001 : 0
-          : (cycle - 1) * cycleDuration;
-        if (settings.oneShot) timerState.startListFinalCycle = cycle - 1;
-        const staged = finalAppeals.stageAfterFinalSeek(timerState);
-        if (staged !== timerState) assignTimerState(staged);
+        assignTimerState(finalAppeals.seekCycle(timerState, cycle));
         clearTimerStartedAt();
         armStateTransition(0);
         timerState.version += 1;
